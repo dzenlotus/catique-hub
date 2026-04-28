@@ -22,6 +22,7 @@ import { useLocation, useRoute } from "wouter";
 import { useBoard } from "@entities/board";
 import { useTask } from "@entities/task";
 import { GlobalSearch, useGlobalSearchKeybind } from "@widgets/global-search";
+import { TaskCreateDialog } from "@widgets/task-create-dialog";
 import { cn } from "@shared/lib";
 
 import { NAV_LABELS } from "./labels";
@@ -101,6 +102,7 @@ function Avatar(): ReactElement {
 
 export function TopBar(): ReactElement {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [location, setLocation] = useLocation();
 
   const [isBoardDetail, boardParams] = useRoute<{ boardId: string }>(
@@ -161,10 +163,7 @@ export function TopBar(): ReactElement {
         <button
           type="button"
           className={styles.ctaButton}
-          onClick={() => {
-            // TODO: открыть TaskCreateDialog — виджет ещё не существует (v2).
-            console.warn("TODO: TaskCreateDialog widget — not yet implemented");
-          }}
+          onClick={() => setIsCreateOpen(true)}
           data-testid="top-bar-new-task"
           aria-label="Новая задача"
         >
@@ -200,6 +199,12 @@ export function TopBar(): ReactElement {
 
       {/* GlobalSearch palette — mounted here so it's not sidebar-dependent */}
       <GlobalSearch isOpen={isSearchOpen} onClose={closeSearch} />
+
+      {/* TaskCreateDialog */}
+      <TaskCreateDialog
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+      />
     </>
   );
 }

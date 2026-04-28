@@ -9,13 +9,13 @@
 .topBar {
   display: flex;
   align-items: center;
-  gap: var(--space-8);
+  gap: var(--space-12);
   height: 56px;
   min-height: 56px;
   flex-shrink: 0;
-  padding: 0 var(--space-16);
+  padding: 0 var(--space-24);
   background-color: var(--color-surface-topbar);
-  border-bottom: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-border-default);
   /* Allow dragging the window from this region on macOS / Tauri */
   -webkit-app-region: drag;
   /* Centre the search trigger horizontally — we use a flex trick:
@@ -49,8 +49,9 @@
   width: min(540px, 45vw);
   height: 32px;
   padding: 0 var(--space-12);
+  /* No border per mockup — very subtle filled background only */
   background-color: var(--color-overlay-hover);
-  border: 1px solid var(--color-border-default);
+  border: none;
   border-radius: var(--radius-full);
   cursor: text;
   /* reset button */
@@ -58,12 +59,20 @@
   -webkit-appearance: none;
   text-align: left;
   -webkit-app-region: no-drag;
-  transition: background-color var(--duration-instant) var(--easing-default),
-    border-color var(--duration-instant) var(--easing-default);
+  transition: background-color var(--duration-instant) var(--easing-default);
 }
 
 .searchTrigger:hover {
   background-color: var(--color-overlay-active);
+}
+
+/* In dark theme the search field needs a slightly stronger fill */
+[data-theme="dark"] .searchTrigger {
+  background-color: var(--color-overlay-active);
+}
+
+[data-theme="dark"] .searchTrigger:hover {
+  background-color: var(--color-overlay-pressed);
 }
 
 .searchTrigger:focus-visible {
@@ -244,16 +253,18 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  /* DS v1 topbar avatar: 28 px, cream background, navy serif initial */
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   border-radius: var(--radius-full);
-  background-color: var(--color-accent-soft);
+  background-color: var(--color-cream-100, #f0ece4);
   border: 1px solid var(--color-border-default);
-  color: var(--color-accent-bg);
-  font-family: var(--font-sans);
+  /* Navy text — use navy-900 directly since no semantic token for it */
+  color: #1a1d2e;
+  font-family: var(--font-display);
   font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
   transition: opacity var(--duration-instant) var(--easing-default);
 }

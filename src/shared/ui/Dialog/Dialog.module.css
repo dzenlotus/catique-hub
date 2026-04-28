@@ -14,6 +14,9 @@
   align-items: center;
   justify-content: center;
   background-color: var(--color-overlay-scrim);
+  /* Subtle blur on the backdrop when supported */
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
   padding: var(--space-24);
   animation: dialog-overlay-fade-in 160ms ease-out;
 }
@@ -25,6 +28,10 @@
 .modal {
   width: 100%;
   max-width: 560px;
+  /* DS v1: modal max height 80 vh — body scrolls, header/footer fixed */
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
   outline: none;
   animation: dialog-zoom-in 200ms ease-out;
 }
@@ -44,6 +51,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
+  /* Allow the dialog content to scroll when body overflows */
+  overflow: hidden;
+  max-height: 80vh;
 }
 
 .dialog[data-focus-visible] {
@@ -71,6 +81,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
+  /* Allow the body to scroll independently when content overflows */
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 @keyframes dialog-overlay-fade-in {

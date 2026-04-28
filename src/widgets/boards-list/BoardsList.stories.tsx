@@ -15,6 +15,7 @@ function stubBoard(overrides?: Partial<Board>): Board {
     spaceId: "spc-1",
     roleId: null,
     position: 1,
+    description: null,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,

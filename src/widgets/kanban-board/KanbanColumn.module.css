@@ -8,9 +8,10 @@
 .column {
   display: flex;
   flex-direction: column;
-  flex: 0 0 280px;
+  /* DS v1 layout.md: min 280 px, max 320 px; brief says ~340 px max */
+  flex: 0 0 300px;
   min-width: 280px;
-  max-width: 320px;
+  max-width: 340px;
   background-color: var(--color-surface-column);
   border-radius: var(--radius-lg);
   height: 100%;
@@ -56,8 +57,10 @@
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
+  /* DS v1 brief: card gap 12 px */
   gap: var(--space-12);
-  padding: var(--space-8) var(--space-12);
+  /* DS v1 brief: column padding 16 px */
+  padding: var(--space-12) var(--space-16) var(--space-16);
   overflow-y: auto;
   min-height: 200px;
 }
@@ -79,7 +82,7 @@
 /* ── Footer — "+ Add task" ────────────────────────────────────────── */
 
 .footer {
-  padding: var(--space-8) var(--space-12);
+  padding: var(--space-8) var(--space-16);
 }
 
 /* DS v1: full-width, dashed border ghost button, goes solid on hover */

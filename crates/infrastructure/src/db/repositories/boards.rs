@@ -23,6 +23,7 @@ pub struct BoardRow {
     pub space_id: String,
     pub role_id: Option<String>,
     pub position: f64,
+    pub description: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -35,6 +36,7 @@ impl BoardRow {
             space_id: row.get("space_id")?,
             role_id: row.get("role_id")?,
             position: row.get("position")?,
+            description: row.get("description")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
         })
@@ -51,9 +53,10 @@ pub struct BoardDraft {
     pub space_id: String,
     pub role_id: Option<String>,
     pub position: Option<f64>,
+    pub description: Option<String>,
 }
 
-/// `SELECT id, name, space_id, role_id, position, created_at, updated_at
+/// `SELECT id, name, space_id, role_id, position, description, created_at, updated_at
 ///   FROM boards ORDER BY position ASC, name ASC`.
 ///
 /// # Errors
@@ -61,7 +64,7 @@ pub struct BoardDraft {
 /// Surfaces any rusqlite error from `prepare` / `query_map`.
 pub fn list_all(conn: &Connection) -> Result<Vec<BoardRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, space_id, role_id, position, created_at, updated_at \
+        "SELECT id, name, space_id, role_id, position, description, created_at, updated_at \
          FROM boards \
          ORDER BY position ASC, name ASC",
     )?;
@@ -80,7 +83,7 @@ pub fn list_all(conn: &Connection) -> Result<Vec<BoardRow>, DbError> {
 /// Surfaces any non-`QueryReturnedNoRows` rusqlite error.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<BoardRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, space_id, role_id, position, created_at, updated_at \
+        "SELECT id, name, space_id, role_id, position, description, created_at, updated_at \
          FROM boards \
          WHERE id = ?1",
     )?;
@@ -89,17 +92,23 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<BoardRow>, DbErro
 
 /// Partial-update payload for [`update`] — every field is optional;
 /// `None` keeps the stored value via `COALESCE(?, current)`. The
-/// `role_id` field is `Option<Option<…>>` so the caller can distinguish
-/// "skip this field" (outer None) from "clear to NULL" (Some(None)).
+/// `role_id` and `description` fields are `Option<Option<…>>` so the
+/// caller can distinguish "skip this field" (outer None) from "clear to
+/// NULL" (Some(None)).
 #[derive(Debug, Clone, Default)]
 pub struct BoardPatch {
     pub name: Option<String>,
     pub position: Option<f64>,
     pub role_id: Option<Option<String>>,
+    pub description: Option<Option<String>>,
 }
 
 /// Partial update via `COALESCE`. Bumps `updated_at`. Returns the
 /// updated row, or `Ok(None)` if no row matched the id.
+///
+/// For nullable fields (`role_id`, `description`) the patch uses
+/// `Option<Option<T>>`: `None` = skip, `Some(None)` = clear,
+/// `Some(Some(v))` = set to `v`.
 ///
 /// # Errors
 ///
@@ -110,25 +119,35 @@ pub fn update(
     patch: &BoardPatch,
 ) -> Result<Option<BoardRow>, DbError> {
     let now = now_millis();
-    let updated = match &patch.role_id {
-        Some(new_role) => conn.execute(
-            "UPDATE boards SET \
-                 name = COALESCE(?1, name), \
-                 position = COALESCE(?2, position), \
-                 role_id = ?3, \
-                 updated_at = ?4 \
-             WHERE id = ?5",
-            params![patch.name, patch.position, new_role, now, id],
-        )?,
-        None => conn.execute(
-            "UPDATE boards SET \
-                 name = COALESCE(?1, name), \
-                 position = COALESCE(?2, position), \
-                 updated_at = ?3 \
-             WHERE id = ?4",
-            params![patch.name, patch.position, now, id],
-        )?,
-    };
+
+    // Build a dynamic SET clause to handle the two nullable fields
+    // independently without a combinatorial explosion of SQL variants.
+    let mut set_parts: Vec<&str> = Vec::new();
+
+    // Always-coalesced scalar fields.
+    set_parts.push("name = COALESCE(?1, name)");
+    set_parts.push("position = COALESCE(?2, position)");
+
+    if patch.role_id.is_some() {
+        set_parts.push("role_id = ?3");
+    }
+    if patch.description.is_some() {
+        set_parts.push("description = ?4");
+    }
+    set_parts.push("updated_at = ?5");
+
+    let sql = format!(
+        "UPDATE boards SET {} WHERE id = ?6",
+        set_parts.join(", ")
+    );
+
+    let role_val: Option<&str> = patch.role_id.as_ref().and_then(|o| o.as_deref());
+    let desc_val: Option<&str> = patch.description.as_ref().and_then(|o| o.as_deref());
+
+    let updated = conn.execute(
+        &sql,
+        params![patch.name, patch.position, role_val, desc_val, now, id],
+    )?;
     if updated == 0 {
         return Ok(None);
     }
@@ -166,9 +185,9 @@ pub fn insert(conn: &Connection, draft: &BoardDraft) -> Result<BoardRow, DbError
 
     conn.execute(
         "INSERT INTO boards \
-            (id, name, space_id, role_id, position, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
-        params![id, draft.name, draft.space_id, draft.role_id, position, now],
+            (id, name, space_id, role_id, position, description, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+        params![id, draft.name, draft.space_id, draft.role_id, position, draft.description, now],
     )?;
 
     Ok(BoardRow {
@@ -177,6 +196,7 @@ pub fn insert(conn: &Connection, draft: &BoardDraft) -> Result<BoardRow, DbError
         space_id: draft.space_id.clone(),
         role_id: draft.role_id.clone(),
         position,
+        description: draft.description.clone(),
         created_at: now,
         updated_at: now,
     })
@@ -238,6 +258,7 @@ mod tests {
                 space_id: "sp1".into(),
                 role_id: None,
                 position: Some(1.0),
+                description: None,
             },
         )
         .expect("insert");
@@ -262,6 +283,7 @@ mod tests {
                 space_id: "sp1".into(),
                 role_id: None,
                 position: Some(2.0),
+                description: None,
             },
         )
         .unwrap();
@@ -272,6 +294,7 @@ mod tests {
                 space_id: "sp1".into(),
                 role_id: None,
                 position: Some(2.0),
+                description: None,
             },
         )
         .unwrap();
@@ -282,6 +305,7 @@ mod tests {
                 space_id: "sp1".into(),
                 role_id: None,
                 position: Some(1.0),
+                description: None,
             },
         )
         .unwrap();
@@ -308,6 +332,7 @@ mod tests {
                 space_id: "sp1".into(),
                 role_id: None,
                 position: None,
+                description: None,
             },
         )
         .unwrap();
@@ -327,6 +352,7 @@ mod tests {
                 space_id: "ghost".into(),
                 role_id: None,
                 position: None,
+                description: None,
             },
         )
         .expect_err("FK violation expected");
@@ -344,5 +370,68 @@ mod tests {
         assert!(!space_exists(&conn, "sp1").unwrap());
         seed_space(&conn, "sp1", "abc");
         assert!(space_exists(&conn, "sp1").unwrap());
+    }
+
+    #[test]
+    fn insert_with_description_roundtrips() {
+        let conn = fresh_db();
+        seed_space(&conn, "sp1", "abc");
+        let row = insert(
+            &conn,
+            &BoardDraft {
+                name: "Described".into(),
+                space_id: "sp1".into(),
+                role_id: None,
+                position: None,
+                description: Some("A test description.".into()),
+            },
+        )
+        .expect("insert");
+        assert_eq!(row.description, Some("A test description.".to_owned()));
+        let fetched = get_by_id(&conn, &row.id).unwrap().expect("exists");
+        assert_eq!(fetched.description, Some("A test description.".to_owned()));
+    }
+
+    #[test]
+    fn update_description_set_then_clear() {
+        let conn = fresh_db();
+        seed_space(&conn, "sp1", "abc");
+        let row = insert(
+            &conn,
+            &BoardDraft {
+                name: "B".into(),
+                space_id: "sp1".into(),
+                role_id: None,
+                position: None,
+                description: None,
+            },
+        )
+        .unwrap();
+
+        // Set description.
+        let patched = update(
+            &conn,
+            &row.id,
+            &BoardPatch {
+                description: Some(Some("hello".into())),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .expect("found");
+        assert_eq!(patched.description, Some("hello".to_owned()));
+
+        // Clear description.
+        let cleared = update(
+            &conn,
+            &row.id,
+            &BoardPatch {
+                description: Some(None),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .expect("found");
+        assert_eq!(cleared.description, None);
     }
 }

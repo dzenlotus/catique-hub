@@ -9,6 +9,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
+import { Icon } from "@shared/ui";
 
 import {
   useColumns,
@@ -392,14 +393,23 @@ export function KanbanBoard({
   return (
     <section className={styles.root} data-testid="kanban-board">
       <header className={styles.boardHeader}>
-        {/* Left: board name + description */}
+        {/* Left: engineering icon + board name + description */}
         <div className={styles.boardHeadingGroup}>
-          <h2 className={styles.boardHeading}>{boardName}</h2>
-          {/* Static description — Board entity v1 has no description field yet;
-              placeholder shown as per DS v1 mockup. TODO: wire to DB in v2. */}
-          <p className={styles.boardDescription} aria-hidden="true">
-            Orchestrating AI agents to build beautiful software.
-          </p>
+          <div className={styles.boardHeadingRow}>
+            {/* Engineering icon — custom sprite icon per DS v1 mockup */}
+            <Icon
+              name="engineering"
+              size={20}
+              aria-hidden
+              className={styles.boardIcon}
+            />
+            <h2 className={styles.boardHeading}>{boardName}</h2>
+          </div>
+          {boardQuery.status === "success" && boardQuery.data.description ? (
+            <p className={styles.boardDescription}>
+              {boardQuery.data.description}
+            </p>
+          ) : null}
         </div>
 
         {/* Right: Group by dropdown + kebab + prompts toggle */}

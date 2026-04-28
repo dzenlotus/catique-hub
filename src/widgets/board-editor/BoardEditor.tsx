@@ -70,6 +70,7 @@ function BoardEditorContent({
 
   // Local edit state — initialised from the loaded board.
   const [localName, setLocalName] = useState("");
+  const [localDescription, setLocalDescription] = useState("");
   const [localSpaceId, setLocalSpaceId] = useState("");
   const [localPosition, setLocalPosition] = useState<string>("");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -78,6 +79,7 @@ function BoardEditorContent({
   useEffect(() => {
     if (query.data) {
       setLocalName(query.data.name);
+      setLocalDescription(query.data.description ?? "");
       setLocalSpaceId(query.data.spaceId);
       setLocalPosition(String(query.data.position));
       setSaveError(null);
@@ -219,6 +221,12 @@ function BoardEditorContent({
     if (parsedPosition !== undefined && parsedPosition !== board.position) {
       mutationArgs.position = parsedPosition;
     }
+    const trimmedDescription = localDescription.trim();
+    const storedDescription = board.description ?? "";
+    if (trimmedDescription !== storedDescription) {
+      // Send null to clear, string to set.
+      mutationArgs.description = trimmedDescription === "" ? null : trimmedDescription;
+    }
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
@@ -235,6 +243,7 @@ function BoardEditorContent({
   const handleCancel = (): void => {
     // Reset local state back to board values before closing.
     setLocalName(board.name);
+    setLocalDescription(board.description ?? "");
     setLocalSpaceId(board.spaceId);
     setLocalPosition(String(board.position));
     setSaveError(null);
@@ -252,6 +261,20 @@ function BoardEditorContent({
           placeholder="Название доски"
           className={styles.fullWidthInput}
           data-testid="board-editor-name-input"
+        />
+      </div>
+
+      {/* Description */}
+      <div className={styles.section}>
+        <p className={styles.sectionLabel}>Описание</p>
+        <textarea
+          className={styles.textarea}
+          value={localDescription}
+          onChange={(e) => setLocalDescription(e.target.value)}
+          placeholder="Необязательно"
+          rows={3}
+          aria-label="Описание"
+          data-testid="board-editor-description-input"
         />
       </div>
 

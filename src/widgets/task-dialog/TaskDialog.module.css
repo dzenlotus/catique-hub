@@ -7,11 +7,22 @@
  */
 
 /* ── Dialog body override ────────────────────────────────────────── */
-
+/*
+ * This class is applied to the Dialog's root `<AriaDialog>` element via
+ * the `className` prop on `<Dialog>`. It overrides the default gap so
+ * the TaskDialog controls its own internal spacing with section borders.
+ *
+ * The Dialog `.body` div (wrapping this class's children) already has
+ * `overflow-y: auto; flex: 1 1 auto` — so the content area scrolls and
+ * the `.footer` stays at the bottom of the dialog.
+ */
 .body {
   display: flex;
   flex-direction: column;
   gap: 0;
+  /* Make this stretch so the footer pins to the bottom of the dialog */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* ── Form fields ─────────────────────────────────────────────────── */

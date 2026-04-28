@@ -48,6 +48,7 @@ function makeBoard(overrides: Partial<Board> = {}): Board {
     spaceId: "default",
     roleId: null,
     position: 1,
+    description: null,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,

@@ -66,7 +66,12 @@ impl<'a> BoardsUseCase<'a> {
     /// `AppError::Validation` for empty `name`, `AppError::NotFound`
     /// for missing `space_id`.
     #[allow(clippy::needless_pass_by_value)]
-    pub fn create(&self, name: String, space_id: String) -> Result<Board, AppError> {
+    pub fn create(
+        &self,
+        name: String,
+        space_id: String,
+        description: Option<String>,
+    ) -> Result<Board, AppError> {
         let trimmed = validate_non_empty("name", &name)?;
         let conn = acquire(self.pool).map_err(map_db_err)?;
         if !repo::space_exists(&conn, &space_id).map_err(map_db_err)? {
@@ -82,6 +87,7 @@ impl<'a> BoardsUseCase<'a> {
                 space_id,
                 role_id: None,
                 position: None,
+                description,
             },
         )
         .map_err(map_db_err)?;
@@ -89,6 +95,8 @@ impl<'a> BoardsUseCase<'a> {
     }
 
     /// Partial update.
+    ///
+    /// `description`: `None` = leave, `Some(None)` = clear, `Some(Some(s))` = set.
     ///
     /// # Errors
     ///
@@ -101,6 +109,7 @@ impl<'a> BoardsUseCase<'a> {
         name: Option<String>,
         position: Option<f64>,
         role_id: Option<Option<String>>,
+        description: Option<Option<String>>,
     ) -> Result<Board, AppError> {
         if let Some(n) = name.as_deref() {
             validate_non_empty("name", n)?;
@@ -110,6 +119,7 @@ impl<'a> BoardsUseCase<'a> {
             name: name.map(|n| n.trim().to_owned()),
             position,
             role_id,
+            description,
         };
         match repo::update(&conn, &id, &patch).map_err(map_db_err)? {
             Some(row) => Ok(row_to_board(row)),
@@ -146,6 +156,7 @@ fn row_to_board(row: BoardRow) -> Board {
         space_id: row.space_id,
         role_id: row.role_id,
         position: row.position,
+        description: row.description,
         created_at: row.created_at,
         updated_at: row.updated_at,
     }
@@ -183,7 +194,7 @@ mod tests {
     fn create_then_list_returns_one_board() {
         let pool = fresh_pool_with_space("sp1", "abc");
         let uc = BoardsUseCase::new(&pool);
-        let board = uc.create("Board One".into(), "sp1".into()).unwrap();
+        let board = uc.create("Board One".into(), "sp1".into(), None).unwrap();
         assert_eq!(board.name, "Board One");
         let list = uc.list().unwrap();
         assert_eq!(list.len(), 1);
@@ -195,7 +206,7 @@ mod tests {
         let pool = fresh_pool_with_space("sp1", "abc");
         let uc = BoardsUseCase::new(&pool);
         let err = uc
-            .create("   ".into(), "sp1".into())
+            .create("   ".into(), "sp1".into(), None)
             .expect_err("validation");
         match err {
             AppError::Validation { field, .. } => assert_eq!(field, "name"),
@@ -208,7 +219,7 @@ mod tests {
         let pool = fresh_pool_no_space();
         let uc = BoardsUseCase::new(&pool);
         let err = uc
-            .create("B".into(), "ghost".into())
+            .create("B".into(), "ghost".into(), None)
             .expect_err("not found");
         match err {
             AppError::NotFound { entity, id } => {
@@ -236,9 +247,9 @@ mod tests {
     fn update_renames_board() {
         let pool = fresh_pool_with_space("sp1", "abc");
         let uc = BoardsUseCase::new(&pool);
-        let board = uc.create("Old".into(), "sp1".into()).unwrap();
+        let board = uc.create("Old".into(), "sp1".into(), None).unwrap();
         let updated = uc
-            .update(board.id.clone(), Some("New".into()), None, None)
+            .update(board.id.clone(), Some("New".into()), None, None, None)
             .unwrap();
         assert_eq!(updated.name, "New");
     }
@@ -248,7 +259,7 @@ mod tests {
         let pool = fresh_pool_no_space();
         let uc = BoardsUseCase::new(&pool);
         let err = uc
-            .update("ghost".into(), Some("X".into()), None, None)
+            .update("ghost".into(), Some("X".into()), None, None, None)
             .expect_err("nf");
         match err {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "board"),
@@ -260,11 +271,41 @@ mod tests {
     fn delete_removes_board_then_not_found() {
         let pool = fresh_pool_with_space("sp1", "abc");
         let uc = BoardsUseCase::new(&pool);
-        let board = uc.create("X".into(), "sp1".into()).unwrap();
+        let board = uc.create("X".into(), "sp1".into(), None).unwrap();
         uc.delete(&board.id).unwrap();
         match uc.delete(&board.id).expect_err("second delete") {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "board"),
             other => panic!("got {other:?}"),
         }
+    }
+
+    #[test]
+    fn create_with_description_persists() {
+        let pool = fresh_pool_with_space("sp1", "abc");
+        let uc = BoardsUseCase::new(&pool);
+        let board = uc
+            .create("Described".into(), "sp1".into(), Some("My desc".into()))
+            .unwrap();
+        assert_eq!(board.description, Some("My desc".to_owned()));
+        let fetched = uc.get(&board.id).unwrap();
+        assert_eq!(fetched.description, Some("My desc".to_owned()));
+    }
+
+    #[test]
+    fn update_description_set_and_clear() {
+        let pool = fresh_pool_with_space("sp1", "abc");
+        let uc = BoardsUseCase::new(&pool);
+        let board = uc.create("B".into(), "sp1".into(), None).unwrap();
+        assert_eq!(board.description, None);
+
+        let set = uc
+            .update(board.id.clone(), None, None, None, Some(Some("desc".into())))
+            .unwrap();
+        assert_eq!(set.description, Some("desc".to_owned()));
+
+        let cleared = uc
+            .update(board.id.clone(), None, None, None, Some(None))
+            .unwrap();
+        assert_eq!(cleared.description, None);
     }
 }

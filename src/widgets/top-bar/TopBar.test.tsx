@@ -54,6 +54,25 @@ vi.mock("@widgets/global-search", () => ({
   },
 }));
 
+// ---------------------------------------------------------------------------
+// Mock TaskCreateDialog
+// ---------------------------------------------------------------------------
+
+vi.mock("@widgets/task-create-dialog", () => ({
+  TaskCreateDialog: ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+  }) => {
+    void onClose;
+    return isOpen ? (
+      <div data-testid="task-create-dialog-mock" />
+    ) : null;
+  },
+}));
+
 import { invoke } from "@shared/api";
 import { TopBar } from "./TopBar";
 
@@ -192,5 +211,15 @@ describe("TopBar", () => {
   it("хлебная крошка не отображается на маршруте /", () => {
     renderAt("/");
     expect(screen.queryByLabelText("Навигационная цепочка")).not.toBeInTheDocument();
+  });
+
+  it("клик по «+ New task» открывает TaskCreateDialog", () => {
+    renderAt();
+
+    expect(screen.queryByTestId("task-create-dialog-mock")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("top-bar-new-task"));
+
+    expect(screen.getByTestId("task-create-dialog-mock")).toBeInTheDocument();
   });
 });

@@ -45,8 +45,9 @@ pub async fn create_board(
     state: State<'_, AppState>,
     name: String,
     space_id: String,
+    description: Option<String>,
 ) -> Result<Board, AppError> {
-    let board = BoardsUseCase::new(&state.pool).create(name, space_id)?;
+    let board = BoardsUseCase::new(&state.pool).create(name, space_id, description)?;
     events::emit(&state, events::BOARD_CREATED, json!({ "id": board.id }));
     Ok(board)
 }
@@ -63,8 +64,10 @@ pub async fn update_board(
     name: Option<String>,
     position: Option<f64>,
     role_id: Option<Option<String>>,
+    description: Option<Option<String>>,
 ) -> Result<Board, AppError> {
-    let board = BoardsUseCase::new(&state.pool).update(id, name, position, role_id)?;
+    let board =
+        BoardsUseCase::new(&state.pool).update(id, name, position, role_id, description)?;
     events::emit(&state, events::BOARD_UPDATED, json!({ "id": board.id }));
     Ok(board)
 }

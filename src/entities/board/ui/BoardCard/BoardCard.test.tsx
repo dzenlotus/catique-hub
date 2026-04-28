@@ -12,6 +12,7 @@ function makeBoard(overrides: Partial<Board> = {}): Board {
     spaceId: "spc-default",
     roleId: null,
     position: 1,
+    description: null,
     // ts-rs emits BigInt for i64 — bindings/Board.ts uses bigint
     createdAt: 0n,
     updatedAt: 0n,

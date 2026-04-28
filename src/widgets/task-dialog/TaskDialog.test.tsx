@@ -45,6 +45,7 @@ const makeBoard = (id: string, name: string, spaceId = "spc-1") => ({
   spaceId,
   roleId: null,
   position: 1,
+  description: null,
   createdAt: 0n,
   updatedAt: 0n,
 });

@@ -145,6 +145,8 @@ export async function getBoard(id: string): Promise<Board> {
 export interface CreateBoardArgs {
   name: string;
   spaceId: string;
+  /** Optional description. `undefined` = omit (treated as null on server). */
+  description?: string;
 }
 
 /**
@@ -153,10 +155,12 @@ export interface CreateBoardArgs {
  * as AppError `validation` / `notFound`.
  */
 export async function createBoard(args: CreateBoardArgs): Promise<Board> {
-  return invokeWithAppError<Board>("create_board", {
+  const payload: Record<string, unknown> = {
     name: args.name,
     spaceId: args.spaceId,
-  });
+  };
+  if (args.description !== undefined) payload.description = args.description;
+  return invokeWithAppError<Board>("create_board", payload);
 }
 
 /**
@@ -172,6 +176,11 @@ export interface UpdateBoardArgs {
   spaceId?: string;
   /** Skip = `undefined`. */
   position?: number;
+  /**
+   * `undefined` = leave as-is, `null` = clear, `string` = set.
+   * Matches the `Option<Option<String>>` shape on the Rust side.
+   */
+  description?: string | null;
 }
 
 /**
@@ -184,6 +193,7 @@ export async function updateBoard(args: UpdateBoardArgs): Promise<Board> {
   if (args.name !== undefined) payload.name = args.name;
   if (args.spaceId !== undefined) payload.spaceId = args.spaceId;
   if (args.position !== undefined) payload.position = args.position;
+  if (args.description !== undefined) payload.description = args.description;
   return invokeWithAppError<Board>("update_board", payload);
 }
 

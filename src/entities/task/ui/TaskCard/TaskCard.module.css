@@ -11,7 +11,8 @@
   flex-direction: column;
   gap: var(--space-6);
   align-items: stretch;
-  padding: var(--space-12);
+  /* DS v1 brief: 16 px padding on cards */
+  padding: var(--space-16);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-card);
   background-color: var(--color-surface-raised);
@@ -36,7 +37,8 @@
 
 .interactive:hover {
   box-shadow: var(--shadow-med);
-  transform: translateY(-1px);
+  /* DS v1 brief: 2 px lift */
+  transform: translateY(-2px);
 }
 
 .interactive:active {
@@ -129,9 +131,9 @@
   font-weight: var(--font-weight-regular);
   line-height: 1.45;
   color: var(--color-text-muted);
-  /* 3-line clamp per DS v1 */
+  /* DS v1 brief: 2 lines max */
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

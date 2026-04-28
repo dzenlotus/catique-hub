@@ -1,0 +1,179 @@
+/*
+ * TaskCreateDialog — create-task modal.
+ *
+ * Layout: flex-column body with bordered sections. Footer is right-aligned
+ * action row. Mirrors BoardCreateDialog / RoleCreateDialog for consistency.
+ */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Form sections ───────────────────────────────────────────────── */
+
+.section {
+  padding: var(--space-16) 0;
+  border-bottom: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.section:first-child {
+  padding-top: 0;
+}
+
+.sectionLabel {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.fullWidthInput {
+  width: 100%;
+}
+
+/* ── Description field ───────────────────────────────────────────── */
+
+.descriptionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.descriptionTabs {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.descriptionTab {
+  padding: var(--space-4) var(--space-8);
+  border: none;
+  border-radius: var(--radius-xs);
+  background: none;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+
+.descriptionTab:hover {
+  background-color: var(--color-overlay-hover);
+}
+
+.descriptionTabActive {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-medium);
+}
+
+.textarea {
+  width: 100%;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.textarea:focus-visible {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+.textarea::placeholder {
+  color: var(--color-text-subtle);
+}
+
+.markdownPreviewWrapper {
+  min-height: 80px;
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-canvas);
+  font-size: var(--font-size-body);
+}
+
+.previewEmpty {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-body-sm);
+  font-style: italic;
+}
+
+/* ── Field hints / errors ────────────────────────────────────────── */
+
+.fieldError {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+.fieldHint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
+}
+
+/* ── Loading skeleton ────────────────────────────────────────────── */
+
+.skeletonRow {
+  height: 16px;
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-xs);
+  animation: task-create-dialog-pulse 1400ms ease-in-out infinite;
+}
+
+.skeletonRowWide {
+  width: 70%;
+}
+
+@keyframes task-create-dialog-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-8);
+  padding-top: var(--space-16);
+}
+
+.saveError {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .descriptionTab,
+  .textarea {
+    transition: none;
+  }
+
+  .skeletonRow {
+    animation: none;
+  }
+}

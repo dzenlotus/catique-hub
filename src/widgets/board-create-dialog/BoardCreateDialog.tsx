@@ -88,6 +88,7 @@ function BoardCreateDialogContent({
   const createBoard = useCreateBoardMutation();
 
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [spaceId, setSpaceId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -148,8 +149,13 @@ function BoardCreateDialogContent({
       setSubmitError("Выберите или создайте пространство.");
       return;
     }
+    const trimmedDescription = description.trim();
     createBoard.mutate(
-      { name: trimmedName, spaceId: resolvedSpaceId },
+      {
+        name: trimmedName,
+        spaceId: resolvedSpaceId,
+        ...(trimmedDescription ? { description: trimmedDescription } : {}),
+      },
       {
         onSuccess: (board) => {
           onCreated?.(board);
@@ -179,6 +185,21 @@ function BoardCreateDialogContent({
           className={styles.fullWidthInput}
           data-testid="board-create-dialog-name-input"
         />
+      </div>
+
+      {/* Description */}
+      <div className={styles.section}>
+        <label className={styles.selectField}>
+          <span className={styles.selectLabel}>Описание</span>
+          <textarea
+            className={styles.textarea}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Необязательно"
+            rows={3}
+            data-testid="board-create-dialog-description-input"
+          />
+        </label>
       </div>
 
       {/* Space picker */}

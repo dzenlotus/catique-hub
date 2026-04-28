@@ -54,7 +54,7 @@ export function TaskDialog({ taskId, onClose }: TaskDialogProps): ReactElement {
 
   return (
     <Dialog
-      title="Задача"
+      title="Edit task"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -300,22 +300,24 @@ function TaskDialogContent({
           <div className={styles.skeletonBlock} />
         </div>
         <div className={styles.footer}>
-          <Button
-            variant="ghost"
-            size="md"
-            isDisabled
-            data-testid="task-dialog-cancel"
-          >
-            Отмена
-          </Button>
-          <Button
-            variant="primary"
-            size="md"
-            isDisabled
-            data-testid="task-dialog-save"
-          >
-            Сохранить
-          </Button>
+          <div className={styles.footerActions}>
+            <Button
+              variant="secondary"
+              size="md"
+              isDisabled
+              data-testid="task-dialog-cancel"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              isDisabled
+              data-testid="task-dialog-save"
+            >
+              Save changes
+            </Button>
+          </div>
         </div>
       </>
     );
@@ -343,14 +345,16 @@ function TaskDialogContent({
           </Button>
         </div>
         <div className={styles.footer}>
-          <Button
-            variant="ghost"
-            size="md"
-            onPress={onClose}
-            data-testid="task-dialog-cancel"
-          >
-            Закрыть
-          </Button>
+          <div className={styles.footerActions}>
+            <Button
+              variant="secondary"
+              size="md"
+              onPress={onClose}
+              data-testid="task-dialog-cancel"
+            >
+              Close
+            </Button>
+          </div>
         </div>
       </>
     );
@@ -369,14 +373,16 @@ function TaskDialogContent({
           <p className={styles.notFoundBannerMessage}>Задача не найдена.</p>
         </div>
         <div className={styles.footer}>
-          <Button
-            variant="ghost"
-            size="md"
-            onPress={onClose}
-            data-testid="task-dialog-cancel"
-          >
-            Закрыть
-          </Button>
+          <div className={styles.footerActions}>
+            <Button
+              variant="secondary"
+              size="md"
+              onPress={onClose}
+              data-testid="task-dialog-cancel"
+            >
+              Close
+            </Button>
+          </div>
         </div>
       </>
     );
@@ -672,12 +678,12 @@ function TaskDialogContent({
             </p>
           ) : null}
           <Button
-            variant="ghost"
+            variant="secondary"
             size="md"
             onPress={handleCancel}
             data-testid="task-dialog-cancel"
           >
-            Отмена
+            Cancel
           </Button>
           <Button
             variant="primary"
@@ -686,7 +692,7 @@ function TaskDialogContent({
             onPress={handleSave}
             data-testid="task-dialog-save"
           >
-            Сохранить
+            Save changes
           </Button>
         </div>
       </div>

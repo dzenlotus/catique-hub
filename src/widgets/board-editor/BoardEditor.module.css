@@ -38,6 +38,34 @@
   width: 100%;
 }
 
+/* ── Textarea (description) ──────────────────────────────────────── */
+
+.textarea {
+  width: 100%;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.textarea:focus-visible {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+.textarea::placeholder {
+  color: var(--color-text-subtle);
+}
+
 /* ── Number input (position) ─────────────────────────────────────── */
 
 .numberInput {
