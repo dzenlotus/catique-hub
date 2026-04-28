@@ -1,0 +1,244 @@
+/*
+ * ImportWizard — host shell.
+ *
+ * The wizard is a centered card with a stage area and per-stage
+ * actions row. Each stage drops its own content into the card; the
+ * shell itself only owns the chrome (title bar, footer if present).
+ *
+ * The shell uses `role="dialog"` semantics via the underlying card
+ * styling but is NOT an actual modal — first-launch has no
+ * "elsewhere" to navigate to so a non-modal panel suffices and
+ * keeps Esc behaviour simple (Esc on safe stages → skip).
+ */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-32) var(--space-24);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-overlay);
+  color: var(--color-text-default);
+  box-shadow: var(--shadow-low);
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-headline);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-default);
+  line-height: var(--line-height-tight);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+/* ---- KV table used by Detection / Preview / Completed stages ---- */
+
+.kvTable {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-8) var(--space-16);
+  font-size: var(--font-size-body-sm);
+}
+
+.kvLabel {
+  color: var(--color-text-muted);
+}
+
+.kvValue {
+  color: var(--color-text-default);
+}
+
+.kvMono {
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+/* ---- Status pills ---- */
+
+.statusOk {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background-color: var(--color-status-success-soft);
+  color: var(--color-status-success);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.statusWarn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background-color: var(--color-status-warning-soft);
+  color: var(--color-status-warning);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.statusFail {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background-color: var(--color-status-danger-soft);
+  color: var(--color-status-danger);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ---- Indeterminate progress bar ---- */
+
+.progress {
+  position: relative;
+  height: 8px;
+  width: 100%;
+  background-color: var(--color-surface-canvas);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-default);
+}
+
+.progressIndeterminate::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  background-color: var(--color-accent-bg);
+  border-radius: 999px;
+  animation: import-wizard-indeterminate 1500ms ease-in-out infinite;
+}
+
+.progressDeterminate {
+  height: 100%;
+  background-color: var(--color-accent-bg);
+  border-radius: 999px;
+  transition: width 200ms ease-out;
+}
+
+@keyframes import-wizard-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(333%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressIndeterminate::before {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+  .progressDeterminate {
+    transition: none;
+  }
+}
+
+/* ---- Preflight / row tables ---- */
+
+.checkList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.checkItem {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  font-size: var(--font-size-body-sm);
+}
+
+.checkItem[data-state="ok"]::before {
+  content: "✓";
+  color: var(--color-status-success);
+  font-weight: var(--font-weight-semibold);
+}
+
+.checkItem[data-state="fail"]::before {
+  content: "⨯";
+  color: var(--color-status-danger);
+  font-weight: var(--font-weight-semibold);
+}
+
+.checkLabel {
+  color: var(--color-text-default);
+}
+
+.checkMessage {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+}
+
+/* ---- Status banner / icons ---- */
+
+.banner {
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-body);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+}
+
+.bannerSuccess {
+  background-color: var(--color-status-success-soft);
+  color: var(--color-status-success);
+  border: 1px solid var(--color-status-success);
+}
+
+.bannerError {
+  background-color: var(--color-status-danger-soft);
+  color: var(--color-status-danger);
+  border: 1px solid var(--color-status-danger);
+}
+
+.bannerWarning {
+  background-color: var(--color-status-warning-soft);
+  color: var(--color-status-warning);
+  border: 1px solid var(--color-status-warning);
+}
+
+.runningHint,
+.preflightHint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}

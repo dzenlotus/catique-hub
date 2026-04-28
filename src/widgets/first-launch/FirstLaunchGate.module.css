@@ -1,0 +1,90 @@
+/*
+ * FirstLaunchGate — host shell.
+ *
+ * Owns the loading skeleton and the wrapper that hides children when
+ * a first-launch flow is on screen. Keeping children mounted (with
+ * `display: none`) means downstream react-query state, drag handlers,
+ * etc. don't get torn down and rebuilt the moment the user closes
+ * the wizard.
+ */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  width: 100%;
+}
+
+.children {
+  display: contents;
+}
+
+.childrenHidden {
+  display: none;
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-12);
+  padding: var(--space-48) var(--space-24);
+  text-align: center;
+  min-height: 280px;
+}
+
+.loadingTitle {
+  margin: 0;
+  font-size: var(--font-size-headline);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-default);
+}
+
+.loadingHint {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid var(--color-border-default);
+  border-top-color: var(--color-accent-bg);
+  animation: gate-spin 900ms linear infinite;
+}
+
+.errorPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  align-items: flex-start;
+  padding: var(--space-16);
+  border: 1px solid var(--color-status-danger);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-danger-soft);
+  color: var(--color-text-default);
+}
+
+.errorMessage {
+  margin: 0;
+  font-size: var(--font-size-body);
+}
+
+@keyframes gate-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-top-color: var(--color-border-default);
+  }
+}
