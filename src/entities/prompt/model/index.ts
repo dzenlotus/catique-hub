@@ -6,4 +6,5 @@ export {
   useCreatePromptMutation,
   useUpdatePromptMutation,
   useDeletePromptMutation,
+  useRecomputePromptTokenCountMutation,
 } from "./store";

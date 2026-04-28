@@ -321,6 +321,33 @@ export function EventsProvider({
       }),
     );
 
+    // ---------------- prompt groups ----------------
+    //
+    // Back-filled in this task (E2.x). Invalidate by stable top-level key;
+    // costs nothing today while no FE entity slice exists yet.
+    sub(
+      on("prompt_group.created", () => {
+        void qc.invalidateQueries({ queryKey: ["prompt_groups"] });
+      }),
+    );
+    sub(
+      on("prompt_group.updated", () => {
+        void qc.invalidateQueries({ queryKey: ["prompt_groups"] });
+      }),
+    );
+    sub(
+      on("prompt_group.deleted", () => {
+        void qc.invalidateQueries({ queryKey: ["prompt_groups"] });
+      }),
+    );
+    sub(
+      on("prompt_group.members_changed", ({ group_id }) => {
+        void qc.invalidateQueries({
+          queryKey: ["prompt_groups", "members", group_id],
+        });
+      }),
+    );
+
     // ---------------- import ----------------
     //
     // Successful import swaps the entire DB underneath us. Blow the

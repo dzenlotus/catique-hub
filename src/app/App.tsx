@@ -5,6 +5,7 @@ import { BoardsList } from "@widgets/boards-list";
 import { KanbanBoard } from "@widgets/kanban-board";
 import { FirstLaunchGate } from "@widgets/first-launch";
 import { PromptsList } from "@widgets/prompts-list";
+import { PromptGroupsList } from "@widgets/prompt-groups-list";
 import { RolesList } from "@widgets/roles-list";
 import { TagsList } from "@widgets/tags-list";
 import { AgentReportsList } from "@widgets/agent-reports-list";
@@ -74,6 +75,8 @@ export default function App(): ReactElement {
             <BoardsList onSelectBoard={setSelectedBoardId} />
           ) : activeView === "prompts" ? (
             <PromptsList />
+          ) : activeView === "prompt-groups" ? (
+            <PromptGroupsList />
           ) : activeView === "roles" ? (
             <RolesList />
           ) : activeView === "tags" ? (

@@ -52,14 +52,19 @@ describe("PromptCard", () => {
     expect(screen.queryByLabelText(/Color:/)).toBeNull();
   });
 
-  it("renders token count chip when tokenCount is present", () => {
+  it("renders token count chip when tokenCount is present and > 0", () => {
     render(<PromptCard prompt={makePrompt({ tokenCount: 420n })} />);
-    expect(screen.getByText("≈420 tok")).toBeInTheDocument();
+    expect(screen.getByText("≈420 tokens")).toBeInTheDocument();
   });
 
   it("does not render token count chip when tokenCount is null", () => {
     render(<PromptCard prompt={makePrompt({ tokenCount: null })} />);
-    expect(screen.queryByText(/tok/)).toBeNull();
+    expect(screen.queryByText(/tokens/)).toBeNull();
+  });
+
+  it("does not render token count chip when tokenCount is 0", () => {
+    render(<PromptCard prompt={makePrompt({ tokenCount: 0n })} />);
+    expect(screen.queryByText(/tokens/)).toBeNull();
   });
 
   it("uses a native <button> with implicit role=button (a11y)", () => {

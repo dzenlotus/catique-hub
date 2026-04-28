@@ -153,6 +153,11 @@ export type AppEvent =
       type: "import.failed";
       payload: { error_kind: string; message: string };
     }
+  // ---------------- prompt groups ----------------
+  | { type: "prompt_group.created"; payload: { id: string } }
+  | { type: "prompt_group.updated"; payload: { id: string } }
+  | { type: "prompt_group.deleted"; payload: { id: string } }
+  | { type: "prompt_group.members_changed"; payload: { group_id: string } }
   // ---------------- generic ----------------
   | { type: "app.refresh-required"; payload: Record<string, never> };
 

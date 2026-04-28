@@ -4,5 +4,6 @@ export {
   createPrompt,
   updatePrompt,
   deletePrompt,
+  recomputePromptTokenCount,
 } from "./promptsApi";
 export type { CreatePromptArgs, UpdatePromptArgs } from "./promptsApi";

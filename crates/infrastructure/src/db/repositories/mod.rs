@@ -16,6 +16,7 @@ pub mod attachments;
 pub mod boards;
 pub mod columns;
 pub mod mcp_tools;
+pub mod prompt_groups;
 pub mod prompts;
 pub mod roles;
 pub mod search;

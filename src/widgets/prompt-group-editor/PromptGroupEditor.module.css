@@ -1,8 +1,9 @@
 /*
- * PromptEditor — prompt detail / edit modal.
+ * PromptGroupEditor — group detail / edit modal.
  *
- * Layout: flex column body with bordered sections. Footer is
- * right-aligned actions row. Color swatch sits inline with the picker.
+ * Layout mirrors RoleEditor: flex column body with bordered sections.
+ * Footer is right-aligned actions row.
+ * Members section has a compact pill-list + combobox for adding.
  */
 
 /* ── Dialog body override ────────────────────────────────────────── */
@@ -56,7 +57,6 @@
 }
 
 .colorInput {
-  /* Native color picker — minimal styling to fit the design language */
   width: 40px;
   height: 32px;
   padding: 2px;
@@ -72,48 +72,96 @@
   outline-offset: 2px;
 }
 
-/* ── Content textarea ────────────────────────────────────────────── */
+/* ── Members section ─────────────────────────────────────────────── */
 
-.contentTextarea {
-  width: 100%;
-  min-height: 160px;
-  resize: vertical;
-  background-color: var(--color-surface-raised);
-  color: var(--color-text-default);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-sm);
-  padding: var(--space-8) var(--space-12);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body);
-  line-height: var(--line-height-normal);
-  outline: none;
-  box-sizing: border-box;
+.membersSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
 }
 
-.contentTextarea:focus {
-  border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 2px var(--color-border-focus);
+.memberList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
-.contentTextarea::placeholder {
-  color: var(--color-text-subtle);
-}
-
-/* ── Token count row ─────────────────────────────────────────────── */
-
-.tokenRow {
+.memberRow {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-8);
-  padding: var(--space-12) 0 var(--space-4);
-  border-top: 1px solid var(--color-border-default);
+  padding: var(--space-6) var(--space-10);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border-default);
 }
 
-.tokenLabel {
+.memberName {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   flex: 1 1 auto;
+}
+
+.memberRemoveBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-xs);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  font: inherit;
+  transition: color 120ms ease-out, background-color 120ms ease-out;
+}
+
+.memberRemoveBtn:hover {
+  color: var(--color-status-danger);
+  background-color: var(--color-status-danger-soft);
+}
+
+.memberRemoveBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+
+.membersEmpty {
+  margin: 0;
   font-size: var(--font-size-body-sm);
   color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
+}
+
+.membersError {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+.membersSkeleton {
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-overlay-hover);
+  animation: prompt-group-editor-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+.addMemberRow {
+  margin-top: var(--space-4);
+}
+
+.comboboxEmpty {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
 }
 
 /* ── Footer ──────────────────────────────────────────────────────── */
@@ -139,7 +187,7 @@
   height: 16px;
   background-color: var(--color-overlay-hover);
   border-radius: var(--radius-xs);
-  animation: prompt-editor-skeleton-pulse 1400ms ease-in-out infinite;
+  animation: prompt-group-editor-skeleton-pulse 1400ms ease-in-out infinite;
 }
 
 .skeletonRowWide {
@@ -154,14 +202,7 @@
   width: 30%;
 }
 
-.skeletonBlock {
-  height: 80px;
-  background-color: var(--color-overlay-hover);
-  border-radius: var(--radius-sm);
-  animation: prompt-editor-skeleton-pulse 1400ms ease-in-out infinite;
-}
-
-@keyframes prompt-editor-skeleton-pulse {
+@keyframes prompt-group-editor-skeleton-pulse {
   0%,
   100% {
     opacity: 0.45;
@@ -204,7 +245,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .skeletonRow,
-  .skeletonBlock {
+  .membersSkeleton {
     animation: none;
   }
 }

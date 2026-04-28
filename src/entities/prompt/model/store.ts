@@ -20,6 +20,7 @@ import {
   getPrompt,
   listPrompts,
   updatePrompt,
+  recomputePromptTokenCount,
   type CreatePromptArgs,
   type UpdatePromptArgs,
 } from "../api";
@@ -97,6 +98,32 @@ export function useDeletePromptMutation(): UseMutationResult<
     onSuccess: (_data, id) => {
       void queryClient.invalidateQueries({ queryKey: promptsKeys.list() });
       queryClient.removeQueries({ queryKey: promptsKeys.detail(id) });
+    },
+  });
+}
+
+/**
+ * `useRecomputePromptTokenCountMutation` — trigger a backend recount of the
+ * token count for a prompt. On success, invalidates both the detail and list
+ * caches so every visible PromptCard picks up the fresh count.
+ *
+ * ⚠️  The backend IPC `recompute_prompt_token_count` is not yet available
+ * (see `entities/prompt/api/promptsApi.ts` for the stub and tracking comment).
+ * Consumers should keep the trigger button disabled until the IPC ships.
+ */
+export function useRecomputePromptTokenCountMutation(): UseMutationResult<
+  Prompt,
+  Error,
+  string
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => recomputePromptTokenCount(id),
+    onSuccess: (updated) => {
+      void queryClient.invalidateQueries({
+        queryKey: promptsKeys.detail(updated.id),
+      });
+      void queryClient.invalidateQueries({ queryKey: promptsKeys.list() });
     },
   });
 }

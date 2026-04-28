@@ -79,9 +79,9 @@ export function PromptCard({
             aria-label={`Color: ${prompt.color}`}
           />
         )}
-        {prompt.tokenCount !== null && (
-          <span className={styles.tokenChip} aria-label="Token count">
-            ≈{prompt.tokenCount.toString()} tok
+        {prompt.tokenCount !== null && prompt.tokenCount > 0n && (
+          <span className={styles.tokenChip} aria-label="Количество токенов">
+            ≈{prompt.tokenCount.toString()} tokens
           </span>
         )}
       </span>

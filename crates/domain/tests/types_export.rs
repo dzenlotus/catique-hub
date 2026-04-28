@@ -13,7 +13,7 @@
 
 use catique_domain::{
     AgentReport, Attachment, Board, Column, ImportOptions, ImportReport, PreflightResults, Prompt,
-    PrompteryDbInfo, Role, Space, Tag, Task,
+    PromptGroup, PrompteryDbInfo, Role, Space, Tag, Task,
 };
 use ts_rs::TS;
 
@@ -60,6 +60,13 @@ fn export_agent_report() {
 #[test]
 fn export_attachment() {
     Attachment::export().expect("Attachment TS bindings should export cleanly");
+}
+
+// ---------------- prompt_group (E2.x) ----------------
+
+#[test]
+fn export_prompt_group() {
+    PromptGroup::export().expect("PromptGroup TS bindings should export cleanly");
 }
 
 // ---------------- import-module types (E2.7) ----------------

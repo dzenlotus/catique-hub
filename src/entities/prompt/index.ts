@@ -13,6 +13,7 @@ export {
   createPrompt,
   updatePrompt,
   deletePrompt,
+  recomputePromptTokenCount,
 } from "./api";
 export type { CreatePromptArgs, UpdatePromptArgs } from "./api";
 
@@ -24,6 +25,7 @@ export {
   useCreatePromptMutation,
   useUpdatePromptMutation,
   useDeletePromptMutation,
+  useRecomputePromptTokenCountMutation,
 } from "./model";
 export type { Prompt } from "./model";
 

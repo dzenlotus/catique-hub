@@ -120,6 +120,19 @@ pub const MCP_TOOL_UPDATED: &str = "mcp_tool.updated";
 /// `mcp_tool.deleted` — payload `{ id }`.
 pub const MCP_TOOL_DELETED: &str = "mcp_tool.deleted";
 
+/// `prompt_group.created` — payload `{ id }`.
+pub const PROMPT_GROUP_CREATED: &str = "prompt_group.created";
+/// `prompt_group.updated` — payload `{ id }`.
+pub const PROMPT_GROUP_UPDATED: &str = "prompt_group.updated";
+/// `prompt_group.deleted` — payload `{ id }`.
+pub const PROMPT_GROUP_DELETED: &str = "prompt_group.deleted";
+/// `prompt_group.members_changed` — payload `{ group_id }`.
+///
+/// Emitted after `add_member`, `remove_member`, and `set_members` so
+/// the frontend can invalidate the members query without refetching the
+/// group entity itself.
+pub const PROMPT_GROUP_MEMBERS_CHANGED: &str = "prompt_group.members_changed";
+
 /// `agent_report.created` — payload `{ id, task_id }`.
 pub const AGENT_REPORT_CREATED: &str = "agent_report.created";
 /// `agent_report.updated` — payload `{ id, task_id }`.
@@ -268,6 +281,10 @@ mod tests {
             IMPORT_COMPLETED,
             IMPORT_FAILED,
             APP_REFRESH_REQUIRED,
+            PROMPT_GROUP_CREATED,
+            PROMPT_GROUP_UPDATED,
+            PROMPT_GROUP_DELETED,
+            PROMPT_GROUP_MEMBERS_CHANGED,
         ] {
             assert!(
                 name.contains('.') || name.contains('-'),

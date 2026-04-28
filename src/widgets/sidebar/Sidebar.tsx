@@ -15,6 +15,7 @@ import {
   Search,
   Wrench,
   Cog,
+  FolderTree,
 } from "lucide-react";
 import { Button as AriaButton } from "react-aria-components";
 import { cn } from "@shared/lib";
@@ -31,6 +32,7 @@ import styles from "./Sidebar.module.css";
 export type NavView =
   | "boards"
   | "prompts"
+  | "prompt-groups"
   | "roles"
   | "tags"
   | "reports"
@@ -53,6 +55,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { view: "boards", label: "Boards", Icon: LayoutGrid },
   { view: "prompts", label: "Prompts", Icon: FileText },
+  { view: "prompt-groups", label: "Prompt Groups", Icon: FolderTree },
   { view: "roles", label: "Roles", Icon: UserCircle2 },
   { view: "tags", label: "Tags", Icon: Tag },
   { view: "reports", label: "Reports", Icon: FileBarChart },

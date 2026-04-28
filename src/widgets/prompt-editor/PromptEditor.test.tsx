@@ -252,4 +252,64 @@ describe("PromptEditor", () => {
       });
     });
   });
+
+  // ── Token count read-out ─────────────────────────────────────────
+
+  it("shows 'не подсчитан' when tokenCount is null", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_prompt") return makePrompt({ tokenCount: null });
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    renderWithClient(<PromptEditor promptId="prm-1" onClose={vi.fn()} />);
+
+    await screen.findByTestId("prompt-editor-token-row");
+    expect(screen.getByTestId("prompt-editor-token-row")).toHaveTextContent(
+      "Текущий счётчик: не подсчитан",
+    );
+  });
+
+  it("shows formatted token count when tokenCount > 0", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_prompt") return makePrompt({ tokenCount: 1337n });
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    renderWithClient(<PromptEditor promptId="prm-1" onClose={vi.fn()} />);
+
+    await screen.findByTestId("prompt-editor-token-row");
+    expect(screen.getByTestId("prompt-editor-token-row")).toHaveTextContent(
+      "Текущий счётчик: ≈1337 tokens",
+    );
+  });
+
+  // ── Recount button ────────────────────────────────────────────────
+
+  it("renders the recount button in disabled state (IPC not yet shipped)", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_prompt") return makePrompt();
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    renderWithClient(<PromptEditor promptId="prm-1" onClose={vi.fn()} />);
+
+    await screen.findByTestId("prompt-editor-recount-button");
+    expect(screen.getByTestId("prompt-editor-recount-button")).toBeDisabled();
+  });
+
+  it("recount button does NOT call invoke when disabled", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_prompt") return makePrompt();
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const { user } = renderWithClient(<PromptEditor promptId="prm-1" onClose={vi.fn()} />);
+
+    await screen.findByTestId("prompt-editor-recount-button");
+    const recountButton = screen.getByTestId("prompt-editor-recount-button");
+
+    // Disabled buttons should not fire — userEvent respects the disabled state.
+    await user.click(recountButton);
+
+    const recountCall = invokeMock.mock.calls.find(
+      ([cmd]) => cmd === "recompute_prompt_token_count",
+    );
+    expect(recountCall).toBeUndefined();
+  });
 });

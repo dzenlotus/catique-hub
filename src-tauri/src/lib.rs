@@ -15,6 +15,7 @@ use tauri::Manager;
 /// Entrypoint invoked by `main.rs` (and on mobile by
 /// `tauri::mobile_entry_point`).
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[allow(clippy::too_many_lines)]
 pub fn run() {
     let state = match init_state() {
         Ok(state) => state,
@@ -125,6 +126,16 @@ pub fn run() {
             // ---------------- import (E2.7) ----------------
             handlers::import::detect_promptery_db,
             handlers::import::import_from_promptery,
+            // ---------------- prompt groups (E2.x) ----------------
+            handlers::prompt_groups::add_prompt_group_member,
+            handlers::prompt_groups::create_prompt_group,
+            handlers::prompt_groups::delete_prompt_group,
+            handlers::prompt_groups::get_prompt_group,
+            handlers::prompt_groups::list_prompt_group_members,
+            handlers::prompt_groups::list_prompt_groups,
+            handlers::prompt_groups::remove_prompt_group_member,
+            handlers::prompt_groups::set_prompt_group_members,
+            handlers::prompt_groups::update_prompt_group,
             // ---------------- settings ----------------
             handlers::settings::ping,
             // ---------------- search (E4.1) ----------------

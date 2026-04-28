@@ -7,8 +7,9 @@
  */
 
 import { useEffect, useState, type ReactElement } from "react";
-import { usePrompt, useUpdatePromptMutation } from "@entities/prompt";
-import { Dialog, Button, Input } from "@shared/ui";
+import { RefreshCw } from "lucide-react";
+import { usePrompt, useUpdatePromptMutation, useRecomputePromptTokenCountMutation } from "@entities/prompt";
+import { Dialog, Button, Input, Tooltip, TooltipTrigger } from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import styles from "./PromptEditor.module.css";
@@ -63,6 +64,9 @@ function PromptEditorContent({
 }: PromptEditorContentProps): ReactElement {
   const query = usePrompt(promptId);
   const updateMutation = useUpdatePromptMutation();
+  // ⚠️  IPC `recompute_prompt_token_count` not yet shipped — button stays disabled.
+  // See: entities/prompt/api/promptsApi.ts → recomputePromptTokenCount
+  const recountMutation = useRecomputePromptTokenCountMutation();
 
   // Local edit state — initialised from the loaded prompt.
   const [localName, setLocalName] = useState("");
@@ -307,6 +311,35 @@ function PromptEditorContent({
           data-testid="prompt-editor-content-textarea"
           aria-label="Содержимое"
         />
+      </div>
+
+      {/* Token count */}
+      <div className={styles.tokenRow} data-testid="prompt-editor-token-row">
+        <span className={styles.tokenLabel}>
+          {prompt.tokenCount !== null && prompt.tokenCount > 0n
+            ? `Текущий счётчик: ≈${prompt.tokenCount.toString()} tokens`
+            : "Текущий счётчик: не подсчитан"}
+        </span>
+        {/*
+         * Recount button is intentionally DISABLED — backend IPC
+         * `recompute_prompt_token_count` is not yet available in
+         * crates/api/src/handlers/prompts.rs. Remove `isDisabled` and
+         * the tooltip once the command ships.
+         */}
+        <TooltipTrigger>
+          <Button
+            variant="ghost"
+            size="sm"
+            isDisabled
+            onPress={() => recountMutation.mutate(prompt.id)}
+            data-testid="prompt-editor-recount-button"
+            aria-label="Пересчитать токены"
+          >
+            <RefreshCw size={14} aria-hidden="true" />
+            Пересчитать
+          </Button>
+          <Tooltip>Backend recompute IPC ещё не реализован</Tooltip>
+        </TooltipTrigger>
       </div>
 
       {/* Footer */}
