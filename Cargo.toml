@@ -58,7 +58,7 @@ r2d2 = "=0.8.10"
 r2d2_sqlite = "=0.25.0"
 include_dir = "=0.7.4"
 nanoid = "=0.4.0"
-sha2 = "=0.10.8"
+sha2 = "=0.11.0"
 
 # Caret-allowed: stable, well-maintained, no IPC contract impact.
 chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
