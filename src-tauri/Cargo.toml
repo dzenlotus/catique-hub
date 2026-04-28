@@ -1,0 +1,30 @@
+[package]
+name = "catique-hub"
+version = "0.1.0"
+description = "Catique HUB — desktop app for AI agent orchestration"
+authors = ["dzenlotus"]
+license = "Elastic-2.0"
+edition = "2021"
+rust-version = "1.80"
+
+# Olga will convert this single crate into a 5-crate workspace in E1.2.
+# Until then, everything lives here.
+
+[lib]
+name = "catique_hub_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+tauri = { version = "2.10", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

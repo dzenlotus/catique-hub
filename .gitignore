@@ -1,0 +1,39 @@
+# Node / Vite
+node_modules/
+dist/
+dist-ssr/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Rust / Tauri
+target/
+src-tauri/target/
+src-tauri/gen/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Thumbs.db
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Coverage / cache
+coverage/
+.nyc_output/
+.cache/
+.parcel-cache/
+.turbo/
