@@ -20,6 +20,9 @@ importers:
       '@fontsource-variable/nunito':
         specifier: ^5.2.7
         version: 5.2.7
+      '@fontsource-variable/playfair-display':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@tanstack/react-query':
         specifier: ^5.100.5
         version: 5.100.5(react@19.2.5)
@@ -439,6 +442,9 @@ packages:
 
   '@fontsource-variable/nunito@5.2.7':
     resolution: {integrity: sha512-2N8QhatkyKgSUbAGZO2FYLioxA32+RyI1EplVLawbpkGjUeui9Qg9VMrpkCaik1ydjFjfLV+kzQ0cGEsMrMenQ==}
+
+  '@fontsource-variable/playfair-display@5.2.8':
+    resolution: {integrity: sha512-ZzVIXPOrL85yyOvZYoBzUszIJM+xKkHqni4IYn2CVLaGQQdJR8sBeC8yFNgjxSJ7ludTwta8qpULeOFuk5X75A==}
 
   '@internationalized/date@3.12.1':
     resolution: {integrity: sha512-6IedsVWXyq4P9Tj+TxuU8WGWM70hYLl12nbYU8jkikVpa6WXapFazPUcHUMDMoWftIDE2ILDkFFte6W2nFCkRQ==}
@@ -2037,6 +2043,8 @@ snapshots:
   '@exodus/bytes@1.15.0': {}
 
   '@fontsource-variable/nunito@5.2.7': {}
+
+  '@fontsource-variable/playfair-display@5.2.8': {}
 
   '@internationalized/date@3.12.1':
     dependencies:

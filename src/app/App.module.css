@@ -15,38 +15,15 @@
   background-color: var(--color-bg-default);
 }
 
-/* Left rail: sidebar column */
+/* Left rail: sidebar column — 220 px per DS v1 layout.md */
 .sidebarSlot {
   display: flex;
   flex-direction: column;
-  width: 210px;
-  min-width: 210px;
+  width: 220px;
+  min-width: 220px;
   height: 100%;
   overflow-y: auto;
-  background-color: var(--color-surface-canvas);
-  border-right: 1px solid var(--color-border-subtle);
-}
-
-.sidebarHeader {
-  padding: var(--space-24) var(--space-16) var(--space-16);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.heading {
-  margin: 0;
-  font-size: var(--font-size-body-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-default);
-  line-height: var(--line-height-tight);
-}
-
-.subhead {
-  margin: 0;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-subtle);
+  /* Background and border are set on the <nav> itself inside Sidebar */
 }
 
 /* Right pane: flex column so the sticky header sits at the top and the
@@ -61,11 +38,11 @@
   background-color: var(--color-bg-default);
 }
 
-/* Scrollable content area below the header */
+/* Scrollable content area below the header — 24 px per layout.md §5 */
 .mainPane > :not(header) {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-32) var(--space-24);
+  padding: var(--space-24);
 }
 
 /* -----------------------------------------------------------------------

@@ -28,6 +28,11 @@
      brief moment before the variable font loads. */
   --font-sans: "Nunito Variable", -apple-system, BlinkMacSystemFont,
     "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+  /* Display face for the wordmark «Catique Hub» in the sidebar.
+     @fontsource-variable/playfair-display is installed as of Design System v1.
+     Falls back to system serif (Iowan Old Style on macOS) until the font loads. */
+  --font-display: "Playfair Display Variable", "Iowan Old Style", Charter,
+    Georgia, "Times New Roman", serif;
   --font-content: "Iowan Old Style", Charter, Georgia,
     "Times New Roman", serif;
   --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas,
@@ -41,6 +46,10 @@
   --font-size-headline-sm:  15px;
   --font-size-headline:     17px;
   --font-size-headline-lg:  22px;
+  /* Wordmark size — display face, 17 px bold per DS v1 §2.2 */
+  --font-size-display:      17px;
+  /* Mono size — slug chips, IDs per DS v1 §2.2 */
+  --font-size-mono:         12px;
   --font-size-content-body: 15px;
   --font-size-content-h3:   17px;
   --font-size-content-h2:   19px;

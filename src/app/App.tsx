@@ -15,7 +15,7 @@ import { SettingsView } from "@widgets/settings-view";
 import { SpacesList } from "@widgets/spaces-list";
 import { Sidebar } from "@widgets/sidebar";
 import type { NavView } from "@widgets/sidebar";
-import { MainPaneHeader } from "@widgets/main-pane-header";
+import { TopBar } from "@widgets/top-bar";
 import { Toaster } from "@widgets/toaster";
 import { TaskDialog } from "@widgets/task-dialog";
 import { Button } from "@shared/ui";
@@ -53,15 +53,12 @@ export default function App(): ReactElement {
   return (
     <div className={styles.shell}>
       <div className={styles.sidebarSlot}>
-        <header className={styles.sidebarHeader}>
-          <h1 className={styles.heading}>Catique HUB</h1>
-          <p className={styles.subhead}>AI agent orchestration.</p>
-        </header>
+        {/* Wordmark + nav sections live inside <Sidebar> per DS v1 components spec. */}
         <Sidebar activeView={activeView} onSelectView={handleSelectView} />
       </div>
 
       <main className={styles.mainPane}>
-        <MainPaneHeader />
+        <TopBar />
         <Switch>
           {/* Task deep-link — renders BoardsList beneath the dialog so the
               user has context; dialog closes back to /boards. */}

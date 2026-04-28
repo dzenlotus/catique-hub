@@ -8,6 +8,7 @@ import { AppProviders } from "./providers";
 // Vite bundle — no external CDN, no privacy leak. Imported here so the
 // browser starts fetching the font weights before any UI renders.
 import "@fontsource-variable/nunito";
+import "@fontsource-variable/playfair-display";
 // Foundation tokens (typography) come first; generated tokens (colors,
 // spacing, radii, light/dark semantic) are emitted by tools/tokens-build.ts
 // from design-tokens/tokens.json.

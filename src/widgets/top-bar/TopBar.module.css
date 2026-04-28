@@ -1,0 +1,257 @@
+/*
+ * TopBar — верхняя панель главного pane.
+ *
+ * Высота: 56 px (по spec tasks doc; DS v1 layout.md говорит 48 px для drag-
+ * region — мы ставим 56 px по deliverable brief).
+ * Все токены из Design System v1.
+ */
+
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  height: 56px;
+  min-height: 56px;
+  flex-shrink: 0;
+  padding: 0 var(--space-16);
+  background-color: var(--color-surface-topbar);
+  border-bottom: 1px solid var(--color-border-subtle);
+  /* Allow dragging the window from this region on macOS / Tauri */
+  -webkit-app-region: drag;
+}
+
+/* Prevent drag on interactive children */
+.topBar > * {
+  -webkit-app-region: no-drag;
+}
+
+/* ── Search trigger ────────────────────────────────────────────────────── */
+
+.searchTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex: 1 1 0;
+  max-width: 480px;
+  height: 32px;
+  padding: 0 var(--space-12);
+  background-color: var(--color-overlay-hover);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  cursor: text;
+  /* reset button */
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: left;
+  transition: background-color var(--duration-instant) var(--easing-default),
+    border-color var(--duration-instant) var(--easing-default);
+}
+
+.searchTrigger:hover {
+  background-color: var(--color-overlay-active);
+}
+
+.searchTrigger:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .searchTrigger {
+    transition: none;
+  }
+}
+
+.searchIcon {
+  color: var(--color-text-subtle);
+  flex-shrink: 0;
+}
+
+.searchPlaceholder {
+  flex: 1 1 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  color: var(--color-text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+/* ⌘K hint badge */
+.kbdHint {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 2px 4px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-caption);
+  line-height: 1;
+  color: var(--color-text-subtle);
+  background: transparent;
+  user-select: none;
+}
+
+/* ── Breadcrumb ─────────────────────────────────────────────────────────── */
+
+.breadcrumbWrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  max-width: 260px;
+  overflow: hidden;
+}
+
+.breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.breadcrumbIcon {
+  color: var(--color-text-subtle);
+  flex-shrink: 0;
+}
+
+.breadcrumbSeg {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.breadcrumbCurrent {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.breadcrumbSep {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-body-sm);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* ── Spacer ─────────────────────────────────────────────────────────────── */
+
+.spacer {
+  flex: 1 1 0;
+}
+
+/* ── CTA «+ Новая задача» ──────────────────────────────────────────────── */
+
+.ctaButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  height: 32px;
+  padding: 0 var(--space-16);
+  background-color: var(--color-cta-bg);
+  color: var(--color-cta-fg);
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background-color var(--duration-instant) var(--easing-default);
+}
+
+.ctaButton:hover {
+  background-color: var(--color-cta-hover);
+}
+
+.ctaButton:active {
+  background-color: var(--color-cta-active);
+}
+
+.ctaButton:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ctaButton {
+    transition: none;
+  }
+}
+
+/* ── Ghost icon buttons ─────────────────────────────────────────────────── */
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--duration-instant) var(--easing-default),
+    color var(--duration-instant) var(--easing-default);
+}
+
+.iconButton:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.iconButton:active {
+  background-color: var(--color-overlay-active);
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iconButton {
+    transition: none;
+  }
+}
+
+/* ── Avatar ─────────────────────────────────────────────────────────────── */
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background-color: var(--color-accent-soft);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-accent-bg);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: opacity var(--duration-instant) var(--easing-default);
+}
+
+.avatar:hover {
+  opacity: 0.85;
+}
+
+.avatar:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .avatar {
+    transition: none;
+  }
+}

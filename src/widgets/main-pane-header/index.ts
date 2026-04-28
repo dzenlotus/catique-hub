@@ -1,1 +1,0 @@
-export { MainPaneHeader } from "./MainPaneHeader";

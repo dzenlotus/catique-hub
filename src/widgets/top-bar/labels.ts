@@ -1,8 +1,8 @@
 /**
- * Shared nav-view label + icon map for the main pane header.
+ * Nav-view label + icon map for the top bar breadcrumb.
  *
- * Mirrors the `NAV_ITEMS` array in `Sidebar.tsx` exactly so both surfaces
- * stay in sync without importing internal sidebar internals.
+ * Копирует содержимое из main-pane-header/labels.ts — TopBar не импортирует
+ * из удалённого виджета, чтобы избежать скрытой зависимости.
  */
 
 import {
@@ -21,7 +21,7 @@ import type { FC } from "react";
 
 export interface NavLabel {
   label: string;
-  Icon: FC<{ size?: number; "aria-hidden"?: boolean | "true" | "false" }>;
+  Icon: FC<{ size?: number; "aria-hidden"?: boolean | "true" | "false"; className?: string }>;
 }
 
 export const NAV_LABELS: Record<string, NavLabel> = {

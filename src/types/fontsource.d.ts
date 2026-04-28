@@ -6,3 +6,4 @@
 // `vite-env.d.ts`) so the typing intent is obvious to future readers.
 
 declare module "@fontsource-variable/nunito";
+declare module "@fontsource-variable/playfair-display";

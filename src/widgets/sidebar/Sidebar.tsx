@@ -2,9 +2,9 @@ import { useState, useCallback, type ReactElement } from "react";
 import {
   LayoutGrid,
   FileText,
-  UserCircle2,
+  User,
   Tag,
-  FileBarChart,
+  BarChart3,
   ChevronDown,
   AlertCircle,
   Settings,
@@ -14,8 +14,9 @@ import {
   Settings2,
   Search,
   Wrench,
-  Cog,
+  Plug,
   FolderTree,
+  Heart,
 } from "lucide-react";
 import { Button as AriaButton } from "react-aria-components";
 import { useLocation } from "wouter";
@@ -23,11 +24,12 @@ import { cn } from "@shared/lib";
 import { Button, Menu, MenuItem, MenuTrigger, Separator } from "@shared/ui";
 import { useSpaces } from "@entities/space";
 import type { Space } from "@entities/space";
+import { useBoards } from "@entities/board";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 import { GlobalSearch, useGlobalSearchKeybind } from "@widgets/global-search";
 import type { SearchResult } from "@bindings/SearchResult";
-import { pathForView, taskPath } from "@app/routes";
+import { pathForView, taskPath, boardPath } from "@app/routes";
 import styles from "./Sidebar.module.css";
 
 /** All navigable top-level views in the app shell. */
@@ -54,17 +56,31 @@ interface NavItem {
   Icon: React.FC<{ size?: number; "aria-hidden"?: boolean | "true" | "false" }>;
 }
 
-const NAV_ITEMS: NavItem[] = [
+/**
+ * WORKSPACE section — the 9 core navigable views.
+ *
+ * Icon substitutions vs. original (matching pixel-art visual weight from image3.png):
+ * - Roles: `User` instead of `UserCircle2` — cleaner 16 px pixel match.
+ * - Reports: `BarChart3` instead of `FileBarChart` — matches bar-chart icon in pixel set.
+ * - MCP Tools: `Plug` instead of `Cog` — matches the plug/connector icon in pixel set.
+ *
+ * TODO: replace with extracted pixel-art SVGs once designer provides individual
+ * SVG files from image3.png. (Follow-up task per handoff.md §"What is out of scope".)
+ */
+const WORKSPACE_ITEMS: NavItem[] = [
   { view: "boards", label: "Boards", Icon: LayoutGrid },
   { view: "prompts", label: "Prompts", Icon: FileText },
   { view: "prompt-groups", label: "Prompt Groups", Icon: FolderTree },
-  { view: "roles", label: "Roles", Icon: UserCircle2 },
+  { view: "roles", label: "Roles", Icon: User },
   { view: "tags", label: "Tags", Icon: Tag },
-  { view: "reports", label: "Reports", Icon: FileBarChart },
+  { view: "reports", label: "Reports", Icon: BarChart3 },
   { view: "skills", label: "Skills", Icon: Wrench },
-  { view: "mcp-tools", label: "MCP Tools", Icon: Cog },
+  { view: "mcp-tools", label: "MCP Tools", Icon: Plug },
   { view: "settings", label: "Settings", Icon: Settings },
 ];
+
+/** Maximum number of boards to show in the RECENT BOARDS section. */
+const RECENT_BOARDS_LIMIT = 5;
 
 // ---------------------------------------------------------------------------
 // ThemeToggle — sidebar footer component
@@ -100,25 +116,27 @@ function ThemeToggle(): ReactElement {
   const ariaLabel = `Переключить на ${nextLabel.toLowerCase()}`;
 
   return (
-    <div className={styles.sidebarFooter}>
-      <Button
-        variant="ghost"
-        size="sm"
-        onPress={toggle}
-        aria-pressed={theme === "light"}
-        aria-label={ariaLabel}
-        className={styles.themeToggle}
-      >
-        {theme === "dark" ? (
-          <Sun size={14} aria-hidden={true} />
-        ) : (
-          <Moon size={14} aria-hidden={true} />
-        )}
-        <span>{nextLabel}</span>
-      </Button>
-    </div>
+    <Button
+      variant="ghost"
+      size="sm"
+      onPress={toggle}
+      aria-pressed={theme === "light"}
+      aria-label={ariaLabel}
+      className={styles.themeToggle}
+    >
+      {theme === "dark" ? (
+        <Sun size={14} aria-hidden={true} />
+      ) : (
+        <Moon size={14} aria-hidden={true} />
+      )}
+      <span>{nextLabel}</span>
+    </Button>
   );
 }
+
+// ---------------------------------------------------------------------------
+// SpaceSwitcher — popover-based space selector inlined in SPACES section
+// ---------------------------------------------------------------------------
 
 /**
  * SpaceSwitcher — trigger + popover menu for switching the active space.
@@ -145,85 +163,126 @@ function SpaceSwitcher({
   const active = spaces.find((s) => s.id === activeSpaceId) ?? spaces[0];
 
   return (
-    <div className={styles.spaceSwitcher}>
-      <MenuTrigger>
-        {/*
-         * RAC MenuTrigger requires a RAC-aware pressable child.
-         * We use AriaButton directly (not our Button wrapper) so we can
-         * apply custom CSS without the wrapper's variant/size class logic.
-         */}
-        <AriaButton
-          className={styles.spaceTrigger}
-          aria-haspopup="menu"
-          aria-label={`Active space: ${active.name}. Switch space`}
-        >
-          <span className={styles.spacePrefix}>{active.prefix}</span>
-          <span className={styles.spaceName}>{active.name}</span>
-          <ChevronDown size={12} aria-hidden={true} className={styles.spaceChevron} />
-        </AriaButton>
-        <Menu<Space>
-          onAction={(key) => {
-            const k = String(key);
-            if (k === "__new__") { onNewSpace(); return; }
-            if (k === "__manage__") { onManageSpaces(); return; }
-            onSelect(k);
-          }}
-          placement="bottom start"
-          aria-label="Switch space"
-        >
-          {spaces.map((space) => (
-            <MenuItem
-              id={space.id}
-              key={space.id}
-              aria-label={`${space.name}${space.isDefault ? " (default)" : ""}`}
-            >
-              <span className={styles.spaceMenuPrefix}>{space.prefix}</span>
-              <span className={styles.spaceMenuName}>{space.name}</span>
-              {space.isDefault ? (
-                <span className={styles.spaceMenuDefault} aria-hidden="true">
-                  ★
-                </span>
-              ) : null}
-            </MenuItem>
-          ))}
-          <Separator />
+    <MenuTrigger>
+      {/*
+       * RAC MenuTrigger requires a RAC-aware pressable child.
+       * We use AriaButton directly (not our Button wrapper) so we can
+       * apply custom CSS without the wrapper's variant/size class logic.
+       */}
+      <AriaButton
+        className={styles.spaceTrigger}
+        aria-haspopup="menu"
+        aria-label={`Active space: ${active.name}. Switch space`}
+      >
+        <span className={styles.spacePrefix}>{active.prefix}</span>
+        <span className={styles.spaceName}>{active.name}</span>
+        <ChevronDown size={12} aria-hidden={true} className={styles.spaceChevron} />
+      </AriaButton>
+      <Menu<Space>
+        onAction={(key) => {
+          const k = String(key);
+          if (k === "__new__") { onNewSpace(); return; }
+          if (k === "__manage__") { onManageSpaces(); return; }
+          onSelect(k);
+        }}
+        placement="bottom start"
+        aria-label="Switch space"
+      >
+        {spaces.map((space) => (
           <MenuItem
-            id="__new__"
-            aria-label="Новое пространство"
-            className={styles.spaceMenuAction}
+            id={space.id}
+            key={space.id}
+            aria-label={`${space.name}${space.isDefault ? " (default)" : ""}`}
           >
-            <Plus size={12} aria-hidden={true} />
-            <span>+ Новое пространство</span>
+            <span className={styles.spaceMenuPrefix}>{space.prefix}</span>
+            <span className={styles.spaceMenuName}>{space.name}</span>
+            {space.isDefault ? (
+              <span className={styles.spaceMenuDefault} aria-hidden="true">
+                ★
+              </span>
+            ) : null}
           </MenuItem>
-          <MenuItem
-            id="__manage__"
-            aria-label="Управление пространствами"
-            className={styles.spaceMenuAction}
-          >
-            <Settings2 size={12} aria-hidden={true} />
-            <span>Управление пространствами</span>
-          </MenuItem>
-        </Menu>
-      </MenuTrigger>
-    </div>
+        ))}
+        <Separator />
+        <MenuItem
+          id="__new__"
+          aria-label="Новое пространство"
+          className={styles.spaceMenuAction}
+        >
+          <Plus size={12} aria-hidden={true} />
+          <span>+ Новое пространство</span>
+        </MenuItem>
+        <MenuItem
+          id="__manage__"
+          aria-label="Управление пространствами"
+          className={styles.spaceMenuAction}
+        >
+          <Settings2 size={12} aria-hidden={true} />
+          <span>Управление пространствами</span>
+        </MenuItem>
+      </Menu>
+    </MenuTrigger>
   );
 }
 
+// ---------------------------------------------------------------------------
+// NavRow — single row item (shared by WORKSPACE and RECENT BOARDS sections)
+// ---------------------------------------------------------------------------
+
+interface NavRowProps {
+  isActive: boolean;
+  onClick: () => void;
+  "aria-current"?: "page" | undefined;
+  children: React.ReactNode;
+  className?: string;
+}
+
+function NavRow({
+  isActive,
+  onClick,
+  "aria-current": ariaCurrent,
+  children,
+  className,
+}: NavRowProps): ReactElement {
+  return (
+    <button
+      type="button"
+      className={cn(styles.navItem, isActive && styles.active, className)}
+      aria-current={ariaCurrent}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sidebar — main export
+// ---------------------------------------------------------------------------
+
 /**
- * Left-rail navigation sidebar.
+ * Left-rail navigation sidebar — Design System v1.
  *
- * Renders a vertical list of nav items. The active item receives
- * `aria-current="page"` for screen readers and an accent treatment
- * via the `.active` CSS module class.
+ * Structure:
+ *   Wordmark block
+ *   ├─ Search button (Cmd+K)  [TODO: move to top bar — parallel agent scope]
+ *   ├─ Section: SPACES
+ *   │    └─ SpaceSwitcher (popover-based space rows)
+ *   ├─ Section: RECENT BOARDS
+ *   │    └─ top-5 boards by updatedAt desc
+ *   └─ Section: WORKSPACE
+ *        └─ 9 nav items (Boards / Prompts / Prompt Groups / Roles / Tags / Reports / Skills / MCP Tools / Settings)
+ *   Footer: Mascot + theme toggle
  *
- * The space switcher section above the nav list reflects the active space
- * (from global `ActiveSpaceProvider` context) but does NOT yet filter any
- * entity lists — that is a follow-up task.
+ * Active nav-item gets a 3 px red left strip (`--color-cta-bg`) + soft
+ * background (`--color-accent-soft`) per DS v1 components.md § Sidebar.
  */
 export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElement {
   const spacesQuery = useSpaces();
   const { activeSpaceId, setActiveSpaceId } = useActiveSpace();
   const [, setLocation] = useLocation();
+
+  const boardsQuery = useBoards();
 
   const spaces = spacesQuery.data ?? [];
   const effectiveSpaceId = activeSpaceId;
@@ -251,7 +310,9 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
     }
   }
 
-  const renderSwitcher = (): ReactElement | null => {
+  // ── SPACES section renderer ─────────────────────────────────────────────
+
+  const renderSpacesSection = (): ReactElement => {
     if (spacesQuery.status === "pending") {
       return (
         <div className={styles.spaceSwitcher} aria-hidden="true">
@@ -279,24 +340,76 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
     }
 
     if (spaces.length === 0 || effectiveSpaceId === null) {
-      // No spaces yet — suppress the switcher to avoid a broken partial UI.
-      return null;
+      return (
+        <div className={styles.sectionEmpty}>
+          <span className={styles.sectionEmptyText}>Нет пространств</span>
+        </div>
+      );
     }
 
     return (
-      <SpaceSwitcher
-        spaces={spaces}
-        activeSpaceId={effectiveSpaceId}
-        onSelect={(id) => setActiveSpaceId(id)}
-        onNewSpace={() => setCreateDialogOpen(true)}
-        onManageSpaces={() => onSelectView("spaces")}
-      />
+      <div className={styles.spaceSwitcher}>
+        <SpaceSwitcher
+          spaces={spaces}
+          activeSpaceId={effectiveSpaceId}
+          onSelect={(id) => setActiveSpaceId(id)}
+          onNewSpace={() => setCreateDialogOpen(true)}
+          onManageSpaces={() => onSelectView("spaces")}
+        />
+      </div>
+    );
+  };
+
+  // ── RECENT BOARDS section renderer ─────────────────────────────────────
+
+  const renderRecentBoards = (): ReactElement => {
+    if (boardsQuery.status !== "success" || boardsQuery.data.length === 0) {
+      return <></>;
+    }
+
+    const recent = [...boardsQuery.data]
+      .sort((a, b) => Number(b.updatedAt - a.updatedAt))
+      .slice(0, RECENT_BOARDS_LIMIT);
+
+    return (
+      <ul className={styles.navList} role="list">
+        {recent.map((board) => (
+          <li key={board.id}>
+            <NavRow
+              isActive={false}
+              onClick={() => setLocation(boardPath(board.id))}
+            >
+              <LayoutGrid size={16} aria-hidden={true} />
+              <span className={styles.navLabel}>{board.name}</span>
+            </NavRow>
+          </li>
+        ))}
+      </ul>
     );
   };
 
   return (
     <nav className={styles.sidebar} aria-label="Main navigation">
-      {/* Search button — above the space switcher */}
+
+      {/* ── Wordmark block ───────────────────────────────────────────────── */}
+      <div className={styles.wordmark}>
+        {/* TODO: replace Heart glyph with extracted pixel-art cat SVG from
+            image3.png once designer provides individual SVG files.
+            See handoff.md §"What is out of scope" — pixel-art icon extraction. */}
+        <Heart
+          size={20}
+          aria-hidden={true}
+          className={styles.wordmarkIcon}
+        />
+        <div className={styles.wordmarkText}>
+          <span className={styles.wordmarkTitle}>Catique HUB</span>
+          <span className={styles.wordmarkSub}>Orchestrate. Build. Ship.</span>
+        </div>
+      </div>
+
+      {/* ── Search button — TODO: move to top-bar widget (parallel agent scope)
+          Kept here temporarily so search functionality is not broken.
+          Coordinate with: top-bar agent / ctq-topbar ticket. ───────────────── */}
       <div className={styles.searchButtonWrap}>
         <button
           type="button"
@@ -310,26 +423,65 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
           <span className={styles.searchButtonKbd} aria-hidden="true">⌘K</span>
         </button>
       </div>
-      {renderSwitcher()}
+
+      {/* ── SPACES ──────────────────────────────────────────────────────────── */}
+      <div className={styles.sectionLabel} aria-label="Пространства">
+        SPACES
+      </div>
+      {renderSpacesSection()}
+
+      {/* ── RECENT BOARDS ───────────────────────────────────────────────────── */}
+      {boardsQuery.status === "success" && boardsQuery.data.length > 0 && (
+        <>
+          <div className={styles.sectionLabel} aria-label="Недавние доски">
+            RECENT BOARDS
+          </div>
+          {renderRecentBoards()}
+        </>
+      )}
+
+      {/* ── WORKSPACE ───────────────────────────────────────────────────────── */}
+      <div className={styles.sectionLabel} aria-label="Рабочее пространство">
+        WORKSPACE
+      </div>
       <ul className={styles.navList} role="list">
-        {NAV_ITEMS.map(({ view, label, Icon }) => {
+        {WORKSPACE_ITEMS.map(({ view, label, Icon }) => {
           const isActive = view === activeView;
           return (
             <li key={view}>
-              <button
-                type="button"
-                className={cn(styles.navItem, isActive && styles.active)}
-                aria-current={isActive ? "page" : undefined}
+              <NavRow
+                isActive={isActive}
                 onClick={() => onSelectView(view)}
+                aria-current={isActive ? "page" : undefined}
               >
                 <Icon size={16} aria-hidden={true} />
                 <span className={styles.navLabel}>{label}</span>
-              </button>
+              </NavRow>
             </li>
           );
         })}
       </ul>
-      <ThemeToggle />
+
+      {/* ── Footer: Mascot + theme toggle ───────────────────────────────────── */}
+      <div className={styles.sidebarFooter}>
+        {/*
+         * Mascot block — pixel-art cat placeholder.
+         *
+         * TODO: replace 🐱 emoji with extracted pixel-art cat SVG (32×32 px) from
+         * image3.png row 1, position [0,0] once designer provides individual SVG
+         * files. See handoff.md §"What is out of scope". The tagline text below is
+         * per Maria's mockup spec.
+         */}
+        <div className={styles.mascot} aria-hidden="true">
+          <span className={styles.mascotEmoji} role="img" aria-label="Кот-маскот">🐱</span>
+          <p className={styles.mascotTagline}>
+            Bonjour, développeur.{" "}
+            <em>Stay curious. Ship lovely things.</em>
+          </p>
+        </div>
+        <ThemeToggle />
+      </div>
+
       <SpaceCreateDialog
         isOpen={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}
