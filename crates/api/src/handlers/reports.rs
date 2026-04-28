@@ -7,8 +7,10 @@
 
 use catique_application::{reports::ReportsUseCase, AppError};
 use catique_domain::AgentReport;
+use serde_json::json;
 use tauri::State;
 
+use crate::events;
 use crate::state::AppState;
 
 /// E2 will populate per-domain initialisation here.
@@ -51,7 +53,13 @@ pub async fn create_agent_report(
     content: String,
     author: Option<String>,
 ) -> Result<AgentReport, AppError> {
-    ReportsUseCase::new(&state.pool).create(task_id, kind, title, content, author)
+    let report = ReportsUseCase::new(&state.pool).create(task_id, kind, title, content, author)?;
+    events::emit(
+        &state,
+        events::AGENT_REPORT_CREATED,
+        json!({ "id": report.id, "task_id": report.task_id }),
+    );
+    Ok(report)
 }
 
 /// IPC: partial-update a report.
@@ -68,7 +76,13 @@ pub async fn update_agent_report(
     content: Option<String>,
     author: Option<Option<String>>,
 ) -> Result<AgentReport, AppError> {
-    ReportsUseCase::new(&state.pool).update(id, kind, title, content, author)
+    let report = ReportsUseCase::new(&state.pool).update(id, kind, title, content, author)?;
+    events::emit(
+        &state,
+        events::AGENT_REPORT_UPDATED,
+        json!({ "id": report.id, "task_id": report.task_id }),
+    );
+    Ok(report)
 }
 
 /// IPC: delete a report.
@@ -81,5 +95,15 @@ pub async fn delete_agent_report(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), AppError> {
-    ReportsUseCase::new(&state.pool).delete(&id)
+    // GET first so we can include `task_id` in the event payload —
+    // the frontend's report list is keyed by `task_id`.
+    let uc = ReportsUseCase::new(&state.pool);
+    let report = uc.get(&id)?;
+    uc.delete(&id)?;
+    events::emit(
+        &state,
+        events::AGENT_REPORT_DELETED,
+        json!({ "id": id, "task_id": report.task_id }),
+    );
+    Ok(())
 }

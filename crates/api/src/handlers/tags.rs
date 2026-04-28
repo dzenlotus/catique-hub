@@ -9,8 +9,10 @@ use catique_infrastructure::db::{
     pool::acquire,
     repositories::tags as repo,
 };
+use serde_json::json;
 use tauri::State;
 
+use crate::events;
 use crate::state::AppState;
 
 /// E2 will populate per-domain initialisation here.
@@ -47,7 +49,9 @@ pub async fn create_tag(
     name: String,
     color: Option<String>,
 ) -> Result<Tag, AppError> {
-    TagsUseCase::new(&state.pool).create(name, color)
+    let tag = TagsUseCase::new(&state.pool).create(name, color)?;
+    events::emit(&state, events::TAG_CREATED, json!({ "id": tag.id }));
+    Ok(tag)
 }
 
 /// IPC: partial-update a tag.
@@ -62,7 +66,9 @@ pub async fn update_tag(
     name: Option<String>,
     color: Option<Option<String>>,
 ) -> Result<Tag, AppError> {
-    TagsUseCase::new(&state.pool).update(id, name, color)
+    let tag = TagsUseCase::new(&state.pool).update(id, name, color)?;
+    events::emit(&state, events::TAG_UPDATED, json!({ "id": tag.id }));
+    Ok(tag)
 }
 
 /// IPC: delete a tag.
@@ -72,7 +78,9 @@ pub async fn update_tag(
 /// Forwards every error from `TagsUseCase::delete`.
 #[tauri::command]
 pub async fn delete_tag(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
-    TagsUseCase::new(&state.pool).delete(&id)
+    TagsUseCase::new(&state.pool).delete(&id)?;
+    events::emit(&state, events::TAG_DELETED, json!({ "id": id }));
+    Ok(())
 }
 
 // ---------------------------------------------------------------------

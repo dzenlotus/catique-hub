@@ -282,6 +282,7 @@ dependencies = [
  "catique-application",
  "catique-domain",
  "catique-infrastructure",
+ "once_cell",
  "serde",
  "serde_json",
  "tauri",

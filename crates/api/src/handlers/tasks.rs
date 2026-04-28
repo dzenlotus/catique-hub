@@ -7,8 +7,10 @@
 
 use catique_application::{tasks::TasksUseCase, AppError};
 use catique_domain::Task;
+use serde_json::json;
 use tauri::State;
 
+use crate::events;
 use crate::state::AppState;
 
 /// E2 will populate per-domain initialisation here.
@@ -48,7 +50,18 @@ pub async fn create_task(
     description: Option<String>,
     position: f64,
 ) -> Result<Task, AppError> {
-    TasksUseCase::new(&state.pool).create(board_id, column_id, title, description, position)
+    let task =
+        TasksUseCase::new(&state.pool).create(board_id, column_id, title, description, position)?;
+    events::emit(
+        &state,
+        events::TASK_CREATED,
+        json!({
+            "id": task.id,
+            "column_id": task.column_id,
+            "board_id": task.board_id,
+        }),
+    );
+    Ok(task)
 }
 
 /// IPC: partial-update a task.
@@ -66,7 +79,37 @@ pub async fn update_task(
     position: Option<f64>,
     role_id: Option<Option<String>>,
 ) -> Result<Task, AppError> {
-    TasksUseCase::new(&state.pool).update(id, title, description, column_id, position, role_id)
+    // Snapshot `column_id` before mutating so we can decide whether to
+    // emit `task.moved` in addition to `task.updated`. We pick the
+    // handler-side compare-and-emit strategy (option 1 of the
+    // wave-brief) over threading `{ before, after }` through the use
+    // case — the use case stays pure, and the extra GET is one
+    // primary-key read.
+    let uc = TasksUseCase::new(&state.pool);
+    let before = uc.get(&id)?;
+    let after = uc.update(id, title, description, column_id, position, role_id)?;
+    events::emit(
+        &state,
+        events::TASK_UPDATED,
+        json!({
+            "id": after.id,
+            "column_id": after.column_id,
+            "board_id": after.board_id,
+        }),
+    );
+    if before.column_id != after.column_id {
+        events::emit(
+            &state,
+            events::TASK_MOVED,
+            json!({
+                "id": after.id,
+                "from_column_id": before.column_id,
+                "to_column_id": after.column_id,
+                "board_id": after.board_id,
+            }),
+        );
+    }
+    Ok(after)
 }
 
 /// IPC: delete a task.
@@ -76,7 +119,21 @@ pub async fn update_task(
 /// Forwards every error from `TasksUseCase::delete`.
 #[tauri::command]
 pub async fn delete_task(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
-    TasksUseCase::new(&state.pool).delete(&id)
+    // GET first to obtain `(column_id, board_id)` for the event
+    // payload. Same trade-off as `delete_column`.
+    let uc = TasksUseCase::new(&state.pool);
+    let task = uc.get(&id)?;
+    uc.delete(&id)?;
+    events::emit(
+        &state,
+        events::TASK_DELETED,
+        json!({
+            "id": id,
+            "column_id": task.column_id,
+            "board_id": task.board_id,
+        }),
+    );
+    Ok(())
 }
 
 // ---------------------------------------------------------------------

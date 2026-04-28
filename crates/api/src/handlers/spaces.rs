@@ -7,8 +7,10 @@
 
 use catique_application::{spaces::SpacesUseCase, AppError};
 use catique_domain::Space;
+use serde_json::json;
 use tauri::State;
 
+use crate::events;
 use crate::state::AppState;
 
 /// E2 will populate per-domain initialisation here.
@@ -47,7 +49,9 @@ pub async fn create_space(
     description: Option<String>,
     is_default: bool,
 ) -> Result<Space, AppError> {
-    SpacesUseCase::new(&state.pool).create(name, prefix, description, is_default)
+    let space = SpacesUseCase::new(&state.pool).create(name, prefix, description, is_default)?;
+    events::emit(&state, events::SPACE_CREATED, json!({ "id": space.id }));
+    Ok(space)
 }
 
 /// IPC: partial-update a space.
@@ -67,7 +71,10 @@ pub async fn update_space(
     is_default: Option<bool>,
     position: Option<f64>,
 ) -> Result<Space, AppError> {
-    SpacesUseCase::new(&state.pool).update(id, name, description, is_default, position)
+    let space =
+        SpacesUseCase::new(&state.pool).update(id, name, description, is_default, position)?;
+    events::emit(&state, events::SPACE_UPDATED, json!({ "id": space.id }));
+    Ok(space)
 }
 
 /// IPC: delete a space.
@@ -77,5 +84,7 @@ pub async fn update_space(
 /// Forwards every error from `SpacesUseCase::delete`.
 #[tauri::command]
 pub async fn delete_space(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
-    SpacesUseCase::new(&state.pool).delete(&id)
+    SpacesUseCase::new(&state.pool).delete(&id)?;
+    events::emit(&state, events::SPACE_DELETED, json!({ "id": id }));
+    Ok(())
 }

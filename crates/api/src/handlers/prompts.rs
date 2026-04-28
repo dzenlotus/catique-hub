@@ -11,8 +11,10 @@ use catique_infrastructure::db::{
     pool::acquire,
     repositories::prompts as repo,
 };
+use serde_json::json;
 use tauri::State;
 
+use crate::events;
 use crate::state::AppState;
 
 /// E2 will populate per-domain initialisation here.
@@ -51,7 +53,10 @@ pub async fn create_prompt(
     color: Option<String>,
     short_description: Option<String>,
 ) -> Result<Prompt, AppError> {
-    PromptsUseCase::new(&state.pool).create(name, content, color, short_description)
+    let prompt =
+        PromptsUseCase::new(&state.pool).create(name, content, color, short_description)?;
+    events::emit(&state, events::PROMPT_CREATED, json!({ "id": prompt.id }));
+    Ok(prompt)
 }
 
 /// IPC: partial-update a prompt.
@@ -68,7 +73,10 @@ pub async fn update_prompt(
     color: Option<Option<String>>,
     short_description: Option<Option<String>>,
 ) -> Result<Prompt, AppError> {
-    PromptsUseCase::new(&state.pool).update(id, name, content, color, short_description)
+    let prompt =
+        PromptsUseCase::new(&state.pool).update(id, name, content, color, short_description)?;
+    events::emit(&state, events::PROMPT_UPDATED, json!({ "id": prompt.id }));
+    Ok(prompt)
 }
 
 /// IPC: delete a prompt.
@@ -78,7 +86,9 @@ pub async fn update_prompt(
 /// Forwards every error from `PromptsUseCase::delete`.
 #[tauri::command]
 pub async fn delete_prompt(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
-    PromptsUseCase::new(&state.pool).delete(&id)
+    PromptsUseCase::new(&state.pool).delete(&id)?;
+    events::emit(&state, events::PROMPT_DELETED, json!({ "id": id }));
+    Ok(())
 }
 
 // ---------------------------------------------------------------------

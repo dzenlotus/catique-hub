@@ -31,6 +31,14 @@ thiserror.workspace = true
 # bundle/protocol features at the IPC-layer level.
 tauri.workspace = true
 
+# E2.5 (Katya, 2026-04-28): `OnceCell` for the AppHandle slot in
+# AppState. The handle is set once during the Tauri `setup` callback and
+# read by every handler post-mutation. Caret OK — once_cell is a thin,
+# stable building block (MIT/Apache-2.0 dual). Already pulled in
+# transitively via tauri/serde, so adding it to our direct deps does not
+# expand the dependency graph.
+once_cell = "1.21"
+
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }
 module_name_repetitions = "allow"

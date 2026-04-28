@@ -6,8 +6,10 @@
 
 use catique_application::{boards::BoardsUseCase, AppError};
 use catique_domain::Board;
+use serde_json::json;
 use tauri::State;
 
+use crate::events;
 use crate::state::AppState;
 
 /// E2 will populate per-domain initialisation here.
@@ -44,7 +46,9 @@ pub async fn create_board(
     name: String,
     space_id: String,
 ) -> Result<Board, AppError> {
-    BoardsUseCase::new(&state.pool).create(name, space_id)
+    let board = BoardsUseCase::new(&state.pool).create(name, space_id)?;
+    events::emit(&state, events::BOARD_CREATED, json!({ "id": board.id }));
+    Ok(board)
 }
 
 /// IPC: partial-update a board.
@@ -60,7 +64,9 @@ pub async fn update_board(
     position: Option<f64>,
     role_id: Option<Option<String>>,
 ) -> Result<Board, AppError> {
-    BoardsUseCase::new(&state.pool).update(id, name, position, role_id)
+    let board = BoardsUseCase::new(&state.pool).update(id, name, position, role_id)?;
+    events::emit(&state, events::BOARD_UPDATED, json!({ "id": board.id }));
+    Ok(board)
 }
 
 /// IPC: delete a board.
@@ -70,5 +76,7 @@ pub async fn update_board(
 /// Forwards every error from `BoardsUseCase::delete`.
 #[tauri::command]
 pub async fn delete_board(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
-    BoardsUseCase::new(&state.pool).delete(&id)
+    BoardsUseCase::new(&state.pool).delete(&id)?;
+    events::emit(&state, events::BOARD_DELETED, json!({ "id": id }));
+    Ok(())
 }

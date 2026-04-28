@@ -10,6 +10,7 @@
 use catique_api::{handlers, AppState};
 use catique_infrastructure::db::{open_pool, run_pending};
 use catique_infrastructure::paths::db_path;
+use tauri::Manager;
 
 /// Entrypoint invoked by `main.rs` (and on mobile by
 /// `tauri::mobile_entry_point`).
@@ -28,7 +29,16 @@ pub fn run() {
 
     if let Err(err) = tauri::Builder::default()
         .manage(state)
-        .setup(|_app| Ok(()))
+        .setup(|app| {
+            // E2.5 (Katya): publish the AppHandle into AppState so
+            // `catique_api::events::emit` can broadcast realtime
+            // events from every IPC handler. `OnceCell::set` is
+            // idempotent — see `AppState::set_app_handle`.
+            let handle = app.handle().clone();
+            let state = app.state::<AppState>();
+            state.set_app_handle(handle);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             // ---------------- spaces (E2.4) ----------------
             handlers::spaces::create_space,

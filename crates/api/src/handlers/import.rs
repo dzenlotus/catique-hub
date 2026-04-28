@@ -16,8 +16,10 @@ use catique_application::import::ImportUseCase;
 use catique_application::AppError;
 use catique_domain::{ImportOptions, ImportReport, PrompteryDbInfo};
 use catique_infrastructure::paths::app_data_dir;
+use serde_json::json;
 use tauri::State;
 
+use crate::events;
 use crate::state::AppState;
 
 /// Future per-domain init hook.
@@ -48,9 +50,18 @@ pub async fn detect_promptery_db(
 /// # Errors
 ///
 /// Forwards every error from `ImportUseCase::import`.
+///
+/// # Events
+///
+/// Emits `import.started` before the use case is invoked, then exactly
+/// one of `import.completed` / `import.failed` after it returns.
+/// Per-phase progress (`import.progress`) is reserved but not emitted
+/// here — the use case is currently a single synchronous call with no
+/// callback hook. Wiring fine-grained phase events is tracked under
+/// the v1.1 work referenced in `crates/application/src/import.rs`.
 #[tauri::command]
 pub async fn import_from_promptery(
-    _state: State<'_, AppState>,
+    state: State<'_, AppState>,
     source_path: Option<String>,
     options: ImportOptions,
 ) -> Result<ImportReport, AppError> {
@@ -63,7 +74,54 @@ pub async fn import_from_promptery(
             });
         }
     };
-    let src: Option<PathBuf> = source_path.map(PathBuf::from);
+    let src: Option<PathBuf> = source_path.clone().map(PathBuf::from);
+    events::emit(
+        &state,
+        events::IMPORT_STARTED,
+        json!({
+            "source_path": source_path.clone().unwrap_or_default(),
+        }),
+    );
     let uc = ImportUseCase::new(&target);
-    uc.import(src.as_deref(), &options)
+    match uc.import(src.as_deref(), &options) {
+        Ok(report) => {
+            events::emit(
+                &state,
+                events::IMPORT_COMPLETED,
+                json!({
+                    "duration_ms": report.duration_ms,
+                    "rows_imported": report.rows_imported,
+                    "commit_path": report.commit_path,
+                    "dry_run": report.dry_run,
+                }),
+            );
+            Ok(report)
+        }
+        Err(err) => {
+            events::emit(
+                &state,
+                events::IMPORT_FAILED,
+                json!({
+                    "error_kind": app_error_kind(&err),
+                    "message": err.to_string(),
+                }),
+            );
+            Err(err)
+        }
+    }
+}
+
+/// Stable string tag for an [`AppError`] variant — matches the
+/// `AppError["kind"]` discriminator on the TS side.
+fn app_error_kind(err: &AppError) -> &'static str {
+    match err {
+        AppError::Validation { .. } => "validation",
+        AppError::TransactionRolledBack { .. } => "transactionRolledBack",
+        AppError::DbBusy => "dbBusy",
+        AppError::LockTimeout { .. } => "lockTimeout",
+        AppError::InternalPanic { .. } => "internalPanic",
+        AppError::NotFound { .. } => "notFound",
+        AppError::Conflict { .. } => "conflict",
+        AppError::SecretAccessDenied { .. } => "secretAccessDenied",
+    }
 }

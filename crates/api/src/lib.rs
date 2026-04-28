@@ -18,6 +18,7 @@
 
 // Lints configured via [lints.clippy] in Cargo.toml.
 
+pub mod events;
 pub mod handlers;
 pub mod state;
 

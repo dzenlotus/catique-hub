@@ -9,8 +9,10 @@ use catique_infrastructure::db::{
     pool::acquire,
     repositories::roles as repo,
 };
+use serde_json::json;
 use tauri::State;
 
+use crate::events;
 use crate::state::AppState;
 
 /// E2 will populate per-domain initialisation here.
@@ -48,7 +50,9 @@ pub async fn create_role(
     content: String,
     color: Option<String>,
 ) -> Result<Role, AppError> {
-    RolesUseCase::new(&state.pool).create(name, content, color)
+    let role = RolesUseCase::new(&state.pool).create(name, content, color)?;
+    events::emit(&state, events::ROLE_CREATED, json!({ "id": role.id }));
+    Ok(role)
 }
 
 /// IPC: partial-update a role.
@@ -64,7 +68,9 @@ pub async fn update_role(
     content: Option<String>,
     color: Option<Option<String>>,
 ) -> Result<Role, AppError> {
-    RolesUseCase::new(&state.pool).update(id, name, content, color)
+    let role = RolesUseCase::new(&state.pool).update(id, name, content, color)?;
+    events::emit(&state, events::ROLE_UPDATED, json!({ "id": role.id }));
+    Ok(role)
 }
 
 /// IPC: delete a role.
@@ -74,7 +80,9 @@ pub async fn update_role(
 /// Forwards every error from `RolesUseCase::delete`.
 #[tauri::command]
 pub async fn delete_role(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
-    RolesUseCase::new(&state.pool).delete(&id)
+    RolesUseCase::new(&state.pool).delete(&id)?;
+    events::emit(&state, events::ROLE_DELETED, json!({ "id": id }));
+    Ok(())
 }
 
 // ---------------------------------------------------------------------
