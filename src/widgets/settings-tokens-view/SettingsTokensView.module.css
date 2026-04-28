@@ -1,0 +1,151 @@
+/*
+ * SettingsTokensView — token-count management table.
+ * Token-based; no hard-coded colour values.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+/* ── Header row ─────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-subtle);
+}
+
+/* ── Table ──────────────────────────────────────────────────────────── */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+}
+
+.headerRow {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.th {
+  padding: var(--space-6) var(--space-8);
+  text-align: left;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.row {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.cellName {
+  padding: var(--space-8);
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0;
+}
+
+.cellDesc {
+  padding: var(--space-8);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0;
+}
+
+.cellTokens {
+  padding: var(--space-8);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cellAction {
+  padding: var(--space-4) var(--space-8);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.noDesc {
+  color: var(--color-text-disabled, var(--color-text-muted));
+}
+
+/* ── Skeleton ───────────────────────────────────────────────────────── */
+
+.skeleton {
+  display: inline-block;
+  border-radius: var(--radius-xs);
+  background-color: var(--color-overlay-hover);
+  height: 0.85em;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.skeletonName {
+  width: 72%;
+}
+
+.skeletonDesc {
+  width: 55%;
+}
+
+.skeletonTokens {
+  width: 40%;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* ── States ─────────────────────────────────────────────────────────── */
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-10) var(--space-12);
+  background-color: var(--color-surface-error, var(--color-overlay-hover));
+  border: 1px solid var(--color-border-error, var(--color-border-default));
+  border-radius: var(--radius-sm);
+}
+
+.errorMessage {
+  margin: 0;
+  flex: 1;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-error, var(--color-text-default));
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-24) 0;
+  text-align: center;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}

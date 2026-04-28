@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import { Button } from "@shared/ui";
+import { SettingsTokensView } from "@widgets/settings-tokens-view";
 import pkgJson from "../../../package.json";
 import styles from "./SettingsView.module.css";
 
@@ -15,7 +16,7 @@ function readActiveTheme(): string {
 /**
  * Settings — top-level settings container.
  *
- * Three sub-sections: Appearance, Data, About.
+ * Four sub-sections: Appearance, Tokens, Data, About.
  * No interactive controls in this slice except disabled affordances in Data.
  * Theme switching is handled by the ThemeToggle in the sidebar footer.
  */
@@ -39,6 +40,16 @@ export function SettingsView(): ReactElement {
           <p className={styles.hint}>
             (используйте переключатель в нижней части боковой панели)
           </p>
+        </div>
+      </section>
+
+      {/* ── Tokens ──────────────────────────────────────────────────── */}
+      <section className={styles.card} aria-labelledby="settings-tokens">
+        <h3 id="settings-tokens" className={styles.cardHeading}>
+          Токены
+        </h3>
+        <div className={styles.cardBody} data-testid="settings-tokens-section">
+          <SettingsTokensView />
         </div>
       </section>
 

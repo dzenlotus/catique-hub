@@ -26,10 +26,11 @@
       "@shared/*": ["./src/shared/*"],
       "@entities/*": ["./src/entities/*"],
       "@widgets/*": ["./src/widgets/*"],
-      "@bindings/*": ["./bindings/*"]
+      "@bindings/*": ["./bindings/*"],
+      "@storybook-mocks/tauri-core": ["./.storybook/__mocks__/tauri-api-core.ts"]
     },
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src", "bindings"],
+  "include": ["src", "bindings", ".storybook"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

@@ -46,6 +46,18 @@ const config: StorybookConfig = {
       "@entities": fileURLToPath(new URL("../src/entities", import.meta.url)),
       "@widgets": fileURLToPath(new URL("../src/widgets", import.meta.url)),
       "@bindings": fileURLToPath(new URL("../bindings", import.meta.url)),
+      // Tauri runtime is unavailable in Storybook preview — use stubs.
+      // Stories for GlobalSearch swap invoke via setMockInvoke.
+      "@tauri-apps/api/core": fileURLToPath(
+        new URL("./__mocks__/tauri-api-core.ts", import.meta.url),
+      ),
+      "@tauri-apps/api/event": fileURLToPath(
+        new URL("./__mocks__/tauri-api-event.ts", import.meta.url),
+      ),
+      // Alias so stories can import the mock helpers without relative traversal.
+      "@storybook-mocks/tauri-core": fileURLToPath(
+        new URL("./__mocks__/tauri-api-core.ts", import.meta.url),
+      ),
     };
     return viteConfig;
   },

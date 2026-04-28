@@ -1,22 +1,50 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
+
+// SettingsTokensView (rendered inside SettingsView) calls usePrompts(), which
+// issues IPC via @shared/api. Mock at that boundary so the test suite doesn't
+// require a live Tauri backend.
+vi.mock("@shared/api", () => ({
+  invoke: vi.fn(),
+}));
+
+import { invoke } from "@shared/api";
 import { SettingsView } from "./SettingsView";
+
+const invokeMock = vi.mocked(invoke);
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function setup(): void {
-  render(<SettingsView />);
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+  const ui: ReactElement = (
+    <QueryClientProvider client={client}>
+      <SettingsView />
+    </QueryClientProvider>
+  );
+  render(ui);
 }
 
 beforeEach(() => {
   // Reset data-theme before each test so tests are isolated.
   delete document.documentElement.dataset["theme"];
+  // Default: list_prompts never resolves (keeps Tokens section in loading state).
+  invokeMock.mockReset();
+  invokeMock.mockImplementation(() => new Promise(() => {}));
 });
 
 afterEach(() => {
   delete document.documentElement.dataset["theme"];
+  vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -24,10 +52,13 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("SettingsView", () => {
-  it("renders all three section headings", () => {
+  it("renders all four section headings", () => {
     setup();
     expect(
       screen.getByRole("heading", { name: /внешний вид/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /^токены$/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: /данные/i }),
@@ -35,6 +66,11 @@ describe("SettingsView", () => {
     expect(
       screen.getByRole("heading", { name: /о приложении/i }),
     ).toBeInTheDocument();
+  });
+
+  it("Tokens section is rendered (stable testid)", () => {
+    setup();
+    expect(screen.getByTestId("settings-tokens-section")).toBeInTheDocument();
   });
 
   it("About section shows the app version string", () => {
@@ -69,7 +105,11 @@ describe("SettingsView", () => {
     setup();
     const disabledButtons = screen
       .getAllByRole("button")
-      .filter((btn) => btn.hasAttribute("disabled") || btn.getAttribute("aria-disabled") === "true");
+      .filter(
+        (btn) =>
+          btn.hasAttribute("disabled") ||
+          btn.getAttribute("aria-disabled") === "true",
+      );
     expect(disabledButtons.length).toBeGreaterThanOrEqual(1);
     // At least one of them mentions TODO.
     const todoButton = disabledButtons.find((btn) =>
