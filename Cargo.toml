@@ -65,7 +65,7 @@ chrono = { version = "0.4", default-features = false, features = ["serde", "cloc
 thiserror = "1"
 anyhow = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
-dirs = "5"
+dirs = "6"
 
 # Tauri pinned to the same minor as src-tauri/ scaffold (Katya, E1.1).
 tauri = { version = "2.10", default-features = false }
