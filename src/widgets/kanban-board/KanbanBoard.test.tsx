@@ -3,6 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
+import { Router } from "wouter";
+import { memoryLocation } from "wouter/memory-location";
 
 import type { Column } from "@entities/column";
 import type { Task } from "@entities/task";
@@ -16,7 +18,7 @@ import { KanbanBoard } from "./KanbanBoard";
 
 const invokeMock = vi.mocked(invoke);
 
-function renderWithClient(ui: ReactElement) {
+function renderWithClient(ui: ReactElement, initialPath = "/") {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0 },
@@ -24,8 +26,13 @@ function renderWithClient(ui: ReactElement) {
     },
   });
   const user = userEvent.setup();
-  render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
-  return { client, user };
+  const { hook, history } = memoryLocation({ path: initialPath, record: true });
+  render(
+    <Router hook={hook}>
+      <QueryClientProvider client={client}>{ui}</QueryClientProvider>
+    </Router>,
+  );
+  return { client, user, history };
 }
 
 function makeColumn(overrides: Partial<Column> = {}): Column {
@@ -159,6 +166,27 @@ describe("KanbanBoard", () => {
     });
     expect(screen.getByText("Belongs")).toBeInTheDocument();
     expect(screen.queryByText("Does not belong")).toBeNull();
+  });
+
+  it("clicking a task card navigates to /tasks/:id", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_columns") {
+        return [makeColumn({ id: "col-1", name: "Todo", position: 1n })] satisfies Column[];
+      }
+      if (cmd === "list_tasks") {
+        return [makeTask({ id: "tsk-click", columnId: "col-1", title: "Click Me" })] satisfies Task[];
+      }
+      throw new Error(`unexpected: ${cmd}`);
+    });
+
+    const { user, history } = renderWithClient(<KanbanBoard boardId="brd-1" />, "/boards/brd-1");
+    await waitFor(() => {
+      expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Click Me"));
+    // history is the recorded navigation array (record: true); last entry is the task route
+    expect(history?.at(-1)).toBe("/tasks/tsk-click");
   });
 
   it("creates a column from the empty CTA and refetches the list", async () => {

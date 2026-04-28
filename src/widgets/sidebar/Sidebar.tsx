@@ -27,7 +27,7 @@ import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 import { GlobalSearch, useGlobalSearchKeybind } from "@widgets/global-search";
 import type { SearchResult } from "@bindings/SearchResult";
-import { boardPath, pathForView } from "@app/routes";
+import { pathForView, taskPath } from "@app/routes";
 import styles from "./Sidebar.module.css";
 
 /** All navigable top-level views in the app shell. */
@@ -239,17 +239,15 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
    * Handle a result selected in the global search palette.
    *
    * - agentReport → navigates to `/reports` via the router.
-   * - task        → navigates to the task's board via `boardPath(result.boardId)`.
-   *                 The board opens and the user can locate the specific task.
+   * - task        → navigates directly to `/tasks/:id` which opens TaskDialog
+   *                 on top of BoardsList regardless of the current view.
    */
   function handleSearchResult(result: SearchResult): void {
     setIsSearchOpen(false);
     if (result.type === "agentReport") {
       setLocation(pathForView("reports"));
     } else {
-      // Navigate to the board that contains this task so the user can find it.
-      // boardId is guaranteed on task results per the SearchResult binding.
-      setLocation(boardPath(result.boardId));
+      setLocation(taskPath(result.id));
     }
   }
 

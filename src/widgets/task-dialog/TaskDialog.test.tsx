@@ -97,6 +97,7 @@ describe("TaskDialog", () => {
   it("renders form fields populated with task data when loaded", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return makeTask();
+      if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
@@ -116,6 +117,7 @@ describe("TaskDialog", () => {
   it("title input is editable", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return makeTask();
+      if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
@@ -135,6 +137,7 @@ describe("TaskDialog", () => {
       if (cmd === "get_task") return task;
       if (cmd === "update_task") return { ...task, title: "Обновлённое название" };
       if (cmd === "list_tasks") return [task];
+      if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
@@ -164,6 +167,7 @@ describe("TaskDialog", () => {
       if (cmd === "get_task") return task;
       if (cmd === "update_task") return task;
       if (cmd === "list_tasks") return [task];
+      if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
@@ -182,6 +186,7 @@ describe("TaskDialog", () => {
   it("clicking Cancel closes without triggering mutation", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return makeTask();
+      if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
@@ -201,6 +206,7 @@ describe("TaskDialog", () => {
   it("renders all three section headers", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return makeTask();
+      if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
@@ -222,6 +228,7 @@ describe("TaskDialog", () => {
   it("prompts section shows empty-state hint with coming-soon note", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return makeTask();
+      if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
@@ -236,9 +243,10 @@ describe("TaskDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("attachments section shows coming-soon placeholder", async () => {
+  it("attachments section shows empty state with disabled upload button when no attachments", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return makeTask();
+      if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
@@ -246,15 +254,95 @@ describe("TaskDialog", () => {
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/появится с вслайсом вложений E4/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Нет вложений")).toBeInTheDocument();
     });
+
+    const uploadBtn = screen.getByRole("button", { name: /загрузить файл/i });
+    expect(uploadBtn).toBeDisabled();
+  });
+
+  it("attachments section renders attachment rows when attachments exist", async () => {
+    const task = makeTask();
+    const attachment = {
+      id: "att-1",
+      taskId: task.id,
+      filename: "design.png",
+      mimeType: "image/png",
+      sizeBytes: 2048n,
+      storagePath: "/attachments/tsk-1/design.png",
+      uploadedAt: 0n,
+      uploadedBy: null,
+    };
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_task") return task;
+      if (cmd === "list_attachments") return [attachment];
+      if (cmd === "list_agent_reports") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("attachment-row-att-1")).toBeInTheDocument();
+    });
+    expect(screen.getByText("design.png")).toBeInTheDocument();
+  });
+
+  it("attachments section delete button calls delete mutation and shows success toast", async () => {
+    const task = makeTask();
+    const attachment = {
+      id: "att-del",
+      taskId: task.id,
+      filename: "notes.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 1024n,
+      storagePath: "/attachments/tsk-1/notes.pdf",
+      uploadedAt: 0n,
+      uploadedBy: null,
+    };
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_task") return task;
+      if (cmd === "list_attachments") return [attachment];
+      if (cmd === "list_agent_reports") return [];
+      if (cmd === "delete_attachment") return undefined;
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("attachment-row-att-del")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("attachment-row-delete-att-del"));
+
+    await waitFor(() => {
+      const deleteCall = invokeMock.mock.calls.find(([cmd]) => cmd === "delete_attachment");
+      expect(deleteCall).toBeDefined();
+      expect(deleteCall?.[1]).toMatchObject({ id: "att-del" });
+    });
+  });
+
+  it("attachments section shows error banner when list query fails", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_task") return makeTask();
+      if (cmd === "list_attachments") throw new Error("attachments down");
+      if (cmd === "list_agent_reports") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/не удалось загрузить вложения/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/attachments down/i)).toBeInTheDocument();
   });
 
   it("agent reports section renders AgentReportsList (empty state by default)", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return makeTask();
+      if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
@@ -272,6 +360,7 @@ describe("TaskDialog", () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return task;
       if (cmd === "update_task") throw new Error("db locked");
+      if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       throw new Error(`unexpected: ${cmd}`);
     });

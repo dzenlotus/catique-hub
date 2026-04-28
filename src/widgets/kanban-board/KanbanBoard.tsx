@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { TaskDialog } from "../task-dialog";
+import { useLocation } from "wouter";
 import {
   DragOverlay,
   type CollisionDetection,
@@ -26,6 +26,7 @@ import {
 import { TaskCard } from "@entities/task";
 import { Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
+import { taskPath } from "@app/routes";
 
 import { KanbanColumn } from "./KanbanColumn";
 import {
@@ -68,6 +69,7 @@ export function KanbanBoard({
   boardId,
   onTaskSelect,
 }: KanbanBoardProps): ReactElement {
+  const [, setLocation] = useLocation();
   const columnsQuery = useColumns(boardId);
   const tasksQuery = useTasksByBoard(boardId);
 
@@ -86,16 +88,15 @@ export function KanbanBoard({
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
-  // Internal task-select handler: opens local TaskDialog and also
-  // forwards to the caller's onTaskSelect prop if provided.
+  // Task-select handler: navigates to the task route (opens TaskDialog via
+  // App-level route) and also forwards to the caller's onTaskSelect prop.
   const handleTaskSelect = useCallback(
     (id: string): void => {
-      setSelectedTaskId(id);
+      setLocation(taskPath(id));
       onTaskSelect?.(id);
     },
-    [onTaskSelect],
+    [setLocation, onTaskSelect],
   );
 
   const columnIds = useMemo(() => columns.map((c) => c.id), [columns]);
@@ -455,11 +456,6 @@ export function KanbanBoard({
           ) : null}
         </DragOverlay>
       </DnDProvider>
-
-      <TaskDialog
-        taskId={selectedTaskId}
-        onClose={() => setSelectedTaskId(null)}
-      />
     </section>
   );
 }

@@ -13,7 +13,12 @@
 
 import { useEffect, useState, type ReactElement } from "react";
 import { useTask, useUpdateTaskMutation } from "@entities/task";
-import { Dialog, Button, Input } from "@shared/ui";
+import {
+  useAttachmentsByTask,
+  useDeleteAttachmentMutation,
+  AttachmentRow,
+} from "@entities/attachment";
+import { Dialog, Button, Input, Tooltip, TooltipTrigger } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
 import { useToast } from "@app/providers/ToastProvider";
@@ -54,6 +59,90 @@ export function TaskDialog({ taskId, onClose }: TaskDialogProps): ReactElement {
         ) : null
       }
     </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface AttachmentsSectionProps {
+  taskId: string;
+}
+
+function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
+  const query = useAttachmentsByTask(taskId);
+  const deleteMutation = useDeleteAttachmentMutation();
+  const { pushToast } = useToast();
+
+  // ── Pending ──────────────────────────────────────────────────────
+  if (query.status === "pending") {
+    return (
+      <div className={styles.attachmentSkeletonStack} aria-busy="true">
+        <div className={styles.attachmentSkeletonRow} />
+        <div className={styles.attachmentSkeletonRow} />
+      </div>
+    );
+  }
+
+  // ── Error ────────────────────────────────────────────────────────
+  if (query.status === "error") {
+    return (
+      <div className={styles.attachmentErrorBanner} role="alert">
+        <p className={styles.attachmentErrorMessage}>
+          Не удалось загрузить вложения: {query.error.message}
+        </p>
+        <Button
+          variant="secondary"
+          size="sm"
+          onPress={() => void query.refetch()}
+        >
+          Повторить
+        </Button>
+      </div>
+    );
+  }
+
+  // ── Loaded ───────────────────────────────────────────────────────
+  const attachments = query.data;
+
+  const handleDelete = (id: string): void => {
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        pushToast("success", "Вложение удалено");
+      },
+      onError: (err) => {
+        pushToast("error", `Не удалось удалить вложение: ${err.message}`);
+      },
+    });
+  };
+
+  if (attachments.length === 0) {
+    return (
+      <div className={styles.attachmentEmptyState}>
+        <p className={styles.sectionEmptyHint}>Нет вложений</p>
+        <TooltipTrigger>
+          <Button variant="secondary" size="sm" isDisabled>
+            Загрузить файл
+          </Button>
+          <Tooltip placement="bottom">Загрузка через UI появится в E5</Tooltip>
+        </TooltipTrigger>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.attachmentList}>
+      {attachments.map((attachment) => (
+        <AttachmentRow
+          key={attachment.id}
+          attachment={attachment}
+          onDelete={handleDelete}
+          isDeleting={
+            deleteMutation.isPending &&
+            deleteMutation.variables === attachment.id
+          }
+        />
+      ))}
+    </div>
   );
 }
 
@@ -272,15 +361,13 @@ function TaskDialogContent({
         </div>
       </div>
 
-      {/* Attachments — placeholder until FE vslice lands */}
+      {/* Attachments */}
       <div
         className={styles.sectionBlock}
         data-testid="task-dialog-placeholder-attachments"
       >
         <h3 className={styles.sectionHeading}>Вложения</h3>
-        <p className={styles.sectionComingHint}>
-          (появится с вслайсом вложений E4)
-        </p>
+        <AttachmentsSection taskId={task.id} />
       </div>
 
       {/* Agent reports — wired via AgentReportsList with taskId filter */}

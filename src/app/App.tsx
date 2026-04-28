@@ -17,6 +17,7 @@ import { SpacesList } from "@widgets/spaces-list";
 import { Sidebar } from "@widgets/sidebar";
 import type { NavView } from "@widgets/sidebar";
 import { Toaster } from "@widgets/toaster";
+import { TaskDialog } from "@widgets/task-dialog";
 import { Button } from "@shared/ui";
 
 import { routes, pathForView, viewForPath, boardPath } from "./routes";
@@ -63,6 +64,22 @@ export default function App(): ReactElement {
       <main className={styles.mainPane}>
         <FirstLaunchGate>
           <Switch>
+            {/* Task deep-link — renders BoardsList beneath the dialog so the
+                user has context; dialog closes back to /boards. */}
+            <Route path={routes.task}>
+              {(params) => (
+                <>
+                  <BoardsList
+                    onSelectBoard={(id) => setLocation(boardPath(id))}
+                  />
+                  <TaskDialog
+                    taskId={params.taskId}
+                    onClose={() => setLocation(routes.boards)}
+                  />
+                </>
+              )}
+            </Route>
+
             {/* Board detail — boardId comes from URL params */}
             <Route path={routes.board}>
               {(params) => (

@@ -17,6 +17,7 @@ import type { NavView } from "@widgets/sidebar";
 export const routes = {
   boards: "/",
   board: "/boards/:boardId",
+  task: "/tasks/:taskId",
   prompts: "/prompts",
   promptGroups: "/prompt-groups",
   roles: "/roles",
@@ -35,6 +36,11 @@ export const routes = {
 /** Build the concrete URL path for a specific board detail page. */
 export function boardPath(id: string): string {
   return `/boards/${id}`;
+}
+
+/** Build the concrete URL path for a specific task detail dialog. */
+export function taskPath(id: string): string {
+  return `/tasks/${id}`;
 }
 
 /**
@@ -85,5 +91,7 @@ export function viewForPath(path: string): NavView {
   if (path === routes.settings) return "settings";
   // Board detail: /boards/<id>
   if (path.startsWith("/boards/")) return "boards";
+  // Task deep-link: /tasks/<id> — sidebar stays on "boards" (most common origin).
+  if (path.startsWith("/tasks/")) return "boards";
   return "boards";
 }

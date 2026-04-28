@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { routes, boardPath, pathForView, viewForPath } from "./routes";
+import { routes, boardPath, taskPath, pathForView, viewForPath } from "./routes";
 import type { NavView } from "@widgets/sidebar";
 
 // ---------------------------------------------------------------------------
@@ -31,6 +31,24 @@ describe("boardPath", () => {
 
   it("handles arbitrary id strings", () => {
     expect(boardPath("my-board")).toBe("/boards/my-board");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// taskPath helper
+// ---------------------------------------------------------------------------
+
+describe("taskPath", () => {
+  it("returns /tasks/<id>", () => {
+    expect(taskPath("tsk-1")).toBe("/tasks/tsk-1");
+  });
+
+  it("handles arbitrary id strings", () => {
+    expect(taskPath("my-task-id")).toBe("/tasks/my-task-id");
+  });
+
+  it("route constant has :taskId placeholder", () => {
+    expect(routes.task).toBe("/tasks/:taskId");
   });
 });
 
@@ -143,6 +161,11 @@ describe("viewForPath", () => {
   it("falls back to boards for unknown paths", () => {
     expect(viewForPath("/unknown")).toBe("boards");
     expect(viewForPath("/some/deep/path")).toBe("boards");
+  });
+
+  it("maps /tasks/:id → boards (sidebar stays on boards for task deep-links)", () => {
+    expect(viewForPath("/tasks/tsk-1")).toBe("boards");
+    expect(viewForPath("/tasks/some-other-id")).toBe("boards");
   });
 
   // Round-trip: pathForView(view) → viewForPath → same view (excluding board detail which maps back to boards)

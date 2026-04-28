@@ -1,0 +1,80 @@
+/*
+ * AttachmentRow — compact horizontal row for a single attachment.
+ *
+ * Reads only semantic tokens per shared/ui/README.md convention.
+ * Layout: row with mime badge, filename (flex-grow), size, delete button.
+ */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-default);
+  background-color: var(--color-surface-raised);
+  font-family: var(--font-sans);
+  min-height: 40px;
+  transition: background-color 120ms ease-out;
+}
+
+.row:hover {
+  background-color: var(--color-overlay-hover);
+}
+
+/* ---------- MIME badge ---------- */
+
+.mimeBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 36px;
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-xs);
+  background-color: var(--color-accent-soft);
+  color: var(--color-text-default);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* ---------- Filename ---------- */
+
+.filename {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-default);
+  line-height: var(--line-height-normal);
+}
+
+/* ---------- File size ---------- */
+
+.size {
+  flex-shrink: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Delete button ---------- */
+
+.deleteButton {
+  flex-shrink: 0;
+  font-size: var(--font-size-body);
+  line-height: 1;
+  padding: 0 var(--space-6) !important;
+  min-width: 28px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    transition: none;
+  }
+}
