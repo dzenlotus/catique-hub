@@ -39,6 +39,51 @@
   width: 100%;
 }
 
+/* ── Edit / Preview mode toggle ──────────────────────────────────── */
+
+.modeToggle {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  align-self: flex-start;
+}
+
+.modeToggleBtn {
+  border-radius: 0 !important;
+  border: none !important;
+  height: 28px !important;
+  padding: 0 var(--space-12) !important;
+  font-size: var(--font-size-body-sm) !important;
+  color: var(--color-text-muted);
+}
+
+.modeToggleBtn[aria-pressed="true"] {
+  background-color: var(--color-overlay-hover) !important;
+  color: var(--color-text-default) !important;
+  font-weight: var(--font-weight-medium) !important;
+}
+
+/* ── Description preview pane ────────────────────────────────────── */
+
+/*
+ * Cap at 300 px with internal scroll — TaskDialog has limited vertical
+ * room due to the additional sections (prompts / attachments / reports).
+ */
+.descriptionPreview {
+  width: 100%;
+  min-height: 96px;
+  max-height: 300px;
+  box-sizing: border-box;
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-8) var(--space-12);
+  overflow-y: auto;
+}
+
 .descriptionTextarea {
   width: 100%;
   min-height: 96px;

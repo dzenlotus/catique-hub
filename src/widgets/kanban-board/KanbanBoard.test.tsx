@@ -8,6 +8,7 @@ import { memoryLocation } from "wouter/memory-location";
 
 import type { Column } from "@entities/column";
 import type { Task } from "@entities/task";
+import type { Prompt } from "@entities/prompt";
 
 vi.mock("@shared/api", () => ({
   invoke: vi.fn(),
@@ -57,6 +58,20 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     description: null,
     position: 1,
     roleId: null,
+    createdAt: 0n,
+    updatedAt: 0n,
+    ...overrides,
+  };
+}
+
+function makePrompt(overrides: Partial<Prompt> = {}): Prompt {
+  return {
+    id: "pmt-1",
+    name: "Test Prompt",
+    content: "Prompt content",
+    color: null,
+    shortDescription: null,
+    tokenCount: null,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,
@@ -231,5 +246,73 @@ describe("KanbanBoard", () => {
       name: "Inbox",
       position: 1,
     });
+  });
+
+  it('renders the "Промпты" toggle button on the populated board', async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_columns") return [makeColumn()] satisfies Column[];
+      if (cmd === "list_tasks") return [] satisfies Task[];
+      if (cmd === "list_prompts") return [] satisfies Prompt[];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    renderWithClient(<KanbanBoard boardId="brd-1" />);
+    await waitFor(() => {
+      expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId("kanban-board-prompts-toggle"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /промпты/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the prompts panel when the toggle is clicked", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_columns") return [makeColumn()] satisfies Column[];
+      if (cmd === "list_tasks") return [] satisfies Task[];
+      if (cmd === "list_prompts") return [] satisfies Prompt[];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const { user } = renderWithClient(<KanbanBoard boardId="brd-1" />);
+    await waitFor(() => {
+      expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
+    });
+
+    // Panel should not be visible yet.
+    expect(screen.queryByLabelText("Промпты для перетаскивания")).toBeNull();
+
+    await user.click(screen.getByTestId("kanban-board-prompts-toggle"));
+
+    expect(
+      screen.getByLabelText("Промпты для перетаскивания"),
+    ).toBeInTheDocument();
+  });
+
+  it("panel shows prompt rows seeded from usePrompts cache", async () => {
+    const prompts: Prompt[] = [
+      makePrompt({ id: "p1", name: "Системный промпт" }),
+      makePrompt({ id: "p2", name: "Ролевой промпт" }),
+    ];
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_columns") return [makeColumn()] satisfies Column[];
+      if (cmd === "list_tasks") return [] satisfies Task[];
+      if (cmd === "list_prompts") return prompts satisfies Prompt[];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const { user } = renderWithClient(<KanbanBoard boardId="brd-1" />);
+    await waitFor(() => {
+      expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("kanban-board-prompts-toggle"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("kanban-prompt-panel-list"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("Системный промпт")).toBeInTheDocument();
+    expect(screen.getByText("Ролевой промпт")).toBeInTheDocument();
   });
 });

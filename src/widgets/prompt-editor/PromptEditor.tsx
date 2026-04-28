@@ -9,7 +9,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { RefreshCw } from "lucide-react";
 import { usePrompt, useUpdatePromptMutation, useRecomputePromptTokenCountMutation } from "@entities/prompt";
-import { Dialog, Button, Input, Tooltip, TooltipTrigger } from "@shared/ui";
+import { Dialog, Button, Input, Tooltip, TooltipTrigger, MarkdownPreview } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -74,6 +74,7 @@ function PromptEditorContent({
   const [localColor, setLocalColor] = useState("");
   const [localContent, setLocalContent] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [contentViewMode, setContentViewMode] = useState<"edit" | "preview">("edit");
 
   // Sync local state when prompt data loads or promptId changes.
   useEffect(() => {
@@ -305,14 +306,48 @@ function PromptEditorContent({
       {/* Content */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Содержимое</p>
-        <textarea
-          className={styles.contentTextarea}
-          value={localContent}
-          onChange={(e) => setLocalContent(e.target.value)}
-          placeholder="Содержимое промпта (Markdown)..."
-          data-testid="prompt-editor-content-textarea"
-          aria-label="Содержимое"
-        />
+        <div
+          role="group"
+          aria-label="Режим редактора содержимого"
+          className={styles.modeToggle}
+          data-testid="prompt-editor-content-mode-toggle"
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            className={styles.modeToggleBtn}
+            aria-pressed={contentViewMode === "edit"}
+            onPress={() => setContentViewMode("edit")}
+            data-testid="prompt-editor-content-mode-edit"
+          >
+            Редактировать
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={styles.modeToggleBtn}
+            aria-pressed={contentViewMode === "preview"}
+            onPress={() => setContentViewMode("preview")}
+            data-testid="prompt-editor-content-mode-preview"
+          >
+            Превью
+          </Button>
+        </div>
+        {contentViewMode === "edit" ? (
+          <textarea
+            className={styles.contentTextarea}
+            value={localContent}
+            onChange={(e) => setLocalContent(e.target.value)}
+            placeholder="Содержимое промпта (Markdown)..."
+            data-testid="prompt-editor-content-textarea"
+            aria-label="Содержимое"
+          />
+        ) : (
+          <MarkdownPreview
+            source={localContent}
+            className={styles.contentPreview}
+          />
+        )}
       </div>
 
       {/* Token count */}

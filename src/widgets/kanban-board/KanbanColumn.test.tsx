@@ -175,4 +175,24 @@ describe("KanbanColumn", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByTestId("column-editor")).toBeInTheDocument();
   });
+
+  it("wraps the column header area with PromptDropZoneColumnHeader droppable", () => {
+    // PromptDropZoneColumnHeader renders the column name via ColumnHeader.
+    // When it is wired correctly the column name is still visible and the
+    // header row renders as a child of the droppable wrapper div.
+    renderInDnd(
+      <KanbanColumn
+        column={makeColumn({ id: "col-drop-zone", name: "Droppable" })}
+        tasks={[]}
+      />,
+    );
+    // Column name is rendered inside PromptDropZoneColumnHeader → ColumnHeader.
+    expect(screen.getByText("Droppable")).toBeInTheDocument();
+    // The drag-handle inside the header is still accessible, confirming the
+    // nested structure (PromptDropZoneColumnHeader wrapping ColumnHeader)
+    // is intact.
+    expect(
+      screen.getByTestId("kanban-column-drag-handle-col-drop-zone"),
+    ).toBeInTheDocument();
+  });
 });

@@ -355,6 +355,44 @@ describe("TaskDialog", () => {
     });
   });
 
+  // ── Edit / Preview toggle ────────────────────────────────────────
+
+  it("shows the description mode toggle defaulting to 'edit' mode", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_task") return makeTask();
+      if (cmd === "list_attachments") return [];
+      if (cmd === "list_agent_reports") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await screen.findByTestId("task-dialog-title-input");
+
+    expect(screen.getByTestId("task-dialog-description-mode-toggle")).toBeInTheDocument();
+    expect(screen.getByTestId("task-dialog-description-textarea")).toBeInTheDocument();
+    expect(screen.getByTestId("task-dialog-description-mode-edit")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("task-dialog-description-mode-preview")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("switches to description preview mode and renders markdown content", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_task") return makeTask({ description: "**Жирный** текст" });
+      if (cmd === "list_attachments") return [];
+      if (cmd === "list_agent_reports") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await screen.findByTestId("task-dialog-title-input");
+
+    await user.click(screen.getByTestId("task-dialog-description-mode-preview"));
+
+    expect(screen.queryByTestId("task-dialog-description-textarea")).not.toBeInTheDocument();
+    expect(screen.getByText("Жирный").tagName).toBe("STRONG");
+  });
+
   it("shows inline error when save fails", async () => {
     const task = makeTask();
     invokeMock.mockImplementation(async (cmd) => {

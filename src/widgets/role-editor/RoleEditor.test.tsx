@@ -197,6 +197,40 @@ describe("RoleEditor", () => {
     });
   });
 
+  // ── Edit / Preview toggle ────────────────────────────────────────
+
+  it("shows the mode toggle defaulting to 'edit' mode", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") return makeRole();
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+    await screen.findByTestId("role-editor-name-input");
+
+    expect(screen.getByTestId("role-editor-content-mode-toggle")).toBeInTheDocument();
+    expect(screen.getByTestId("role-editor-content-textarea")).toBeInTheDocument();
+    expect(screen.getByTestId("role-editor-content-mode-edit")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("role-editor-content-mode-preview")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("switches to preview mode and renders markdown heading from role content", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") return makeRole({ content: "# Роль агента" });
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+    await screen.findByTestId("role-editor-name-input");
+
+    await user.click(screen.getByTestId("role-editor-content-mode-preview"));
+
+    expect(screen.queryByTestId("role-editor-content-textarea")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Роль агента" })).toBeInTheDocument();
+  });
+
   it("shows inline save-error message when mutation fails", async () => {
     const role = makeRole();
     invokeMock.mockImplementation(async (cmd) => {

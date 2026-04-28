@@ -18,7 +18,7 @@ import {
   useDeleteAttachmentMutation,
   AttachmentRow,
 } from "@entities/attachment";
-import { Dialog, Button, Input, Tooltip, TooltipTrigger } from "@shared/ui";
+import { Dialog, Button, Input, Tooltip, TooltipTrigger, MarkdownPreview } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
 import { useToast } from "@app/providers/ToastProvider";
@@ -165,6 +165,7 @@ function TaskDialogContent({
   const [localTitle, setLocalTitle] = useState("");
   const [localDescription, setLocalDescription] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [descViewMode, setDescViewMode] = useState<"edit" | "preview">("edit");
 
   // Sync local state when task data loads or taskId changes.
   useEffect(() => {
@@ -335,14 +336,48 @@ function TaskDialogContent({
       {/* Description */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Описание</p>
-        <textarea
-          className={styles.descriptionTextarea}
-          value={localDescription}
-          onChange={(e) => setLocalDescription(e.target.value)}
-          placeholder="Добавьте описание..."
-          data-testid="task-dialog-description-textarea"
-          aria-label="Описание"
-        />
+        <div
+          role="group"
+          aria-label="Режим редактора описания"
+          className={styles.modeToggle}
+          data-testid="task-dialog-description-mode-toggle"
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            className={styles.modeToggleBtn}
+            aria-pressed={descViewMode === "edit"}
+            onPress={() => setDescViewMode("edit")}
+            data-testid="task-dialog-description-mode-edit"
+          >
+            Редактировать
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={styles.modeToggleBtn}
+            aria-pressed={descViewMode === "preview"}
+            onPress={() => setDescViewMode("preview")}
+            data-testid="task-dialog-description-mode-preview"
+          >
+            Превью
+          </Button>
+        </div>
+        {descViewMode === "edit" ? (
+          <textarea
+            className={styles.descriptionTextarea}
+            value={localDescription}
+            onChange={(e) => setLocalDescription(e.target.value)}
+            placeholder="Добавьте описание..."
+            data-testid="task-dialog-description-textarea"
+            aria-label="Описание"
+          />
+        ) : (
+          <MarkdownPreview
+            source={localDescription}
+            className={styles.descriptionPreview}
+          />
+        )}
       </div>
 
       {/* Prompts attached — empty state until list_task_prompts IPC lands */}

@@ -5,13 +5,13 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { Settings } from "lucide-react";
 
-import { ColumnHeader } from "@entities/column";
 import type { Column } from "@entities/column";
 import { TaskCard } from "@entities/task";
 import type { Task } from "@entities/task";
 import { Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { ColumnEditor } from "@widgets/column-editor";
+import { PromptDropZoneColumnHeader } from "@features/prompt-attachment";
 
 import styles from "./KanbanColumn.module.css";
 
@@ -119,7 +119,8 @@ export function KanbanColumn({
       data-testid={`kanban-column-${column.id}`}
     >
       <div className={styles.headerRow}>
-        <ColumnHeader
+        <PromptDropZoneColumnHeader
+          columnId={column.id}
           id={column.id}
           name={column.name}
           taskCount={tasks.length}

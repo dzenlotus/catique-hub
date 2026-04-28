@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { columnsKeys, type Column } from "@entities/column";
 import { tasksKeys, type Task } from "@entities/task";
+import { promptsKeys, type Prompt } from "@entities/prompt";
 
 import { KanbanBoard } from "./KanbanBoard";
 
@@ -84,7 +85,30 @@ const sampleTasks: Task[] = [
   },
 ];
 
-function makeSeededClient(columns: Column[], tasks: Task[]): QueryClient {
+const samplePrompts: Prompt[] = [
+  {
+    id: "pmt-1",
+    name: "Системный промпт",
+    content: "Ты — ассистент для управления задачами.",
+    color: "#6366f1",
+    shortDescription: "Базовый системный промпт",
+    tokenCount: 12n,
+    createdAt: 0n,
+    updatedAt: 0n,
+  },
+  {
+    id: "pmt-2",
+    name: "Ролевой промпт",
+    content: "Ты — тимлид команды разработчиков.",
+    color: null,
+    shortDescription: null,
+    tokenCount: null,
+    createdAt: 0n,
+    updatedAt: 0n,
+  },
+];
+
+function makeSeededClient(columns: Column[], tasks: Task[], prompts: Prompt[] = samplePrompts): QueryClient {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity, staleTime: Infinity },
@@ -92,6 +116,7 @@ function makeSeededClient(columns: Column[], tasks: Task[]): QueryClient {
   });
   client.setQueryData(columnsKeys.list("brd-1"), columns);
   client.setQueryData(tasksKeys.byBoard("brd-1"), tasks);
+  client.setQueryData(promptsKeys.list(), prompts);
   return client;
 }
 

@@ -8,7 +8,7 @@
 
 import { useEffect, useState, type ReactElement } from "react";
 import { useRole, useUpdateRoleMutation } from "@entities/role";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, Input, MarkdownPreview } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -70,6 +70,7 @@ function RoleEditorContent({
   const [localColor, setLocalColor] = useState("");
   const [localContent, setLocalContent] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [contentViewMode, setContentViewMode] = useState<"edit" | "preview">("edit");
 
   // Sync local state when role data loads or roleId changes.
   useEffect(() => {
@@ -278,14 +279,48 @@ function RoleEditorContent({
       {/* Content */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Содержимое</p>
-        <textarea
-          className={styles.contentTextarea}
-          value={localContent}
-          onChange={(e) => setLocalContent(e.target.value)}
-          placeholder="Содержимое роли (Markdown)..."
-          data-testid="role-editor-content-textarea"
-          aria-label="Содержимое"
-        />
+        <div
+          role="group"
+          aria-label="Режим редактора содержимого"
+          className={styles.modeToggle}
+          data-testid="role-editor-content-mode-toggle"
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            className={styles.modeToggleBtn}
+            aria-pressed={contentViewMode === "edit"}
+            onPress={() => setContentViewMode("edit")}
+            data-testid="role-editor-content-mode-edit"
+          >
+            Редактировать
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={styles.modeToggleBtn}
+            aria-pressed={contentViewMode === "preview"}
+            onPress={() => setContentViewMode("preview")}
+            data-testid="role-editor-content-mode-preview"
+          >
+            Превью
+          </Button>
+        </div>
+        {contentViewMode === "edit" ? (
+          <textarea
+            className={styles.contentTextarea}
+            value={localContent}
+            onChange={(e) => setLocalContent(e.target.value)}
+            placeholder="Содержимое роли (Markdown)..."
+            data-testid="role-editor-content-textarea"
+            aria-label="Содержимое"
+          />
+        ) : (
+          <MarkdownPreview
+            source={localContent}
+            className={styles.contentPreview}
+          />
+        )}
       </div>
 
       {/* Footer */}

@@ -36,3 +36,6 @@ export type { ComboboxProps, ComboboxItem } from "./Combobox";
 
 export { Tooltip, TooltipTrigger } from "./Tooltip";
 export type { TooltipProps, TooltipTriggerProps } from "./Tooltip";
+
+export { MarkdownPreview } from "./MarkdownPreview";
+export type { MarkdownPreviewProps } from "./MarkdownPreview";

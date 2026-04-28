@@ -8,6 +8,7 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import {
   useColumns,
@@ -24,9 +25,14 @@ import {
   type Task,
 } from "@entities/task";
 import { TaskCard } from "@entities/task";
+import { PromptCard, usePrompts } from "@entities/prompt";
 import { Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { taskPath } from "@app/routes";
+import {
+  PromptAttachmentBoundary,
+  DraggablePromptRow,
+} from "@features/prompt-attachment";
 
 import { KanbanColumn } from "./KanbanColumn";
 import {
@@ -84,10 +90,14 @@ export function KanbanBoard({
   const columns: Column[] = columnsQuery.data ?? [];
   const tasks: Task[] = tasksQuery.data ?? [];
 
+  const promptsQuery = usePrompts();
+  const prompts = promptsQuery.data ?? [];
+
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
 
   // Task-select handler: navigates to the task route (opens TaskDialog via
   // App-level route) and also forwards to the caller's onTaskSelect prop.
@@ -372,90 +382,153 @@ export function KanbanBoard({
 
   return (
     <section className={styles.root} data-testid="kanban-board">
-      <DnDProvider
-        columnIds={columnIds}
-        collisionDetection={collisionDetection}
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDragEnd={onDragEnd}
-        onDragCancel={onDragCancel}
-      >
-        <div className={styles.scroller}>
-          {columns.map((column) => (
-            <KanbanColumn
-              key={column.id}
-              column={column}
-              tasks={tasksByColumn[column.id] ?? []}
-              onAddTask={handleAddTask}
-              onRenameColumn={(id, name) =>
-                updateColumn.mutate({ id, boardId, name })
-              }
-              onDeleteColumn={(id) =>
-                deleteColumn.mutate({ id, boardId })
-              }
-              onTaskSelect={handleTaskSelect}
-            />
-          ))}
-
-          <div className={styles.addColumnContainer}>
-            {isAddingColumn ? (
-              <form
-                className={styles.addColumnForm}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSubmitNewColumn();
-                }}
-              >
-                <Input
-                  label="Column name"
-                  value={newColumnName}
-                  onChange={setNewColumnName}
-                  placeholder="e.g. In review"
-                  autoFocus
-                />
-                <div className={styles.addColumnFormActions}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    type="button"
-                    onPress={() => {
-                      setNewColumnName("");
-                      setIsAddingColumn(false);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button variant="primary" size="sm" type="submit">
-                    Add
-                  </Button>
-                </div>
-              </form>
+      <header className={styles.boardHeader}>
+        <h2 className={styles.boardHeading}>Канбан</h2>
+        <Button
+          variant="ghost"
+          size="md"
+          onPress={() => setIsPanelOpen((v) => !v)}
+          aria-expanded={isPanelOpen}
+          aria-controls="kanban-prompt-panel"
+          data-testid="kanban-board-prompts-toggle"
+        >
+          <span className={styles.btnLabel}>
+            {isPanelOpen ? (
+              <ChevronRight size={14} aria-hidden="true" />
             ) : (
-              <Button
-                variant="ghost"
-                size="md"
-                className={cn(styles.addColumnButton)}
-                onPress={() => setIsAddingColumn(true)}
-                data-testid="kanban-board-add-column"
-              >
-                + Add column
-              </Button>
+              <ChevronLeft size={14} aria-hidden="true" />
             )}
-          </div>
-        </div>
+            Промпты
+          </span>
+        </Button>
+      </header>
 
-        <DragOverlay>
-          {activeColumn ? (
-            <KanbanColumn
-              column={activeColumn}
-              tasks={tasksByColumn[activeColumn.id] ?? []}
-              dragOverlay
-            />
-          ) : activeTask ? (
-            <TaskCard task={activeTask} dragOverlay />
-          ) : null}
-        </DragOverlay>
-      </DnDProvider>
+      <PromptAttachmentBoundary>
+        <div className={cn(styles.layout, isPanelOpen && styles.layoutWithPanel)}>
+          <div className={styles.kanbanArea}>
+            <DnDProvider
+              columnIds={columnIds}
+              collisionDetection={collisionDetection}
+              onDragStart={onDragStart}
+              onDragOver={onDragOver}
+              onDragEnd={onDragEnd}
+              onDragCancel={onDragCancel}
+            >
+              <div className={styles.scroller}>
+                {columns.map((column) => (
+                  <KanbanColumn
+                    key={column.id}
+                    column={column}
+                    tasks={tasksByColumn[column.id] ?? []}
+                    onAddTask={handleAddTask}
+                    onRenameColumn={(id, name) =>
+                      updateColumn.mutate({ id, boardId, name })
+                    }
+                    onDeleteColumn={(id) =>
+                      deleteColumn.mutate({ id, boardId })
+                    }
+                    onTaskSelect={handleTaskSelect}
+                  />
+                ))}
+
+                <div className={styles.addColumnContainer}>
+                  {isAddingColumn ? (
+                    <form
+                      className={styles.addColumnForm}
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSubmitNewColumn();
+                      }}
+                    >
+                      <Input
+                        label="Column name"
+                        value={newColumnName}
+                        onChange={setNewColumnName}
+                        placeholder="e.g. In review"
+                        autoFocus
+                      />
+                      <div className={styles.addColumnFormActions}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          type="button"
+                          onPress={() => {
+                            setNewColumnName("");
+                            setIsAddingColumn(false);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button variant="primary" size="sm" type="submit">
+                          Add
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      className={cn(styles.addColumnButton)}
+                      onPress={() => setIsAddingColumn(true)}
+                      data-testid="kanban-board-add-column"
+                    >
+                      + Add column
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <DragOverlay>
+                {activeColumn ? (
+                  <KanbanColumn
+                    column={activeColumn}
+                    tasks={tasksByColumn[activeColumn.id] ?? []}
+                    dragOverlay
+                  />
+                ) : activeTask ? (
+                  <TaskCard task={activeTask} dragOverlay />
+                ) : null}
+              </DragOverlay>
+            </DnDProvider>
+          </div>
+
+          {isPanelOpen && (
+            <aside
+              id="kanban-prompt-panel"
+              className={styles.promptPanel}
+              aria-label="Промпты для перетаскивания"
+            >
+              <p className={styles.panelHeading}>Промпты</p>
+              <p className={styles.panelHint}>
+                Перетащите промпт на заголовок колонки, чтобы прикрепить его.
+              </p>
+              {promptsQuery.status === "pending" ? (
+                <div className={styles.panelList} data-testid="kanban-prompt-panel-loading">
+                  {[0, 1, 2].map((i) => (
+                    <PromptCard key={i} isPending />
+                  ))}
+                </div>
+              ) : promptsQuery.status === "error" ? (
+                <p className={styles.panelError}>
+                  Не удалось загрузить промпты
+                </p>
+              ) : prompts.length === 0 ? (
+                <p className={styles.panelEmpty}>Промптов пока нет</p>
+              ) : (
+                <ul className={styles.panelList} data-testid="kanban-prompt-panel-list">
+                  {prompts.map((prompt) => (
+                    <li key={prompt.id} className={styles.panelItem}>
+                      <DraggablePromptRow promptId={prompt.id}>
+                        <PromptCard prompt={prompt} />
+                      </DraggablePromptRow>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </aside>
+          )}
+        </div>
+      </PromptAttachmentBoundary>
     </section>
   );
 }
