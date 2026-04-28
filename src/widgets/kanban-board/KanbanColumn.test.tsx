@@ -47,8 +47,6 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 }
 
 // `useSortable` / `useDroppable` need to be mounted inside a DndContext.
-// Tests don't simulate drags — they render markup and verify props
-// flow correctly.
 function renderInDnd(ui: ReactElement) {
   const client = new QueryClient({
     defaultOptions: {
@@ -157,8 +155,6 @@ describe("KanbanColumn", () => {
   });
 
   it("clicking the settings button opens the ColumnEditor dialog", async () => {
-    // Return pending so the dialog stays in loading state — we only need
-    // to verify the dialog mounts.
     invokeMock.mockImplementation(() => new Promise(() => {}));
     const user = userEvent.setup();
     renderInDnd(
@@ -171,28 +167,51 @@ describe("KanbanColumn", () => {
     const settingsBtn = screen.getByTestId("kanban-column-settings-col-open-settings");
     await user.click(settingsBtn);
 
-    // Dialog should now be in the DOM.
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByTestId("column-editor")).toBeInTheDocument();
   });
 
   it("wraps the column header area with PromptDropZoneColumnHeader droppable", () => {
-    // PromptDropZoneColumnHeader renders the column name via ColumnHeader.
-    // When it is wired correctly the column name is still visible and the
-    // header row renders as a child of the droppable wrapper div.
     renderInDnd(
       <KanbanColumn
         column={makeColumn({ id: "col-drop-zone", name: "Droppable" })}
         tasks={[]}
       />,
     );
-    // Column name is rendered inside PromptDropZoneColumnHeader → ColumnHeader.
     expect(screen.getByText("Droppable")).toBeInTheDocument();
-    // The drag-handle inside the header is still accessible, confirming the
-    // nested structure (PromptDropZoneColumnHeader wrapping ColumnHeader)
-    // is intact.
     expect(
       screen.getByTestId("kanban-column-drag-handle-col-drop-zone"),
     ).toBeInTheDocument();
+  });
+
+  it("propagates isDoneColumn=true to TaskCards in a 'Done' column", () => {
+    renderInDnd(
+      <KanbanColumn
+        column={makeColumn({ id: "col-done", name: "Done" })}
+        tasks={[makeTask({ id: "t-done" })]}
+      />,
+    );
+    // TaskCard should render the done checkmark when the column is "Done".
+    expect(screen.getByTestId("task-card-done-check")).toBeInTheDocument();
+  });
+
+  it("propagates isDoneColumn=true to TaskCards in a Russian 'Готово' column", () => {
+    renderInDnd(
+      <KanbanColumn
+        column={makeColumn({ id: "col-done-ru", name: "Готово" })}
+        tasks={[makeTask({ id: "t-done-ru" })]}
+      />,
+    );
+    expect(screen.getByTestId("task-card-done-check")).toBeInTheDocument();
+  });
+
+  it("does not render done checkmarks in non-done columns", () => {
+    renderInDnd(
+      <KanbanColumn
+        column={makeColumn({ id: "col-progress", name: "In progress" })}
+        tasks={[makeTask({ id: "t-prog" })]}
+      />,
+    );
+    expect(screen.queryByTestId("task-card-done-check")).toBeNull();
   });
 });

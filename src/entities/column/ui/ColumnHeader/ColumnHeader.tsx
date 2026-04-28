@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
+import { Inbox, Activity, CheckCircle2, Layers, Check } from "lucide-react";
 
 import { Button, Dialog, Input, Menu, MenuItem, MenuTrigger } from "@shared/ui";
 import { cn } from "@shared/lib";
@@ -28,18 +29,42 @@ export interface ColumnHeaderProps {
   className?: string;
 }
 
+/** Derive a column icon from its display name. Case-insensitive heuristic. */
+function getColumnIcon(name: string): ReactElement {
+  const lower = name.toLowerCase();
+  if (lower.includes("backlog") || lower.includes("бэклог")) {
+    return <Inbox size={14} aria-hidden="true" className={styles.columnIcon} />;
+  }
+  if (
+    lower.includes("in progress") ||
+    lower.includes("в работе") ||
+    lower.includes("doing")
+  ) {
+    return (
+      <Activity size={14} aria-hidden="true" className={styles.columnIcon} />
+    );
+  }
+  if (lower.includes("done") || lower.includes("готово")) {
+    return (
+      <CheckCircle2
+        size={14}
+        aria-hidden="true"
+        className={cn(styles.columnIcon, styles.columnIconDone)}
+        data-testid="column-header-icon-done"
+      />
+    );
+  }
+  return <Layers size={14} aria-hidden="true" className={styles.columnIcon} />;
+}
+
 /**
  * `ColumnHeader` — header strip for one kanban column.
  *
- * Layout: drag-handle? • name • count-badge • spacer • more-menu.
+ * Layout: drag-handle? • icon • name • count-badge • spacer • more-menu.
  *
- * Why a `<header>` element? The column itself uses `<section>` (in the
- * widget layer); landmarks compose so the column name is readable as
- * a heading by AT.
- *
- * Token-pair: `--color-text-default` on `--color-surface-raised`.
- *   Light: warm-900 on white = 16.5:1 → AAA.
- *   Dark:  warm-100 on warm-800 = 12.6:1 → AAA.
+ * DS v1: `--color-surface-column` background, `--font-size-headline-sm`
+ * semibold name, count pill with `--color-overlay-hover` background,
+ * column-specific icon derived from name heuristic.
  */
 export function ColumnHeader({
   id,
@@ -73,12 +98,29 @@ export function ColumnHeader({
     setIsRenaming(false);
   };
 
+  const isDoneColumn =
+    name.toLowerCase().includes("done") ||
+    name.toLowerCase().includes("готово");
+
   return (
     <header
       className={cn(styles.header, className)}
       data-testid={`column-header-${id}`}
     >
       {dragHandle ?? null}
+
+      <span className={styles.iconSlot} data-testid="column-header-icon">
+        {getColumnIcon(name)}
+      </span>
+
+      {isDoneColumn ? (
+        <Check
+          size={14}
+          aria-hidden="true"
+          className={styles.doneCheck}
+          data-testid="column-header-done-check"
+        />
+      ) : null}
 
       <h3 className={styles.name} title={name}>
         {name}

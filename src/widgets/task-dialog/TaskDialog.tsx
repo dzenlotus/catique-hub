@@ -1,25 +1,37 @@
 /**
- * TaskDialog — task detail / edit modal.
+ * TaskDialog — task detail / edit modal (Design System v1).
  *
- * Scope (E4.1 slice): title + description editing.
- * Agent reports are wired via AgentReportsList (taskId filter).
- * Prompts: empty state shown — no list_task_prompts IPC exists yet (E4 vslice).
- * Attachments: placeholder — no FE vslice yet.
+ * v1 fields (in order):
+ *   1. Title (text input)
+ *   2. Slug (read-only mono badge)
+ *   3. Description (textarea + edit/preview toggle)
+ *   4. Board (native select — useBoards filtered by active space)
+ *   5. Status / Column (native select — useColumns(selectedBoardId))
+ *   6. Role (native select — useRoles, nullable)
+ *   7. Attached prompts (empty placeholder)
+ *   8. Attachments (wired — upload/delete)
+ *   9. Agent reports (wired)
  *
- * Props:
- *   - `taskId` — null → dialog closed; string → dialog open for that task.
- *   - `onClose` — called on Cancel, successful Save, or Esc (via RAC).
+ * Footer: trash-icon delete button (left) + Cancel + Save (right).
  */
 
-import { useEffect, useState, type ReactElement } from "react";
+import React, { useEffect, useState, type ReactElement } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useTask, useUpdateTaskMutation } from "@entities/task";
+import {
+  useTask,
+  useUpdateTaskMutation,
+  useDeleteTaskMutation,
+} from "@entities/task";
 import {
   useAttachmentsByTask,
   useDeleteAttachmentMutation,
   useUploadAttachmentMutation,
   AttachmentRow,
 } from "@entities/attachment";
+import { useBoards } from "@entities/board";
+import { useColumns } from "@entities/column";
+import { useRoles } from "@entities/role";
+import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { Dialog, Button, Input, MarkdownPreview } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
@@ -35,11 +47,7 @@ export interface TaskDialogProps {
 }
 
 /**
- * `TaskDialog` — modal for viewing and editing a task's title and description.
- *
- * The dialog delegates open/close tracking to `taskId` — when null the
- * `<Dialog>` `isOpen` prop is false, so RAC handles exit animations and
- * focus restoration correctly.
+ * `TaskDialog` — modal for viewing and editing a task's v1 fields.
  */
 export function TaskDialog({ taskId, onClose }: TaskDialogProps): ReactElement {
   const isOpen = taskId !== null;
@@ -76,7 +84,6 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
   const uploadMutation = useUploadAttachmentMutation();
   const { pushToast } = useToast();
 
-  // ── Pending ──────────────────────────────────────────────────────
   if (query.status === "pending") {
     return (
       <div className={styles.attachmentSkeletonStack} aria-busy="true">
@@ -86,7 +93,6 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
     );
   }
 
-  // ── Error ────────────────────────────────────────────────────────
   if (query.status === "error") {
     return (
       <div className={styles.attachmentErrorBanner} role="alert">
@@ -104,7 +110,6 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
     );
   }
 
-  // ── Loaded ───────────────────────────────────────────────────────
   const attachments = query.data;
 
   const handleDelete = (id: string): void => {
@@ -124,17 +129,11 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
         multiple: false,
         filters: [{ name: "Любой файл", extensions: ["*"] }],
       });
-      // User cancelled — `open` returns null.
       if (result === null) return;
-
-      // Tauri 2.x `open({ multiple: false })` returns `string | null`.
       const sourcePath = typeof result === "string" ? result : result[0];
       if (!sourcePath) return;
-
-      // Derive the original filename from the last path segment.
       const originalFilename =
         sourcePath.replace(/\\/g, "/").split("/").pop() ?? sourcePath;
-
       uploadMutation.mutate(
         { taskId, sourcePath, originalFilename, mimeType: null },
         {
@@ -190,6 +189,51 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Slug chip — read-only mono-font badge. */
+function SlugChip({ slug }: { slug: string }): ReactElement {
+  return (
+    <span className={styles.slugChip} data-testid="task-dialog-slug-chip">
+      {slug}
+    </span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Inline native-select field with DS v1 styling. */
+function FieldSelect({
+  label,
+  value,
+  onChange,
+  disabled,
+  testId,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  testId?: string;
+  children: React.ReactNode;
+}): ReactElement {
+  return (
+    <div className={styles.fieldGroup}>
+      <label className={styles.fieldLabel}>{label}</label>
+      <select
+        className={styles.fieldSelect}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        data-testid={testId}
+      >
+        {children}
+      </select>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface TaskDialogContentProps {
   taskId: string;
   onClose: () => void;
@@ -201,22 +245,46 @@ function TaskDialogContent({
 }: TaskDialogContentProps): ReactElement {
   const query = useTask(taskId);
   const updateMutation = useUpdateTaskMutation();
+  const deleteMutation = useDeleteTaskMutation();
   const { pushToast } = useToast();
+  const { activeSpaceId } = useActiveSpace();
 
-  // Local edit state — initialised from the loaded task.
+  // Local edit state.
   const [localTitle, setLocalTitle] = useState("");
   const [localDescription, setLocalDescription] = useState("");
+  const [localBoardId, setLocalBoardId] = useState("");
+  const [localColumnId, setLocalColumnId] = useState("");
+  const [localRoleId, setLocalRoleId] = useState<string>(""); // "" = null (no role)
   const [saveError, setSaveError] = useState<string | null>(null);
   const [descViewMode, setDescViewMode] = useState<"edit" | "preview">("edit");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Remote data for dropdowns.
+  const boardsQuery = useBoards();
+  const columnsQuery = useColumns(localBoardId);
+  const rolesQuery = useRoles();
 
   // Sync local state when task data loads or taskId changes.
   useEffect(() => {
     if (query.data) {
       setLocalTitle(query.data.title);
       setLocalDescription(query.data.description ?? "");
+      setLocalBoardId(query.data.boardId);
+      setLocalColumnId(query.data.columnId);
+      setLocalRoleId(query.data.roleId ?? "");
       setSaveError(null);
+      setConfirmDelete(false);
     }
   }, [query.data, taskId]);
+
+  // Filter boards to the active space (same logic as BoardsList).
+  const allBoards = boardsQuery.data ?? [];
+  const filteredBoards = activeSpaceId
+    ? allBoards.filter((b) => b.spaceId === activeSpaceId)
+    : allBoards;
+
+  const allColumns = columnsQuery.data ?? [];
+  const allRoles = rolesQuery.data ?? [];
 
   // ── Pending ────────────────────────────────────────────────────────
 
@@ -298,9 +366,7 @@ function TaskDialogContent({
           role="alert"
           data-testid="task-dialog-not-found"
         >
-          <p className={styles.notFoundBannerMessage}>
-            Задача не найдена.
-          </p>
+          <p className={styles.notFoundBannerMessage}>Задача не найдена.</p>
         </div>
         <div className={styles.footer}>
           <Button
@@ -320,6 +386,12 @@ function TaskDialogContent({
 
   const task = query.data;
 
+  const handleBoardChange = (newBoardId: string): void => {
+    setLocalBoardId(newBoardId);
+    // Reset column selection when board changes — columns belong to a board.
+    setLocalColumnId("");
+  };
+
   const handleSave = (): void => {
     setSaveError(null);
     const trimmedTitle = localTitle.trim();
@@ -328,41 +400,82 @@ function TaskDialogContent({
       return;
     }
     const trimmedDescription = localDescription.trim() || null;
+
+    // Build partial mutation payload — only include dirty fields.
     const mutationArgs: Parameters<typeof updateMutation.mutate>[0] = {
       id: task.id,
-      boardId: task.boardId,
+      boardId: localBoardId || task.boardId,
     };
+
     if (trimmedTitle !== task.title) {
       mutationArgs.title = trimmedTitle;
     }
     if (trimmedDescription !== task.description) {
       mutationArgs.description = trimmedDescription;
     }
-    updateMutation.mutate(
-      mutationArgs,
+    if (localColumnId && localColumnId !== task.columnId) {
+      mutationArgs.columnId = localColumnId;
+    }
+    // roleId: "" maps to null (no role), otherwise the selected id.
+    const newRoleId = localRoleId === "" ? null : localRoleId;
+    if (newRoleId !== task.roleId) {
+      mutationArgs.roleId = newRoleId;
+    }
+
+    updateMutation.mutate(mutationArgs, {
+      onSuccess: () => {
+        pushToast("success", "Задача сохранена");
+        onClose();
+      },
+      onError: (err) => {
+        pushToast("error", `Не удалось сохранить задачу: ${err.message}`);
+        setSaveError(`Не удалось сохранить: ${err.message}`);
+      },
+    });
+  };
+
+  const handleCancel = (): void => {
+    setLocalTitle(task.title);
+    setLocalDescription(task.description ?? "");
+    setLocalBoardId(task.boardId);
+    setLocalColumnId(task.columnId);
+    setLocalRoleId(task.roleId ?? "");
+    setSaveError(null);
+    setConfirmDelete(false);
+    onClose();
+  };
+
+  const handleDeleteRequest = (): void => {
+    setConfirmDelete(true);
+  };
+
+  const handleDeleteConfirm = (): void => {
+    deleteMutation.mutate(
+      { id: task.id, boardId: task.boardId },
       {
         onSuccess: () => {
-          pushToast("success", "Задача сохранена");
+          pushToast("success", "Задача удалена");
           onClose();
         },
         onError: (err) => {
-          pushToast("error", `Не удалось сохранить задачу: ${err.message}`);
-          setSaveError(`Не удалось сохранить: ${err.message}`);
+          pushToast("error", `Не удалось удалить задачу: ${err.message}`);
+          setConfirmDelete(false);
         },
       },
     );
   };
 
-  const handleCancel = (): void => {
-    // Reset local state back to task values before closing.
-    setLocalTitle(task.title);
-    setLocalDescription(task.description ?? "");
-    setSaveError(null);
-    onClose();
+  const handleDeleteCancel = (): void => {
+    setConfirmDelete(false);
   };
 
   return (
     <>
+      {/* Slug chip */}
+      <div className={styles.slugRow}>
+        <SlugChip slug={task.slug} />
+      </div>
+
       {/* Title */}
       <div className={styles.section}>
         <Input
@@ -422,16 +535,70 @@ function TaskDialogContent({
         )}
       </div>
 
-      {/* Prompts attached — empty state until list_task_prompts IPC lands */}
+      {/* Board + Column row */}
+      <div className={cn(styles.section, styles.rowSection)}>
+        <FieldSelect
+          label="Доска"
+          value={localBoardId}
+          onChange={handleBoardChange}
+          disabled={boardsQuery.status === "pending"}
+          testId="task-dialog-board-select"
+        >
+          {filteredBoards.length === 0 ? (
+            <option value={localBoardId}>{localBoardId}</option>
+          ) : (
+            filteredBoards.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))
+          )}
+        </FieldSelect>
+
+        <FieldSelect
+          label="Статус / Колонка"
+          value={localColumnId}
+          onChange={setLocalColumnId}
+          disabled={columnsQuery.status === "pending" || !localBoardId}
+          testId="task-dialog-column-select"
+        >
+          {localColumnId === "" ? (
+            <option value="">— выберите —</option>
+          ) : null}
+          {allColumns.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </FieldSelect>
+      </div>
+
+      {/* Role */}
+      <div className={styles.section}>
+        <FieldSelect
+          label="Роль агента"
+          value={localRoleId}
+          onChange={setLocalRoleId}
+          disabled={rolesQuery.status === "pending"}
+          testId="task-dialog-role-select"
+        >
+          <option value="">(нет роли)</option>
+          {allRoles.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
+        </FieldSelect>
+      </div>
+
+      {/* Attached prompts — empty state placeholder */}
       <div
         className={styles.sectionBlock}
         data-testid="task-dialog-placeholder-prompts"
       >
         <h3 className={styles.sectionHeading}>Прикреплённые промпты</h3>
         <div className={styles.sectionEmptyState}>
-          <p className={styles.sectionEmptyHint}>
-            Промпты не прикреплены
-          </p>
+          <p className={styles.sectionEmptyHint}>Промпты не прикреплены</p>
           <p className={styles.sectionComingHint}>
             (появится с вслайсом прикрепления промптов E4)
           </p>
@@ -447,7 +614,7 @@ function TaskDialogContent({
         <AttachmentsSection taskId={task.id} />
       </div>
 
-      {/* Agent reports — wired via AgentReportsList with taskId filter */}
+      {/* Agent reports */}
       <div
         className={styles.sectionBlock}
         data-testid="task-dialog-placeholder-agent-reports"
@@ -458,28 +625,70 @@ function TaskDialogContent({
 
       {/* Footer */}
       <div className={styles.footer}>
-        {saveError ? (
-          <p className={styles.saveError} role="alert" data-testid="task-dialog-save-error">
-            {saveError}
-          </p>
-        ) : null}
-        <Button
-          variant="ghost"
-          size="md"
-          onPress={handleCancel}
-          data-testid="task-dialog-cancel"
-        >
-          Отмена
-        </Button>
-        <Button
-          variant="primary"
-          size="md"
-          isPending={updateMutation.status === "pending"}
-          onPress={handleSave}
-          data-testid="task-dialog-save"
-        >
-          Сохранить
-        </Button>
+        {/* Delete (trash) button — left side */}
+        {confirmDelete ? (
+          <div className={styles.deleteConfirm} data-testid="task-dialog-delete-confirm">
+            <span className={styles.deleteConfirmText}>Удалить задачу?</span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={handleDeleteCancel}
+              data-testid="task-dialog-delete-cancel"
+            >
+              Нет
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              isPending={deleteMutation.status === "pending"}
+              onPress={handleDeleteConfirm}
+              className={styles.deleteConfirmBtn}
+              data-testid="task-dialog-delete-confirm-btn"
+            >
+              Да, удалить
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={handleDeleteRequest}
+            className={styles.deleteBtn}
+            aria-label="Удалить задачу"
+            data-testid="task-dialog-delete-btn"
+          >
+            🗑
+          </Button>
+        )}
+
+        <div className={styles.footerActions}>
+          {saveError ? (
+            <p
+              className={styles.saveError}
+              role="alert"
+              data-testid="task-dialog-save-error"
+            >
+              {saveError}
+            </p>
+          ) : null}
+          <Button
+            variant="ghost"
+            size="md"
+            onPress={handleCancel}
+            data-testid="task-dialog-cancel"
+          >
+            Отмена
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            isPending={updateMutation.status === "pending"}
+            onPress={handleSave}
+            data-testid="task-dialog-save"
+          >
+            Сохранить
+          </Button>
+        </div>
       </div>
     </>
   );

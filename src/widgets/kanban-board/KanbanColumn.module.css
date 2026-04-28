@@ -1,10 +1,8 @@
 /*
- * KanbanColumn — one column of a kanban board.
+ * KanbanColumn — DS v1 visual language.
  *
- * Layout (vertical):
- *   1. ColumnHeader (entity slice)
- *   2. scrollable task list
- *   3. add-task affordance pinned at the bottom
+ * `--color-surface-column` background, `--radius-lg` corners,
+ * 12 px task gap, dashed "Add task" button.
  */
 
 .column {
@@ -12,18 +10,18 @@
   flex-direction: column;
   flex: 0 0 280px;
   min-width: 280px;
-  max-width: 280px;
-  background-color: var(--color-surface-canvas);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
+  max-width: 320px;
+  background-color: var(--color-surface-column);
+  border-radius: var(--radius-lg);
   height: 100%;
   font-family: var(--font-sans);
 }
 
 /* Highlighted state when a draggable hovers over the column. */
 .columnDropTarget {
-  border-color: var(--color-border-focus);
-  background-color: var(--color-overlay-hover);
+  background-color: var(--color-accent-soft);
+  outline: 2px dashed var(--color-accent-bg);
+  outline-offset: -2px;
 }
 
 /* ── Header row wrapper ──────────────────────────────────────────── */
@@ -58,10 +56,10 @@
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
-  padding: var(--space-8);
+  gap: var(--space-12);
+  padding: var(--space-8) var(--space-12);
   overflow-y: auto;
-  min-height: 60px;
+  min-height: 200px;
 }
 
 .empty {
@@ -78,14 +76,26 @@
   text-align: center;
 }
 
+/* ── Footer — "+ Add task" ────────────────────────────────────────── */
+
 .footer {
-  padding: var(--space-8);
-  border-top: 1px solid var(--color-border-subtle);
+  padding: var(--space-8) var(--space-12);
 }
 
+/* DS v1: full-width, dashed border ghost button, goes solid on hover */
 .addButton {
   width: 100%;
   justify-content: center;
+  border: 1px dashed var(--color-border-strong) !important;
+  border-radius: var(--radius-md) !important;
+  color: var(--color-text-subtle);
+  transition: border-color 120ms ease-out, color 120ms ease-out;
+}
+
+.addButton:hover {
+  border-style: solid !important;
+  color: var(--color-text-default);
+  background-color: var(--color-overlay-hover);
 }
 
 .addForm {
@@ -99,6 +109,8 @@
   gap: var(--space-8);
   justify-content: flex-end;
 }
+
+/* ── Column-level drag handle ─────────────────────────────────────── */
 
 .dragHandle {
   display: inline-flex;
@@ -132,6 +144,8 @@
   cursor: grabbing;
 }
 
+/* ── Per-task drag handle ─────────────────────────────────────────── */
+
 .taskDragHandle {
   position: absolute;
   top: var(--space-4);
@@ -150,8 +164,7 @@
   transition: opacity 120ms ease-out;
 }
 
-/* Reveal on parent hover/focus. The wrapper around TaskCard is the
- * direct parent — the card itself stays interactive. */
+/* Reveal on parent hover/focus. */
 .body > div:hover .taskDragHandle,
 .taskDragHandle:focus-visible {
   opacity: 1;
@@ -168,7 +181,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .column,
-  .columnDropTarget {
+  .columnDropTarget,
+  .settingsButton,
+  .addButton,
+  .taskDragHandle {
     transition: none;
   }
 }

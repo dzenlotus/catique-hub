@@ -37,17 +37,21 @@ export interface KanbanColumnProps {
 }
 
 /**
+ * Heuristic: a column is a "done" column when its name (case-insensitive)
+ * contains "done" or "готово". Used to propagate `isDoneColumn` to
+ * TaskCard so it shows the green checkmark DS v1 indicator.
+ */
+function isDoneColumnName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.includes("done") || lower.includes("готово");
+}
+
+/**
  * `KanbanColumn` — one sortable column of tasks.
  *
- * Wraps two @dnd-kit features:
- *   - `useSortable` on the column itself (column-level reorder).
- *   - `useDroppable` on the column body so cross-column drops resolve
- *     to this column even when the user releases over an empty area.
- *   - `<SortableContext>` for the inner task list so the tasks become
- *     individually draggable + the keyboard-coordinate-getter works.
- *
- * Drag handle is the column header itself (entire header is draggable).
- * Tasks have their own drag affordance via the card body.
+ * DS v1: `--color-surface-column` background, `--radius-lg` corners,
+ * 12 px task gap, full-width dashed "+ Add task" button that goes solid
+ * on hover. Passes `isDoneColumn` to each TaskCard for the checkmark.
  */
 export function KanbanColumn({
   column,
@@ -85,14 +89,8 @@ export function KanbanColumn({
 
   const taskIds = tasks.map((t) => t.id);
 
-  // Drag handle: a small grip rendered inside the header. We DON'T
-  // spread sortable.listeners on the section root because:
-  //   1. The section contains buttons (add-task, more-menu) — pointer
-  //      events from those would otherwise bubble into the dnd-kit
-  //      listener and racing with RAC's usePress occasionally swallows
-  //      the click.
-  //   2. A scoped grip gives keyboard users a single, predictable
-  //      tabstop for "I want to move this column."
+  const isDone = isDoneColumnName(column.name);
+
   const dragHandle = dragOverlay ? null : (
     <button
       type="button"
@@ -158,15 +156,16 @@ export function KanbanColumn({
               className={styles.empty}
               data-testid={`kanban-column-empty-${column.id}`}
             >
-              No tasks yet.
+              Задачи отсутствуют.
               <br />
-              Drop one here or use Add task below.
+              Перетащите или используйте «+ Добавить задачу».
             </p>
           ) : (
             tasks.map((task) => (
               <SortableTaskItem
                 key={task.id}
                 task={task}
+                isDoneColumn={isDone}
                 {...(onTaskSelect ? { onSelect: onTaskSelect } : {})}
               />
             ))
@@ -186,6 +185,7 @@ export function KanbanColumn({
 
 interface SortableTaskItemProps {
   task: Task;
+  isDoneColumn: boolean;
   onSelect?: (id: string) => void;
 }
 
@@ -193,13 +193,10 @@ interface SortableTaskItemProps {
  * Internal: wraps a TaskCard with @dnd-kit's `useSortable`. Lives in
  * the widget, not the entity, because the entity must not know about
  * dnd-kit (FSD rule: entities have zero knowledge of widgets/UX state).
- *
- * Listeners are attached to a small grip overlaying the top-right of
- * the card — keeps the card body fully clickable + keyboard activatable
- * without racing dnd-kit's pointerdown handler.
  */
 function SortableTaskItem({
   task,
+  isDoneColumn,
   onSelect,
 }: SortableTaskItemProps): ReactElement {
   const sortable = useSortable({
@@ -216,7 +213,11 @@ function SortableTaskItem({
 
   return (
     <div ref={sortable.setNodeRef} style={style}>
-      <TaskCard task={task} {...(onSelect ? { onSelect } : {})} />
+      <TaskCard
+        task={task}
+        isDoneColumn={isDoneColumn}
+        {...(onSelect ? { onSelect } : {})}
+      />
       <button
         type="button"
         ref={(node) => sortable.setActivatorNodeRef(node)}
@@ -262,7 +263,7 @@ function ColumnFooter({
           onPress={() => setIsAdding(true)}
           data-testid={`kanban-column-add-task-${columnId}`}
         >
-          + Add task
+          + Добавить задачу
         </Button>
       </div>
     );

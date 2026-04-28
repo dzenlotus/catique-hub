@@ -21,6 +21,26 @@ describe("ColumnHeader", () => {
     expect(screen.getByLabelText(/^3 tasks$/i)).toBeInTheDocument();
   });
 
+  it("renders a column icon for each header", () => {
+    render(<ColumnHeader id="col-1" name="Backlog" taskCount={0} />);
+    expect(screen.getByTestId("column-header-icon")).toBeInTheDocument();
+  });
+
+  it("renders the done checkmark for 'Done' column", () => {
+    render(<ColumnHeader id="col-done" name="Done" taskCount={2} />);
+    expect(screen.getByTestId("column-header-done-check")).toBeInTheDocument();
+  });
+
+  it("renders the done checkmark for Russian 'Готово' column", () => {
+    render(<ColumnHeader id="col-done-ru" name="Готово" taskCount={1} />);
+    expect(screen.getByTestId("column-header-done-check")).toBeInTheDocument();
+  });
+
+  it("does not render done checkmark for non-done columns", () => {
+    render(<ColumnHeader id="col-progress" name="In progress" taskCount={3} />);
+    expect(screen.queryByTestId("column-header-done-check")).toBeNull();
+  });
+
   it("opens the more-menu on click and exposes Rename + Delete items", async () => {
     const user = userEvent.setup();
     render(<ColumnHeader id="col-1" name="Backlog" taskCount={0} />);

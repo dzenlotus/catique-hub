@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 
 import type { Task } from "@entities/task";
 import { ToastProvider } from "@app/providers/ToastProvider";
+import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 
 vi.mock("@shared/api", () => ({
   invoke: vi.fn(),
@@ -20,7 +21,6 @@ import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
 import { TaskDialog } from "./TaskDialog";
 
 const dialogOpenMock = vi.mocked(dialogOpen);
-
 const invokeMock = vi.mocked(invoke);
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -39,6 +39,42 @@ function makeTask(overrides: Partial<Task> = {}): Task {
   };
 }
 
+const makeBoard = (id: string, name: string, spaceId = "spc-1") => ({
+  id,
+  name,
+  spaceId,
+  roleId: null,
+  position: 1,
+  createdAt: 0n,
+  updatedAt: 0n,
+});
+
+const makeColumn = (id: string, name: string, boardId: string) => ({
+  id,
+  name,
+  boardId,
+  position: 1n,
+  roleId: null,
+  createdAt: 0n,
+});
+
+const makeRole = (id: string, name: string) => ({
+  id,
+  name,
+  content: "",
+  color: null,
+  createdAt: 0n,
+  updatedAt: 0n,
+});
+
+const makeSpace = (id = "spc-1") => ({
+  id,
+  name: "Пространство",
+  isDefault: true,
+  createdAt: 0n,
+  updatedAt: 0n,
+});
+
 import { Toaster } from "@widgets/toaster";
 
 function renderWithClient(ui: ReactElement) {
@@ -51,13 +87,37 @@ function renderWithClient(ui: ReactElement) {
   const user = userEvent.setup();
   render(
     <QueryClientProvider client={client}>
-      <ToastProvider>
-        {ui}
-        <Toaster />
-      </ToastProvider>
+      <ActiveSpaceProvider>
+        <ToastProvider>
+          {ui}
+          <Toaster />
+        </ToastProvider>
+      </ActiveSpaceProvider>
     </QueryClientProvider>,
   );
   return { client, user };
+}
+
+/** Default mock handler for all common IPC commands. */
+function defaultInvokeHandler(
+  task: Task,
+  extra: Record<string, unknown> = {},
+): (cmd: string) => Promise<unknown> {
+  return async (cmd: string) => {
+    if (cmd === "get_task") return task;
+    if (cmd === "list_attachments") return [];
+    if (cmd === "list_agent_reports") return [];
+    if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+    // list_columns returns ALL columns (client filters by boardId in columnsApi)
+    if (cmd === "list_columns") return [
+      makeColumn("col-1", "Todo", "brd-1"),
+      makeColumn("col-2", "In Progress", "brd-1"),
+    ];
+    if (cmd === "list_roles") return [makeRole("role-1", "Dev Agent")];
+    if (cmd === "list_spaces") return [makeSpace()];
+    if (cmd in extra) return extra[cmd];
+    throw new Error(`unexpected: ${cmd}`);
+  };
 }
 
 beforeEach(() => {
@@ -78,17 +138,14 @@ describe("TaskDialog", () => {
   });
 
   it("renders skeleton rows when query is pending", async () => {
-    // Never resolves — simulates pending state.
     invokeMock.mockImplementation(() => new Promise(() => {}));
     const onClose = vi.fn();
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
-    // The dialog should be open.
     await waitFor(() => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
-    // Skeleton elements — buttons are disabled during loading.
     const saveButton = screen.getByTestId("task-dialog-save");
     expect(saveButton).toBeDisabled();
   });
@@ -96,6 +153,10 @@ describe("TaskDialog", () => {
   it("renders an error banner when the query fails", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") throw new Error("transport down");
+      if (cmd === "list_boards") return [];
+      if (cmd === "list_columns") return [];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -107,13 +168,287 @@ describe("TaskDialog", () => {
     expect(screen.getByText(/transport down/i)).toBeInTheDocument();
   });
 
-  it("renders form fields populated with task data when loaded", async () => {
+  // ── v1 fields rendering ──────────────────────────────────────────
+
+  it("renders all 7 v1 fields in loaded state", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(defaultInvokeHandler(task));
+    const onClose = vi.fn();
+    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    // 1. Title input
+    const titleInput = await screen.findByTestId("task-dialog-title-input");
+    expect(titleInput).toBeInTheDocument();
+    expect(titleInput).toHaveValue("Тестовая задача");
+
+    // 2. Slug chip
+    expect(screen.getByTestId("task-dialog-slug-chip")).toHaveTextContent("tsk-abc");
+
+    // 3. Description textarea
+    expect(screen.getByTestId("task-dialog-description-textarea")).toHaveValue("Описание задачи");
+
+    // 4. Board select
+    expect(screen.getByTestId("task-dialog-board-select")).toBeInTheDocument();
+
+    // 5. Column/Status select
+    expect(screen.getByTestId("task-dialog-column-select")).toBeInTheDocument();
+
+    // 6. Role select
+    expect(screen.getByTestId("task-dialog-role-select")).toBeInTheDocument();
+
+    // 7. Attached prompts section
+    expect(screen.getByTestId("task-dialog-placeholder-prompts")).toBeInTheDocument();
+  });
+
+  it("board select is populated with boards from active space", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(defaultInvokeHandler(task));
+    const onClose = vi.fn();
+    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await screen.findByTestId("task-dialog-title-input");
+
+    const boardSelect = screen.getByTestId("task-dialog-board-select") as HTMLSelectElement;
+    // Board option visible
+    await waitFor(() => {
+      expect(boardSelect.options.length).toBeGreaterThan(0);
+      const optionTexts = Array.from(boardSelect.options).map((o) => o.text);
+      expect(optionTexts).toContain("Sprint Board");
+    });
+  });
+
+  it("column select is populated from useColumns(boardId)", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(defaultInvokeHandler(task));
+    const onClose = vi.fn();
+    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await screen.findByTestId("task-dialog-title-input");
+
+    const columnSelect = screen.getByTestId("task-dialog-column-select") as HTMLSelectElement;
+    await waitFor(() => {
+      const optionTexts = Array.from(columnSelect.options).map((o) => o.text);
+      expect(optionTexts).toContain("Todo");
+      expect(optionTexts).toContain("In Progress");
+    });
+  });
+
+  it("role select includes '(нет роли)' as first option and loaded roles", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(defaultInvokeHandler(task));
+    const onClose = vi.fn();
+    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await screen.findByTestId("task-dialog-title-input");
+
+    const roleSelect = screen.getByTestId("task-dialog-role-select") as HTMLSelectElement;
+    await waitFor(() => {
+      const optionTexts = Array.from(roleSelect.options).map((o) => o.text);
+      expect(optionTexts[0]).toBe("(нет роли)");
+      expect(optionTexts).toContain("Dev Agent");
+    });
+  });
+
+  // ── Board → Column cascade ───────────────────────────────────────
+
+  it("changing Board resets column selection and fetches columns for new board", async () => {
+    const task = makeTask();
+    // list_columns returns ALL columns (client-side filtering by boardId happens in columnsApi)
     invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_task") return makeTask();
+      if (cmd === "get_task") return task;
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_boards") return [
+        makeBoard("brd-1", "Board 1"),
+        makeBoard("brd-2", "Board 2"),
+      ];
+      if (cmd === "list_columns") return [
+        makeColumn("col-1", "Todo", "brd-1"),
+        makeColumn("col-x", "New Column", "brd-2"),
+      ];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
       throw new Error(`unexpected: ${cmd}`);
     });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await screen.findByTestId("task-dialog-title-input");
+
+    const boardSelect = screen.getByTestId("task-dialog-board-select") as HTMLSelectElement;
+    const columnSelect = screen.getByTestId("task-dialog-column-select") as HTMLSelectElement;
+
+    // Change board to brd-2
+    await user.selectOptions(boardSelect, "brd-2");
+
+    // Column selection should reset (value becomes "")
+    await waitFor(() => {
+      expect(columnSelect.value).toBe("");
+    });
+
+    // After cascade, brd-2 columns load
+    await waitFor(() => {
+      const optionTexts = Array.from(columnSelect.options).map((o) => o.text);
+      expect(optionTexts).toContain("New Column");
+    });
+  });
+
+  // ── Save mutation payload ────────────────────────────────────────
+
+  it("clicking Save fires the mutation with all dirty fields (title, columnId, roleId)", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_task") return task;
+      if (cmd === "update_task") return { ...task, title: "Updated" };
+      if (cmd === "list_tasks") return [task];
+      if (cmd === "list_attachments") return [];
+      if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [
+        makeColumn("col-1", "Todo", "brd-1"),
+        makeColumn("col-2", "In Progress", "brd-1"),
+      ];
+      if (cmd === "list_roles") return [makeRole("role-1", "Dev Agent")];
+      if (cmd === "list_spaces") return [makeSpace()];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    const titleInput = await screen.findByTestId("task-dialog-title-input");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Обновлённое название");
+
+    // Change column
+    const columnSelect = screen.getByTestId("task-dialog-column-select") as HTMLSelectElement;
+    await waitFor(() => {
+      expect(Array.from(columnSelect.options).map((o) => o.value)).toContain("col-2");
+    });
+    await user.selectOptions(columnSelect, "col-2");
+
+    // Set role
+    const roleSelect = screen.getByTestId("task-dialog-role-select") as HTMLSelectElement;
+    await waitFor(() => {
+      expect(Array.from(roleSelect.options).map((o) => o.value)).toContain("role-1");
+    });
+    await user.selectOptions(roleSelect, "role-1");
+
+    const saveButton = screen.getByTestId("task-dialog-save");
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      const updateCall = invokeMock.mock.calls.find(([cmd]) => cmd === "update_task");
+      expect(updateCall).toBeDefined();
+      expect(updateCall?.[1]).toMatchObject({
+        id: "tsk-1",
+        title: "Обновлённое название",
+        columnId: "col-2",
+        roleId: "role-1",
+      });
+    });
+  });
+
+  it("Save with no changes only sends id + boardId (no dirty fields)", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_task") return task;
+      if (cmd === "update_task") return task;
+      if (cmd === "list_tasks") return [task];
+      if (cmd === "list_attachments") return [];
+      if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await screen.findByTestId("task-dialog-title-input");
+    const saveButton = screen.getByTestId("task-dialog-save");
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      const updateCall = invokeMock.mock.calls.find(([cmd]) => cmd === "update_task");
+      expect(updateCall).toBeDefined();
+      // No extra dirty fields
+      const payload = updateCall?.[1] as Record<string, unknown>;
+      expect(payload.title).toBeUndefined();
+      expect(payload.columnId).toBeUndefined();
+      expect(payload.roleId).toBeUndefined();
+    });
+  });
+
+  // ── Trash / delete flow ──────────────────────────────────────────
+
+  it("trash button shows inline confirmation", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(defaultInvokeHandler(task));
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await screen.findByTestId("task-dialog-title-input");
+
+    const deleteBtn = screen.getByTestId("task-dialog-delete-btn");
+    await user.click(deleteBtn);
+
+    expect(screen.getByTestId("task-dialog-delete-confirm")).toBeInTheDocument();
+    expect(screen.getByTestId("task-dialog-delete-cancel")).toBeInTheDocument();
+    expect(screen.getByTestId("task-dialog-delete-confirm-btn")).toBeInTheDocument();
+    // Trash button itself is gone while confirming
+    expect(screen.queryByTestId("task-dialog-delete-btn")).not.toBeInTheDocument();
+  });
+
+  it("cancelling delete confirmation restores trash button", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(defaultInvokeHandler(task));
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await screen.findByTestId("task-dialog-title-input");
+
+    await user.click(screen.getByTestId("task-dialog-delete-btn"));
+    expect(screen.getByTestId("task-dialog-delete-confirm")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("task-dialog-delete-cancel"));
+    expect(screen.queryByTestId("task-dialog-delete-confirm")).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-dialog-delete-btn")).toBeInTheDocument();
+  });
+
+  it("confirming delete calls delete mutation and closes dialog", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_task") return task;
+      if (cmd === "delete_task") return undefined;
+      if (cmd === "list_tasks") return [];
+      if (cmd === "list_attachments") return [];
+      if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await screen.findByTestId("task-dialog-title-input");
+    await user.click(screen.getByTestId("task-dialog-delete-btn"));
+    await user.click(screen.getByTestId("task-dialog-delete-confirm-btn"));
+
+    await waitFor(() => {
+      const deleteCall = invokeMock.mock.calls.find(([cmd]) => cmd === "delete_task");
+      expect(deleteCall).toBeDefined();
+      expect(deleteCall?.[1]).toMatchObject({ id: "tsk-1" });
+    });
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
+  // ── Existing stable tests ────────────────────────────────────────
+
+  it("renders form fields populated with task data when loaded", async () => {
+    invokeMock.mockImplementation(defaultInvokeHandler(makeTask()));
     const onClose = vi.fn();
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
@@ -128,12 +463,7 @@ describe("TaskDialog", () => {
   });
 
   it("title input is editable", async () => {
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_task") return makeTask();
-      if (cmd === "list_attachments") return [];
-      if (cmd === "list_agent_reports") return [];
-      throw new Error(`unexpected: ${cmd}`);
-    });
+    invokeMock.mockImplementation(defaultInvokeHandler(makeTask()));
     const onClose = vi.fn();
     const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
@@ -144,7 +474,7 @@ describe("TaskDialog", () => {
     expect(titleInput).toHaveValue("Новое название");
   });
 
-  it("clicking Save triggers the update mutation with new values", async () => {
+  it("clicking Save triggers the update mutation with new title", async () => {
     const task = makeTask();
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return task;
@@ -152,6 +482,10 @@ describe("TaskDialog", () => {
       if (cmd === "list_tasks") return [task];
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -182,6 +516,10 @@ describe("TaskDialog", () => {
       if (cmd === "list_tasks") return [task];
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -197,16 +535,10 @@ describe("TaskDialog", () => {
   });
 
   it("clicking Cancel closes without triggering mutation", async () => {
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_task") return makeTask();
-      if (cmd === "list_attachments") return [];
-      if (cmd === "list_agent_reports") return [];
-      throw new Error(`unexpected: ${cmd}`);
-    });
+    invokeMock.mockImplementation(defaultInvokeHandler(makeTask()));
     const onClose = vi.fn();
     const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
-    // Wait for loaded state by waiting for the title input, then get cancel button.
     await screen.findByTestId("task-dialog-title-input");
     const cancelButton = screen.getByTestId("task-dialog-cancel");
     await user.click(cancelButton);
@@ -217,12 +549,7 @@ describe("TaskDialog", () => {
   });
 
   it("renders all three section headers", async () => {
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_task") return makeTask();
-      if (cmd === "list_attachments") return [];
-      if (cmd === "list_agent_reports") return [];
-      throw new Error(`unexpected: ${cmd}`);
-    });
+    invokeMock.mockImplementation(defaultInvokeHandler(makeTask()));
     const onClose = vi.fn();
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
@@ -232,19 +559,13 @@ describe("TaskDialog", () => {
     expect(screen.getByTestId("task-dialog-placeholder-attachments")).toBeInTheDocument();
     expect(screen.getByTestId("task-dialog-placeholder-agent-reports")).toBeInTheDocument();
 
-    // Section headings use the new copy.
     expect(screen.getByText("Прикреплённые промпты")).toBeInTheDocument();
     expect(screen.getByText("Вложения")).toBeInTheDocument();
     expect(screen.getByText("Отчёты агента")).toBeInTheDocument();
   });
 
   it("prompts section shows empty-state hint with coming-soon note", async () => {
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_task") return makeTask();
-      if (cmd === "list_attachments") return [];
-      if (cmd === "list_agent_reports") return [];
-      throw new Error(`unexpected: ${cmd}`);
-    });
+    invokeMock.mockImplementation(defaultInvokeHandler(makeTask()));
     const onClose = vi.fn();
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
@@ -257,12 +578,7 @@ describe("TaskDialog", () => {
   });
 
   it("attachments section shows empty state with enabled upload button when no attachments", async () => {
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_task") return makeTask();
-      if (cmd === "list_attachments") return [];
-      if (cmd === "list_agent_reports") return [];
-      throw new Error(`unexpected: ${cmd}`);
-    });
+    invokeMock.mockImplementation(defaultInvokeHandler(makeTask()));
     dialogOpenMock.mockResolvedValue(null);
     const onClose = vi.fn();
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
@@ -291,6 +607,10 @@ describe("TaskDialog", () => {
       if (cmd === "get_task") return task;
       if (cmd === "list_attachments") return [attachment];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -319,6 +639,10 @@ describe("TaskDialog", () => {
       if (cmd === "list_attachments") return [attachment];
       if (cmd === "list_agent_reports") return [];
       if (cmd === "delete_attachment") return undefined;
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -342,6 +666,10 @@ describe("TaskDialog", () => {
       if (cmd === "get_task") return makeTask();
       if (cmd === "list_attachments") throw new Error("attachments down");
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -354,16 +682,10 @@ describe("TaskDialog", () => {
   });
 
   it("agent reports section renders AgentReportsList (empty state by default)", async () => {
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_task") return makeTask();
-      if (cmd === "list_attachments") return [];
-      if (cmd === "list_agent_reports") return [];
-      throw new Error(`unexpected: ${cmd}`);
-    });
+    invokeMock.mockImplementation(defaultInvokeHandler(makeTask()));
     const onClose = vi.fn();
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
-    // AgentReportsList empty state renders "No reports yet"
     await waitFor(() => {
       expect(screen.getByText(/no reports yet/i)).toBeInTheDocument();
     });
@@ -372,12 +694,7 @@ describe("TaskDialog", () => {
   // ── Edit / Preview toggle ────────────────────────────────────────
 
   it("shows the description mode toggle defaulting to 'edit' mode", async () => {
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_task") return makeTask();
-      if (cmd === "list_attachments") return [];
-      if (cmd === "list_agent_reports") return [];
-      throw new Error(`unexpected: ${cmd}`);
-    });
+    invokeMock.mockImplementation(defaultInvokeHandler(makeTask()));
     const onClose = vi.fn();
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
@@ -390,12 +707,7 @@ describe("TaskDialog", () => {
   });
 
   it("switches to description preview mode and renders markdown content", async () => {
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_task") return makeTask({ description: "**Жирный** текст" });
-      if (cmd === "list_attachments") return [];
-      if (cmd === "list_agent_reports") return [];
-      throw new Error(`unexpected: ${cmd}`);
-    });
+    invokeMock.mockImplementation(defaultInvokeHandler(makeTask({ description: "**Жирный** текст" })));
     const onClose = vi.fn();
     const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
@@ -414,12 +726,15 @@ describe("TaskDialog", () => {
       if (cmd === "update_task") throw new Error("db locked");
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
     const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
-    // Wait for loaded state, then click save.
     await screen.findByTestId("task-dialog-title-input");
     const saveButton = screen.getByTestId("task-dialog-save");
     await user.click(saveButton);
@@ -450,6 +765,10 @@ describe("TaskDialog", () => {
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       if (cmd === "upload_attachment") return newAttachment;
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
       throw new Error(`unexpected: ${cmd}`);
     });
     dialogOpenMock.mockResolvedValue("/home/user/report.pdf");
@@ -457,7 +776,6 @@ describe("TaskDialog", () => {
     const onClose = vi.fn();
     const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
-    // Wait for attachments section to finish loading (empty state rendered).
     const uploadBtn = await screen.findByTestId("task-dialog-upload-btn");
     await user.click(uploadBtn);
 
@@ -479,22 +797,15 @@ describe("TaskDialog", () => {
 
   it("upload button: cancel (open returns null) does not invoke upload_attachment", async () => {
     const task = makeTask();
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_task") return task;
-      if (cmd === "list_attachments") return [];
-      if (cmd === "list_agent_reports") return [];
-      throw new Error(`unexpected: ${cmd}`);
-    });
+    invokeMock.mockImplementation(defaultInvokeHandler(task));
     dialogOpenMock.mockResolvedValue(null);
 
     const onClose = vi.fn();
     const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
-    // Wait for attachments section to finish loading (empty state rendered).
     const uploadBtn = await screen.findByTestId("task-dialog-upload-btn");
     await user.click(uploadBtn);
 
-    // Give any pending microtasks a chance to run.
     await new Promise((r) => setTimeout(r, 50));
 
     const uploadCall = invokeMock.mock.calls.find(([cmd]) => cmd === "upload_attachment");
@@ -508,6 +819,10 @@ describe("TaskDialog", () => {
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       if (cmd === "upload_attachment") throw new Error("disk full");
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
       throw new Error(`unexpected: ${cmd}`);
     });
     dialogOpenMock.mockResolvedValue("/tmp/photo.png");
@@ -515,7 +830,6 @@ describe("TaskDialog", () => {
     const onClose = vi.fn();
     const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
-    // Wait for attachments section to finish loading (empty state rendered).
     const uploadBtn = await screen.findByTestId("task-dialog-upload-btn");
     await user.click(uploadBtn);
 

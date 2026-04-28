@@ -22,10 +22,22 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 }
 
 describe("TaskCard", () => {
-  it("renders title and position rank", () => {
-    render(<TaskCard task={makeTask({ title: "Title here", position: 5 })} />);
+  it("renders title", () => {
+    render(<TaskCard task={makeTask({ title: "Title here" })} />);
     expect(screen.getByText("Title here")).toBeInTheDocument();
-    expect(screen.getByText("#5")).toBeInTheDocument();
+  });
+
+  it("does NOT render position rank (removed in DS v1)", () => {
+    render(<TaskCard task={makeTask({ position: 5 })} />);
+    expect(screen.queryByText("#5")).toBeNull();
+    expect(screen.queryByLabelText(/position rank/i)).toBeNull();
+  });
+
+  it("renders the slug chip with task.slug value", () => {
+    render(<TaskCard task={makeTask({ slug: "tsk-xyz99" })} />);
+    const chip = screen.getByTestId("task-card-slug-chip");
+    expect(chip).toBeInTheDocument();
+    expect(chip).toHaveTextContent("tsk-xyz99");
   });
 
   it("renders the role badge when roleId is set, and not otherwise", () => {
@@ -36,6 +48,31 @@ describe("TaskCard", () => {
 
     rerender(<TaskCard task={makeTask({ roleId: null })} />);
     expect(screen.queryByTestId("task-card-role-badge")).toBeNull();
+  });
+
+  it("renders description excerpt when description is non-null", () => {
+    render(
+      <TaskCard
+        task={makeTask({ description: "Some description text here." })}
+      />,
+    );
+    expect(screen.getByText("Some description text here.")).toBeInTheDocument();
+  });
+
+  it("does not render description when null", () => {
+    render(<TaskCard task={makeTask({ description: null })} />);
+    // No paragraph-like element containing description text.
+    expect(screen.queryByText(/description/i)).toBeNull();
+  });
+
+  it("renders done checkmark when isDoneColumn is true", () => {
+    render(<TaskCard task={makeTask()} isDoneColumn />);
+    expect(screen.getByTestId("task-card-done-check")).toBeInTheDocument();
+  });
+
+  it("does not render done checkmark by default", () => {
+    render(<TaskCard task={makeTask()} />);
+    expect(screen.queryByTestId("task-card-done-check")).toBeNull();
   });
 
   it("fires onSelect on click and on Enter activation", async () => {

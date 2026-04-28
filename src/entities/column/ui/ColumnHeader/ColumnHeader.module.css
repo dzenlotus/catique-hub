@@ -1,21 +1,48 @@
 /*
  * ColumnHeader — strip at the top of each kanban column.
  *
- * Reads only semantic tokens. Layout is a single horizontal row:
- * [drag-handle?] [name] [count] [spacer] [more-menu].
+ * DS v1: `--color-surface-column` bg, `--font-size-headline-sm` semibold
+ * name, count pill with `--color-overlay-hover` background, column icon
+ * left of name.
+ *
+ * Layout: [drag-handle?] [icon] [done-check?] [name] [count] [spacer] [more-menu].
  */
 
 .header {
   display: flex;
   align-items: center;
-  gap: var(--space-8);
+  gap: var(--space-6);
   padding: var(--space-8) var(--space-12);
-  border-bottom: 1px solid var(--color-border-subtle);
-  background-color: var(--color-surface-raised);
-  border-top-left-radius: var(--radius-md);
-  border-top-right-radius: var(--radius-md);
+  background-color: var(--color-surface-column);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
   font-family: var(--font-sans);
-  min-height: 36px;
+  min-height: 40px;
+}
+
+/* Column type icon slot */
+.iconSlot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: var(--color-text-subtle);
+}
+
+.columnIcon {
+  display: block;
+}
+
+/* Green checkmark icon for done columns */
+.columnIconDone {
+  color: var(--color-status-success);
+}
+
+/* Inline done check rendered before the name (DS v1 spec) */
+.doneCheck {
+  display: block;
+  flex: 0 0 auto;
+  color: var(--color-status-success);
 }
 
 .name {
@@ -23,7 +50,7 @@
   font-size: var(--font-size-headline-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-default);
-  line-height: var(--line-height-tight);
+  line-height: 1.2;
   /* Single-line truncate; full name in tooltip. */
   overflow: hidden;
   text-overflow: ellipsis;
@@ -32,6 +59,7 @@
   min-width: 0;
 }
 
+/* Count pill — pill shape, `--color-overlay-hover` background per DS v1 */
 .count {
   display: inline-flex;
   align-items: center;
@@ -39,9 +67,9 @@
   min-width: 20px;
   height: 18px;
   padding: 0 var(--space-6);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-full);
   background-color: var(--color-overlay-active);
-  color: var(--color-text-muted);
+  color: var(--color-text-subtle);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);
   font-variant-numeric: tabular-nums;
@@ -53,8 +81,6 @@
 }
 
 .moreButton {
-  /* Reduce gap with the surrounding row so the … glyph doesn't feel
-   * orphaned. The Button primitive owns the focus ring. */
   padding: 0 var(--space-8);
   min-width: 28px;
   flex: 0 0 auto;

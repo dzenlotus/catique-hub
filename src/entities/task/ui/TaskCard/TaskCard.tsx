@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { Paperclip } from "lucide-react";
+import { Paperclip, Check } from "lucide-react";
 
 import { cn } from "@shared/lib";
 
@@ -31,6 +31,12 @@ export interface TaskCardProps {
    * focus or react to clicks. The widget layer toggles this.
    */
   dragOverlay?: boolean;
+  /**
+   * DS v1: when true, renders a green checkmark in the top-right corner.
+   * Derived by the parent KanbanColumn from the column name heuristic
+   * (contains "done" / "готово").
+   */
+  isDoneColumn?: boolean;
   /** Optional class merged onto the root. */
   className?: string;
 }
@@ -38,15 +44,13 @@ export interface TaskCardProps {
 /**
  * `TaskCard` — presentational card for one task.
  *
- * Layout (vertical):
- *   1. title row — single line, truncate
- *   2. meta row — role badge (if `roleId`) + attachments badge (if any)
- *      + position rank on the right
+ * DS v1 layout (vertical):
+ *   1. Top row — slug chip (left) + done checkmark (right, conditional)
+ *   2. Title — 2-line clamp, semibold
+ *   3. Description excerpt — 2-3 line clamp, muted (optional)
+ *   4. Bottom meta row — role badge + paperclip badge (NO position rank)
  *
  * Activation: native `<button>` handles Enter / Space / click.
- *
- * WCAG: name on background = `--color-text-default` on
- * `--color-surface-raised` (16.5:1 light, 12.6:1 dark — AAA).
  */
 export function TaskCard({
   task,
@@ -55,6 +59,7 @@ export function TaskCard({
   attachmentsCount = 0,
   isPending = false,
   dragOverlay = false,
+  isDoneColumn = false,
   className,
 }: TaskCardProps): ReactElement {
   if (isPending || !task) {
@@ -64,6 +69,7 @@ export function TaskCard({
         aria-hidden="true"
         data-testid="task-card-skeleton"
       >
+        <div className={cn(styles.skeletonLine, styles.skeletonSlug)} />
         <div className={cn(styles.skeletonLine, styles.skeletonTitle)} />
         <div className={cn(styles.skeletonLine, styles.skeletonMeta)} />
       </div>
@@ -82,7 +88,11 @@ export function TaskCard({
         className={cn(styles.card, styles.interactive, styles.overlay, className)}
         data-testid={`task-card-overlay-${task.id}`}
       >
-        <CardBody task={task} attachmentsCount={attachmentsCount} />
+        <CardBody
+          task={task}
+          attachmentsCount={attachmentsCount}
+          isDoneColumn={isDoneColumn}
+        />
       </div>
     );
   }
@@ -95,7 +105,11 @@ export function TaskCard({
       aria-label={ariaLabel}
       data-testid={`task-card-${task.id}`}
     >
-      <CardBody task={task} attachmentsCount={attachmentsCount} />
+      <CardBody
+        task={task}
+        attachmentsCount={attachmentsCount}
+        isDoneColumn={isDoneColumn}
+      />
     </button>
   );
 }
@@ -103,12 +117,48 @@ export function TaskCard({
 interface CardBodyProps {
   task: Task;
   attachmentsCount: number;
+  isDoneColumn: boolean;
 }
 
-function CardBody({ task, attachmentsCount }: CardBodyProps): ReactElement {
+function CardBody({
+  task,
+  attachmentsCount,
+  isDoneColumn,
+}: CardBodyProps): ReactElement {
+  // Slug chip: format `ctq-NN` — use task.slug directly (it already
+  // carries the generated slug from the backend).
+  const slugLabel = task.slug;
+
   return (
     <>
+      {/* Top row: slug chip + done checkmark */}
+      <div className={styles.topRow}>
+        <span
+          className={styles.slugChip}
+          title={slugLabel}
+          data-testid="task-card-slug-chip"
+        >
+          {slugLabel}
+        </span>
+        {isDoneColumn ? (
+          <Check
+            size={16}
+            aria-label="Выполнено"
+            className={styles.doneCheck}
+            data-testid="task-card-done-check"
+          />
+        ) : null}
+      </div>
+
+      {/* Title — 2-line clamp */}
       <span className={styles.title}>{task.title}</span>
+
+      {/* Description excerpt — rendered only when non-empty */}
+      {task.description ? (
+        <span className={styles.description}>{task.description}</span>
+      ) : null}
+
+      {/* Bottom meta row */}
       <span className={styles.meta}>
         {task.roleId ? (
           <span
@@ -129,9 +179,6 @@ function CardBody({ task, attachmentsCount }: CardBodyProps): ReactElement {
             {attachmentsCount}
           </span>
         ) : null}
-        <span className={styles.position} aria-label="Position rank">
-          #{task.position.toFixed(0)}
-        </span>
       </span>
     </>
   );

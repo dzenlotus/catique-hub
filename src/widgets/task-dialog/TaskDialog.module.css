@@ -170,21 +170,141 @@
   font-style: italic;
 }
 
+/* ── Slug chip ───────────────────────────────────────────────────── */
+
+.slugRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding-bottom: var(--space-8);
+}
+
+.slugChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-xs);
+  background-color: var(--color-overlay-active);
+  border: 1px solid var(--color-border-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  user-select: all;
+}
+
+/* ── Row section (Board + Column side-by-side) ───────────────────── */
+
+.rowSection {
+  flex-direction: row !important;
+  gap: var(--space-12) !important;
+  align-items: flex-start;
+}
+
+.rowSection > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* ── Field group (label + native select) ─────────────────────────── */
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.fieldLabel {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.fieldSelect {
+  height: 36px;
+  width: 100%;
+  padding: 0 var(--space-8);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  outline: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  /* Custom chevron via background-image */
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%237a746a' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-8) center;
+  padding-right: var(--space-24);
+}
+
+.fieldSelect:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--color-accent-ring);
+}
+
+.fieldSelect:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* ── Footer ──────────────────────────────────────────────────────── */
 
 .footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   gap: var(--space-8);
   padding-top: var(--space-16);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
 }
 
 .saveError {
-  flex: 1 1 auto;
   margin: 0;
   font-size: var(--font-size-body-sm);
   color: var(--color-status-danger);
+}
+
+/* ── Delete button (trash icon) ──────────────────────────────────── */
+
+.deleteBtn {
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.deleteBtn:hover {
+  color: var(--color-status-danger);
+}
+
+/* ── Delete confirmation inline row ─────────────────────────────── */
+
+.deleteConfirm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-shrink: 0;
+}
+
+.deleteConfirmText {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.deleteConfirmBtn {
+  color: var(--color-status-danger) !important;
 }
 
 /* ── Loading skeleton ────────────────────────────────────────────── */

@@ -24,7 +24,7 @@
 
 .modal {
   width: 100%;
-  max-width: 480px;
+  max-width: 560px;
   outline: none;
   animation: dialog-zoom-in 200ms ease-out;
 }
@@ -37,7 +37,7 @@
   background-color: var(--color-surface-overlay);
   color: var(--color-text-default);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-high);
   padding: var(--space-24);
   outline: none;
