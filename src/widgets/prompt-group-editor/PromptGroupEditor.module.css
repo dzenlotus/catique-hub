@@ -100,6 +100,40 @@
   border: 1px solid var(--color-border-default);
 }
 
+.memberRowDragging {
+  opacity: 0.5;
+}
+
+.memberDragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-xs);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: grab;
+  flex-shrink: 0;
+  padding: 0;
+  font: inherit;
+  touch-action: none;
+}
+
+.memberDragHandle:hover {
+  color: var(--color-text-default);
+}
+
+.memberDragHandle:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+
+.memberDragHandle:active {
+  cursor: grabbing;
+}
+
 .memberName {
   font-size: var(--font-size-body-sm);
   color: var(--color-text-default);
@@ -247,5 +281,10 @@
   .skeletonRow,
   .membersSkeleton {
     animation: none;
+  }
+
+  /* Suppress dnd-kit's CSS transform transitions during drag */
+  .memberRow {
+    transition: none !important;
   }
 }

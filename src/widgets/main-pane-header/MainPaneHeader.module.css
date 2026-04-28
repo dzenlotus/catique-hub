@@ -1,0 +1,98 @@
+/*
+ * MainPaneHeader — contextual strip at the top of the main pane.
+ *
+ * Height: 48 px (via min-height so it never collapses on overflow).
+ * Sticky so it stays pinned while the scrollable content area below moves.
+ * Uses semantic design tokens only — no raw colour values.
+ */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 var(--space-24);
+  background-color: var(--color-bg-default);
+  border-bottom: 1px solid var(--color-border-subtle);
+  /* Ensure it doesn't flex-shrink inside a column flex container */
+  flex-shrink: 0;
+}
+
+/* ---- left region ---- */
+
+.left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.breadcrumbRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.separator {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body-sm);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.segment {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The last (deepest) breadcrumb segment uses the default text colour */
+.segmentCurrent {
+  color: var(--color-text-default);
+}
+
+/* ---- right region ---- */
+
+.right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: var(--space-16);
+}
+
+/* Active-space prefix badge */
+.spaceBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-canvas);
+  border: 1px solid var(--color-border-subtle);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+  user-select: none;
+}

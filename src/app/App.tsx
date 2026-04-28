@@ -16,6 +16,7 @@ import { SettingsView } from "@widgets/settings-view";
 import { SpacesList } from "@widgets/spaces-list";
 import { Sidebar } from "@widgets/sidebar";
 import type { NavView } from "@widgets/sidebar";
+import { MainPaneHeader } from "@widgets/main-pane-header";
 import { Toaster } from "@widgets/toaster";
 import { TaskDialog } from "@widgets/task-dialog";
 import { Button } from "@shared/ui";
@@ -62,6 +63,7 @@ export default function App(): ReactElement {
       </div>
 
       <main className={styles.mainPane}>
+        <MainPaneHeader />
         <FirstLaunchGate>
           <Switch>
             {/* Task deep-link — renders BoardsList beneath the dialog so the

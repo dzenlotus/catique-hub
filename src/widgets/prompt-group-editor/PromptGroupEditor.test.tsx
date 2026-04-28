@@ -12,7 +12,7 @@ vi.mock("@shared/api", () => ({
 }));
 
 import { invoke } from "@shared/api";
-import { PromptGroupEditor } from "./PromptGroupEditor";
+import { PromptGroupEditor, computeMemberReorder } from "./PromptGroupEditor";
 
 const invokeMock = vi.mocked(invoke);
 
@@ -279,5 +279,95 @@ describe("PromptGroupEditor", () => {
       ).toBeInTheDocument();
     });
     expect(screen.getByText(/сервер недоступен/i)).toBeInTheDocument();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DnD reordering tests
+
+describe("PromptGroupEditor — drag-and-drop reordering", () => {
+  beforeEach(() => {
+    invokeMock.mockReset();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders members in initial server order", async () => {
+    const prompts = [
+      makePrompt({ id: "pid-A", name: "Alpha" }),
+      makePrompt({ id: "pid-B", name: "Beta" }),
+      makePrompt({ id: "pid-C", name: "Gamma" }),
+    ];
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_prompt_group") return makeGroup();
+      if (cmd === "list_prompt_group_members") return ["pid-A", "pid-B", "pid-C"];
+      if (cmd === "get_prompt") return prompts[0];
+      if (cmd === "list_prompts") return prompts;
+      throw new Error(`unexpected: ${cmd}`);
+    });
+
+    renderWithClient(<PromptGroupEditor groupId="group-1" onClose={() => {}} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("prompt-group-editor-member-pid-A")).toBeInTheDocument();
+      expect(screen.getByTestId("prompt-group-editor-member-pid-B")).toBeInTheDocument();
+      expect(screen.getByTestId("prompt-group-editor-member-pid-C")).toBeInTheDocument();
+    });
+
+    const items = screen.getAllByRole("listitem");
+    const ids = items.map((el) => el.getAttribute("data-testid"));
+    expect(ids).toEqual([
+      "prompt-group-editor-member-pid-A",
+      "prompt-group-editor-member-pid-B",
+      "prompt-group-editor-member-pid-C",
+    ]);
+  });
+
+  it("renders a drag handle for each member", async () => {
+    const prompt = makePrompt({ id: "pid-1", name: "Alpha" });
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_prompt_group") return makeGroup();
+      if (cmd === "list_prompt_group_members") return ["pid-1"];
+      if (cmd === "get_prompt") return prompt;
+      if (cmd === "list_prompts") return [prompt];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+
+    renderWithClient(<PromptGroupEditor groupId="group-1" onClose={() => {}} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompt-group-editor-drag-handle-pid-1"),
+      ).toBeInTheDocument();
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// computeMemberReorder — pure unit tests (no DnD simulation needed)
+
+describe("computeMemberReorder", () => {
+  it("moves an item forward in the list", () => {
+    const result = computeMemberReorder(["a", "b", "c"], "a", "c");
+    expect(result).toEqual(["b", "c", "a"]);
+  });
+
+  it("moves an item backward in the list", () => {
+    const result = computeMemberReorder(["a", "b", "c"], "c", "a");
+    expect(result).toEqual(["c", "a", "b"]);
+  });
+
+  it("returns null when active === over (no-op drop)", () => {
+    expect(computeMemberReorder(["a", "b"], "a", "a")).toBeNull();
+  });
+
+  it("returns null when activeId is not in the list", () => {
+    expect(computeMemberReorder(["a", "b"], "x", "a")).toBeNull();
+  });
+
+  it("produces the correct new order for a two-item swap", () => {
+    const result = computeMemberReorder(["pid-A", "pid-B"], "pid-B", "pid-A");
+    expect(result).toEqual(["pid-B", "pid-A"]);
   });
 });
