@@ -17,6 +17,7 @@ pub mod boards;
 pub mod columns;
 pub mod error;
 mod error_map;
+pub mod import;
 pub mod prompts;
 pub mod reports;
 pub mod roles;

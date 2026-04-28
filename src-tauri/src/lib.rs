@@ -100,6 +100,9 @@ pub fn run() {
             handlers::attachments::get_attachment,
             handlers::attachments::list_attachments,
             handlers::attachments::update_attachment,
+            // ---------------- import (E2.7) ----------------
+            handlers::import::detect_promptery_db,
+            handlers::import::import_from_promptery,
             // ---------------- settings ----------------
             handlers::settings::ping,
         ])

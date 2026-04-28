@@ -27,6 +27,11 @@ thiserror.workspace = true
 # the use-case unit tests.
 rusqlite.workspace = true
 
+# Import use case (E2.7): chrono for ISO-8601 timestamps in backup
+# filenames, `dirs` for the default ~/.promptery/db.sqlite resolver.
+chrono.workspace = true
+dirs.workspace = true
+
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }
 module_name_repetitions = "allow"

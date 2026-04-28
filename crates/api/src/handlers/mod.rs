@@ -9,6 +9,7 @@
 pub mod attachments;
 pub mod boards;
 pub mod columns;
+pub mod import;
 pub mod prompts;
 pub mod reports;
 pub mod roles;

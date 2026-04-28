@@ -12,7 +12,8 @@
 //! get confused chasing a non-existent `export_all`.
 
 use catique_domain::{
-    AgentReport, Attachment, Board, Column, Prompt, Role, Space, Tag, Task,
+    AgentReport, Attachment, Board, Column, ImportOptions, ImportReport, PreflightResults,
+    Prompt, PrompteryDbInfo, Role, Space, Tag, Task,
 };
 use ts_rs::TS;
 
@@ -59,4 +60,26 @@ fn export_agent_report() {
 #[test]
 fn export_attachment() {
     Attachment::export().expect("Attachment TS bindings should export cleanly");
+}
+
+// ---------------- import-module types (E2.7) ----------------
+
+#[test]
+fn export_promptery_db_info() {
+    PrompteryDbInfo::export().expect("PrompteryDbInfo TS bindings should export cleanly");
+}
+
+#[test]
+fn export_import_options() {
+    ImportOptions::export().expect("ImportOptions TS bindings should export cleanly");
+}
+
+#[test]
+fn export_preflight_results() {
+    PreflightResults::export().expect("PreflightResults TS bindings should export cleanly");
+}
+
+#[test]
+fn export_import_report() {
+    ImportReport::export().expect("ImportReport TS bindings should export cleanly");
 }

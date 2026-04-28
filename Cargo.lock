@@ -295,6 +295,8 @@ version = "0.1.0"
 dependencies = [
  "catique-domain",
  "catique-infrastructure",
+ "chrono",
+ "dirs 5.0.1",
  "rusqlite",
  "serde",
  "thiserror 1.0.69",
