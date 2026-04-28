@@ -19,6 +19,7 @@ tauri-build.workspace = true
 # Tauri shell uses default-features (window, app, etc.) at the binary
 # layer; the workspace pin disables them, so re-enable defaults here.
 tauri = { workspace = true, default-features = true }
+tauri-plugin-dialog.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

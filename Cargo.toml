@@ -68,6 +68,7 @@ dirs = "5"
 # Tauri pinned to the same minor as src-tauri/ scaffold (Katya, E1.1).
 tauri = { version = "2.10", default-features = false }
 tauri-build = { version = "2.5", features = [] }
+tauri-plugin-dialog = "2"
 
 [profile.release]
 panic = "abort"

@@ -7,7 +7,13 @@
  */
 
 // API
-export { listAttachments, getAttachment, deleteAttachment } from "./api";
+export {
+  listAttachments,
+  getAttachment,
+  deleteAttachment,
+  uploadAttachment,
+} from "./api";
+export type { UploadAttachmentArgs } from "./api";
 
 // Model
 export {
@@ -16,6 +22,7 @@ export {
   useAttachmentsByTask,
   useAttachment,
   useDeleteAttachmentMutation,
+  useUploadAttachmentMutation,
 } from "./model";
 export type { Attachment } from "./model";
 

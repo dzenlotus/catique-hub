@@ -11,8 +11,15 @@ vi.mock("@shared/api", () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  open: vi.fn(),
+}));
+
 import { invoke } from "@shared/api";
+import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
 import { TaskDialog } from "./TaskDialog";
+
+const dialogOpenMock = vi.mocked(dialogOpen);
 
 const invokeMock = vi.mocked(invoke);
 
@@ -32,6 +39,8 @@ function makeTask(overrides: Partial<Task> = {}): Task {
   };
 }
 
+import { Toaster } from "@widgets/toaster";
+
 function renderWithClient(ui: ReactElement) {
   const client = new QueryClient({
     defaultOptions: {
@@ -42,7 +51,10 @@ function renderWithClient(ui: ReactElement) {
   const user = userEvent.setup();
   render(
     <QueryClientProvider client={client}>
-      <ToastProvider>{ui}</ToastProvider>
+      <ToastProvider>
+        {ui}
+        <Toaster />
+      </ToastProvider>
     </QueryClientProvider>,
   );
   return { client, user };
@@ -50,6 +62,7 @@ function renderWithClient(ui: ReactElement) {
 
 beforeEach(() => {
   invokeMock.mockReset();
+  dialogOpenMock.mockReset();
 });
 
 afterEach(() => {
@@ -243,13 +256,14 @@ describe("TaskDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("attachments section shows empty state with disabled upload button when no attachments", async () => {
+  it("attachments section shows empty state with enabled upload button when no attachments", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return makeTask();
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
+    dialogOpenMock.mockResolvedValue(null);
     const onClose = vi.fn();
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
@@ -257,8 +271,8 @@ describe("TaskDialog", () => {
       expect(screen.getByText("Нет вложений")).toBeInTheDocument();
     });
 
-    const uploadBtn = screen.getByRole("button", { name: /загрузить файл/i });
-    expect(uploadBtn).toBeDisabled();
+    const uploadBtn = screen.getByTestId("task-dialog-upload-btn");
+    expect(uploadBtn).not.toBeDisabled();
   });
 
   it("attachments section renders attachment rows when attachments exist", async () => {
@@ -413,7 +427,103 @@ describe("TaskDialog", () => {
     await waitFor(() => {
       expect(screen.getByTestId("task-dialog-save-error")).toBeInTheDocument();
     });
-    expect(screen.getByText(/db locked/i)).toBeInTheDocument();
+    expect(screen.getByTestId("task-dialog-save-error")).toHaveTextContent(/db locked/i);
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // ── Upload flow ──────────────────────────────────────────────────
+
+  it("upload button calls dialog open and then upload_attachment IPC on success", async () => {
+    const task = makeTask();
+    const newAttachment = {
+      id: "att-new",
+      taskId: task.id,
+      filename: "report.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 4096n,
+      storagePath: "att-new_report.pdf",
+      uploadedAt: 0n,
+      uploadedBy: null,
+    };
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_task") return task;
+      if (cmd === "list_attachments") return [];
+      if (cmd === "list_agent_reports") return [];
+      if (cmd === "upload_attachment") return newAttachment;
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    dialogOpenMock.mockResolvedValue("/home/user/report.pdf");
+
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    // Wait for attachments section to finish loading (empty state rendered).
+    const uploadBtn = await screen.findByTestId("task-dialog-upload-btn");
+    await user.click(uploadBtn);
+
+    await waitFor(() => {
+      const uploadCall = invokeMock.mock.calls.find(([cmd]) => cmd === "upload_attachment");
+      expect(uploadCall).toBeDefined();
+      expect(uploadCall?.[1]).toMatchObject({
+        taskId: "tsk-1",
+        sourcePath: "/home/user/report.pdf",
+        originalFilename: "report.pdf",
+        mimeType: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Файл загружен")).toBeInTheDocument();
+    });
+  });
+
+  it("upload button: cancel (open returns null) does not invoke upload_attachment", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_task") return task;
+      if (cmd === "list_attachments") return [];
+      if (cmd === "list_agent_reports") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    dialogOpenMock.mockResolvedValue(null);
+
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    // Wait for attachments section to finish loading (empty state rendered).
+    const uploadBtn = await screen.findByTestId("task-dialog-upload-btn");
+    await user.click(uploadBtn);
+
+    // Give any pending microtasks a chance to run.
+    await new Promise((r) => setTimeout(r, 50));
+
+    const uploadCall = invokeMock.mock.calls.find(([cmd]) => cmd === "upload_attachment");
+    expect(uploadCall).toBeUndefined();
+  });
+
+  it("upload button shows error toast when upload_attachment IPC fails", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_task") return task;
+      if (cmd === "list_attachments") return [];
+      if (cmd === "list_agent_reports") return [];
+      if (cmd === "upload_attachment") throw new Error("disk full");
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    dialogOpenMock.mockResolvedValue("/tmp/photo.png");
+
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    // Wait for attachments section to finish loading (empty state rendered).
+    const uploadBtn = await screen.findByTestId("task-dialog-upload-btn");
+    await user.click(uploadBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/не удалось загрузить файл/i),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText(/disk full/i)).toBeInTheDocument();
   });
 });

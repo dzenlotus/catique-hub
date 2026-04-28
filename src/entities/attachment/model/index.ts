@@ -5,4 +5,5 @@ export {
   useAttachmentsByTask,
   useAttachment,
   useDeleteAttachmentMutation,
+  useUploadAttachmentMutation,
 } from "./store";

@@ -67,8 +67,29 @@ export async function deleteAttachment(id: string): Promise<void> {
   return invokeWithAppError<void>("delete_attachment", { id });
 }
 
-// TODO(E5): wire up blob-aware upload — `createAttachment` requires
-// that the caller has already persisted the blob under
-// `<app_data>/attachments/<task_id>/` before calling the IPC.
-// Exposing a metadata-only wrapper here before blob upload exists in
-// the UI would be footgun-prone; defer until the file-picker flow lands.
+/** Arguments for the blob-aware upload IPC. */
+export interface UploadAttachmentArgs {
+  taskId: string;
+  sourcePath: string;
+  originalFilename: string;
+  mimeType?: string | null;
+}
+
+/**
+ * `upload_attachment` — copy a local file into the task attachment
+ * directory and create the metadata row in one atomic step.
+ *
+ * The Rust handler resolves the target directory, copies the blob,
+ * infers MIME type when `mimeType` is null, inserts the row, and emits
+ * `attachment.created` — all server-side.
+ */
+export async function uploadAttachment(
+  args: UploadAttachmentArgs,
+): Promise<Attachment> {
+  return invokeWithAppError<Attachment>("upload_attachment", {
+    taskId: args.taskId,
+    sourcePath: args.sourcePath,
+    originalFilename: args.originalFilename,
+    mimeType: args.mimeType ?? null,
+  });
+}

@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
-import { Button } from "@shared/ui";
+import { Button, Input } from "@shared/ui";
+import { cn } from "@shared/lib";
 import { SettingsTokensView } from "@widgets/settings-tokens-view";
 import pkgJson from "../../../package.json";
 import styles from "./SettingsView.module.css";
@@ -40,6 +41,52 @@ export function SettingsView(): ReactElement {
           <p className={styles.hint}>
             (используйте переключатель в нижней части боковой панели)
           </p>
+        </div>
+      </section>
+
+      {/* ── Profile ─────────────────────────────────────────────────── */}
+      <section
+        className={styles.card}
+        aria-labelledby="settings-profile"
+        data-testid="settings-view-profile-section"
+      >
+        <h3 id="settings-profile" className={styles.cardHeading}>
+          Профиль
+        </h3>
+        <div className={styles.cardBody}>
+          <div className={styles.profileRow}>
+            <div
+              className={styles.avatar}
+              data-testid="settings-view-profile-avatar"
+              aria-label="Аватар пользователя — M"
+            >
+              M
+            </div>
+            <div className={styles.profileFields}>
+              <Input
+                label="Имя"
+                defaultValue="Maintainer"
+                isDisabled
+                description="Локальный режим — только один пользователь. Аккаунты появятся в E6+."
+                data-testid="settings-view-profile-name-input"
+              />
+              <Input
+                label="Email"
+                type="email"
+                defaultValue=""
+                placeholder="—"
+                isDisabled
+                data-testid="settings-view-profile-email-input"
+              />
+            </div>
+          </div>
+          <p className={cn(styles.hint, styles.profileCaption)}>
+            Catique HUB сейчас работает в локальном режиме. Учётные записи и
+            синхронизация — будущая итерация.
+          </p>
+          <div>
+            <span className={styles.localPill}>Local-first</span>
+          </div>
         </div>
       </section>
 

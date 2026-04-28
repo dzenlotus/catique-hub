@@ -12,13 +12,15 @@
  */
 
 import { useEffect, useState, type ReactElement } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useTask, useUpdateTaskMutation } from "@entities/task";
 import {
   useAttachmentsByTask,
   useDeleteAttachmentMutation,
+  useUploadAttachmentMutation,
   AttachmentRow,
 } from "@entities/attachment";
-import { Dialog, Button, Input, Tooltip, TooltipTrigger, MarkdownPreview } from "@shared/ui";
+import { Dialog, Button, Input, MarkdownPreview } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
 import { useToast } from "@app/providers/ToastProvider";
@@ -71,6 +73,7 @@ interface AttachmentsSectionProps {
 function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
   const query = useAttachmentsByTask(taskId);
   const deleteMutation = useDeleteAttachmentMutation();
+  const uploadMutation = useUploadAttachmentMutation();
   const { pushToast } = useToast();
 
   // ── Pending ──────────────────────────────────────────────────────
@@ -115,16 +118,54 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
     });
   };
 
+  const handleUpload = (): void => {
+    void (async () => {
+      const result = await open({
+        multiple: false,
+        filters: [{ name: "Любой файл", extensions: ["*"] }],
+      });
+      // User cancelled — `open` returns null.
+      if (result === null) return;
+
+      // Tauri 2.x `open({ multiple: false })` returns `string | null`.
+      const sourcePath = typeof result === "string" ? result : result[0];
+      if (!sourcePath) return;
+
+      // Derive the original filename from the last path segment.
+      const originalFilename =
+        sourcePath.replace(/\\/g, "/").split("/").pop() ?? sourcePath;
+
+      uploadMutation.mutate(
+        { taskId, sourcePath, originalFilename, mimeType: null },
+        {
+          onSuccess: () => {
+            pushToast("success", "Файл загружен");
+          },
+          onError: (err) => {
+            pushToast("error", `Не удалось загрузить файл: ${err.message}`);
+          },
+        },
+      );
+    })();
+  };
+
+  const uploadButton = (
+    <Button
+      variant="secondary"
+      size="sm"
+      isPending={uploadMutation.status === "pending"}
+      onPress={handleUpload}
+      data-testid="task-dialog-upload-btn"
+    >
+      Загрузить файл
+    </Button>
+  );
+
   if (attachments.length === 0) {
     return (
       <div className={styles.attachmentEmptyState}>
         <p className={styles.sectionEmptyHint}>Нет вложений</p>
-        <TooltipTrigger>
-          <Button variant="secondary" size="sm" isDisabled>
-            Загрузить файл
-          </Button>
-          <Tooltip placement="bottom">Загрузка через UI появится в E5</Tooltip>
-        </TooltipTrigger>
+        {uploadButton}
       </div>
     );
   }
@@ -142,6 +183,7 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
           }
         />
       ))}
+      {uploadButton}
     </div>
   );
 }

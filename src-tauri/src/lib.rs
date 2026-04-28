@@ -29,6 +29,7 @@ pub fn run() {
     };
 
     if let Err(err) = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(state)
         .setup(|app| {
             // E2.5 (Katya): publish the AppHandle into AppState so
@@ -118,12 +119,13 @@ pub fn run() {
             handlers::reports::get_agent_report,
             handlers::reports::list_agent_reports,
             handlers::reports::update_agent_report,
-            // ---------------- attachments (E2.4) ----------------
+            // ---------------- attachments (E2.4 + E5) ----------------
             handlers::attachments::create_attachment,
             handlers::attachments::delete_attachment,
             handlers::attachments::get_attachment,
             handlers::attachments::list_attachments,
             handlers::attachments::update_attachment,
+            handlers::attachments::upload_attachment,
             // ---------------- import (E2.7) ----------------
             handlers::import::detect_promptery_db,
             handlers::import::import_from_promptery,

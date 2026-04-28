@@ -19,7 +19,13 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 
-import { listAttachments, getAttachment, deleteAttachment } from "../api";
+import {
+  listAttachments,
+  getAttachment,
+  deleteAttachment,
+  uploadAttachment,
+} from "../api";
+import type { UploadAttachmentArgs } from "../api";
 import type { Attachment } from "./types";
 
 /** Query-key factory. Centralised so invalidation stays consistent. */
@@ -96,6 +102,30 @@ export function useDeleteAttachmentMutation(): UseMutationResult<
         queryKey: [...attachmentsKeys.all, "byTask"],
       });
       queryClient.removeQueries({ queryKey: attachmentsKeys.detail(id) });
+    },
+  });
+}
+
+/**
+ * `useUploadAttachmentMutation` — copy a local file into the task
+ * attachment directory and insert the metadata row via the backend IPC.
+ *
+ * On success invalidates `byTask(taskId)` and the flat `list()` so
+ * every mounted attachment hook re-fetches automatically.
+ */
+export function useUploadAttachmentMutation(): UseMutationResult<
+  Attachment,
+  Error,
+  UploadAttachmentArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: uploadAttachment,
+    onSuccess: (_data, args) => {
+      void queryClient.invalidateQueries({
+        queryKey: attachmentsKeys.byTask(args.taskId),
+      });
+      void queryClient.invalidateQueries({ queryKey: attachmentsKeys.list() });
     },
   });
 }

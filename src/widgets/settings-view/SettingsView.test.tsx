@@ -131,4 +131,26 @@ describe("SettingsView", () => {
     setup();
     expect(screen.getByText(/Elastic-2\.0/)).toBeInTheDocument();
   });
+
+  // ── Profile section ────────────────────────────────────────────────
+
+  it("Profile section renders with the heading 'Профиль'", () => {
+    setup();
+    expect(
+      screen.getByRole("heading", { name: /^профиль$/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("Profile avatar shows the initial 'M'", () => {
+    setup();
+    const avatar = screen.getByTestId("settings-view-profile-avatar");
+    expect(avatar.textContent).toBe("M");
+  });
+
+  it("Profile name input has the value 'Maintainer' and is disabled", () => {
+    setup();
+    const nameInput = screen.getByTestId("settings-view-profile-name-input");
+    expect(nameInput).toHaveValue("Maintainer");
+    expect(nameInput).toBeDisabled();
+  });
 });

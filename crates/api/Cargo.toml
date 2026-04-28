@@ -39,6 +39,11 @@ tauri.workspace = true
 # expand the dependency graph.
 once_cell = "1.21"
 
+# E5 (upload_attachment): used to generate a collision-safe id prefix for
+# the on-disk storage filename. Same version and macro as infrastructure's
+# util::new_id() so the id alphabet is consistent across the codebase.
+nanoid.workspace = true
+
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }
 module_name_repetitions = "allow"
