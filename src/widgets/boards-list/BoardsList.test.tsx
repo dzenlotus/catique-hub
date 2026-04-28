@@ -262,20 +262,22 @@ describe("BoardsList", () => {
     expect(onSelectBoard).toHaveBeenCalledWith("brd-pick");
   });
 
-  it("renders the Bootstrap default space CTA when no spaces exist", async () => {
+  it("shows create-space CTA and welcome heading when no spaces exist", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_boards") return [] satisfies Board[];
       if (cmd === "list_spaces") return [];
       throw new Error(`unexpected command: ${cmd}`);
     });
-    const { user } = renderWithClient(<BoardsList />);
+    renderWithClient(<BoardsList />);
 
     await waitFor(() => {
       expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
     });
-    await user.click(screen.getByTestId("boards-list-create-button"));
     expect(
-      await screen.findByTestId("board-create-dialog-bootstrap-space"),
+      screen.getByText("Добро пожаловать в Catique HUB"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("boards-list-create-space-button"),
     ).toBeInTheDocument();
   });
 

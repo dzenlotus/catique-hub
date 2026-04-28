@@ -121,35 +121,6 @@ export type AppEvent =
       type: "attachment:deleted";
       payload: { id: string; task_id: string };
     }
-  // ---------------- import ----------------
-  | { type: "import:started"; payload: { source_path: string } }
-  | {
-      type: "import:progress";
-      payload: {
-        phase:
-          | "preflight"
-          | "copy"
-          | "schema"
-          | "data"
-          | "fts"
-          | "attachments"
-          | "rename";
-        percent: number;
-      };
-    }
-  | {
-      type: "import:completed";
-      payload: {
-        duration_ms: number;
-        rows_imported: Record<string, number>;
-        commit_path: string | null;
-        dry_run: boolean;
-      };
-    }
-  | {
-      type: "import:failed";
-      payload: { error_kind: string; message: string };
-    }
   // ---------------- prompt groups ----------------
   | { type: "prompt_group:created"; payload: { id: string } }
   | { type: "prompt_group:updated"; payload: { id: string } }

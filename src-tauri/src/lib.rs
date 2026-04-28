@@ -153,9 +153,6 @@ pub fn run() {
             handlers::attachments::list_attachments,
             handlers::attachments::update_attachment,
             handlers::attachments::upload_attachment,
-            // ---------------- import (E2.7) ----------------
-            handlers::import::detect_promptery_db,
-            handlers::import::import_from_promptery,
             // ---------------- prompt groups (E2.x) ----------------
             handlers::prompt_groups::add_prompt_group_member,
             handlers::prompt_groups::create_prompt_group,

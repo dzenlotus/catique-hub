@@ -10,7 +10,6 @@ pub mod attachments;
 pub mod boards;
 pub mod clients;
 pub mod columns;
-pub mod import;
 pub mod mcp_tools;
 pub mod prompt_groups;
 pub mod prompts;

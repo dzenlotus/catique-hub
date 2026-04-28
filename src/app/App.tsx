@@ -4,7 +4,6 @@ import { Switch, Route, useLocation } from "wouter";
 
 import { BoardsList } from "@widgets/boards-list";
 import { KanbanBoard } from "@widgets/kanban-board";
-import { FirstLaunchGate } from "@widgets/first-launch";
 import { PromptsList } from "@widgets/prompts-list";
 import { PromptGroupsList } from "@widgets/prompt-groups-list";
 import { RolesList } from "@widgets/roles-list";
@@ -37,7 +36,6 @@ import styles from "./App.module.css";
  * API is preserved — internally it calls `setLocation(pathForView(view))`.
  *
  * E3.1 (Anna): introduced `selectedBoardId` for in-memory board detail.
- * E4.1 (Anna): wrapped app in `<FirstLaunchGate>`.
  * E4.x (Anna): sidebar shell replaces top-tab navigation.
  * E4.x (router): replaced `useState`-based nav with `wouter` routes.
  *                `selectedBoardId` local state removed; boardId lives in URL.
@@ -64,87 +62,84 @@ export default function App(): ReactElement {
 
       <main className={styles.mainPane}>
         <MainPaneHeader />
-        <FirstLaunchGate>
-          <Switch>
-            {/* Task deep-link — renders BoardsList beneath the dialog so the
-                user has context; dialog closes back to /boards. */}
-            <Route path={routes.task}>
-              {(params) => (
-                <>
-                  <BoardsList
-                    onSelectBoard={(id) => setLocation(boardPath(id))}
-                  />
-                  <TaskDialog
-                    taskId={params.taskId}
-                    onClose={() => setLocation(routes.boards)}
-                  />
-                </>
-              )}
-            </Route>
+        <Switch>
+          {/* Task deep-link — renders BoardsList beneath the dialog so the
+              user has context; dialog closes back to /boards. */}
+          <Route path={routes.task}>
+            {(params) => (
+              <>
+                <BoardsList
+                  onSelectBoard={(id) => setLocation(boardPath(id))}
+                />
+                <TaskDialog
+                  taskId={params.taskId}
+                  onClose={() => setLocation(routes.boards)}
+                />
+              </>
+            )}
+          </Route>
 
-            {/* Board detail — boardId comes from URL params */}
-            <Route path={routes.board}>
-              {(params) => (
-                <section className={styles.boardView}>
-                  <div className={styles.boardViewHeader}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onPress={() => setLocation(routes.boards)}
-                    >
-                      ← Back to boards
-                    </Button>
-                  </div>
-                  <KanbanBoard boardId={params.boardId} />
-                </section>
-              )}
-            </Route>
+          {/* Board detail — boardId comes from URL params */}
+          <Route path={routes.board}>
+            {(params) => (
+              <section className={styles.boardView}>
+                <div className={styles.boardViewHeader}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onPress={() => setLocation(routes.boards)}
+                  >
+                    ← Back to boards
+                  </Button>
+                </div>
+                <KanbanBoard boardId={params.boardId} />
+              </section>
+            )}
+          </Route>
 
-            {/* All other top-level views */}
-            <Route path={routes.boards}>
-              <BoardsList
-                onSelectBoard={(id) => setLocation(boardPath(id))}
-              />
-            </Route>
-            <Route path={routes.prompts}>
-              <PromptsList />
-            </Route>
-            <Route path={routes.promptGroups}>
-              <PromptGroupsList />
-            </Route>
-            <Route path={routes.roles}>
-              <RolesList />
-            </Route>
-            <Route path={routes.tags}>
-              <TagsList />
-            </Route>
-            <Route path={routes.reports}>
-              <AgentReportsList />
-            </Route>
-            <Route path={routes.skills}>
-              <SkillsList />
-            </Route>
-            <Route path={routes.mcpTools}>
-              <McpToolsList />
-            </Route>
-            <Route path={routes.spaces}>
-              <SpacesList onSelectView={handleSelectView} />
-            </Route>
-            <Route path={routes.settings}>
-              <SettingsView />
-            </Route>
+          {/* All other top-level views */}
+          <Route path={routes.boards}>
+            <BoardsList
+              onSelectBoard={(id) => setLocation(boardPath(id))}
+            />
+          </Route>
+          <Route path={routes.prompts}>
+            <PromptsList />
+          </Route>
+          <Route path={routes.promptGroups}>
+            <PromptGroupsList />
+          </Route>
+          <Route path={routes.roles}>
+            <RolesList />
+          </Route>
+          <Route path={routes.tags}>
+            <TagsList />
+          </Route>
+          <Route path={routes.reports}>
+            <AgentReportsList />
+          </Route>
+          <Route path={routes.skills}>
+            <SkillsList />
+          </Route>
+          <Route path={routes.mcpTools}>
+            <McpToolsList />
+          </Route>
+          <Route path={routes.spaces}>
+            <SpacesList onSelectView={handleSelectView} />
+          </Route>
+          <Route path={routes.settings}>
+            <SettingsView />
+          </Route>
 
-            {/* Fallback — unknown paths land on the boards list */}
-            <Route>
-              <BoardsList
-                onSelectBoard={(id) => setLocation(boardPath(id))}
-              />
-            </Route>
-          </Switch>
-        </FirstLaunchGate>
+          {/* Fallback — unknown paths land on the boards list */}
+          <Route>
+            <BoardsList
+              onSelectBoard={(id) => setLocation(boardPath(id))}
+            />
+          </Route>
+        </Switch>
       </main>
 
-      {/* Toast stack — outside FirstLaunchGate so it shows during first-launch flow */}
       <Toaster />
     </div>
   );

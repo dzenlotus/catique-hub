@@ -161,27 +161,6 @@ describe("EventsProvider — Tauri events → react-query invalidation", () => {
     unmount();
   });
 
-  it("does a global invalidate on import.completed", async () => {
-    const { invalidateSpy, unmount } = renderWithProvider();
-    await waitFor(() => {
-      expect(listeners.get("import:completed")?.size ?? 0).toBeGreaterThan(0);
-    });
-    act(() => {
-      dispatch("import:completed", {
-        duration_ms: 1234,
-        rows_imported: { tasks: 1000 },
-        commit_path: "/tmp/db.sqlite",
-        dry_run: false,
-      });
-    });
-    // No queryKey arg → invalidate all queries. We assert at least one
-    // call without a queryKey; allow the earlier mount-time ones to
-    // exist (none should — invalidateQueries is only called from the
-    // event handlers).
-    expect(invalidateSpy).toHaveBeenCalledWith();
-    unmount();
-  });
-
   it("releases listeners on unmount", async () => {
     const { unmount } = renderWithProvider();
     await waitFor(() => {

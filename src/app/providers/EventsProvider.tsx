@@ -300,13 +300,6 @@ export function EventsProvider({
       }),
     );
 
-    // ---------------- import ----------------
-    sub(
-      on("import:completed", () => {
-        void qc.invalidateQueries();
-      }),
-    );
-
     // ---------------- connected clients (ctq-67 / ctq-68 / ctq-69) ----------------
     sub(
       on("client:discovered", () => {

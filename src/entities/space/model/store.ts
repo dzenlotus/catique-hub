@@ -9,9 +9,7 @@
  * invalidates it on `space.created`, `space.updated`, and `space.deleted`
  * realtime events — do not rename without updating that provider.
  *
- * `spacesKeys` is the canonical definition. `src/shared/lib/firstLaunch.ts`
- * re-imports it from here (via `@entities/space`) so there is a single
- * source of truth.
+ * `spacesKeys` is the canonical definition — a single source of truth.
  */
 
 import {

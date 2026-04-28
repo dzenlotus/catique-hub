@@ -66,7 +66,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps): ReactElement {
 // ─── Container ────────────────────────────────────────────────────────────────
 
 /**
- * `Toaster` — mount once in `App.tsx` outside `<FirstLaunchGate>`.
+ * `Toaster` — mount once in `App.tsx`.
  */
 export function Toaster(): ReactElement {
   const { toasts, dismissToast } = useToast();

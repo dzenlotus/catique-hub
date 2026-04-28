@@ -151,20 +151,6 @@ pub const ATTACHMENT_UPDATED: &str = "attachment:updated";
 pub const ATTACHMENT_DELETED: &str = "attachment:deleted";
 
 // -----------------------------------------------------------------
-// Import lifecycle events.
-// -----------------------------------------------------------------
-
-/// `import:started` — payload `{ source_path }`.
-pub const IMPORT_STARTED: &str = "import:started";
-/// `import:progress` — payload `{ phase, percent }`. Reserved; not
-/// emitted in E2.5 (no callback hook in the use case yet).
-pub const IMPORT_PROGRESS: &str = "import:progress";
-/// `import:completed` — payload `{ duration_ms, rows_imported, commit_path }`.
-pub const IMPORT_COMPLETED: &str = "import:completed";
-/// `import:failed` — payload `{ error_kind, message }`.
-pub const IMPORT_FAILED: &str = "import:failed";
-
-// -----------------------------------------------------------------
 // Generic / future
 // -----------------------------------------------------------------
 
@@ -289,10 +275,6 @@ mod tests {
             MCP_TOOL_CREATED,
             MCP_TOOL_UPDATED,
             MCP_TOOL_DELETED,
-            IMPORT_STARTED,
-            IMPORT_PROGRESS,
-            IMPORT_COMPLETED,
-            IMPORT_FAILED,
             APP_REFRESH_REQUIRED,
             PROMPT_GROUP_CREATED,
             PROMPT_GROUP_UPDATED,

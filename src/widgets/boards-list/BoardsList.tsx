@@ -4,11 +4,13 @@ import { Plus, Pencil, ChevronRight, ChevronLeft } from "lucide-react";
 
 import { BoardCard, useBoards } from "@entities/board";
 import { PromptCard, usePrompts } from "@entities/prompt";
+import { useSpaces } from "@entities/space";
 import { Button } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { BoardCreateDialog } from "@widgets/board-create-dialog";
 import { BoardEditor } from "@widgets/board-editor";
+import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 import {
   PromptAttachmentBoundary,
   DraggablePromptRow,
@@ -40,10 +42,16 @@ interface BoardsListProps {
 export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElement {
   const { activeSpaceId } = useActiveSpace();
   const boardsQuery = useBoards();
+  const spacesQuery = useSpaces();
   const promptsQuery = usePrompts();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isSpaceCreateOpen, setIsSpaceCreateOpen] = useState(false);
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+
+  // True when spaces have loaded and the workspace is completely empty.
+  const hasNoSpaces =
+    spacesQuery.status === "success" && spacesQuery.data.length === 0;
 
   // Derive space-filtered boards at the widget layer (entity hook stays
   // workspace-wide per architecture). When activeSpaceId is null (provider
@@ -121,12 +129,40 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
               </div>
             ) : filteredBoards.length === 0 ? (
               <div className={styles.empty} data-testid="boards-list-empty">
-                {activeSpaceId !== null && boardsQuery.data.length > 0 ? (
+                {hasNoSpaces ? (
+                  <>
+                    <p className={styles.emptyTitle}>Добро пожаловать в Catique HUB</p>
+                    <p className={styles.emptyHint}>
+                      Создайте своё первое пространство, чтобы начать.
+                    </p>
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onPress={() => setIsSpaceCreateOpen(true)}
+                      data-testid="boards-list-create-space-button"
+                    >
+                      <span className={styles.btnLabel}>
+                        <Plus size={16} aria-hidden="true" />
+                        Создать пространство
+                      </span>
+                    </Button>
+                  </>
+                ) : activeSpaceId !== null && boardsQuery.data.length > 0 ? (
                   <>
                     <p className={styles.emptyTitle}>В этом пространстве пока нет досок</p>
                     <p className={styles.emptyHint}>
                       Создайте первую доску в текущем пространстве.
                     </p>
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onPress={() => setIsCreateOpen(true)}
+                    >
+                      <span className={styles.btnLabel}>
+                        <Plus size={16} aria-hidden="true" />
+                        Создать первую доску
+                      </span>
+                    </Button>
                   </>
                 ) : (
                   <>
@@ -134,18 +170,18 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                     <p className={styles.emptyHint}>
                       Создайте первую доску, чтобы начать организацию задач.
                     </p>
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onPress={() => setIsCreateOpen(true)}
+                    >
+                      <span className={styles.btnLabel}>
+                        <Plus size={16} aria-hidden="true" />
+                        Создать первую доску
+                      </span>
+                    </Button>
                   </>
                 )}
-                <Button
-                  variant="primary"
-                  size="md"
-                  onPress={() => setIsCreateOpen(true)}
-                >
-                  <span className={styles.btnLabel}>
-                    <Plus size={16} aria-hidden="true" />
-                    Создать первую доску
-                  </span>
-                </Button>
               </div>
             ) : (
               <div className={styles.grid} data-testid="boards-list-grid">
@@ -223,6 +259,11 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
       <BoardCreateDialog
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
+      />
+
+      <SpaceCreateDialog
+        isOpen={isSpaceCreateOpen}
+        onClose={() => setIsSpaceCreateOpen(false)}
       />
 
       <BoardEditor

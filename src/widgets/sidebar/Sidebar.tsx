@@ -279,8 +279,7 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
     }
 
     if (spaces.length === 0 || effectiveSpaceId === null) {
-      // FirstLaunchGate handles the truly-empty state globally. Suppress
-      // the switcher to avoid a broken partial UI.
+      // No spaces yet — suppress the switcher to avoid a broken partial UI.
       return null;
     }
 
