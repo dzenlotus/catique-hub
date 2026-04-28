@@ -7,5 +7,6 @@ export {
   useUpdateColumnMutation,
   useReorderColumnsMutation,
   useDeleteColumnMutation,
+  useAddColumnPromptMutation,
 } from "./store";
 export type { UpdateColumnVars, ReorderColumnsVars } from "./store";

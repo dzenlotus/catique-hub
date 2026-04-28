@@ -1,10 +1,11 @@
 import { useState, type ReactElement } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Paperclip } from "lucide-react";
 
 import { PromptCard, usePrompts } from "@entities/prompt";
 import { Button } from "@shared/ui";
 import { PromptEditor } from "@widgets/prompt-editor";
 import { PromptCreateDialog } from "@widgets/prompt-create-dialog";
+import { AttachPromptDialog } from "@widgets/attach-prompt-dialog";
 
 import styles from "./PromptsList.module.css";
 
@@ -25,6 +26,7 @@ export interface PromptsListProps {
 export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactElement {
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isAttachOpen, setIsAttachOpen] = useState(false);
   const promptsQuery = usePrompts();
 
   return (
@@ -33,6 +35,17 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
         <h2 id="prompts-list-heading" className={styles.heading}>
           Промпты
         </h2>
+        <Button
+          variant="secondary"
+          size="md"
+          onPress={() => setIsAttachOpen(true)}
+          data-testid="prompts-list-attach-button"
+        >
+          <span className={styles.btnLabel}>
+            <Paperclip size={14} aria-hidden="true" />
+            Прикрепить промпт
+          </span>
+        </Button>
         <Button
           variant="primary"
           size="md"
@@ -97,6 +110,11 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
       <PromptCreateDialog
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
+      />
+
+      <AttachPromptDialog
+        isOpen={isAttachOpen}
+        onClose={() => setIsAttachOpen(false)}
       />
     </section>
   );

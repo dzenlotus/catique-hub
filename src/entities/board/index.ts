@@ -12,9 +12,10 @@ export {
   getBoard,
   createBoard,
   updateBoard,
+  addBoardPrompt,
   AppErrorInstance,
 } from "./api";
-export type { CreateBoardArgs, UpdateBoardArgs } from "./api";
+export type { CreateBoardArgs, UpdateBoardArgs, AddBoardPromptArgs } from "./api";
 
 // Model
 export {
@@ -23,6 +24,7 @@ export {
   useBoard,
   useCreateBoardMutation,
   useUpdateBoardMutation,
+  useAddBoardPromptMutation,
 } from "./model";
 export type { Board } from "./model";
 

@@ -6,4 +6,5 @@ export {
   useCreateRoleMutation,
   useUpdateRoleMutation,
   useDeleteRoleMutation,
+  useAddRolePromptMutation,
 } from "./store";

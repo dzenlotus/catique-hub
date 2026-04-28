@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 
 import type { Board } from "@entities/board";
 import type { Space } from "@entities/space";
+import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 
 // Mock the Tauri invoke wrapper at the shared/api boundary — this is
 // the single place IPC traffic crosses, so all four states (loading,
@@ -32,7 +33,11 @@ function renderWithClient(ui: ReactElement): {
     },
   });
   const user = userEvent.setup();
-  render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  render(
+    <QueryClientProvider client={client}>
+      <ActiveSpaceProvider>{ui}</ActiveSpaceProvider>
+    </QueryClientProvider>,
+  );
   return { client, user };
 }
 
@@ -86,7 +91,11 @@ describe("BoardsList", () => {
   });
 
   it("shows the empty state when the list is empty", async () => {
-    invokeMock.mockResolvedValue([] satisfies Board[]);
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_boards") return [] satisfies Board[];
+      if (cmd === "list_spaces") return [makeSpace()];
+      throw new Error(`unexpected command: ${cmd}`);
+    });
     renderWithClient(<BoardsList />);
     await waitFor(() => {
       expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
@@ -94,14 +103,21 @@ describe("BoardsList", () => {
     expect(
       screen.getByRole("button", { name: /создать первую доску/i }),
     ).toBeInTheDocument();
+    // Zero boards in DB — generic copy shown.
+    expect(screen.getByText("Нет досок")).toBeInTheDocument();
   });
 
   it("renders one BoardCard per board when populated", async () => {
-    invokeMock.mockResolvedValue([
-      makeBoard({ id: "brd-1", name: "Roadmap" }),
-      makeBoard({ id: "brd-2", name: "Bugs" }),
-      makeBoard({ id: "brd-3", name: "Backlog" }),
-    ] satisfies Board[]);
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_boards")
+        return [
+          makeBoard({ id: "brd-1", name: "Roadmap", spaceId: "spc-default" }),
+          makeBoard({ id: "brd-2", name: "Bugs", spaceId: "spc-default" }),
+          makeBoard({ id: "brd-3", name: "Backlog", spaceId: "spc-default" }),
+        ] satisfies Board[];
+      if (cmd === "list_spaces") return [makeSpace()];
+      throw new Error(`unexpected command: ${cmd}`);
+    });
     renderWithClient(<BoardsList />);
     await waitFor(() => {
       expect(screen.getByTestId("boards-list-grid")).toBeInTheDocument();
@@ -112,7 +128,11 @@ describe("BoardsList", () => {
   });
 
   it("shows an inline error with retry when the query fails", async () => {
-    invokeMock.mockRejectedValue(new Error("transport down"));
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_boards") throw new Error("transport down");
+      if (cmd === "list_spaces") return [makeSpace()];
+      throw new Error(`unexpected command: ${cmd}`);
+    });
     renderWithClient(<BoardsList />);
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
@@ -223,7 +243,7 @@ describe("BoardsList", () => {
   it("calls onSelectBoard with the board id when a card is activated", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_boards") {
-        return [makeBoard({ id: "brd-pick", name: "Pick me" })];
+        return [makeBoard({ id: "brd-pick", name: "Pick me", spaceId: "spc-default" })];
       }
       if (cmd === "list_spaces") {
         return [makeSpace()];
@@ -256,6 +276,52 @@ describe("BoardsList", () => {
     await user.click(screen.getByTestId("boards-list-create-button"));
     expect(
       await screen.findByTestId("board-create-dialog-bootstrap-space"),
+    ).toBeInTheDocument();
+  });
+
+  it("filters boards by active space — only the 2 matching boards render", async () => {
+    // Active space will be spc-A (isDefault: true). 2 boards in spc-A, 1 in spc-B.
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_boards")
+        return [
+          makeBoard({ id: "brd-a1", name: "Доска А1", spaceId: "spc-A" }),
+          makeBoard({ id: "brd-a2", name: "Доска А2", spaceId: "spc-A" }),
+          makeBoard({ id: "brd-b1", name: "Доска Б1", spaceId: "spc-B" }),
+        ] satisfies Board[];
+      if (cmd === "list_spaces")
+        return [makeSpace({ id: "spc-A", isDefault: true })];
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    renderWithClient(<BoardsList />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("boards-list-grid")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Доска А1")).toBeInTheDocument();
+    expect(screen.getByText("Доска А2")).toBeInTheDocument();
+    expect(screen.queryByText("Доска Б1")).not.toBeInTheDocument();
+  });
+
+  it("shows space-specific empty state when active space has no boards but others do", async () => {
+    // Active space is spc-A (default). No boards in spc-A; one board in spc-B.
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_boards")
+        return [
+          makeBoard({ id: "brd-b1", name: "Доска Б1", spaceId: "spc-B" }),
+        ] satisfies Board[];
+      if (cmd === "list_spaces")
+        return [makeSpace({ id: "spc-A", isDefault: true })];
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    renderWithClient(<BoardsList />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText("В этом пространстве пока нет досок"),
     ).toBeInTheDocument();
   });
 });

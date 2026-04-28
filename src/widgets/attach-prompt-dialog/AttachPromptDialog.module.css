@@ -1,0 +1,98 @@
+/*
+ * AttachPromptDialog — attach-prompt modal.
+ *
+ * Mirrors PromptCreateDialog.module.css for visual consistency.
+ */
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 420px;
+}
+
+/* ── Form sections ───────────────────────────────────────────────── */
+
+.section {
+  padding: var(--space-16) 0;
+  border-bottom: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.section:first-child {
+  padding-top: 0;
+}
+
+.sectionLabel {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+/* ── Target-kind radio group ──────────────────────────────────────── */
+
+.kindGroup {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.kindOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-default);
+  background-color: var(--color-surface-raised);
+  transition: border-color 0.1s, background-color 0.1s;
+  user-select: none;
+}
+
+.kindOption:has(input:checked) {
+  border-color: var(--color-accent-default);
+  background-color: var(--color-accent-soft);
+  color: var(--color-text-default);
+}
+
+.kindOption:hover:not(:has(input:checked)) {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-overlay-hover);
+}
+
+.kindRadio {
+  /* visually hide but keep accessible */
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* ── Combobox field ──────────────────────────────────────────────── */
+
+.combobox {
+  width: 100%;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-8);
+  padding-top: var(--space-16);
+}
+
+.saveError {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}

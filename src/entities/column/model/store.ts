@@ -25,8 +25,10 @@ import {
   getColumn,
   listColumns,
   updateColumn,
+  addColumnPrompt,
   type CreateColumnArgs,
   type UpdateColumnArgs,
+  type AddColumnPromptArgs,
 } from "../api";
 import type { Column } from "./types";
 
@@ -218,5 +220,19 @@ export function useDeleteColumnMutation(): UseMutationResult<
         queryKey: columnsKeys.list(vars.boardId),
       });
     },
+  });
+}
+
+/**
+ * `useAddColumnPromptMutation` — attach a prompt to a column.
+ * No cache invalidation needed: the join-table is write-only at this layer.
+ */
+export function useAddColumnPromptMutation(): UseMutationResult<
+  void,
+  Error,
+  AddColumnPromptArgs
+> {
+  return useMutation({
+    mutationFn: addColumnPrompt,
   });
 }

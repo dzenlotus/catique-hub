@@ -186,3 +186,21 @@ export async function updateBoard(args: UpdateBoardArgs): Promise<Board> {
   if (args.position !== undefined) payload.position = args.position;
   return invokeWithAppError<Board>("update_board", payload);
 }
+
+export interface AddBoardPromptArgs {
+  boardId: string;
+  promptId: string;
+  position: number;
+}
+
+/**
+ * `add_board_prompt` — attach a prompt to a board at the given position.
+ * Throws AppError `transactionRolledBack` on FK violation.
+ */
+export async function addBoardPrompt(args: AddBoardPromptArgs): Promise<void> {
+  return invokeWithAppError<void>("add_board_prompt", {
+    boardId: args.boardId,
+    promptId: args.promptId,
+    position: args.position,
+  });
+}

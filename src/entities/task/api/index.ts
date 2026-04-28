@@ -5,5 +5,10 @@ export {
   createTask,
   updateTask,
   deleteTask,
+  addTaskPrompt,
 } from "./tasksApi";
-export type { CreateTaskArgs, UpdateTaskArgs } from "./tasksApi";
+export type {
+  CreateTaskArgs,
+  UpdateTaskArgs,
+  AddTaskPromptArgs,
+} from "./tasksApi";

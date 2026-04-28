@@ -29,8 +29,10 @@ import {
   getBoard,
   listBoards,
   updateBoard,
+  addBoardPrompt,
   type CreateBoardArgs,
   type UpdateBoardArgs,
+  type AddBoardPromptArgs,
 } from "../api";
 import type { Board } from "./types";
 
@@ -111,5 +113,19 @@ export function useUpdateBoardMutation(): UseMutationResult<
         queryKey: boardsKeys.detail(updated.id),
       });
     },
+  });
+}
+
+/**
+ * `useAddBoardPromptMutation` — attach a prompt to a board.
+ * No cache invalidation needed: the join-table is write-only at this layer.
+ */
+export function useAddBoardPromptMutation(): UseMutationResult<
+  void,
+  Error,
+  AddBoardPromptArgs
+> {
+  return useMutation({
+    mutationFn: addBoardPrompt,
   });
 }

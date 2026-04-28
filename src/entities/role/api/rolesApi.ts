@@ -103,3 +103,21 @@ export async function updateRole(args: UpdateRoleArgs): Promise<Role> {
 export async function deleteRole(id: string): Promise<void> {
   return invokeWithAppError<void>("delete_role", { id });
 }
+
+export interface AddRolePromptArgs {
+  roleId: string;
+  promptId: string;
+  position: number;
+}
+
+/**
+ * `add_role_prompt` — attach a prompt to a role at the given position.
+ * Throws AppError `transactionRolledBack` on FK violation.
+ */
+export async function addRolePrompt(args: AddRolePromptArgs): Promise<void> {
+  return invokeWithAppError<void>("add_role_prompt", {
+    roleId: args.roleId,
+    promptId: args.promptId,
+    position: args.position,
+  });
+}

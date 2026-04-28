@@ -26,8 +26,10 @@ import {
   listTasksByBoard,
   listTasksByColumn,
   updateTask,
+  addTaskPrompt,
   type CreateTaskArgs,
   type UpdateTaskArgs,
+  type AddTaskPromptArgs,
 } from "../api";
 import type { Task } from "./types";
 
@@ -184,5 +186,19 @@ export function useDeleteTaskMutation(): UseMutationResult<
         queryKey: tasksKeys.byBoard(vars.boardId),
       });
     },
+  });
+}
+
+/**
+ * `useAddTaskPromptMutation` — attach a prompt directly to a task.
+ * No cache invalidation needed: the join-table is write-only at this layer.
+ */
+export function useAddTaskPromptMutation(): UseMutationResult<
+  void,
+  Error,
+  AddTaskPromptArgs
+> {
+  return useMutation({
+    mutationFn: addTaskPrompt,
   });
 }

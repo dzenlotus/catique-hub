@@ -13,8 +13,13 @@ export {
   createTask,
   updateTask,
   deleteTask,
+  addTaskPrompt,
 } from "./api";
-export type { CreateTaskArgs, UpdateTaskArgs } from "./api";
+export type {
+  CreateTaskArgs,
+  UpdateTaskArgs,
+  AddTaskPromptArgs,
+} from "./api";
 
 // Model
 export {
@@ -26,6 +31,7 @@ export {
   useMoveTaskMutation,
   useUpdateTaskMutation,
   useDeleteTaskMutation,
+  useAddTaskPromptMutation,
 } from "./model";
 export type { Task, MoveTaskVars, UpdateTaskVars } from "./model";
 

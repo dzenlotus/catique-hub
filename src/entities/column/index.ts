@@ -12,8 +12,13 @@ export {
   createColumn,
   updateColumn,
   deleteColumn,
+  addColumnPrompt,
 } from "./api";
-export type { CreateColumnArgs, UpdateColumnArgs } from "./api";
+export type {
+  CreateColumnArgs,
+  UpdateColumnArgs,
+  AddColumnPromptArgs,
+} from "./api";
 
 // Model
 export {
@@ -24,6 +29,7 @@ export {
   useUpdateColumnMutation,
   useReorderColumnsMutation,
   useDeleteColumnMutation,
+  useAddColumnPromptMutation,
 } from "./model";
 export type { Column, UpdateColumnVars, ReorderColumnsVars } from "./model";
 

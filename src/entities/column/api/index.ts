@@ -4,5 +4,10 @@ export {
   createColumn,
   updateColumn,
   deleteColumn,
+  addColumnPrompt,
 } from "./columnsApi";
-export type { CreateColumnArgs, UpdateColumnArgs } from "./columnsApi";
+export type {
+  CreateColumnArgs,
+  UpdateColumnArgs,
+  AddColumnPromptArgs,
+} from "./columnsApi";

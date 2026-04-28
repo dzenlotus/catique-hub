@@ -21,6 +21,7 @@ import { useSpaces } from "@entities/space";
 import { invoke } from "@shared/api";
 import { Dialog, Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
+import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 
 import styles from "./BoardCreateDialog.module.css";
 
@@ -43,6 +44,8 @@ export function BoardCreateDialog({
   onClose,
   onCreated,
 }: BoardCreateDialogProps): ReactElement {
+  const { activeSpaceId } = useActiveSpace();
+
   return (
     <Dialog
       title="Создать доску"
@@ -58,6 +61,7 @@ export function BoardCreateDialog({
         isOpen ? (
           <BoardCreateDialogContent
             onClose={onClose}
+            activeSpaceId={activeSpaceId}
             {...(onCreated !== undefined ? { onCreated } : {})}
           />
         ) : null
@@ -71,11 +75,13 @@ export function BoardCreateDialog({
 interface BoardCreateDialogContentProps {
   onClose: () => void;
   onCreated?: (board: Board) => void;
+  activeSpaceId: string | null;
 }
 
 function BoardCreateDialogContent({
   onClose,
   onCreated,
+  activeSpaceId,
 }: BoardCreateDialogContentProps): ReactElement {
   const queryClient = useQueryClient();
   const spacesQuery = useSpaces();
@@ -85,11 +91,24 @@ function BoardCreateDialogContent({
   const [spaceId, setSpaceId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Derive the default spaceId once spaces load: prefer isDefault, then first.
+  /**
+   * Resolve the effective spaceId for the picker.
+   *
+   * Priority:
+   *   1. Explicitly chosen by the user via the dropdown (`spaceId` state).
+   *   2. The globally active space from `ActiveSpaceProvider` (`activeSpaceId`),
+   *      when it exists in the loaded spaces list.
+   *   3. The space flagged `isDefault === true`.
+   *   4. The first space in the list.
+   *   5. `null` while spaces are still loading or the list is empty.
+   */
   const resolvedSpaceId = (() => {
     if (spaceId !== null) return spaceId;
     if (spacesQuery.status !== "success") return null;
     const spaces = spacesQuery.data;
+    if (activeSpaceId !== null && spaces.some((s) => s.id === activeSpaceId)) {
+      return activeSpaceId;
+    }
     const defaultSpace = spaces.find((s) => s.isDefault);
     return defaultSpace?.id ?? spaces[0]?.id ?? null;
   })();

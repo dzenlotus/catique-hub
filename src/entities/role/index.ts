@@ -13,8 +13,13 @@ export {
   createRole,
   updateRole,
   deleteRole,
+  addRolePrompt,
 } from "./api";
-export type { CreateRoleArgs, UpdateRoleArgs } from "./api";
+export type {
+  CreateRoleArgs,
+  UpdateRoleArgs,
+  AddRolePromptArgs,
+} from "./api";
 
 // Model
 export {
@@ -24,6 +29,7 @@ export {
   useCreateRoleMutation,
   useUpdateRoleMutation,
   useDeleteRoleMutation,
+  useAddRolePromptMutation,
 } from "./model";
 export type { Role } from "./model";
 

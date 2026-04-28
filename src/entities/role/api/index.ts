@@ -4,5 +4,10 @@ export {
   createRole,
   updateRole,
   deleteRole,
+  addRolePrompt,
 } from "./rolesApi";
-export type { CreateRoleArgs, UpdateRoleArgs } from "./rolesApi";
+export type {
+  CreateRoleArgs,
+  UpdateRoleArgs,
+  AddRolePromptArgs,
+} from "./rolesApi";

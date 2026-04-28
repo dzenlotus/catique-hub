@@ -4,6 +4,7 @@ import { Plus, Pencil } from "lucide-react";
 
 import { BoardCard, useBoards } from "@entities/board";
 import { Button } from "@shared/ui";
+import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { BoardCreateDialog } from "@widgets/board-create-dialog";
 import { BoardEditor } from "@widgets/board-editor";
 
@@ -24,9 +25,20 @@ interface BoardsListProps {
  *   4. populated — CSS-grid of `BoardCard`s.
  */
 export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElement {
+  const { activeSpaceId } = useActiveSpace();
   const boardsQuery = useBoards();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
+
+  // Derive space-filtered boards at the widget layer (entity hook stays
+  // workspace-wide per architecture). When activeSpaceId is null (provider
+  // hasn't resolved yet — transient on first mount) fall back to all boards.
+  const filteredBoards =
+    boardsQuery.status === "success"
+      ? activeSpaceId === null
+        ? boardsQuery.data
+        : boardsQuery.data.filter((b) => b.spaceId === activeSpaceId)
+      : [];
 
   return (
     <section className={styles.root} aria-labelledby="boards-list-heading">
@@ -68,12 +80,23 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
             Повторить
           </Button>
         </div>
-      ) : boardsQuery.data.length === 0 ? (
+      ) : filteredBoards.length === 0 ? (
         <div className={styles.empty} data-testid="boards-list-empty">
-          <p className={styles.emptyTitle}>Нет досок</p>
-          <p className={styles.emptyHint}>
-            Создайте первую доску, чтобы начать организацию задач.
-          </p>
+          {activeSpaceId !== null && boardsQuery.data.length > 0 ? (
+            <>
+              <p className={styles.emptyTitle}>В этом пространстве пока нет досок</p>
+              <p className={styles.emptyHint}>
+                Создайте первую доску в текущем пространстве.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className={styles.emptyTitle}>Нет досок</p>
+              <p className={styles.emptyHint}>
+                Создайте первую доску, чтобы начать организацию задач.
+              </p>
+            </>
+          )}
           <Button
             variant="primary"
             size="md"
@@ -87,7 +110,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
         </div>
       ) : (
         <div className={styles.grid} data-testid="boards-list-grid">
-          {boardsQuery.data.map((board) => (
+          {filteredBoards.map((board) => (
             <div key={board.id} className={styles.cardWrapper}>
               <BoardCard
                 board={board}

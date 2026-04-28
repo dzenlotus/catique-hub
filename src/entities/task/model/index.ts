@@ -8,5 +8,6 @@ export {
   useMoveTaskMutation,
   useUpdateTaskMutation,
   useDeleteTaskMutation,
+  useAddTaskPromptMutation,
 } from "./store";
 export type { MoveTaskVars, UpdateTaskVars } from "./store";

@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 
 import type { Board } from "@entities/board";
 import type { Space } from "@entities/space";
+import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 
 vi.mock("@shared/api", () => ({
   invoke: vi.fn(),
@@ -26,7 +27,11 @@ function renderWithClient(
     },
   });
   const user = userEvent.setup();
-  render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  render(
+    <QueryClientProvider client={client}>
+      <ActiveSpaceProvider>{ui}</ActiveSpaceProvider>
+    </QueryClientProvider>,
+  );
   return { user };
 }
 
@@ -222,6 +227,31 @@ describe("BoardCreateDialog", () => {
     )) as HTMLSelectElement;
     await waitFor(() => {
       expect(select.value).toBe("spc-default");
+    });
+  });
+
+  it("defaults the space picker to the active space from context when set", async () => {
+    // Two spaces: spc-other is isDefault, but spc-active is the active space
+    // (it comes first so ActiveSpaceProvider picks it via localStorage restore
+    // OR we rely on it being first and non-default; the provider auto-selects
+    // isDefault, so make spc-active isDefault to control which is active).
+    invokeMock.mockResolvedValue([
+      makeSpace({ id: "spc-active", name: "Активное", isDefault: true }),
+      makeSpace({ id: "spc-other", name: "Другое", isDefault: false }),
+    ]);
+
+    renderWithClient(
+      <BoardCreateDialog isOpen onClose={() => undefined} />,
+    );
+
+    const select = (await screen.findByTestId(
+      "board-create-dialog-space-select",
+    )) as HTMLSelectElement;
+
+    // The active space (resolved by ActiveSpaceProvider to spc-active)
+    // should be pre-selected — not the first-in-list spc-other.
+    await waitFor(() => {
+      expect(select.value).toBe("spc-active");
     });
   });
 });

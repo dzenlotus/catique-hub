@@ -131,3 +131,21 @@ export async function updateTask(args: UpdateTaskArgs): Promise<Task> {
 export async function deleteTask(id: string): Promise<void> {
   return invokeWithAppError<void>("delete_task", { id });
 }
+
+export interface AddTaskPromptArgs {
+  taskId: string;
+  promptId: string;
+  position: number;
+}
+
+/**
+ * `add_task_prompt` — attach a prompt directly to a task at the given
+ * position. Throws AppError `transactionRolledBack` on FK violation.
+ */
+export async function addTaskPrompt(args: AddTaskPromptArgs): Promise<void> {
+  return invokeWithAppError<void>("add_task_prompt", {
+    taskId: args.taskId,
+    promptId: args.promptId,
+    position: args.position,
+  });
+}

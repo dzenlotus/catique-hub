@@ -118,3 +118,23 @@ export async function updateColumn(args: UpdateColumnArgs): Promise<Column> {
 export async function deleteColumn(id: string): Promise<void> {
   return invokeWithAppError<void>("delete_column", { id });
 }
+
+export interface AddColumnPromptArgs {
+  columnId: string;
+  promptId: string;
+  position: number;
+}
+
+/**
+ * `add_column_prompt` — attach a prompt to a column at the given position.
+ * Throws AppError `transactionRolledBack` on FK violation.
+ */
+export async function addColumnPrompt(
+  args: AddColumnPromptArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("add_column_prompt", {
+    columnId: args.columnId,
+    promptId: args.promptId,
+    position: args.position,
+  });
+}

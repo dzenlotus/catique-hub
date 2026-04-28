@@ -24,8 +24,10 @@ import {
   getRole,
   listRoles,
   updateRole,
+  addRolePrompt,
   type CreateRoleArgs,
   type UpdateRoleArgs,
+  type AddRolePromptArgs,
 } from "../api";
 import type { Role } from "./types";
 
@@ -112,5 +114,19 @@ export function useDeleteRoleMutation(): UseMutationResult<void, Error, string> 
       void queryClient.invalidateQueries({ queryKey: rolesKeys.list() });
       queryClient.removeQueries({ queryKey: rolesKeys.detail(id) });
     },
+  });
+}
+
+/**
+ * `useAddRolePromptMutation` — attach a prompt to a role.
+ * No cache invalidation needed: the join-table is write-only at this layer.
+ */
+export function useAddRolePromptMutation(): UseMutationResult<
+  void,
+  Error,
+  AddRolePromptArgs
+> {
+  return useMutation({
+    mutationFn: addRolePrompt,
   });
 }
