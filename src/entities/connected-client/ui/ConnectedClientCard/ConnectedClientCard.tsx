@@ -18,6 +18,11 @@ export interface ConnectedClientCardProps {
    */
   onToggleEnabled?: (id: string, enabled: boolean) => void;
   /**
+   * Called when the user clicks "Редактировать инструкции". Receives the
+   * client id so the parent can open the `ClientInstructionsEditor`.
+   */
+  onEditInstructions?: (id: string) => void;
+  /**
    * `true` while a toggle mutation is in-flight for this card.
    * Disables the switch to prevent double-clicks.
    */
@@ -39,6 +44,7 @@ export interface ConnectedClientCardProps {
 export function ConnectedClientCard({
   client,
   onToggleEnabled,
+  onEditInstructions,
   isToggling = false,
   isPending = false,
   className,
@@ -59,6 +65,10 @@ export function ConnectedClientCard({
 
   const handleToggle = (): void => {
     onToggleEnabled?.(client.id, !client.enabled);
+  };
+
+  const handleEditInstructions = (): void => {
+    onEditInstructions?.(client.id);
   };
 
   return (
@@ -111,6 +121,17 @@ export function ConnectedClientCard({
           <span className={styles.toggleThumb} />
         </button>
       </div>
+
+      {/* ── Edit instructions ─────────────────────────────────────── */}
+      <button
+        type="button"
+        className={styles.editInstructionsBtn}
+        onClick={handleEditInstructions}
+        data-testid="client-edit-instructions-btn"
+        aria-label={`Редактировать инструкции для ${client.displayName}`}
+      >
+        Редактировать инструкции
+      </button>
     </div>
   );
 }

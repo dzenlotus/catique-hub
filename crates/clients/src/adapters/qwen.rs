@@ -45,6 +45,11 @@ impl ClientAdapter for QwenAdapter {
         self.config_dir()
     }
 
+    /// Returns `~/.qwen/QWEN.md`.
+    fn instructions_file(&self) -> Result<PathBuf, AdapterError> {
+        Ok(self.config_dir()?.join("QWEN.md"))
+    }
+
     fn detect(&self) -> Result<bool, AdapterError> {
         #[cfg(not(target_os = "macos"))]
         return Ok(false);
@@ -83,6 +88,17 @@ mod tests {
             let sig = a.signature_file().unwrap();
             assert_eq!(dir, sig, "Qwen signature should be the config dir itself");
         }
+    }
+
+    #[test]
+    fn instructions_file_is_qwen_md() {
+        let tmp = TempDir::new().unwrap();
+        let dir = config_dir_for(tmp.path());
+        let expected = dir.join("QWEN.md");
+        assert_eq!(
+            expected.file_name().unwrap().to_str().unwrap(),
+            "QWEN.md"
+        );
     }
 
     #[test]

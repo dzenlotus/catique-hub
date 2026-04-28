@@ -11,7 +11,7 @@
 //! This keeps cold-start time unaffected (ADR-0003 §startup-budget).
 
 use catique_application::{clients::ClientsUseCase, AppError};
-use catique_domain::ConnectedClient;
+use catique_domain::{ClientInstructions, ConnectedClient};
 use serde_json::json;
 use tauri::State;
 
@@ -65,4 +65,49 @@ pub async fn set_client_enabled(
     let client = ClientsUseCase::new().set_enabled(&id, enabled)?;
     events::emit(&state, events::CLIENT_UPDATED, json!({ "id": id }));
     Ok(client)
+}
+
+/// IPC: read the global instructions file for a client.
+///
+/// Returns empty content with `exists = false` when the file does not
+/// exist on disk — absence is not an error.
+///
+/// # Errors
+///
+/// - `AppError::NotFound` when `client_id` is not a known adapter.
+/// - `AppError::TransactionRolledBack` for I/O failures.
+#[tauri::command]
+pub async fn read_client_instructions(
+    _state: State<'_, AppState>,
+    client_id: String,
+) -> Result<ClientInstructions, AppError> {
+    ClientsUseCase::new().read_instructions(&client_id)
+}
+
+/// IPC: write (overwrite) the global instructions file for a client.
+///
+/// Uses an atomic `.tmp`-then-rename strategy. Creates missing parent
+/// directories. Emits `client:instructions_changed` with `{ client_id }`
+/// on success.
+///
+/// Returns the fresh `ClientInstructions` snapshot.
+///
+/// # Errors
+///
+/// - `AppError::NotFound` when `client_id` is not a known adapter.
+/// - `AppError::TransactionRolledBack` for I/O failures.
+#[tauri::command]
+pub async fn write_client_instructions(
+    state: State<'_, AppState>,
+    client_id: String,
+    content: String,
+) -> Result<ClientInstructions, AppError> {
+    let instructions =
+        ClientsUseCase::new().write_instructions(&client_id, &content)?;
+    events::emit(
+        &state,
+        events::CLIENT_INSTRUCTIONS_CHANGED,
+        json!({ "clientId": client_id }),
+    );
+    Ok(instructions)
 }

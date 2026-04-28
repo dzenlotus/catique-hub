@@ -1,0 +1,180 @@
+/*
+ * ClientInstructionsEditor — global instructions modal for a connected
+ * agentic client. Token-based; no hard-coded colour values.
+ */
+
+/* ── Dialog body override ────────────────────────────────────────── */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 560px;
+}
+
+/* ── File path caption ───────────────────────────────────────────── */
+
+.filePath {
+  margin: 0 0 var(--space-12);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Edit / Preview mode toggle ──────────────────────────────────── */
+
+.modeToggle {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  align-self: flex-start;
+  margin-bottom: var(--space-8);
+}
+
+.modeToggleBtn {
+  border-radius: 0 !important;
+  border: none !important;
+  height: 28px !important;
+  padding: 0 var(--space-12) !important;
+  font-size: var(--font-size-body-sm) !important;
+  color: var(--color-text-muted);
+}
+
+.modeToggleBtn[aria-pressed="true"] {
+  background-color: var(--color-overlay-hover) !important;
+  color: var(--color-text-default) !important;
+  font-weight: var(--font-weight-medium) !important;
+}
+
+/* ── Textarea ────────────────────────────────────────────────────── */
+
+.textarea {
+  width: 100%;
+  min-height: 240px;
+  resize: vertical;
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-8) var(--space-12);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-normal);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.textarea:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+
+.textarea::placeholder {
+  color: var(--color-text-subtle);
+}
+
+/* ── Preview ─────────────────────────────────────────────────────── */
+
+.preview {
+  width: 100%;
+  min-height: 240px;
+  box-sizing: border-box;
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-8) var(--space-12);
+}
+
+/* ── "Changed externally" warning banner ─────────────────────────── */
+
+.warningBanner {
+  padding: var(--space-10) var(--space-12);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-warning-soft);
+  color: var(--color-status-warning);
+  border: 1px solid var(--color-status-warning);
+  font-size: var(--font-size-body-sm);
+  margin-bottom: var(--space-12);
+}
+
+.warningBanner p {
+  margin: 0;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-8);
+  padding-top: var(--space-16);
+  border-top: 1px solid var(--color-border-default);
+  margin-top: var(--space-16);
+}
+
+.footerLeft {
+  flex: 1 1 auto;
+}
+
+/* ── Error / not-found banners ───────────────────────────────────── */
+
+.errorBanner {
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-danger-soft);
+  color: var(--color-status-danger);
+  border: 1px solid var(--color-status-danger);
+  font-size: var(--font-size-body);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.errorBannerMessage {
+  margin: 0;
+}
+
+/* ── Loading skeleton ────────────────────────────────────────────── */
+
+.skeletonLine {
+  height: 14px;
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-xs);
+  animation: cie-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+.skeletonLineMedium {
+  width: 60%;
+}
+
+.skeletonBlock {
+  height: 240px;
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-sm);
+  animation: cie-skeleton-pulse 1400ms ease-in-out infinite;
+  margin-top: var(--space-8);
+}
+
+@keyframes cie-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonLine,
+  .skeletonBlock {
+    animation: none;
+  }
+}

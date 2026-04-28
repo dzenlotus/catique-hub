@@ -64,6 +64,28 @@ pub trait ClientAdapter: Send + Sync {
     /// [`AdapterError::HomeDirUnavailable`] when the home directory
     /// cannot be resolved.
     fn detect(&self) -> Result<bool, AdapterError>;
+
+    /// Absolute path to the canonical "global instructions" file for
+    /// this client.
+    ///
+    /// Per-client mapping (v1):
+    ///
+    /// | Client         | Path                                                       |
+    /// |----------------|------------------------------------------------------------|
+    /// | Claude Code    | `~/.claude/CLAUDE.md`                                      |
+    /// | Claude Desktop | `~/Library/Application Support/Claude/CLAUDE.md`           |
+    /// | Cursor         | `~/.cursor/rules.mdc`                                      |
+    /// | Qwen CLI       | `~/.qwen/QWEN.md`                                          |
+    ///
+    /// If the file does not exist on disk, callers should treat reads as
+    /// an empty string — this method only returns the *expected* path; it
+    /// never errors because the file is absent.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`config_dir`]'s error
+    /// ([`AdapterError::HomeDirUnavailable`]).
+    fn instructions_file(&self) -> Result<PathBuf, AdapterError>;
 }
 
 /// Build the canonical ordered list of v1 adapters.

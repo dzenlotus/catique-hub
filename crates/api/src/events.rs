@@ -189,6 +189,10 @@ pub const CLIENT_UPDATED: &str = "client:updated";
 /// explicitly removed from the registry. Not currently emitted.
 pub const CLIENT_REMOVED: &str = "client:removed";
 
+/// `client:instructions_changed` — emitted after a successful
+/// `write_client_instructions`; payload `{ client_id }`.
+pub const CLIENT_INSTRUCTIONS_CHANGED: &str = "client:instructions_changed";
+
 /// Emit a typed Tauri event to every webview attached to the app.
 ///
 /// Behaviour:
@@ -293,6 +297,7 @@ mod tests {
             CLIENT_DISCOVERED,
             CLIENT_UPDATED,
             CLIENT_REMOVED,
+            CLIENT_INSTRUCTIONS_CHANGED,
         ] {
             assert!(
                 name.contains(':') || name.contains('-'),

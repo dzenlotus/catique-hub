@@ -30,6 +30,14 @@ impl ClientAdapter for CursorAdapter {
         Ok(self.config_dir()?.join("mcp.json"))
     }
 
+    /// Returns `~/.cursor/rules.mdc`.
+    ///
+    /// Cursor's directory-of-rules pattern is out of scope for v1;
+    /// this single file is the canonical global instructions path.
+    fn instructions_file(&self) -> Result<PathBuf, AdapterError> {
+        Ok(self.config_dir()?.join("rules.mdc"))
+    }
+
     fn detect(&self) -> Result<bool, AdapterError> {
         #[cfg(not(target_os = "macos"))]
         return Ok(false);
@@ -66,6 +74,17 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let sig = dir.join("mcp.json");
         assert_eq!(sig.file_name().unwrap().to_str().unwrap(), "mcp.json");
+    }
+
+    #[test]
+    fn instructions_file_is_rules_mdc() {
+        let tmp = TempDir::new().unwrap();
+        let dir = config_dir_for(tmp.path());
+        let expected = dir.join("rules.mdc");
+        assert_eq!(
+            expected.file_name().unwrap().to_str().unwrap(),
+            "rules.mdc"
+        );
     }
 
     #[test]

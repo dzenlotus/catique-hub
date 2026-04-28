@@ -124,6 +124,34 @@
   transform: translateX(16px);
 }
 
+/* ── Edit instructions button ───────────────────────────────────── */
+
+.editInstructionsBtn {
+  display: block;
+  width: 100%;
+  padding: var(--space-6) var(--space-8);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+  margin-top: var(--space-4);
+}
+
+.editInstructionsBtn:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.editInstructionsBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
 /* ── Skeleton ───────────────────────────────────────────────────── */
 
 .skeleton {

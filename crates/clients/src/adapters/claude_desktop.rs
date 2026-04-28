@@ -33,6 +33,14 @@ impl ClientAdapter for ClaudeDesktopAdapter {
         Ok(self.config_dir()?.join("claude_desktop_config.json"))
     }
 
+    /// Returns `~/Library/Application Support/Claude/CLAUDE.md`.
+    ///
+    /// Note: per-project instructions (`<project>/.claude/CLAUDE.md`)
+    /// are out of scope for v1.
+    fn instructions_file(&self) -> Result<PathBuf, AdapterError> {
+        Ok(self.config_dir()?.join("CLAUDE.md"))
+    }
+
     fn detect(&self) -> Result<bool, AdapterError> {
         #[cfg(not(target_os = "macos"))]
         return Ok(false);
@@ -65,6 +73,24 @@ mod tests {
             let a = ClaudeDesktopAdapter;
             let dir = a.config_dir().unwrap();
             let display = dir.to_string_lossy();
+            assert!(
+                display.contains("Library/Application Support/Claude"),
+                "unexpected path: {display}"
+            );
+        }
+    }
+
+    #[test]
+    fn instructions_file_is_claude_md() {
+        #[cfg(target_os = "macos")]
+        {
+            let a = ClaudeDesktopAdapter;
+            let path = a.instructions_file().unwrap();
+            assert_eq!(
+                path.file_name().unwrap().to_str().unwrap(),
+                "CLAUDE.md"
+            );
+            let display = path.to_string_lossy();
             assert!(
                 display.contains("Library/Application Support/Claude"),
                 "unexpected path: {display}"

@@ -215,6 +215,9 @@ mod tests {
         fn signature_file(&self) -> Result<PathBuf, AdapterError> {
             Ok(PathBuf::from(format!("/home/test/.{}/settings.json", self.id)))
         }
+        fn instructions_file(&self) -> Result<PathBuf, AdapterError> {
+            Ok(PathBuf::from(format!("/home/test/.{}/INSTRUCTIONS.md", self.id)))
+        }
         fn detect(&self) -> Result<bool, AdapterError> {
             Ok(self.detected)
         }

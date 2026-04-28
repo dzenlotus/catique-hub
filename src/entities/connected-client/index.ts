@@ -10,6 +10,8 @@ export {
   listConnectedClients,
   discoverClients,
   setClientEnabled,
+  readClientInstructions,
+  writeClientInstructions,
 } from "./api";
 export type { SetClientEnabledArgs } from "./api";
 
@@ -19,8 +21,10 @@ export {
   useConnectedClients,
   useDiscoverClientsMutation,
   useSetClientEnabledMutation,
+  useClientInstructions,
+  useWriteClientInstructionsMutation,
 } from "./model";
-export type { ConnectedClient } from "./model";
+export type { ConnectedClient, WriteClientInstructionsArgs } from "./model";
 
 // UI
 export { ConnectedClientCard } from "./ui";

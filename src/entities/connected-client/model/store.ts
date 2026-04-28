@@ -17,15 +17,20 @@ import {
 import {
   discoverClients,
   listConnectedClients,
+  readClientInstructions,
   setClientEnabled,
+  writeClientInstructions,
   type SetClientEnabledArgs,
 } from "../api";
+import type { ClientInstructions } from "@bindings/ClientInstructions";
 import type { ConnectedClient } from "./types";
 
 /** Query-key factory. */
 export const connectedClientsKeys = {
   all: ["connected_clients"] as const,
   list: () => [...connectedClientsKeys.all] as const,
+  instructions: (clientId: string) =>
+    [...connectedClientsKeys.all, "instructions", clientId] as const,
 };
 
 /**
@@ -77,6 +82,51 @@ export function useSetClientEnabledMutation(): UseMutationResult<
   return useMutation({
     mutationFn: setClientEnabled,
     onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: connectedClientsKeys.list(),
+      });
+    },
+  });
+}
+
+/**
+ * `useClientInstructions` — load the global instructions file for a client.
+ *
+ * Disabled when `clientId` is an empty string (dialog closed state).
+ */
+export function useClientInstructions(
+  clientId: string,
+): UseQueryResult<ClientInstructions, Error> {
+  return useQuery({
+    queryKey: connectedClientsKeys.instructions(clientId),
+    queryFn: () => readClientInstructions(clientId),
+    enabled: clientId.length > 0,
+  });
+}
+
+export interface WriteClientInstructionsArgs {
+  clientId: string;
+  content: string;
+}
+
+/**
+ * `useWriteClientInstructionsMutation` — write (overwrite) the instructions
+ * file. Invalidates the per-client instructions query and the client list
+ * on success.
+ */
+export function useWriteClientInstructionsMutation(): UseMutationResult<
+  ClientInstructions,
+  Error,
+  WriteClientInstructionsArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ clientId, content }: WriteClientInstructionsArgs) =>
+      writeClientInstructions(clientId, content),
+    onSuccess: (_data, { clientId }) => {
+      void queryClient.invalidateQueries({
+        queryKey: connectedClientsKeys.instructions(clientId),
+      });
       void queryClient.invalidateQueries({
         queryKey: connectedClientsKeys.list(),
       });

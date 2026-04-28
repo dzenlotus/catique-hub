@@ -9,6 +9,7 @@
 import { invoke } from "@shared/api";
 import { AppErrorInstance } from "@entities/board";
 import type { AppError } from "@bindings/AppError";
+import type { ClientInstructions } from "@bindings/ClientInstructions";
 import type { ConnectedClient } from "@bindings/ConnectedClient";
 
 function isAppErrorShape(value: unknown): value is AppError {
@@ -63,5 +64,25 @@ export async function setClientEnabled(
   return invokeWithAppError<ConnectedClient>("set_client_enabled", {
     id: args.id,
     enabled: args.enabled,
+  });
+}
+
+/** `read_client_instructions` — read the global instructions file. */
+export async function readClientInstructions(
+  clientId: string,
+): Promise<ClientInstructions> {
+  return invokeWithAppError<ClientInstructions>("read_client_instructions", {
+    clientId,
+  });
+}
+
+/** `write_client_instructions` — write (overwrite) the global instructions file. */
+export async function writeClientInstructions(
+  clientId: string,
+  content: string,
+): Promise<ClientInstructions> {
+  return invokeWithAppError<ClientInstructions>("write_client_instructions", {
+    clientId,
+    content,
   });
 }

@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 
 import { Button } from "@shared/ui";
 import { cn } from "@shared/lib";
@@ -8,21 +8,26 @@ import {
   useDiscoverClientsMutation,
   useSetClientEnabledMutation,
 } from "@entities/connected-client";
+import { ClientInstructionsEditor } from "@widgets/client-instructions-editor";
 
 import styles from "./ConnectedAgentsSection.module.css";
 
 /**
  * `ConnectedAgentsSection` — "Connected agents" section for the
- * Settings view (ctq-67).
+ * Settings view (ctq-67 / ctq-68).
  *
  * Shows all known agentic clients with their installed/enabled status.
  * Provides a "Просканировать" button that triggers a filesystem rescan
- * via `discover_clients`.
+ * via `discover_clients`. Each card also exposes "Редактировать
+ * инструкции" which opens `ClientInstructionsEditor`.
  */
 export function ConnectedAgentsSection(): ReactElement {
   const { data: clients, status, error } = useConnectedClients();
   const discoverMutation = useDiscoverClientsMutation();
   const toggleMutation = useSetClientEnabledMutation();
+
+  /** Id of the client whose instructions are currently being edited. */
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   const handleDiscover = (): void => {
     discoverMutation.mutate();
@@ -31,6 +36,17 @@ export function ConnectedAgentsSection(): ReactElement {
   const handleToggle = (id: string, enabled: boolean): void => {
     toggleMutation.mutate({ id, enabled });
   };
+
+  const handleEditInstructions = (id: string): void => {
+    setSelectedClientId(id);
+  };
+
+  const handleEditorClose = (): void => {
+    setSelectedClientId(null);
+  };
+
+  // Resolve display name for the currently selected client.
+  const selectedClient = clients?.find((c) => c.id === selectedClientId);
 
   return (
     <div className={styles.root}>
@@ -78,6 +94,7 @@ export function ConnectedAgentsSection(): ReactElement {
               key={client.id}
               client={client}
               onToggleEnabled={handleToggle}
+              onEditInstructions={handleEditInstructions}
               isToggling={
                 toggleMutation.isPending &&
                 toggleMutation.variables?.id === client.id
@@ -86,6 +103,13 @@ export function ConnectedAgentsSection(): ReactElement {
           ))}
         </div>
       )}
+
+      {/* ── Instructions editor dialog ───────────────────────── */}
+      <ClientInstructionsEditor
+        clientId={selectedClientId}
+        displayName={selectedClient?.displayName ?? selectedClientId ?? ""}
+        onClose={handleEditorClose}
+      />
     </div>
   );
 }

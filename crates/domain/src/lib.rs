@@ -27,6 +27,7 @@
 pub mod agent_report;
 pub mod attachment;
 pub mod board;
+pub mod client_instructions;
 pub mod column;
 pub mod connected_client;
 pub mod import;
@@ -43,6 +44,7 @@ pub mod task;
 pub use agent_report::AgentReport;
 pub use attachment::Attachment;
 pub use board::Board;
+pub use client_instructions::ClientInstructions;
 pub use column::Column;
 pub use connected_client::ConnectedClient;
 pub use import::{ImportOptions, ImportReport, PreflightResults, PrompteryDbInfo};

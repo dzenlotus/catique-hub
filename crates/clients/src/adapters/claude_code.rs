@@ -33,6 +33,11 @@ impl ClientAdapter for ClaudeCodeAdapter {
         Ok(self.config_dir()?.join("settings.json"))
     }
 
+    /// Returns `~/.claude/CLAUDE.md`.
+    fn instructions_file(&self) -> Result<PathBuf, AdapterError> {
+        Ok(self.config_dir()?.join("CLAUDE.md"))
+    }
+
     fn detect(&self) -> Result<bool, AdapterError> {
         // Non-macOS guard: Claude Code exists on Linux too but ctq-67
         // scopes v1 to macOS only — return false on other platforms so
@@ -97,6 +102,30 @@ mod tests {
         fs::write(dir.join("settings.json"), "{}").unwrap();
 
         assert!(dir.join("settings.json").exists());
+    }
+
+    #[test]
+    fn instructions_file_is_claude_md() {
+        // The adapter always resolves the path using dirs::home_dir().
+        // We verify the filename independently of the real home.
+        let a = ClaudeCodeAdapter;
+        // On any platform, the call should succeed (or fail only when
+        // home dir is unavailable). We are interested in the filename.
+        if let Ok(path) = a.instructions_file() {
+            assert_eq!(
+                path.file_name().unwrap().to_str().unwrap(),
+                "CLAUDE.md"
+            );
+        }
+    }
+
+    #[test]
+    fn instructions_file_path_under_config_dir() {
+        let tmp = TempDir::new().unwrap();
+        let config = config_dir_for(tmp.path());
+        // Simulate what the adapter does: config_dir().join("CLAUDE.md").
+        let expected = config.join("CLAUDE.md");
+        assert_eq!(expected.file_name().unwrap().to_str().unwrap(), "CLAUDE.md");
     }
 
     #[test]

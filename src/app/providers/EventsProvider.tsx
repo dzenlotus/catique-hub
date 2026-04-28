@@ -307,7 +307,7 @@ export function EventsProvider({
       }),
     );
 
-    // ---------------- connected clients (ctq-67) ----------------
+    // ---------------- connected clients (ctq-67 / ctq-68) ----------------
     sub(
       on("client:discovered", () => {
         void qc.invalidateQueries({
@@ -326,6 +326,13 @@ export function EventsProvider({
       on("client:removed", () => {
         void qc.invalidateQueries({
           queryKey: connectedClientsKeys.list(),
+        });
+      }),
+    );
+    sub(
+      on("client:instructions_changed", ({ clientId }) => {
+        void qc.invalidateQueries({
+          queryKey: connectedClientsKeys.instructions(clientId),
         });
       }),
     );
