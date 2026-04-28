@@ -1,0 +1,35 @@
+[package]
+name = "catique-infrastructure"
+description = "Infrastructure layer for Catique HUB — SQLite, filesystem, secret store backends."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "catique_infrastructure"
+path = "src/lib.rs"
+
+[dependencies]
+catique-domain = { path = "../domain" }
+
+# Bundled rusqlite — ships SQLite C source statically with the crate, so
+# the resulting binary works on Win/macOS without a system libsqlite. The
+# `bundled` feature carries the SQLite source under a public-domain
+# license (NFR §6 Allowed-set CC0/Unlicense equivalent).
+rusqlite.workspace = true
+
+# `dirs` resolves XDG / platform-conventional data paths (used by
+# `paths::app_data_dir`). MIT/Apache-2.0.
+dirs.workspace = true
+
+# `tokio` is included so E2 use cases can use `tokio::task::spawn_blocking`
+# around rusqlite calls (rusqlite is sync; Tauri commands are async).
+tokio.workspace = true
+
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+module_name_repetitions = "allow"
+doc_markdown = "allow"

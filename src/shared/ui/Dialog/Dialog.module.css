@@ -1,0 +1,121 @@
+/*
+ * Dialog — modal primitive.
+ *
+ * RAC `<ModalOverlay>` renders the scrim and is `position: fixed` already.
+ * `<Modal>` is the centering layer; `<Dialog>` is the actual content panel
+ * with role="dialog".
+ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-overlay-scrim);
+  padding: var(--space-24);
+  animation: dialog-overlay-fade-in 160ms ease-out;
+}
+
+.overlay[data-exiting] {
+  animation: dialog-overlay-fade-out 120ms ease-in;
+}
+
+.modal {
+  width: 100%;
+  max-width: 480px;
+  outline: none;
+  animation: dialog-zoom-in 200ms ease-out;
+}
+
+.modal[data-exiting] {
+  animation: dialog-zoom-out 160ms ease-in;
+}
+
+.dialog {
+  background-color: var(--color-surface-overlay);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-high);
+  padding: var(--space-24);
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.dialog[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-headline);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-default);
+}
+
+.description {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-normal);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+@keyframes dialog-overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialog-overlay-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes dialog-zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes dialog-zoom-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .modal {
+    animation: none;
+  }
+}

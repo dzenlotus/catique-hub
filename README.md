@@ -1,5 +1,7 @@
 # Catique HUB
 
+[![CI](https://github.com/dzenlotus/catique-hub/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dzenlotus/catique-hub/actions/workflows/ci.yml)
+
 Catique HUB — desktop app for AI agent orchestration via kanban + prompt
 inheritance. See `docs/` in
 [promptery](https://github.com/dzenlotus/promptery) for the migration source of

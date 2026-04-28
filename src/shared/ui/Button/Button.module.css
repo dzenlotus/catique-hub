@@ -1,0 +1,137 @@
+/*
+ * Button — design-system primitive.
+ *
+ * RAC exposes data attributes for state — we style only those:
+ *   data-hovered, data-pressed, data-focus-visible, data-disabled, data-pending.
+ * No :hover/:focus pseudo-class targeting because RAC manages press/hover
+ * on coarse-pointer devices via JS for parity.
+ */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-12);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    background-color 120ms ease-out,
+    border-color 120ms ease-out,
+    color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.button[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.button[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ---------- Sizes ---------- */
+
+.sm {
+  height: 28px;
+  font-size: var(--font-size-body-sm);
+  padding: 0 var(--space-8);
+}
+
+.md {
+  height: 32px;
+  font-size: var(--font-size-body);
+}
+
+.lg {
+  height: 40px;
+  font-size: var(--font-size-body-lg);
+  padding: 0 var(--space-16);
+}
+
+/* ---------- Variants ---------- */
+
+.primary {
+  background-color: var(--color-accent-bg);
+  color: var(--color-accent-fg);
+  border-color: var(--color-accent-bg);
+  box-shadow: var(--shadow-low);
+}
+
+.primary[data-hovered]:not([data-disabled]) {
+  background-color: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.primary[data-pressed]:not([data-disabled]) {
+  background-color: var(--color-accent-active);
+  border-color: var(--color-accent-active);
+}
+
+.secondary {
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  border-color: var(--color-border-strong);
+}
+
+.secondary[data-hovered]:not([data-disabled]) {
+  background-color: var(--color-overlay-hover);
+}
+
+.secondary[data-pressed]:not([data-disabled]) {
+  background-color: var(--color-overlay-active);
+}
+
+.ghost {
+  background-color: transparent;
+  color: var(--color-text-default);
+  border-color: transparent;
+}
+
+.ghost[data-hovered]:not([data-disabled]) {
+  background-color: var(--color-overlay-hover);
+}
+
+.ghost[data-pressed]:not([data-disabled]) {
+  background-color: var(--color-overlay-active);
+}
+
+/* ---------- Spinner ---------- */
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: button-spin 720ms linear infinite;
+  display: inline-block;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+}
+
+@keyframes button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+  .spinner {
+    animation: none;
+  }
+}

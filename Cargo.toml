@@ -1,0 +1,65 @@
+#
+# Catique HUB — Cargo workspace root.
+#
+# Wave E1.2 (Olga, 2026-04-28): converted the original single-crate
+# `src-tauri/` scaffold (Katya, commit 4d62812) into a 5-crate workspace
+# per ADR-0001 §OQ-3 (modular per-domain organisation). Members below
+# implement Clean-Architecture-ish layering:
+#
+#   domain         — pure value objects + entity structs (no IO)
+#   application    — use cases, orchestrating domain + infrastructure
+#   infrastructure — SQLite + filesystem + secret store backends
+#   api            — Tauri IPC layer: handlers/<domain>.rs + AppError
+#   src-tauri      — Tauri shell binary: window setup + command registry
+#
+# Versions for serde, serde_json, ts-rs and rusqlite are exact-pinned
+# per NFR §5.3 dep-hygiene (these are protocol- or DB-touching surfaces
+# where silent minor bumps could break the IPC/storage contract).
+# Everything else uses caret SemVer.
+#
+# Edition + rust-version + license are inherited via [workspace.package]
+# so each member can `edition.workspace = true` instead of repeating.
+#
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/domain",
+    "crates/application",
+    "crates/infrastructure",
+    "crates/api",
+    "src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.81"
+license = "Elastic-2.0"
+authors = ["dzenlotus"]
+repository = "https://github.com/dzenlotus/catique-hub"
+
+[workspace.dependencies]
+# Exact-pinned (NFR §5.3): protocol- and storage-touching crates.
+serde = { version = "=1.0.219", features = ["derive"] }
+serde_json = "=1.0.140"
+ts-rs = { version = "=8.1.0", features = ["serde-compat", "chrono-impl"] }
+rusqlite = { version = "=0.32.1", features = ["bundled"] }
+
+# Caret-allowed: stable, well-maintained, no IPC contract impact.
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
+thiserror = "1"
+anyhow = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+dirs = "5"
+
+# Tauri pinned to the same minor as src-tauri/ scaffold (Katya, E1.1).
+tauri = { version = "2.10", default-features = false }
+tauri-build = { version = "2.5", features = [] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = "thin"
+opt-level = "s"
+strip = true

@@ -1,0 +1,21 @@
+[package]
+name = "catique-application"
+description = "Use-case layer for Catique HUB. Orchestrates domain + infrastructure; no IO of its own."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "catique_application"
+path = "src/lib.rs"
+
+[dependencies]
+catique-domain = { path = "../domain" }
+
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+module_name_repetitions = "allow"
+doc_markdown = "allow"

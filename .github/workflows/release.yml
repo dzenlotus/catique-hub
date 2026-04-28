@@ -1,0 +1,67 @@
+# Catique HUB — Release workflow
+#
+# Fires on `v*` tags (semantic versioning, e.g. `v0.1.0`, `v1.0.0-rc.1`).
+# Calls `build.yml` as a reusable workflow to produce signed installers,
+# then drafts a GitHub release with the artifacts attached.
+#
+# This is a STUB suitable for E1: it produces a draft release with the
+# bundles, no auto-updater feed, no homebrew/winget tap pushes. Full
+# release flow (signed artifacts, signed updater feed, store submissions)
+# arrives in E6 alongside the auto-updater work — see roadmap.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  # Releases require write access to repo contents; keep everything
+  # else read-only.
+  contents: write
+
+jobs:
+  build:
+    name: Build installers for ${{ github.ref_name }}
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      tag: ${{ github.ref_name }}
+
+  release:
+    name: Draft GitHub release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: catique-hub-macos-arm64
+          path: dist/macos
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: catique-hub-windows-x64
+          path: dist/windows
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          # `draft: true` is intentional for E1 — dzenlotus reviews the
+          # bundle, edits the release notes manually, then publishes.
+          # E6 will flip this to `draft: false` once the auto-updater
+          # signing chain is wired up and notes generation is automated.
+          draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/macos/*
+            dist/windows/*

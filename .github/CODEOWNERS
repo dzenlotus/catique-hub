@@ -1,0 +1,8 @@
+# Catique HUB — CODEOWNERS
+#
+# Sole maintainer (D-001, D-009): every file change is reviewed by
+# @dzenlotus. When a co-maintainer joins (post v1.0), this file gets
+# scoped per-area (e.g. `crates/` to a Rust lead, `src/` to a frontend
+# lead) — until then a single global rule keeps things simple.
+
+* @dzenlotus

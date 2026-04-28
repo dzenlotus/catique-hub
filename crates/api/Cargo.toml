@@ -1,0 +1,35 @@
+[package]
+name = "catique-api"
+description = "Tauri IPC layer for Catique HUB. Per-domain handler modules + AppError enum."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "catique_api"
+path = "src/lib.rs"
+
+[dependencies]
+catique-domain = { path = "../domain" }
+catique-application = { path = "../application" }
+
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+thiserror.workspace = true
+
+# Tauri pulled in for `#[tauri::command]` and `tauri::State<>`.
+# `default-features = false` from workspace; we don't need any of the
+# bundle/protocol features at the IPC-layer level.
+tauri.workspace = true
+
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+module_name_repetitions = "allow"
+# Stub handlers don't yet take/return non-trivial types.
+needless_pass_by_value = "allow"
+unused_async = "allow"
+doc_markdown = "allow"

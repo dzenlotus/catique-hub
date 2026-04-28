@@ -1,0 +1,68 @@
+/*
+ * Catique HUB global styles.
+ *
+ * Layered atop tokens.css:
+ *   1. Modern reset (box-sizing, margin, button defaults).
+ *   2. Body base typography from --font-sans + --color-text-default.
+ *   3. prefers-reduced-motion stub: disables transitions/animations
+ *      app-wide for users who request reduced motion (NFR-2 a11y).
+ *
+ * Web-fonts are NOT imported here — that's E2 work. We rely on
+ * system-ui fallbacks (Inter on macOS Sequoia ships system-wide;
+ * BlinkMacSystemFont/Segoe UI on Win) until Maria locks the
+ * font-family decision.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-bg-default);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  min-height: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* Focus outline — RAC manages its own focus ring via data attributes,
+ * but for any non-RAC focus target we still want a visible default
+ * (WCAG 2.4.7). DO NOT replace this with `outline: none` globally. */
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* Reduced-motion default. Component-level CSS modules MUST also wrap
+ * their animations in this query — see Button/Dialog modules. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

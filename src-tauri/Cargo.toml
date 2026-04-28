@@ -1,30 +1,37 @@
 [package]
 name = "catique-hub"
-version = "0.1.0"
 description = "Catique HUB — desktop app for AI agent orchestration"
-authors = ["dzenlotus"]
-license = "Elastic-2.0"
-edition = "2021"
-rust-version = "1.80"
-
-# Olga will convert this single crate into a 5-crate workspace in E1.2.
-# Until then, everything lives here.
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [lib]
 name = "catique_hub_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.5", features = [] }
+tauri-build.workspace = true
 
 [dependencies]
-tauri = { version = "2.10", features = [] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# Tauri shell uses default-features (window, app, etc.) at the binary
+# layer; the workspace pin disables them, so re-enable defaults here.
+tauri = { workspace = true, default-features = true }
+serde.workspace = true
+serde_json.workspace = true
 
-[profile.release]
-panic = "abort"
-codegen-units = 1
-lto = true
-opt-level = "s"
-strip = true
+# Workspace crates — Wave-E1.2 split.
+catique-domain = { path = "../crates/domain" }
+catique-application = { path = "../crates/application" }
+catique-infrastructure = { path = "../crates/infrastructure" }
+catique-api = { path = "../crates/api" }
+
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+module_name_repetitions = "allow"
+doc_markdown = "allow"
+
+# `[profile.*]` lives at workspace root since E1.2; do not redeclare it
+# here (Cargo emits a warning when profiles appear in non-root members).

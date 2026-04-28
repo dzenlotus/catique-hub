@@ -1,0 +1,29 @@
+[package]
+name = "catique-domain"
+description = "Pure domain layer for Catique HUB — value objects + entity structs, no IO."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "catique_domain"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+chrono.workspace = true
+
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+# Stub-file noise: lots of small structs with repetitive field/type names.
+module_name_repetitions = "allow"
+# Wave-E1 entities are deliberately broad (TS bindings need to mirror schema).
+struct_excessive_bools = "allow"
+# Domain prose mentions SQL/SQLite/FTS/PRAGMA/etc. — backticking every
+# acronym pollutes the docstring; we accept the lint trade-off.
+doc_markdown = "allow"
