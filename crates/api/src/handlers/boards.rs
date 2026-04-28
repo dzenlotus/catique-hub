@@ -1,18 +1,8 @@
 //! `boards` domain handlers.
 //!
-//! Wave-E2 (Olga). The IPC contract (shared with Anna's UI work):
-//!
-//! ```ignore
-//! list_boards()                 -> Result<Vec<Board>, AppError>
-//! create_board(name, space_id)  -> Result<Board, AppError>
-//! get_board(id)                 -> Result<Board, AppError>
-//! ```
-//!
-//! Each command is `async` — Tauri requires it — even though the
-//! underlying use case is synchronous. We do **not** spawn the work on
-//! a blocking pool yet; the desktop workload is small enough that the
-//! pool-acquire timeout (500 ms) is the relevant deadline. E3 will
-//! revisit if traces show the runtime stalling.
+//! Wave-E2.1 shipped `list` / `get` / `create`; Wave-E2.4 (Olga) adds
+//! `update` and `delete` to round out the five-command contract that
+//! every entity now follows.
 
 use catique_application::{boards::BoardsUseCase, AppError};
 use catique_domain::Board;
@@ -27,22 +17,27 @@ pub fn register() {}
 ///
 /// # Errors
 ///
-/// Forwards every error from
-/// [`catique_application::boards::BoardsUseCase::list`].
+/// Forwards every error from `BoardsUseCase::list`.
 #[tauri::command]
 pub async fn list_boards(state: State<'_, AppState>) -> Result<Vec<Board>, AppError> {
     BoardsUseCase::new(&state.pool).list()
+}
+
+/// IPC: look up a board by id.
+///
+/// # Errors
+///
+/// Forwards every error from `BoardsUseCase::get`.
+#[tauri::command]
+pub async fn get_board(state: State<'_, AppState>, id: String) -> Result<Board, AppError> {
+    BoardsUseCase::new(&state.pool).get(&id)
 }
 
 /// IPC: insert a new board into `space_id`.
 ///
 /// # Errors
 ///
-/// Forwards every error from
-/// [`catique_application::boards::BoardsUseCase::create`] —
-/// `AppError::Validation` for an empty `name`,
-/// `AppError::NotFound { entity: "space", .. }` for an unknown
-/// `space_id`, plus the storage-layer mapping table.
+/// Forwards every error from `BoardsUseCase::create`.
 #[tauri::command]
 pub async fn create_board(
     state: State<'_, AppState>,
@@ -52,15 +47,28 @@ pub async fn create_board(
     BoardsUseCase::new(&state.pool).create(name, space_id)
 }
 
-/// IPC: look up a board by id.
+/// IPC: partial-update a board.
 ///
 /// # Errors
 ///
-/// Forwards every error from
-/// [`catique_application::boards::BoardsUseCase::get`] —
-/// `AppError::NotFound { entity: "board", .. }` is the typed case,
-/// plus the storage-layer mapping table.
+/// Forwards every error from `BoardsUseCase::update`.
 #[tauri::command]
-pub async fn get_board(state: State<'_, AppState>, id: String) -> Result<Board, AppError> {
-    BoardsUseCase::new(&state.pool).get(&id)
+pub async fn update_board(
+    state: State<'_, AppState>,
+    id: String,
+    name: Option<String>,
+    position: Option<f64>,
+    role_id: Option<Option<String>>,
+) -> Result<Board, AppError> {
+    BoardsUseCase::new(&state.pool).update(id, name, position, role_id)
+}
+
+/// IPC: delete a board.
+///
+/// # Errors
+///
+/// Forwards every error from `BoardsUseCase::delete`.
+#[tauri::command]
+pub async fn delete_board(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
+    BoardsUseCase::new(&state.pool).delete(&id)
 }

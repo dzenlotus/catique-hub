@@ -14,4 +14,6 @@ pub mod reports;
 pub mod roles;
 pub mod secrets;
 pub mod settings;
+pub mod spaces;
+pub mod tags;
 pub mod tasks;

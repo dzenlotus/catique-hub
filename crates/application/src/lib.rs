@@ -16,10 +16,12 @@ pub mod attachments;
 pub mod boards;
 pub mod columns;
 pub mod error;
+mod error_map;
 pub mod prompts;
 pub mod reports;
 pub mod roles;
 pub mod settings;
+pub mod spaces;
 pub mod tags;
 pub mod tasks;
 

@@ -1,10 +1,9 @@
 //! Catique HUB — Tauri 2.x shell entry point.
 //!
-//! Wave-E2 (Olga, 2026-04-28): the shell now resolves the DB path,
-//! opens an r2d2 connection pool, runs pending migrations, and stores
-//! the result as `AppState` for handlers to borrow. Per NFR §3.1
-//! ("panic semantics"), startup-phase errors **do not panic**: we log
-//! and return cleanly so the dev launcher can show a useful message.
+//! Wave-E2.4 (Olga, 2026-04-28): registers the full 8-entity CRUD
+//! pipeline. Per NFR §3.1 ("panic semantics"), startup-phase errors
+//! **do not panic**: we log and return cleanly so the dev launcher can
+//! show a useful message.
 
 // Lints configured via [lints.clippy] in Cargo.toml.
 
@@ -31,15 +30,78 @@ pub fn run() {
         .manage(state)
         .setup(|_app| Ok(()))
         .invoke_handler(tauri::generate_handler![
-            // ---------------- boards (E2.1) ----------------
+            // ---------------- spaces (E2.4) ----------------
+            handlers::spaces::create_space,
+            handlers::spaces::delete_space,
+            handlers::spaces::get_space,
+            handlers::spaces::list_spaces,
+            handlers::spaces::update_space,
+            // ---------------- boards (E2.1 + E2.4) ----------------
             handlers::boards::create_board,
+            handlers::boards::delete_board,
             handlers::boards::get_board,
             handlers::boards::list_boards,
+            handlers::boards::update_board,
+            // ---------------- columns (E2.4) ----------------
+            handlers::columns::create_column,
+            handlers::columns::delete_column,
+            handlers::columns::get_column,
+            handlers::columns::list_columns,
+            handlers::columns::update_column,
+            // ---------------- tasks (E2.4) ----------------
+            handlers::tasks::add_task_prompt,
+            handlers::tasks::clear_task_prompt_override,
+            handlers::tasks::create_task,
+            handlers::tasks::delete_task,
+            handlers::tasks::get_task,
+            handlers::tasks::list_tasks,
+            handlers::tasks::remove_task_prompt,
+            handlers::tasks::set_task_prompt_override,
+            handlers::tasks::update_task,
+            // ---------------- prompts (E2.4) ----------------
+            handlers::prompts::add_board_prompt,
+            handlers::prompts::add_column_prompt,
+            handlers::prompts::create_prompt,
+            handlers::prompts::delete_prompt,
+            handlers::prompts::get_prompt,
+            handlers::prompts::list_prompts,
+            handlers::prompts::remove_board_prompt,
+            handlers::prompts::remove_column_prompt,
+            handlers::prompts::update_prompt,
+            // ---------------- roles (E2.4) ----------------
+            handlers::roles::add_role_mcp_tool,
+            handlers::roles::add_role_prompt,
+            handlers::roles::add_role_skill,
+            handlers::roles::create_role,
+            handlers::roles::delete_role,
+            handlers::roles::get_role,
+            handlers::roles::list_roles,
+            handlers::roles::remove_role_mcp_tool,
+            handlers::roles::remove_role_prompt,
+            handlers::roles::remove_role_skill,
+            handlers::roles::update_role,
+            // ---------------- tags (E2.4) ----------------
+            handlers::tags::add_prompt_tag,
+            handlers::tags::create_tag,
+            handlers::tags::delete_tag,
+            handlers::tags::get_tag,
+            handlers::tags::list_tags,
+            handlers::tags::remove_prompt_tag,
+            handlers::tags::update_tag,
+            // ---------------- agent reports (E2.4) ----------------
+            handlers::reports::create_agent_report,
+            handlers::reports::delete_agent_report,
+            handlers::reports::get_agent_report,
+            handlers::reports::list_agent_reports,
+            handlers::reports::update_agent_report,
+            // ---------------- attachments (E2.4) ----------------
+            handlers::attachments::create_attachment,
+            handlers::attachments::delete_attachment,
+            handlers::attachments::get_attachment,
+            handlers::attachments::list_attachments,
+            handlers::attachments::update_attachment,
             // ---------------- settings ----------------
             handlers::settings::ping,
-            // E2.2+ will append commands per domain, alphabetised within
-            // each handlers::<domain>:: block; comment-banner separates
-            // domains for grep-ability.
         ])
         .run(tauri::generate_context!())
     {

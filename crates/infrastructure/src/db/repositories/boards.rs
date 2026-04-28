@@ -10,8 +10,9 @@
 //! infrastructure detail that we can change without touching the IPC
 //! contract.
 
-use rusqlite::{params, Connection, Row};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 
+use super::util::{new_id, now_millis};
 use crate::db::pool::DbError;
 
 /// One row of the `boards` table.
@@ -83,12 +84,67 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<BoardRow>, DbErro
          FROM boards \
          WHERE id = ?1",
     )?;
-    let mut rows = stmt.query(params![id])?;
-    if let Some(row) = rows.next()? {
-        Ok(Some(BoardRow::from_row(row)?))
-    } else {
-        Ok(None)
+    Ok(stmt.query_row(params![id], BoardRow::from_row).optional()?)
+}
+
+/// Partial-update payload for [`update`] — every field is optional;
+/// `None` keeps the stored value via `COALESCE(?, current)`. The
+/// `role_id` field is `Option<Option<…>>` so the caller can distinguish
+/// "skip this field" (outer None) from "clear to NULL" (Some(None)).
+#[derive(Debug, Clone, Default)]
+pub struct BoardPatch {
+    pub name: Option<String>,
+    pub position: Option<f64>,
+    pub role_id: Option<Option<String>>,
+}
+
+/// Partial update via `COALESCE`. Bumps `updated_at`. Returns the
+/// updated row, or `Ok(None)` if no row matched the id.
+///
+/// # Errors
+///
+/// FK violation on `role_id` surfaces as [`DbError::Sqlite`].
+pub fn update(
+    conn: &Connection,
+    id: &str,
+    patch: &BoardPatch,
+) -> Result<Option<BoardRow>, DbError> {
+    let now = now_millis();
+    let updated = match &patch.role_id {
+        Some(new_role) => conn.execute(
+            "UPDATE boards SET \
+                 name = COALESCE(?1, name), \
+                 position = COALESCE(?2, position), \
+                 role_id = ?3, \
+                 updated_at = ?4 \
+             WHERE id = ?5",
+            params![patch.name, patch.position, new_role, now, id],
+        )?,
+        None => conn.execute(
+            "UPDATE boards SET \
+                 name = COALESCE(?1, name), \
+                 position = COALESCE(?2, position), \
+                 updated_at = ?3 \
+             WHERE id = ?4",
+            params![patch.name, patch.position, now, id],
+        )?,
+    };
+    if updated == 0 {
+        return Ok(None);
     }
+    get_by_id(conn, id)
+}
+
+/// Delete one board. Cascades to `columns` (and their `tasks`),
+/// `board_prompts`. Other entity FKs (e.g. tasks.board_id) cascade by
+/// schema.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn delete(conn: &Connection, id: &str) -> Result<bool, DbError> {
+    let n = conn.execute("DELETE FROM boards WHERE id = ?1", params![id])?;
+    Ok(n > 0)
 }
 
 /// Insert one board. Generates id via `nanoid` (21-char URL-safe alphabet,
@@ -139,19 +195,6 @@ pub fn space_exists(conn: &Connection, space_id: &str) -> Result<bool, DbError> 
     let mut stmt = conn.prepare("SELECT 1 FROM spaces WHERE id = ?1")?;
     let exists = stmt.exists(params![space_id])?;
     Ok(exists)
-}
-
-fn new_id() -> String {
-    nanoid::nanoid!()
-}
-
-fn now_millis() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .and_then(|d| i64::try_from(d.as_millis()).ok())
-        .unwrap_or(0)
 }
 
 #[cfg(test)]
