@@ -1,0 +1,53 @@
+/*
+ * Catique HUB — foundation tokens.
+ *
+ * This file holds the parts of the design-system that the tokens
+ * generator (`tools/tokens-build.ts`) does NOT cover:
+ *
+ *   - Font families (system stack — web-fonts to be added in E2)
+ *   - Type scale (font-sizes per design-discovery §2.1)
+ *   - Font weights
+ *   - Line-heights
+ *
+ * Everything else (colors, spacing, radii, shadows, light/dark semantic
+ * mappings) is auto-generated into `tokens.generated.css` from
+ * `design-tokens/tokens.json`.
+ *
+ * Both files are imported in `src/app/index.tsx`. Foundation goes FIRST
+ * so the generated semantic CSS variables can override anything (currently
+ * non-overlapping, but ordering keeps that property).
+ *
+ * Design source: docs/catique-migration/design-discovery.md §2.
+ */
+
+:root {
+  /* Typography — families. Web-fonts are E2; system fallbacks for now. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI",
+    system-ui, "Helvetica Neue", Arial, sans-serif;
+  --font-content: "Iowan Old Style", Charter, Georgia,
+    "Times New Roman", serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  /* Type scale — UI sans + content. Sizes per design-discovery §2.1. */
+  --font-size-caption:      11px;
+  --font-size-body-sm:      12px;
+  --font-size-body:         13px;
+  --font-size-body-lg:      14px;
+  --font-size-headline-sm:  15px;
+  --font-size-headline:     17px;
+  --font-size-headline-lg:  22px;
+  --font-size-content-body: 15px;
+  --font-size-content-h3:   17px;
+  --font-size-content-h2:   19px;
+  --font-size-content-h1:   24px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium:  500;
+  --font-weight-semibold: 600;
+  --font-weight-bold:    700;
+
+  --line-height-tight:   1.2;
+  --line-height-normal:  1.45;
+  --line-height-relaxed: 1.6;
+}

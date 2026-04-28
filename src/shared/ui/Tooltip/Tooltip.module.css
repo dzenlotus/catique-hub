@@ -1,0 +1,76 @@
+/*
+ * Tooltip — RAC <Tooltip> + <OverlayArrow>.
+ */
+
+.tooltip {
+  background-color: var(--color-surface-overlay);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-med);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-tight);
+  padding: var(--space-6) var(--space-8);
+  max-width: 280px;
+  outline: none;
+  pointer-events: none;
+  animation: tooltip-fade-in 100ms ease-out;
+}
+
+.tooltip[data-exiting] {
+  animation: tooltip-fade-out 80ms ease-in;
+}
+
+.body {
+  display: inline-block;
+}
+
+.arrow {
+  /* OverlayArrow rotates itself via inline transform; we color it with
+   * the surface color so the SVG path picks it up via currentColor. */
+  color: var(--color-surface-overlay);
+  display: block;
+}
+
+.tooltip[data-placement="top"] .arrow {
+  margin-bottom: -1px;
+}
+.tooltip[data-placement="bottom"] .arrow {
+  margin-top: -1px;
+  transform: rotate(180deg);
+}
+.tooltip[data-placement="left"] .arrow {
+  transform: rotate(-90deg);
+  margin-right: -1px;
+}
+.tooltip[data-placement="right"] .arrow {
+  transform: rotate(90deg);
+  margin-left: -1px;
+}
+
+@keyframes tooltip-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tooltip-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip {
+    animation: none;
+  }
+}

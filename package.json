@@ -14,7 +14,10 @@
     "tauri:build": "tauri build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:cov": "vitest run --coverage"
+    "test:cov": "vitest run --coverage",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "tokens:build": "tsx tools/tokens-build.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.5",
@@ -25,6 +28,9 @@
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
+    "@storybook/addon-a11y": "10.3.5",
+    "@storybook/addon-themes": "10.3.5",
+    "@storybook/react-vite": "10.3.5",
     "@tauri-apps/cli": "2.10.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
@@ -36,6 +42,8 @@
     "@vitest/coverage-v8": "^4.1.5",
     "@vitest/ui": "^4.1.5",
     "jsdom": "^29.1.0",
+    "storybook": "10.3.5",
+    "tsx": "4.21.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
     "vitest": "^4.1.5"

@@ -37,3 +37,6 @@ coverage/
 .cache/
 .parcel-cache/
 .turbo/
+
+# Storybook
+storybook-static/

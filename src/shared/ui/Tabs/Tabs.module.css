@@ -1,0 +1,125 @@
+/*
+ * Tabs — roving-tabindex strip + content panel.
+ *
+ * RAC sets data-orientation, data-selected, data-focus-visible,
+ * data-hovered, data-disabled on the matching elements.
+ */
+
+.tabs {
+  display: flex;
+  font-family: var(--font-sans);
+  color: var(--color-text-default);
+}
+
+.tabs.horizontal {
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.tabs.vertical {
+  flex-direction: row;
+  gap: var(--space-16);
+}
+
+/* ---------- TabList ---------- */
+
+.list {
+  display: flex;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--color-border-default);
+  padding: 0 0 var(--space-2) 0;
+}
+
+.tabs.vertical .list {
+  flex-direction: column;
+  border-bottom: none;
+  border-right: 1px solid var(--color-border-default);
+  padding: 0 var(--space-8) 0 0;
+  min-width: 160px;
+}
+
+/* ---------- Tab ---------- */
+
+.tab {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-12);
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition:
+    color 120ms ease-out,
+    background-color 120ms ease-out,
+    border-color 120ms ease-out;
+  outline: none;
+}
+
+.tab[data-hovered]:not([data-disabled]) {
+  color: var(--color-text-default);
+  background-color: var(--color-overlay-hover);
+}
+
+.tab[data-selected] {
+  color: var(--color-text-default);
+}
+
+/* Active stripe — bottom (horizontal) / left (vertical). */
+.tabs.horizontal .tab[data-selected]::after {
+  content: "";
+  position: absolute;
+  left: var(--space-12);
+  right: var(--space-12);
+  bottom: calc(-1 * var(--space-2) - 1px);
+  height: 2px;
+  background-color: var(--color-accent-bg);
+  border-radius: var(--radius-xs);
+}
+
+.tabs.vertical .tab[data-selected]::before {
+  content: "";
+  position: absolute;
+  top: var(--space-6);
+  bottom: var(--space-6);
+  left: calc(-1 * var(--space-8) - 1px);
+  width: 2px;
+  background-color: var(--color-accent-bg);
+  border-radius: var(--radius-xs);
+}
+
+.tab[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.tab[data-disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- TabPanel ---------- */
+
+.panel {
+  outline: none;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.panel[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab {
+    transition: none;
+  }
+}

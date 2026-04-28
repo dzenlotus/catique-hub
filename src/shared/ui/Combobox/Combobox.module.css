@@ -1,0 +1,170 @@
+/*
+ * Combobox — RAC <ComboBox> + <Input> + <ListBox> + <Popover>.
+ */
+
+.combobox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-family: var(--font-sans);
+  color: var(--color-text-default);
+  min-width: 220px;
+}
+
+.label {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: default;
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+}
+
+.input {
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--space-12);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  outline: none;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.input::placeholder {
+  color: var(--color-text-subtle);
+}
+
+.input[data-hovered] {
+  border-color: var(--color-border-focus);
+}
+
+.input[data-focused] {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+.input[data-invalid] {
+  border-color: var(--color-status-danger);
+}
+
+.input[data-disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.popover {
+  outline: none;
+  animation: combobox-fade-in 100ms ease-out;
+}
+
+.popover[data-exiting] {
+  animation: combobox-fade-out 100ms ease-in;
+}
+
+.listbox {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-4);
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-med);
+  outline: none;
+  max-height: 280px;
+  overflow-y: auto;
+  min-width: var(--trigger-width, 220px);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-12);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-body);
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  transition: background-color 80ms ease-out;
+}
+
+.item[data-hovered]:not([data-disabled]),
+.item[data-focused]:not([data-disabled]) {
+  background-color: var(--color-overlay-hover);
+}
+
+.item[data-selected] {
+  background-color: var(--color-accent-soft);
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-medium);
+}
+
+.item[data-disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.itemLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemDetail {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-caption);
+  flex-shrink: 0;
+}
+
+.empty {
+  padding: var(--space-8) var(--space-12);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+@keyframes combobox-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes combobox-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input {
+    transition: none;
+  }
+  .popover {
+    animation: none;
+  }
+  .item {
+    transition: none;
+  }
+}

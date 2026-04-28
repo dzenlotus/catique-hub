@@ -1,0 +1,104 @@
+/*
+ * Menu — RAC <MenuTrigger> + <Popover> + <Menu> + <MenuItem>.
+ */
+
+.popover {
+  outline: none;
+  animation: menu-fade-in 120ms ease-out;
+}
+
+.popover[data-exiting] {
+  animation: menu-fade-out 100ms ease-in;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-4);
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-med);
+  font-family: var(--font-sans);
+  color: var(--color-text-default);
+  outline: none;
+  min-width: 180px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-12);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-body);
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  transition: background-color 80ms ease-out;
+}
+
+.item[data-hovered]:not([data-disabled]),
+.item[data-focused]:not([data-disabled]) {
+  background-color: var(--color-overlay-hover);
+}
+
+.item[data-pressed]:not([data-disabled]) {
+  background-color: var(--color-overlay-active);
+}
+
+.item[data-disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.item[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+}
+
+.itemDanger {
+  color: var(--color-status-danger);
+}
+
+.itemDanger[data-hovered]:not([data-disabled]),
+.itemDanger[data-focused]:not([data-disabled]) {
+  background-color: var(--color-status-danger-soft);
+}
+
+.separator {
+  height: 1px;
+  background-color: var(--color-border-default);
+  margin: var(--space-4) var(--space-2);
+  border: 0;
+}
+
+@keyframes menu-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes menu-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popover {
+    animation: none;
+  }
+  .item {
+    transition: none;
+  }
+}
