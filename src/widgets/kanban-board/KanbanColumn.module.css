@@ -1,0 +1,146 @@
+/*
+ * KanbanColumn — one column of a kanban board.
+ *
+ * Layout (vertical):
+ *   1. ColumnHeader (entity slice)
+ *   2. scrollable task list
+ *   3. add-task affordance pinned at the bottom
+ */
+
+.column {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 280px;
+  min-width: 280px;
+  max-width: 280px;
+  background-color: var(--color-surface-canvas);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  height: 100%;
+  font-family: var(--font-sans);
+}
+
+/* Highlighted state when a draggable hovers over the column. */
+.columnDropTarget {
+  border-color: var(--color-border-focus);
+  background-color: var(--color-overlay-hover);
+}
+
+.body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-8);
+  overflow-y: auto;
+  min-height: 60px;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  padding: var(--space-24) var(--space-12);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body-sm);
+  text-align: center;
+}
+
+.footer {
+  padding: var(--space-8);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.addButton {
+  width: 100%;
+  justify-content: center;
+}
+
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.addFormActions {
+  display: flex;
+  gap: var(--space-8);
+  justify-content: flex-end;
+}
+
+.dragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-subtle);
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: -2px;
+  cursor: grab;
+  border-radius: var(--radius-xs);
+  flex: 0 0 auto;
+}
+
+.dragHandle:hover {
+  color: var(--color-text-default);
+  background-color: var(--color-overlay-hover);
+}
+
+.dragHandle:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.taskDragHandle {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  width: 16px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-subtle);
+  font-size: 12px;
+  letter-spacing: -2px;
+  cursor: grab;
+  border-radius: var(--radius-xs);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+/* Reveal on parent hover/focus. The wrapper around TaskCard is the
+ * direct parent — the card itself stays interactive. */
+.body > div:hover .taskDragHandle,
+.taskDragHandle:focus-visible {
+  opacity: 1;
+}
+
+.taskDragHandle:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+
+.taskDragHandle:active {
+  cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .column,
+  .columnDropTarget {
+    transition: none;
+  }
+}

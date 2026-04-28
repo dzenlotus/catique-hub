@@ -20,7 +20,11 @@ import type { StorybookConfig } from "@storybook/react-vite";
 
 const config: StorybookConfig = {
   framework: "@storybook/react-vite",
-  stories: ["../src/shared/ui/**/*.stories.@(ts|tsx)"],
+  stories: [
+    "../src/shared/ui/**/*.stories.@(ts|tsx)",
+    "../src/entities/**/*.stories.@(ts|tsx)",
+    "../src/widgets/**/*.stories.@(ts|tsx)",
+  ],
   addons: ["@storybook/addon-a11y", "@storybook/addon-themes"],
   // Storybook 10 ships docs/controls/actions/viewport/backgrounds/measure
   // baked into the manager — no addon-essentials needed.

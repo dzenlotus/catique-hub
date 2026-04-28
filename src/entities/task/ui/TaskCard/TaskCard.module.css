@@ -1,0 +1,163 @@
+/*
+ * TaskCard — entity-level presentational card.
+ *
+ * Density borrowed from Linear (design-discovery §1.1): 13 px UI text,
+ * compact padding, single-line title with truncate.
+ */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  align-items: stretch;
+  padding: var(--space-12);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-default);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: default;
+  box-shadow: var(--shadow-low);
+  transition:
+    border-color 120ms ease-out,
+    background-color 120ms ease-out,
+    box-shadow 120ms ease-out,
+    transform 120ms ease-out;
+}
+
+.interactive {
+  cursor: pointer;
+  width: 100%;
+  font: inherit;
+  appearance: none;
+}
+
+.interactive:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-med);
+  transform: translateY(-1px);
+}
+
+.interactive:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-low);
+  background-color: var(--color-overlay-active);
+}
+
+.interactive:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* Drag-overlay variant: render with stronger shadow for the lift effect.
+ * The original card stays in place (with reduced opacity, applied by
+ * the widget layer via CSS variable). */
+.overlay {
+  box-shadow: var(--shadow-high);
+  transform: translateY(-2px) scale(1.02);
+  cursor: grabbing;
+}
+
+.title {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-default);
+  /* Single-line truncate; full title in tooltip via `aria-label`. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  flex-wrap: wrap;
+}
+
+.roleBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-xs);
+  background-color: var(--color-accent-soft);
+  color: var(--color-text-default);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  /* Truncate long role-ids. */
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.attachments {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.position {
+  margin-left: auto;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Skeleton variant ---------- */
+
+.skeleton {
+  cursor: default;
+  pointer-events: none;
+  box-shadow: none;
+  min-height: 56px;
+}
+
+.skeletonLine {
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-xs);
+  animation: task-card-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+.skeletonTitle {
+  height: 12px;
+  width: 75%;
+}
+
+.skeletonMeta {
+  height: 9px;
+  width: 35%;
+}
+
+@keyframes task-card-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .interactive {
+    transition: none;
+  }
+  .interactive:hover,
+  .interactive:active,
+  .overlay {
+    transform: none;
+  }
+  .skeletonLine {
+    animation: none;
+  }
+}

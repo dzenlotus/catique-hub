@@ -1,0 +1,153 @@
+/*
+ * KanbanBoard — orchestrator layout.
+ *
+ * Horizontal scroll containing N columns + an "add column" affordance
+ * pinned at the right.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  font-family: var(--font-sans);
+}
+
+.scroller {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: var(--space-12);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: var(--space-4) var(--space-2) var(--space-12);
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.addColumnContainer {
+  flex: 0 0 240px;
+  display: flex;
+  align-items: flex-start;
+  padding-top: var(--space-4);
+}
+
+.addColumnButton {
+  width: 100%;
+  justify-content: center;
+}
+
+.addColumnForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  width: 100%;
+}
+
+.addColumnFormActions {
+  display: flex;
+  gap: var(--space-8);
+  justify-content: flex-end;
+}
+
+/* ---------- Loading skeleton ---------- */
+
+.loadingScroller {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-12);
+}
+
+.skeletonColumn {
+  flex: 0 0 280px;
+  background-color: var(--color-surface-canvas);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  height: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+}
+
+.skeletonHeader {
+  height: 18px;
+  width: 60%;
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-xs);
+  animation: kanban-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+.skeletonCard {
+  height: 56px;
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-sm);
+  animation: kanban-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+@keyframes kanban-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* ---------- Empty state (no columns) ---------- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-12);
+  padding: var(--space-48) var(--space-24);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-canvas);
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: var(--font-size-headline);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-default);
+}
+
+.emptyHint {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
+  max-width: 36ch;
+}
+
+/* ---------- Error state ---------- */
+
+.error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  align-items: flex-start;
+  padding: var(--space-16);
+  border: 1px solid var(--color-status-danger);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-danger-soft);
+}
+
+.errorMessage {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-default);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonHeader,
+  .skeletonCard {
+    animation: none;
+  }
+}

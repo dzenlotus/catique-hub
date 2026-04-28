@@ -39,3 +39,17 @@
   justify-content: flex-end;
   gap: var(--space-8);
 }
+
+.boardView {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  height: 70vh;
+  min-height: 480px;
+}
+
+.boardViewHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}

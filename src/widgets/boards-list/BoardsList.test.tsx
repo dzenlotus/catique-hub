@@ -101,10 +101,16 @@ describe("BoardsList", () => {
   });
 
   it("creates a board and invalidates the list cache (refetches)", async () => {
-    // 1st call: list_boards → empty.
+    // 1st call: list_boards → empty. Spaces query returns one preset
+    // space so the dialog skips the bootstrap branch and goes straight
+    // to the populated form.
     // 2nd call: create_board → returns the new board.
     // 3rd call (after invalidation): list_boards → returns [newBoard].
-    const newBoard = makeBoard({ id: "brd-new", name: "Sprint 14" });
+    const newBoard = makeBoard({
+      id: "brd-new",
+      name: "Sprint 14",
+      spaceId: "spc-default",
+    });
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_boards") {
         return invokeMock.mock.calls.filter(
@@ -112,6 +118,9 @@ describe("BoardsList", () => {
         ).length === 1
           ? []
           : [newBoard];
+      }
+      if (cmd === "list_spaces") {
+        return [{ id: "spc-default", name: "default" }];
       }
       if (cmd === "create_board") {
         return newBoard;
@@ -148,7 +157,10 @@ describe("BoardsList", () => {
       ([cmd]) => cmd === "create_board",
     );
     expect(createCall).toBeDefined();
-    expect(createCall?.[1]).toEqual({ name: "Sprint 14", spaceId: "default" });
+    expect(createCall?.[1]).toEqual({
+      name: "Sprint 14",
+      spaceId: "spc-default",
+    });
 
     // The list should have been called at least twice (initial + after
     // invalidation triggered by the mutation's onSuccess).
@@ -159,7 +171,13 @@ describe("BoardsList", () => {
   });
 
   it("validates that a board name is required before submitting", async () => {
-    invokeMock.mockResolvedValue([] satisfies Board[]);
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_boards") return [] satisfies Board[];
+      if (cmd === "list_spaces") {
+        return [{ id: "spc-default", name: "default" }];
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
     const { user } = renderWithClient(<BoardsList />);
 
     await waitFor(() => {
@@ -178,7 +196,50 @@ describe("BoardsList", () => {
       ([cmd]) => cmd === "create_board",
     );
     expect(createCalls).toHaveLength(0);
-    // An error message is rendered inside the dialog.
-    expect(screen.getByText(/name is required/i)).toBeInTheDocument();
+    // An error message is rendered inside the dialog (Input field error
+    // and the form-level alert may both surface — getAllByText covers
+    // either rendering path).
+    expect(screen.getAllByText(/name is required/i).length).toBeGreaterThan(0);
+  });
+
+  it("calls onSelectBoard with the board id when a card is activated", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_boards") {
+        return [makeBoard({ id: "brd-pick", name: "Pick me" })];
+      }
+      if (cmd === "list_spaces") {
+        return [{ id: "spc-default", name: "default" }];
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    const onSelectBoard = vi.fn();
+    const { user } = renderWithClient(
+      <BoardsList onSelectBoard={onSelectBoard} />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("boards-list-grid")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Pick me"));
+    expect(onSelectBoard).toHaveBeenCalledWith("brd-pick");
+  });
+
+  it("renders the Bootstrap default space CTA when no spaces exist", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_boards") return [] satisfies Board[];
+      if (cmd === "list_spaces") return [];
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+    const { user } = renderWithClient(<BoardsList />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
+    });
+    await user.click(
+      screen.getByRole("button", { name: /create your first board/i }),
+    );
+    expect(
+      await screen.findByTestId("bootstrap-default-space"),
+    ).toBeInTheDocument();
   });
 });
