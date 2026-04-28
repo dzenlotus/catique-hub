@@ -62,7 +62,7 @@ sha2 = "=0.10.8"
 
 # Caret-allowed: stable, well-maintained, no IPC contract impact.
 chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
-thiserror = "1"
+thiserror = "2"
 anyhow = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 dirs = "5"
