@@ -33,7 +33,7 @@ export interface RunningStageProps {
   onFailed: (kind: string, message: string) => void;
 }
 
-type Phase = AppEventPayload<"import.progress">["phase"] | null;
+type Phase = AppEventPayload<"import:progress">["phase"] | null;
 
 export function RunningStage({
   sourcePath,
@@ -75,7 +75,7 @@ export function RunningStage({
     };
 
     collect(
-      on("import.started", () => {
+      on("import:started", () => {
         if (cancelled) return;
         // Reset phase once the back-end confirms start so a stale
         // progress event from a previous run can't leak in.
@@ -85,7 +85,7 @@ export function RunningStage({
     );
 
     collect(
-      on("import.progress", (payload) => {
+      on("import:progress", (payload) => {
         if (cancelled) return;
         setPhase(payload.phase);
         // Clamp to [0, 100] defensively; the Rust side is supposed

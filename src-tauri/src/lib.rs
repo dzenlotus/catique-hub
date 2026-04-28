@@ -50,9 +50,16 @@ pub fn run() {
             // ADR-0002 spike (ctq-56): spawn the Node sidecar at startup.
             // Failure is non-fatal — the sidecar badge in Settings will
             // reflect the Stopped / Crashed state.
+            //
+            // NOTE: Use `tauri::async_runtime::spawn` (NOT `tokio::spawn`).
+            // The Tauri setup hook runs synchronously on the main thread
+            // before any tokio::Runtime exists in the calling thread's
+            // context. `tauri::async_runtime` wraps the global Tokio
+            // runtime that Tauri 2.x manages — that's the correct entry
+            // point for async work scheduled from setup.
             let sidecar_dir = state.sidecar_dir.clone();
             let sidecar_mgr = state.sidecar.clone();
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 match sidecar_mgr.start(&sidecar_dir).await {
                     Ok(pid) => eprintln!("[catique-hub] sidecar started, pid={pid}"),
                     Err(e) => eprintln!("[catique-hub] sidecar spawn failed: {e}"),

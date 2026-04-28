@@ -49,8 +49,8 @@ describe("on() — typed Tauri event subscriber", () => {
 
   it("invokes the handler with the payload only (not the wrapper)", async () => {
     const handler = vi.fn<(p: { id: string }) => void>();
-    await on("board.created", handler);
-    dispatch("board.created", { id: "b1" });
+    await on("board:created", handler);
+    dispatch("board:created", { id: "b1" });
     expect(handler).toHaveBeenCalledExactlyOnceWith({ id: "b1" });
   });
 
@@ -63,8 +63,8 @@ describe("on() — typed Tauri event subscriber", () => {
         board_id: string;
       }) => void
     >();
-    await on("task.moved", handler);
-    dispatch("task.moved", {
+    await on("task:moved", handler);
+    dispatch("task:moved", {
       id: "t1",
       from_column_id: "c1",
       to_column_id: "c2",
@@ -80,12 +80,12 @@ describe("on() — typed Tauri event subscriber", () => {
 
   it("returns an unlisten function that detaches the handler", async () => {
     const handler = vi.fn<(p: { id: string }) => void>();
-    const unlisten = await on("space.created", handler);
-    dispatch("space.created", { id: "sp1" });
+    const unlisten = await on("space:created", handler);
+    dispatch("space:created", { id: "sp1" });
     expect(handler).toHaveBeenCalledTimes(1);
     unlisten();
     expect(unlistenCalls).toBe(1);
-    dispatch("space.created", { id: "sp2" });
+    dispatch("space:created", { id: "sp2" });
     // Same `handler` must NOT receive the second event.
     expect(handler).toHaveBeenCalledTimes(1);
   });
@@ -93,17 +93,17 @@ describe("on() — typed Tauri event subscriber", () => {
   it("supports multiple subscribers to the same event", async () => {
     const a = vi.fn<(p: { id: string }) => void>();
     const b = vi.fn<(p: { id: string }) => void>();
-    await on("tag.deleted", a);
-    await on("tag.deleted", b);
-    dispatch("tag.deleted", { id: "tg1" });
+    await on("tag:deleted", a);
+    await on("tag:deleted", b);
+    dispatch("tag:deleted", { id: "tg1" });
     expect(a).toHaveBeenCalledTimes(1);
     expect(b).toHaveBeenCalledTimes(1);
   });
 
   it("ignores dispatches whose name doesn't match", async () => {
     const handler = vi.fn<(p: { id: string }) => void>();
-    await on("prompt.created", handler);
-    dispatch("prompt.updated", { id: "p1" });
+    await on("prompt:created", handler);
+    dispatch("prompt:updated", { id: "p1" });
     expect(handler).not.toHaveBeenCalled();
   });
 });
@@ -111,7 +111,7 @@ describe("on() — typed Tauri event subscriber", () => {
 describe("AppEvent — discriminated union compile-time checks", () => {
   it("type narrowing works on the `type` discriminator", () => {
     const sample: AppEvent = {
-      type: "task.moved",
+      type: "task:moved",
       payload: {
         id: "t1",
         from_column_id: "c1",
@@ -119,7 +119,7 @@ describe("AppEvent — discriminated union compile-time checks", () => {
         board_id: "bd1",
       },
     };
-    if (sample.type === "task.moved") {
+    if (sample.type === "task:moved") {
       // Compile-time only — the field exists on the narrowed payload.
       expect(sample.payload.from_column_id).toBe("c1");
     }

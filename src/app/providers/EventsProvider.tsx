@@ -7,31 +7,9 @@
  * `queryClient.invalidateQueries({ queryKey })` call. The query keys
  * mirror the per-entity stores in `entities/{board,column,task}/model`.
  *
- * ## Why a single provider, not per-entity hooks
- *
- * Each entity slice owns its mutation hooks already, but realtime sync
- * is *cross-cutting* — when an MCP-agent in another process creates a
- * task, the task slice has no mutation hook to attach an `onSuccess`
- * to. A single provider mounted at the app root is the natural seam.
- *
- * ## Refetch storms
- *
- * The naive "invalidate every list on every event" can cause refetch
- * storms during rapid mutation streams (e.g. drag-drop, import). For
- * E2.5 we accept the storm — react-query already de-duplicates inflight
- * requests, and the alternative (debounce / coalesce) introduces its
- * own complexity (event batching window, key-set merging) that we
- * should design separately under E5 polish.
- *
- * ## Source-window filtering
- *
- * Tauri 2.x emits to every webview attached to the app. When a single
- * window initiates a mutation, its optimistic cache update completes
- * before the round-trip; the subsequent invalidation will refetch and
- * (on a stable result) collapse to the same data. That race causes
- * a brief flicker only in pathological cases (slow IPC, conflicting
- * server state). Source-window filtering is a defensible polish — we
- * skip it here per the wave brief and revisit in E5.
+ * Event-name format is `<domain>:<verb>` (colon-namespaced) per Tauri
+ * 2.x's runtime allow-list (alphanumeric + `-/:_`); see the events
+ * module for the source-of-truth constants.
  */
 
 import { useEffect, type PropsWithChildren, type ReactElement } from "react";
@@ -50,15 +28,6 @@ export function EventsProvider({
   const qc = useQueryClient();
 
   useEffect(() => {
-    // We collect unlisten functions in two stages:
-    //   1. `pending` holds the *promises* returned by `on(...)` — one
-    //      per listener. Cleanup must await all of them so a
-    //      fast-mount/unmount sequence (StrictMode in dev, route
-    //      transitions) doesn't leak handlers.
-    //   2. After each promise resolves we push its UnlistenFn into
-    //      `resolved`; the cleanup callback below also calls every fn
-    //      already in `resolved` synchronously to release listeners
-    //      whose `on()` resolved before the unmount fires.
     const resolved: UnlistenFn[] = [];
     const pending: Promise<UnlistenFn>[] = [];
 
@@ -74,35 +43,33 @@ export function EventsProvider({
 
     // ---------------- boards ----------------
     sub(
-      on("board.created", () => {
+      on("board:created", () => {
         void qc.invalidateQueries({ queryKey: boardsKeys.all });
       }),
     );
     sub(
-      on("board.updated", ({ id }) => {
+      on("board:updated", ({ id }) => {
         void qc.invalidateQueries({ queryKey: boardsKeys.all });
         void qc.invalidateQueries({ queryKey: boardsKeys.detail(id) });
       }),
     );
     sub(
-      on("board.deleted", ({ id }) => {
+      on("board:deleted", ({ id }) => {
         void qc.invalidateQueries({ queryKey: boardsKeys.all });
-        // Drop the detail cache outright — the board no longer exists,
-        // a refetch would just produce a `notFound`.
         qc.removeQueries({ queryKey: boardsKeys.detail(id) });
       }),
     );
 
     // ---------------- columns ----------------
     sub(
-      on("column.created", ({ board_id }) => {
+      on("column:created", ({ board_id }) => {
         void qc.invalidateQueries({
           queryKey: columnsKeys.list(board_id),
         });
       }),
     );
     sub(
-      on("column.updated", ({ id, board_id }) => {
+      on("column:updated", ({ id, board_id }) => {
         void qc.invalidateQueries({
           queryKey: columnsKeys.list(board_id),
         });
@@ -110,7 +77,7 @@ export function EventsProvider({
       }),
     );
     sub(
-      on("column.deleted", ({ id, board_id }) => {
+      on("column:deleted", ({ id, board_id }) => {
         void qc.invalidateQueries({
           queryKey: columnsKeys.list(board_id),
         });
@@ -120,7 +87,7 @@ export function EventsProvider({
 
     // ---------------- tasks ----------------
     sub(
-      on("task.created", ({ column_id, board_id }) => {
+      on("task:created", ({ column_id, board_id }) => {
         void qc.invalidateQueries({
           queryKey: tasksKeys.byBoard(board_id),
         });
@@ -130,7 +97,7 @@ export function EventsProvider({
       }),
     );
     sub(
-      on("task.updated", ({ id, column_id, board_id }) => {
+      on("task:updated", ({ id, column_id, board_id }) => {
         void qc.invalidateQueries({
           queryKey: tasksKeys.byBoard(board_id),
         });
@@ -141,10 +108,7 @@ export function EventsProvider({
       }),
     );
     sub(
-      on("task.moved", ({ id, from_column_id, to_column_id, board_id }) => {
-        // Both columns need to refetch; the board view picks up either
-        // way. Detail key is invalidated so single-task views show the
-        // new column.
+      on("task:moved", ({ id, from_column_id, to_column_id, board_id }) => {
         void qc.invalidateQueries({
           queryKey: tasksKeys.byBoard(board_id),
         });
@@ -158,7 +122,7 @@ export function EventsProvider({
       }),
     );
     sub(
-      on("task.deleted", ({ id, column_id, board_id }) => {
+      on("task:deleted", ({ id, column_id, board_id }) => {
         void qc.invalidateQueries({
           queryKey: tasksKeys.byBoard(board_id),
         });
@@ -170,112 +134,102 @@ export function EventsProvider({
     );
 
     // ---------------- spaces / prompts / roles / tags ----------------
-    //
-    // These slices don't have query stores yet (E3+). We invalidate by
-    // a stable top-level key string anyway so the day a slice lands
-    // its `useXxx()` hooks, the listener already wakes them up. This
-    // costs nothing today (no matching keys → no refetch) and saves
-    // a return trip through this provider when the slice ships.
     sub(
-      on("space.created", () => {
+      on("space:created", () => {
         void qc.invalidateQueries({ queryKey: ["spaces"] });
       }),
     );
     sub(
-      on("space.updated", () => {
+      on("space:updated", () => {
         void qc.invalidateQueries({ queryKey: ["spaces"] });
       }),
     );
     sub(
-      on("space.deleted", () => {
+      on("space:deleted", () => {
         void qc.invalidateQueries({ queryKey: ["spaces"] });
       }),
     );
     sub(
-      on("prompt.created", () => {
+      on("prompt:created", () => {
         void qc.invalidateQueries({ queryKey: ["prompts"] });
       }),
     );
     sub(
-      on("prompt.updated", () => {
+      on("prompt:updated", () => {
         void qc.invalidateQueries({ queryKey: ["prompts"] });
       }),
     );
     sub(
-      on("prompt.deleted", () => {
+      on("prompt:deleted", () => {
         void qc.invalidateQueries({ queryKey: ["prompts"] });
       }),
     );
     sub(
-      on("role.created", () => {
+      on("role:created", () => {
         void qc.invalidateQueries({ queryKey: ["roles"] });
       }),
     );
     sub(
-      on("role.updated", () => {
+      on("role:updated", () => {
         void qc.invalidateQueries({ queryKey: ["roles"] });
       }),
     );
     sub(
-      on("role.deleted", () => {
+      on("role:deleted", () => {
         void qc.invalidateQueries({ queryKey: ["roles"] });
       }),
     );
     sub(
-      on("tag.created", () => {
+      on("tag:created", () => {
         void qc.invalidateQueries({ queryKey: ["tags"] });
       }),
     );
     sub(
-      on("tag.updated", () => {
+      on("tag:updated", () => {
         void qc.invalidateQueries({ queryKey: ["tags"] });
       }),
     );
     sub(
-      on("tag.deleted", () => {
+      on("tag:deleted", () => {
         void qc.invalidateQueries({ queryKey: ["tags"] });
       }),
     );
 
     // ---------------- skills / mcp_tools ----------------
-    //
-    // These slices are back-filled in Round 6. Invalidate by stable
-    // top-level key so existing entity slices (once they land) wake
-    // immediately. Costs nothing today if no queries match.
     sub(
-      on("skill.created", () => {
+      on("skill:created", () => {
         void qc.invalidateQueries({ queryKey: ["skills"] });
       }),
     );
     sub(
-      on("skill.updated", () => {
+      on("skill:updated", () => {
         void qc.invalidateQueries({ queryKey: ["skills"] });
       }),
     );
     sub(
-      on("skill.deleted", () => {
+      on("skill:deleted", () => {
         void qc.invalidateQueries({ queryKey: ["skills"] });
       }),
     );
     sub(
-      on("mcp_tool.created", () => {
+      on("mcp_tool:created", () => {
         void qc.invalidateQueries({ queryKey: ["mcp_tools"] });
       }),
     );
     sub(
-      on("mcp_tool.updated", () => {
+      on("mcp_tool:updated", () => {
         void qc.invalidateQueries({ queryKey: ["mcp_tools"] });
       }),
     );
     sub(
-      on("mcp_tool.deleted", () => {
+      on("mcp_tool:deleted", () => {
         void qc.invalidateQueries({ queryKey: ["mcp_tools"] });
       }),
     );
 
     // ---------------- agent reports / attachments ----------------
     sub(
-      on("agent_report.created", ({ task_id }) => {
+      on("agent_report:created", ({ task_id }) => {
         void qc.invalidateQueries({
           queryKey: ["agent_reports", "byTask", task_id],
         });
@@ -283,7 +237,7 @@ export function EventsProvider({
       }),
     );
     sub(
-      on("agent_report.updated", ({ id, task_id }) => {
+      on("agent_report:updated", ({ id, task_id }) => {
         void qc.invalidateQueries({
           queryKey: ["agent_reports", "byTask", task_id],
         });
@@ -293,28 +247,28 @@ export function EventsProvider({
       }),
     );
     sub(
-      on("agent_report.deleted", ({ task_id }) => {
+      on("agent_report:deleted", ({ task_id }) => {
         void qc.invalidateQueries({
           queryKey: ["agent_reports", "byTask", task_id],
         });
       }),
     );
     sub(
-      on("attachment.created", ({ task_id }) => {
+      on("attachment:created", ({ task_id }) => {
         void qc.invalidateQueries({
           queryKey: ["attachments", "byTask", task_id],
         });
       }),
     );
     sub(
-      on("attachment.updated", ({ task_id }) => {
+      on("attachment:updated", ({ task_id }) => {
         void qc.invalidateQueries({
           queryKey: ["attachments", "byTask", task_id],
         });
       }),
     );
     sub(
-      on("attachment.deleted", ({ task_id }) => {
+      on("attachment:deleted", ({ task_id }) => {
         void qc.invalidateQueries({
           queryKey: ["attachments", "byTask", task_id],
         });
@@ -322,26 +276,23 @@ export function EventsProvider({
     );
 
     // ---------------- prompt groups ----------------
-    //
-    // Back-filled in this task (E2.x). Invalidate by stable top-level key;
-    // costs nothing today while no FE entity slice exists yet.
     sub(
-      on("prompt_group.created", () => {
+      on("prompt_group:created", () => {
         void qc.invalidateQueries({ queryKey: ["prompt_groups"] });
       }),
     );
     sub(
-      on("prompt_group.updated", () => {
+      on("prompt_group:updated", () => {
         void qc.invalidateQueries({ queryKey: ["prompt_groups"] });
       }),
     );
     sub(
-      on("prompt_group.deleted", () => {
+      on("prompt_group:deleted", () => {
         void qc.invalidateQueries({ queryKey: ["prompt_groups"] });
       }),
     );
     sub(
-      on("prompt_group.members_changed", ({ group_id }) => {
+      on("prompt_group:members_changed", ({ group_id }) => {
         void qc.invalidateQueries({
           queryKey: ["prompt_groups", "members", group_id],
         });
@@ -349,19 +300,15 @@ export function EventsProvider({
     );
 
     // ---------------- import ----------------
-    //
-    // Successful import swaps the entire DB underneath us. Blow the
-    // whole cache so every mounted query refetches against the new
-    // data. Failed import is a no-op for the cache.
     sub(
-      on("import.completed", () => {
+      on("import:completed", () => {
         void qc.invalidateQueries();
       }),
     );
 
     // ---------------- generic refresh ----------------
     sub(
-      on("app.refresh-required", () => {
+      on("app:refresh-required", () => {
         void qc.invalidateQueries();
       }),
     );

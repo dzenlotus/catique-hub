@@ -2,30 +2,27 @@
  * Tauri 2.x realtime event subscription — typed wrapper.
  *
  * The Rust side (`crates/api/src/events.rs`) emits an event after every
- * successful mutation. Each event is a `<entity>.<verb>` string with a
+ * successful mutation. Each event is a `<entity>:<verb>` string with a
  * compact JSON payload — the wire format is intentionally minimal so
  * the frontend can use it as a *cache-invalidation hint* and refetch
  * the canonical state via the existing query layer. We never trust the
  * event payload as the source of truth for an entity.
  *
+ * ## Event-name format
+ *
+ * Tauri 2.x restricts event names to **alphanumeric, `-`, `/`, `:`,
+ * `_`** — `.` is rejected at runtime. We use `<domain>:<verb>` (colon-
+ * namespaced). The Rust constants in `crates/api/src/events.rs` are the
+ * source of truth; this union mirrors them 1:1.
+ *
  * ## Why a discriminated union vs. positional listen<T>
  *
  * `@tauri-apps/api/event`'s `listen<T>(name, handler)` is fully typed
  * once the caller supplies `T`, but it has no way to enforce that
- * `name` and `T` are matched correctly — `listen<{ id: string }>(
- * 'task.created', ...)` would compile even though the payload also
- * carries `column_id` / `board_id`. The {@link AppEvent} union below
+ * `name` and `T` are matched correctly. The {@link AppEvent} union
  * pairs each name with its exact payload, and the {@link on} helper
  * uses `Extract<…>` to derive the right payload type from the name —
  * a single source of truth keeps Rust and TS in sync.
- *
- * ## Why don't we autogenerate this from Rust constants?
- *
- * ts-rs only exports `#[derive(TS)]` types. Plain `pub const` strings
- * (which is what we use on the Rust side per the events module docs)
- * are not exported. Building a custom proc-macro for 32 strings would
- * cost more than the manual sync; the {@link AppEventType} compile-time
- * exhaustiveness check below catches any drift.
  */
 
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -36,33 +33,33 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
  */
 export type AppEvent =
   // ---------------- boards ----------------
-  | { type: "board.created"; payload: { id: string } }
-  | { type: "board.updated"; payload: { id: string } }
-  | { type: "board.deleted"; payload: { id: string } }
+  | { type: "board:created"; payload: { id: string } }
+  | { type: "board:updated"; payload: { id: string } }
+  | { type: "board:deleted"; payload: { id: string } }
   // ---------------- columns ----------------
   | {
-      type: "column.created";
+      type: "column:created";
       payload: { id: string; board_id: string };
     }
   | {
-      type: "column.updated";
+      type: "column:updated";
       payload: { id: string; board_id: string };
     }
   | {
-      type: "column.deleted";
+      type: "column:deleted";
       payload: { id: string; board_id: string };
     }
   // ---------------- tasks ----------------
   | {
-      type: "task.created";
+      type: "task:created";
       payload: { id: string; column_id: string; board_id: string };
     }
   | {
-      type: "task.updated";
+      type: "task:updated";
       payload: { id: string; column_id: string; board_id: string };
     }
   | {
-      type: "task.moved";
+      type: "task:moved";
       payload: {
         id: string;
         from_column_id: string;
@@ -71,63 +68,63 @@ export type AppEvent =
       };
     }
   | {
-      type: "task.deleted";
+      type: "task:deleted";
       payload: { id: string; column_id: string; board_id: string };
     }
   // ---------------- spaces ----------------
-  | { type: "space.created"; payload: { id: string } }
-  | { type: "space.updated"; payload: { id: string } }
-  | { type: "space.deleted"; payload: { id: string } }
+  | { type: "space:created"; payload: { id: string } }
+  | { type: "space:updated"; payload: { id: string } }
+  | { type: "space:deleted"; payload: { id: string } }
   // ---------------- prompts ----------------
-  | { type: "prompt.created"; payload: { id: string } }
-  | { type: "prompt.updated"; payload: { id: string } }
-  | { type: "prompt.deleted"; payload: { id: string } }
+  | { type: "prompt:created"; payload: { id: string } }
+  | { type: "prompt:updated"; payload: { id: string } }
+  | { type: "prompt:deleted"; payload: { id: string } }
   // ---------------- roles ----------------
-  | { type: "role.created"; payload: { id: string } }
-  | { type: "role.updated"; payload: { id: string } }
-  | { type: "role.deleted"; payload: { id: string } }
+  | { type: "role:created"; payload: { id: string } }
+  | { type: "role:updated"; payload: { id: string } }
+  | { type: "role:deleted"; payload: { id: string } }
   // ---------------- tags ----------------
-  | { type: "tag.created"; payload: { id: string } }
-  | { type: "tag.updated"; payload: { id: string } }
-  | { type: "tag.deleted"; payload: { id: string } }
+  | { type: "tag:created"; payload: { id: string } }
+  | { type: "tag:updated"; payload: { id: string } }
+  | { type: "tag:deleted"; payload: { id: string } }
   // ---------------- skills ----------------
-  | { type: "skill.created"; payload: { id: string } }
-  | { type: "skill.updated"; payload: { id: string } }
-  | { type: "skill.deleted"; payload: { id: string } }
+  | { type: "skill:created"; payload: { id: string } }
+  | { type: "skill:updated"; payload: { id: string } }
+  | { type: "skill:deleted"; payload: { id: string } }
   // ---------------- mcp tools ----------------
-  | { type: "mcp_tool.created"; payload: { id: string } }
-  | { type: "mcp_tool.updated"; payload: { id: string } }
-  | { type: "mcp_tool.deleted"; payload: { id: string } }
+  | { type: "mcp_tool:created"; payload: { id: string } }
+  | { type: "mcp_tool:updated"; payload: { id: string } }
+  | { type: "mcp_tool:deleted"; payload: { id: string } }
   // ---------------- agent reports ----------------
   | {
-      type: "agent_report.created";
+      type: "agent_report:created";
       payload: { id: string; task_id: string };
     }
   | {
-      type: "agent_report.updated";
+      type: "agent_report:updated";
       payload: { id: string; task_id: string };
     }
   | {
-      type: "agent_report.deleted";
+      type: "agent_report:deleted";
       payload: { id: string; task_id: string };
     }
   // ---------------- attachments ----------------
   | {
-      type: "attachment.created";
+      type: "attachment:created";
       payload: { id: string; task_id: string };
     }
   | {
-      type: "attachment.updated";
+      type: "attachment:updated";
       payload: { id: string; task_id: string };
     }
   | {
-      type: "attachment.deleted";
+      type: "attachment:deleted";
       payload: { id: string; task_id: string };
     }
   // ---------------- import ----------------
-  | { type: "import.started"; payload: { source_path: string } }
+  | { type: "import:started"; payload: { source_path: string } }
   | {
-      type: "import.progress";
+      type: "import:progress";
       payload: {
         phase:
           | "preflight"
@@ -141,7 +138,7 @@ export type AppEvent =
       };
     }
   | {
-      type: "import.completed";
+      type: "import:completed";
       payload: {
         duration_ms: number;
         rows_imported: Record<string, number>;
@@ -150,16 +147,16 @@ export type AppEvent =
       };
     }
   | {
-      type: "import.failed";
+      type: "import:failed";
       payload: { error_kind: string; message: string };
     }
   // ---------------- prompt groups ----------------
-  | { type: "prompt_group.created"; payload: { id: string } }
-  | { type: "prompt_group.updated"; payload: { id: string } }
-  | { type: "prompt_group.deleted"; payload: { id: string } }
-  | { type: "prompt_group.members_changed"; payload: { group_id: string } }
+  | { type: "prompt_group:created"; payload: { id: string } }
+  | { type: "prompt_group:updated"; payload: { id: string } }
+  | { type: "prompt_group:deleted"; payload: { id: string } }
+  | { type: "prompt_group:members_changed"; payload: { group_id: string } }
   // ---------------- generic ----------------
-  | { type: "app.refresh-required"; payload: Record<string, never> };
+  | { type: "app:refresh-required"; payload: Record<string, never> };
 
 /** All event names — narrowed via `AppEvent['type']`. */
 export type AppEventType = AppEvent["type"];

@@ -90,10 +90,10 @@ describe("EventsProvider — Tauri events → react-query invalidation", () => {
     // `on()` registers asynchronously — wait for the listener to land
     // before dispatching, or the dispatch is a no-op.
     await waitFor(() => {
-      expect(listeners.get("board.created")?.size ?? 0).toBeGreaterThan(0);
+      expect(listeners.get("board:created")?.size ?? 0).toBeGreaterThan(0);
     });
     act(() => {
-      dispatch("board.created", { id: "b1" });
+      dispatch("board:created", { id: "b1" });
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: boardsKeys.all,
@@ -104,10 +104,10 @@ describe("EventsProvider — Tauri events → react-query invalidation", () => {
   it("removes the detail cache on board.deleted", async () => {
     const { invalidateSpy, removeSpy, unmount } = renderWithProvider();
     await waitFor(() => {
-      expect(listeners.get("board.deleted")?.size ?? 0).toBeGreaterThan(0);
+      expect(listeners.get("board:deleted")?.size ?? 0).toBeGreaterThan(0);
     });
     act(() => {
-      dispatch("board.deleted", { id: "b1" });
+      dispatch("board:deleted", { id: "b1" });
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: boardsKeys.all,
@@ -121,10 +121,10 @@ describe("EventsProvider — Tauri events → react-query invalidation", () => {
   it("invalidates columns.list(boardId) on column.created", async () => {
     const { invalidateSpy, unmount } = renderWithProvider();
     await waitFor(() => {
-      expect(listeners.get("column.created")?.size ?? 0).toBeGreaterThan(0);
+      expect(listeners.get("column:created")?.size ?? 0).toBeGreaterThan(0);
     });
     act(() => {
-      dispatch("column.created", { id: "c1", board_id: "bd1" });
+      dispatch("column:created", { id: "c1", board_id: "bd1" });
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: columnsKeys.list("bd1"),
@@ -135,10 +135,10 @@ describe("EventsProvider — Tauri events → react-query invalidation", () => {
   it("invalidates both byColumn caches on task.moved", async () => {
     const { invalidateSpy, unmount } = renderWithProvider();
     await waitFor(() => {
-      expect(listeners.get("task.moved")?.size ?? 0).toBeGreaterThan(0);
+      expect(listeners.get("task:moved")?.size ?? 0).toBeGreaterThan(0);
     });
     act(() => {
-      dispatch("task.moved", {
+      dispatch("task:moved", {
         id: "t1",
         from_column_id: "c1",
         to_column_id: "c2",
@@ -164,10 +164,10 @@ describe("EventsProvider — Tauri events → react-query invalidation", () => {
   it("does a global invalidate on import.completed", async () => {
     const { invalidateSpy, unmount } = renderWithProvider();
     await waitFor(() => {
-      expect(listeners.get("import.completed")?.size ?? 0).toBeGreaterThan(0);
+      expect(listeners.get("import:completed")?.size ?? 0).toBeGreaterThan(0);
     });
     act(() => {
-      dispatch("import.completed", {
+      dispatch("import:completed", {
         duration_ms: 1234,
         rows_imported: { tasks: 1000 },
         commit_path: "/tmp/db.sqlite",
@@ -186,7 +186,7 @@ describe("EventsProvider — Tauri events → react-query invalidation", () => {
     const { unmount } = renderWithProvider();
     await waitFor(() => {
       // Wait until at least one listener resolved into the registry.
-      expect(listeners.get("board.created")?.size ?? 0).toBeGreaterThan(0);
+      expect(listeners.get("board:created")?.size ?? 0).toBeGreaterThan(0);
     });
     const before = unlistenCount.n;
     unmount();

@@ -51,6 +51,45 @@ type DryRunState =
   | { status: "ok"; report: ImportReport }
   | { status: "error"; message: string; partialReport?: ImportReport };
 
+/**
+ * Surface a useful error message regardless of what shape the Rust side
+ * threw at us. Tauri rejects with the deserialised AppError JSON object
+ * (see `bindings/AppError.ts`); a thrown string from a panic-catch comes
+ * through as a string; a real `Error` happens only on transport-level
+ * issues. Falling through to "Неизвестная ошибка" is the absolute last
+ * resort — it should be impossible in practice, but stays for safety.
+ */
+function formatPreviewError(raw: unknown): string {
+  if (raw instanceof Error) return raw.message;
+  if (typeof raw === "string") return raw;
+  if (raw && typeof raw === "object" && "kind" in raw) {
+    const e = raw as {
+      kind: string;
+      data?: Record<string, unknown> | undefined;
+    };
+    const data = e.data ?? {};
+    switch (e.kind) {
+      case "validation":
+        return `Ошибка валидации: ${String(data["field"] ?? "?")} — ${String(data["reason"] ?? "")}`;
+      case "transactionRolledBack":
+        return `Транзакция откатилась: ${String(data["reason"] ?? "")}`;
+      case "dbBusy":
+        return "База занята — попробуй ещё раз через секунду.";
+      case "lockTimeout":
+        return `Таймаут lock'а: ${String(data["resource"] ?? "?")}`;
+      case "internalPanic":
+        return `Внутренняя ошибка в ${String(data["handler"] ?? "?")}: ${String(data["message"] ?? "")}`;
+      case "notFound":
+        return `Не найдено: ${String(data["entity"] ?? "?")} (id: ${String(data["id"] ?? "?")})`;
+      case "conflict":
+        return `Конфликт ${String(data["entity"] ?? "?")}: ${String(data["reason"] ?? "")}`;
+      default:
+        return `Ошибка ${e.kind}: ${JSON.stringify(data)}`;
+    }
+  }
+  return `Неизвестная ошибка предпросмотра. Raw: ${JSON.stringify(raw)}`;
+}
+
 export function PreviewStage({
   sourcePath,
   onConfirm,
@@ -84,12 +123,7 @@ export function PreviewStage({
         setState({ status: "ok", report });
       } catch (raw) {
         if (cancelled) return;
-        const message =
-          raw instanceof Error
-            ? raw.message
-            : typeof raw === "string"
-              ? raw
-              : "Неизвестная ошибка предпросмотра.";
+        const message = formatPreviewError(raw);
         setState({ status: "error", message });
       }
     })();
