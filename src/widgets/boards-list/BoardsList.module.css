@@ -19,6 +19,12 @@
   gap: var(--space-12);
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
 .heading {
   margin: 0;
   font-size: var(--font-size-headline-lg);
@@ -32,6 +38,80 @@
   align-items: center;
   gap: var(--space-6);
 }
+
+/* ---------- Two-column layout (boards + optional prompt panel) ---------- */
+
+.layout {
+  display: flex;
+  gap: var(--space-16);
+  width: 100%;
+  min-width: 0;
+}
+
+.boardsArea {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.layoutWithPanel .boardsArea {
+  /* Board area shrinks to make room for the 280px prompt panel */
+  flex: 1 1 0;
+}
+
+/* Prompt side panel — fixed 280px width, scrollable */
+.promptPanel {
+  flex: 0 0 280px;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-canvas);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.panelHeading {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-default);
+}
+
+.panelHint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.panelList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.panelItem {
+  /* Reset list-item box */
+  display: block;
+}
+
+.panelEmpty,
+.panelError {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.panelError {
+  color: var(--color-status-danger);
+}
+
+/* ---------- Board grid ---------- */
 
 .grid {
   display: grid;

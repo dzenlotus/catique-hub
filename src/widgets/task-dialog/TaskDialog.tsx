@@ -16,6 +16,7 @@ import { useTask, useUpdateTaskMutation } from "@entities/task";
 import { Dialog, Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
+import { useToast } from "@app/providers/ToastProvider";
 
 import styles from "./TaskDialog.module.css";
 
@@ -69,6 +70,7 @@ function TaskDialogContent({
 }: TaskDialogContentProps): ReactElement {
   const query = useTask(taskId);
   const updateMutation = useUpdateTaskMutation();
+  const { pushToast } = useToast();
 
   // Local edit state — initialised from the loaded task.
   const [localTitle, setLocalTitle] = useState("");
@@ -208,9 +210,11 @@ function TaskDialogContent({
       mutationArgs,
       {
         onSuccess: () => {
+          pushToast("success", "Задача сохранена");
           onClose();
         },
         onError: (err) => {
+          pushToast("error", `Не удалось сохранить задачу: ${err.message}`);
           setSaveError(`Не удалось сохранить: ${err.message}`);
         },
       },

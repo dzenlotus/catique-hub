@@ -13,7 +13,11 @@
  * E4.x: adds `ActiveSpaceProvider` inside `EventsProvider` so it can
  * consume `useSpaces()` which depends on the query client.
  *
- * Provider order: QueryProvider > EventsProvider > ActiveSpaceProvider > children.
+ * E4.x (toast): adds `ToastProvider` inside `ActiveSpaceProvider` so
+ * all widgets can call `useToast()` and push ephemeral notifications.
+ *
+ * Provider order: QueryProvider > EventsProvider > ActiveSpaceProvider >
+ * ToastProvider > children.
  */
 
 import type { PropsWithChildren, ReactElement } from "react";
@@ -21,12 +25,15 @@ import type { PropsWithChildren, ReactElement } from "react";
 import { ActiveSpaceProvider } from "./ActiveSpaceProvider";
 import { EventsProvider } from "./EventsProvider";
 import { QueryProvider } from "./QueryProvider";
+import { ToastProvider } from "./ToastProvider";
 
 export function AppProviders({ children }: PropsWithChildren): ReactElement {
   return (
     <QueryProvider>
       <EventsProvider>
-        <ActiveSpaceProvider>{children}</ActiveSpaceProvider>
+        <ActiveSpaceProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </ActiveSpaceProvider>
       </EventsProvider>
     </QueryProvider>
   );

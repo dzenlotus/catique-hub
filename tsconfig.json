@@ -26,6 +26,7 @@
       "@shared/*": ["./src/shared/*"],
       "@entities/*": ["./src/entities/*"],
       "@widgets/*": ["./src/widgets/*"],
+      "@features/*": ["./src/features/*"],
       "@bindings/*": ["./bindings/*"],
       "@storybook-mocks/tauri-core": ["./.storybook/__mocks__/tauri-api-core.ts"]
     },

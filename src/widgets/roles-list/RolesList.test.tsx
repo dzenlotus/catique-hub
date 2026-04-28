@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Role } from "@entities/role";
+import { ToastProvider } from "@app/providers/ToastProvider";
 
 // Mock the Tauri invoke wrapper at the shared/api boundary — this is
 // the single place IPC traffic crosses, so all four states (loading,
@@ -31,7 +32,11 @@ function renderWithClient(ui: ReactElement): {
     },
   });
   const user = userEvent.setup();
-  render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  render(
+    <QueryClientProvider client={client}>
+      <ToastProvider>{ui}</ToastProvider>
+    </QueryClientProvider>,
+  );
   return { client, user };
 }
 

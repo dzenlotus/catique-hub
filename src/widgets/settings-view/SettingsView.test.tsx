@@ -3,6 +3,8 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
+import { ToastProvider } from "@app/providers/ToastProvider";
+
 // SettingsTokensView (rendered inside SettingsView) calls usePrompts(), which
 // issues IPC via @shared/api. Mock at that boundary so the test suite doesn't
 // require a live Tauri backend.
@@ -28,7 +30,9 @@ function setup(): void {
   });
   const ui: ReactElement = (
     <QueryClientProvider client={client}>
-      <SettingsView />
+      <ToastProvider>
+        <SettingsView />
+      </ToastProvider>
     </QueryClientProvider>
   );
   render(ui);

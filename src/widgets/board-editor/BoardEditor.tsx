@@ -11,6 +11,7 @@ import { useBoard, useUpdateBoardMutation } from "@entities/board";
 import { useSpaces } from "@entities/space";
 import { Dialog, Button, Input, Listbox, ListboxItem } from "@shared/ui";
 import { cn } from "@shared/lib";
+import { useToast } from "@app/providers/ToastProvider";
 
 import styles from "./BoardEditor.module.css";
 
@@ -65,6 +66,7 @@ function BoardEditorContent({
   const query = useBoard(boardId);
   const spacesQuery = useSpaces();
   const updateMutation = useUpdateBoardMutation();
+  const { pushToast } = useToast();
 
   // Local edit state — initialised from the loaded board.
   const [localName, setLocalName] = useState("");
@@ -220,9 +222,11 @@ function BoardEditorContent({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
+        pushToast("success", "Доска сохранена");
         onClose();
       },
       onError: (err) => {
+        pushToast("error", `Не удалось сохранить доску: ${err.message}`);
         setSaveError(`Не удалось сохранить: ${err.message}`);
       },
     });

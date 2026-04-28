@@ -12,6 +12,7 @@ import { usePrompts, useRecomputePromptTokenCountMutation } from "@entities/prom
 import type { Prompt } from "@entities/prompt";
 import { Button } from "@shared/ui";
 import { cn } from "@shared/lib";
+import { useToast } from "@app/providers/ToastProvider";
 
 import styles from "./SettingsTokensView.module.css";
 
@@ -88,6 +89,7 @@ function PromptRow({ prompt }: PromptRowProps): ReactElement {
 export function SettingsTokensView(): ReactElement {
   const query = usePrompts();
   const recount = useRecomputePromptTokenCountMutation();
+  const { pushToast } = useToast();
 
   const [bulk, setBulk] = useState<BulkState>({ kind: "idle" });
   const [bulkError, setBulkError] = useState<string | null>(null);
@@ -117,6 +119,7 @@ export function SettingsTokensView(): ReactElement {
     }
 
     setBulk({ kind: "idle" });
+    pushToast("info", `Пересчитано ${prompts.length} промптов`);
   };
 
   const isBulkRunning = bulk.kind === "running";

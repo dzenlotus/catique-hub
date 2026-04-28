@@ -10,6 +10,7 @@ import { useEffect, useState, type ReactElement } from "react";
 import { useRole, useUpdateRoleMutation } from "@entities/role";
 import { Dialog, Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
+import { useToast } from "@app/providers/ToastProvider";
 
 import styles from "./RoleEditor.module.css";
 
@@ -62,6 +63,7 @@ function RoleEditorContent({
 }: RoleEditorContentProps): ReactElement {
   const query = useRole(roleId);
   const updateMutation = useUpdateRoleMutation();
+  const { pushToast } = useToast();
 
   // Local edit state — initialised from the loaded role.
   const [localName, setLocalName] = useState("");
@@ -209,9 +211,11 @@ function RoleEditorContent({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
+        pushToast("success", "Роль сохранена");
         onClose();
       },
       onError: (err) => {
+        pushToast("error", `Не удалось сохранить роль: ${err.message}`);
         setSaveError(`Не удалось сохранить: ${err.message}`);
       },
     });

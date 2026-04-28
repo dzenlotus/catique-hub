@@ -13,6 +13,7 @@ import { useEffect, useState, type ReactElement } from "react";
 import { useTag, useUpdateTagMutation } from "@entities/tag";
 import { Dialog, Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
+import { useToast } from "@app/providers/ToastProvider";
 
 import styles from "./TagEditor.module.css";
 
@@ -65,6 +66,7 @@ function TagEditorContent({
 }: TagEditorContentProps): ReactElement {
   const query = useTag(tagId);
   const updateMutation = useUpdateTagMutation();
+  const { pushToast } = useToast();
 
   // Local edit state — initialised from the loaded tag.
   const [localName, setLocalName] = useState("");
@@ -205,9 +207,11 @@ function TagEditorContent({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
+        pushToast("success", "Тег сохранён");
         onClose();
       },
       onError: (err) => {
+        pushToast("error", `Не удалось сохранить тег: ${err.message}`);
         setSaveError(`Не удалось сохранить: ${err.message}`);
       },
     });

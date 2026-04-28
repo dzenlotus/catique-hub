@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
+import { ToastProvider } from "@app/providers/ToastProvider";
+
 vi.mock("@shared/api", () => ({
   invoke: vi.fn(),
 }));
@@ -64,7 +66,11 @@ function renderWithClient(
     },
   });
   const user = userEvent.setup();
-  render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  render(
+    <QueryClientProvider client={client}>
+      <ToastProvider>{ui}</ToastProvider>
+    </QueryClientProvider>,
+  );
   return { user };
 }
 

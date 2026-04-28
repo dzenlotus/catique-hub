@@ -11,6 +11,7 @@ import { RefreshCw } from "lucide-react";
 import { usePrompt, useUpdatePromptMutation, useRecomputePromptTokenCountMutation } from "@entities/prompt";
 import { Dialog, Button, Input, Tooltip, TooltipTrigger } from "@shared/ui";
 import { cn } from "@shared/lib";
+import { useToast } from "@app/providers/ToastProvider";
 
 import styles from "./PromptEditor.module.css";
 
@@ -65,6 +66,7 @@ function PromptEditorContent({
   const query = usePrompt(promptId);
   const updateMutation = useUpdatePromptMutation();
   const recountMutation = useRecomputePromptTokenCountMutation();
+  const { pushToast } = useToast();
 
   // Local edit state — initialised from the loaded prompt.
   const [localName, setLocalName] = useState("");
@@ -223,9 +225,11 @@ function PromptEditorContent({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
+        pushToast("success", "Промпт сохранён");
         onClose();
       },
       onError: (err) => {
+        pushToast("error", `Не удалось сохранить промпт: ${err.message}`);
         setSaveError(`Не удалось сохранить: ${err.message}`);
       },
     });

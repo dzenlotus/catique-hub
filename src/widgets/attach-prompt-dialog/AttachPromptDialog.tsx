@@ -16,6 +16,7 @@
 import { useState, type ReactElement } from "react";
 import type { Key } from "react-aria-components";
 
+import { useToast } from "@app/providers/ToastProvider";
 import {
   useBoards,
   useAddBoardPromptMutation,
@@ -102,6 +103,7 @@ function AttachPromptDialogContent({
   onClose,
   onAttached,
 }: AttachPromptDialogContentProps): ReactElement {
+  const { pushToast } = useToast();
   const [kind, setKind] = useState<TargetKind>("board");
 
   // Cascade board → column / task
@@ -195,10 +197,12 @@ function AttachPromptDialogContent({
 
     const opts = {
       onSuccess: () => {
+        pushToast("success", "Промпт прикреплён");
         onAttached?.();
         onClose();
       },
       onError: (err: Error) => {
+        pushToast("error", `Не удалось прикрепить промпт: ${err.message}`);
         setSaveError(`Не удалось прикрепить: ${err.message}`);
       },
     };

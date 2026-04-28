@@ -1,0 +1,24 @@
+/*
+ * DraggablePromptRow — layout wrapper for draggable prompt items.
+ *
+ * Keeps its intrinsic layout neutral (full width, no added decoration)
+ * so the child PromptCard controls its own appearance. The only visual
+ * owned here is the cursor and the disabled-state pointer guard.
+ */
+
+.row {
+  width: 100%;
+  cursor: grab;
+  touch-action: none; /* required by @dnd-kit/core pointer sensor */
+  user-select: none;
+}
+
+.row:active {
+  cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    transition: none;
+  }
+}

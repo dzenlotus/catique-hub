@@ -16,6 +16,7 @@ import { SettingsView } from "@widgets/settings-view";
 import { SpacesList } from "@widgets/spaces-list";
 import { Sidebar } from "@widgets/sidebar";
 import type { NavView } from "@widgets/sidebar";
+import { Toaster } from "@widgets/toaster";
 import { Button } from "@shared/ui";
 
 import { routes, pathForView, viewForPath, boardPath } from "./routes";
@@ -123,6 +124,9 @@ export default function App(): ReactElement {
           </Switch>
         </FirstLaunchGate>
       </main>
+
+      {/* Toast stack — outside FirstLaunchGate so it shows during first-launch flow */}
+      <Toaster />
     </div>
   );
 }

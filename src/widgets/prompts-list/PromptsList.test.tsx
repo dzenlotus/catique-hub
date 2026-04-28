@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Prompt } from "@entities/prompt";
+import { ToastProvider } from "@app/providers/ToastProvider";
 
 // Mock the Tauri invoke wrapper at the shared/api boundary so all four
 // async-UI states can be driven without a real IPC channel.
@@ -25,7 +26,11 @@ function renderWithClient(ui: ReactElement): {
       mutations: { retry: false },
     },
   });
-  render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  render(
+    <QueryClientProvider client={client}>
+      <ToastProvider>{ui}</ToastProvider>
+    </QueryClientProvider>,
+  );
   return { client };
 }
 
