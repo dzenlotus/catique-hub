@@ -28,6 +28,7 @@ members = [
     "crates/application",
     "crates/infrastructure",
     "crates/api",
+    "crates/sidecar",
     "src-tauri",
 ]
 

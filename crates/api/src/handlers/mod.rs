@@ -18,6 +18,7 @@ pub mod roles;
 pub mod search;
 pub mod secrets;
 pub mod settings;
+pub mod sidecar;
 pub mod skills;
 pub mod spaces;
 pub mod tags;

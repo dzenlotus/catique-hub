@@ -1,0 +1,10 @@
+{
+  "name": "catique-sidecar",
+  "private": true,
+  "version": "0.0.1-spike",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo 'no build step in spike'"
+  }
+}

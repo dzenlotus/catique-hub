@@ -20,10 +20,15 @@
 //!    cell empty makes [`crate::events::emit`] a silent no-op, which
 //!    is exactly the behaviour we want for the existing unit suites.
 //!
-//! Future waves add: secret-store handle, MCP-sidecar client, FTS
-//! reindex channel.
+//! ADR-0002 spike (ctq-56): adds `sidecar: SidecarManager` and
+//! `sidecar_dir: PathBuf`. These are set during shell startup and read
+//! by the three sidecar IPC handlers. The real E5 implementation will
+//! likely move this into a dedicated `SidecarState` wrapper.
+
+use std::path::PathBuf;
 
 use catique_infrastructure::db::pool::Pool;
+use catique_sidecar::SidecarManager;
 use once_cell::sync::OnceCell;
 use tauri::AppHandle;
 
@@ -34,12 +39,20 @@ use tauri::AppHandle;
 /// `app_handle` is `OnceCell<AppHandle>`: empty in tests (events become
 /// no-ops), populated by the Tauri shell's `setup` callback in
 /// production.
+///
+/// `sidecar` + `sidecar_dir` are the ADR-0002 spike additions (ctq-56).
+/// Real E5 work will refine these into a proper `SidecarState` struct.
 #[derive(Clone)]
 pub struct AppState {
     pub pool: Pool,
     /// Tauri AppHandle slot. Set exactly once during shell startup;
     /// read by [`crate::events::emit`] to publish realtime events.
     pub app_handle: OnceCell<AppHandle>,
+    /// ADR-0002 spike: sidecar lifecycle manager.
+    pub sidecar: SidecarManager,
+    /// ADR-0002 spike: resolved path to the sidecar directory.
+    /// Used by `sidecar_restart` to re-spawn after a crash.
+    pub sidecar_dir: PathBuf,
 }
 
 impl AppState {
@@ -49,11 +62,16 @@ impl AppState {
     ///
     /// `app_handle` is left empty — the Tauri shell calls
     /// [`AppState::set_app_handle`] from its `setup` callback.
+    ///
+    /// `sidecar` starts in the `Stopped` state; the shell calls
+    /// [`SidecarManager::start`] from its `setup` callback.
     #[must_use]
-    pub fn new(pool: Pool) -> Self {
+    pub fn new(pool: Pool, sidecar_dir: PathBuf) -> Self {
         Self {
             pool,
             app_handle: OnceCell::new(),
+            sidecar: SidecarManager::new(),
+            sidecar_dir,
         }
     }
 

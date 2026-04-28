@@ -23,4 +23,5 @@ pub mod handlers;
 pub mod state;
 
 pub use catique_application::AppError;
+pub use catique_sidecar::SidecarStatus;
 pub use state::AppState;

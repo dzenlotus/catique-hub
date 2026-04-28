@@ -16,6 +16,8 @@ path = "src/lib.rs"
 catique-domain = { path = "../domain" }
 catique-application = { path = "../application" }
 catique-infrastructure = { path = "../infrastructure" }
+# ADR-0002 spike (ctq-56): sidecar lifecycle manager exposed via IPC.
+catique-sidecar = { path = "../sidecar" }
 
 serde.workspace = true
 serde_json.workspace = true

@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn emit_without_app_handle_is_silent_noop() {
-        let state = AppState::new(memory_pool_for_tests());
+        let state = AppState::new(memory_pool_for_tests(), std::path::PathBuf::new());
         // No panic, no return value to check — the contract is "does
         // not blow up". A debug-build assertion would also catch a
         // regression that started panicking on the empty cell.

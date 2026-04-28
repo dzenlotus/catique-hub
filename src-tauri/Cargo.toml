@@ -23,6 +23,10 @@ tauri-plugin-dialog.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
+# ADR-0002 spike (ctq-56): tokio needed for tokio::spawn in setup hook and
+# tokio::runtime::Builder in the ExitRequested handler.
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }
+
 # Workspace crates — Wave-E1.2 split.
 catique-domain = { path = "../crates/domain" }
 catique-application = { path = "../crates/application" }
