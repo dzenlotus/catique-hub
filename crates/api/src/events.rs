@@ -173,6 +173,22 @@ pub const IMPORT_FAILED: &str = "import:failed";
 /// path warm against the day a Wave-A migration / DB swap fires it.
 pub const APP_REFRESH_REQUIRED: &str = "app:refresh-required";
 
+// -----------------------------------------------------------------
+// Connected-client lifecycle events (ctq-67).
+// -----------------------------------------------------------------
+
+/// `client:discovered` — emitted after a full rescan; payload is the
+/// complete updated list `{ clients: ConnectedClient[] }`.
+pub const CLIENT_DISCOVERED: &str = "client:discovered";
+
+/// `client:updated` — emitted when a single client's `enabled` flag is
+/// toggled; payload `{ id }`.
+pub const CLIENT_UPDATED: &str = "client:updated";
+
+/// `client:removed` — reserved for future use when an adapter is
+/// explicitly removed from the registry. Not currently emitted.
+pub const CLIENT_REMOVED: &str = "client:removed";
+
 /// Emit a typed Tauri event to every webview attached to the app.
 ///
 /// Behaviour:
@@ -274,6 +290,9 @@ mod tests {
             PROMPT_GROUP_UPDATED,
             PROMPT_GROUP_DELETED,
             PROMPT_GROUP_MEMBERS_CHANGED,
+            CLIENT_DISCOVERED,
+            CLIENT_UPDATED,
+            CLIENT_REMOVED,
         ] {
             assert!(
                 name.contains(':') || name.contains('-'),

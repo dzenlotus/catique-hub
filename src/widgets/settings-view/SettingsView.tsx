@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { SettingsTokensView } from "@widgets/settings-tokens-view";
+import { ConnectedAgentsSection } from "@widgets/connected-agents-section";
 import { invoke } from "@shared/api";
 import pkgJson from "../../../package.json";
 import styles from "./SettingsView.module.css";
@@ -203,6 +204,20 @@ export function SettingsView(): ReactElement {
           <div>
             <span className={styles.localPill}>Local-first</span>
           </div>
+        </div>
+      </section>
+
+      {/* ── Connected agents (ctq-67) ───────────────────────────────── */}
+      <section
+        className={styles.card}
+        aria-labelledby="settings-connected-agents"
+        data-testid="settings-connected-agents-section"
+      >
+        <h3 id="settings-connected-agents" className={styles.cardHeading}>
+          Connected agents
+        </h3>
+        <div className={styles.cardBody}>
+          <ConnectedAgentsSection />
         </div>
       </section>
 

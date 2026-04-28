@@ -14,6 +14,7 @@
 
 pub mod attachments;
 pub mod boards;
+pub mod clients;
 pub mod columns;
 pub mod error;
 mod error_map;

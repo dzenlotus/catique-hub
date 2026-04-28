@@ -176,6 +176,10 @@ pub fn run() {
             handlers::sidecar::sidecar_status,
             handlers::sidecar::sidecar_ping,
             handlers::sidecar::sidecar_restart,
+            // ---------------- connected clients (ctq-67) ----------------
+            handlers::clients::discover_clients,
+            handlers::clients::list_connected_clients,
+            handlers::clients::set_client_enabled,
         ])
         .build(tauri::generate_context!())
     {

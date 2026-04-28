@@ -1,0 +1,29 @@
+[package]
+name = "catique-clients"
+description = "Agentic client adapter layer for Catique HUB — auto-discovery of installed clients (ctq-67)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "catique_clients"
+path = "src/lib.rs"
+
+[dependencies]
+catique-domain = { path = "../domain" }
+
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+dirs.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+module_name_repetitions = "allow"
+doc_markdown = "allow"

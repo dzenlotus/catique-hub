@@ -155,6 +155,13 @@ export type AppEvent =
   | { type: "prompt_group:updated"; payload: { id: string } }
   | { type: "prompt_group:deleted"; payload: { id: string } }
   | { type: "prompt_group:members_changed"; payload: { group_id: string } }
+  // ---------------- connected clients (ctq-67) ----------------
+  | {
+      type: "client:discovered";
+      payload: { clients: unknown[] };
+    }
+  | { type: "client:updated"; payload: { id: string } }
+  | { type: "client:removed"; payload: { id: string } }
   // ---------------- generic ----------------
   | { type: "app:refresh-required"; payload: Record<string, never> };
 

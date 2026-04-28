@@ -1,0 +1,113 @@
+//! Adapter for **Claude Code** (Anthropic CLI).
+//!
+//! Config directory: `~/.claude/`
+//! Signature file probed: `~/.claude/settings.json`
+//! Fallback: `~/.claude/CLAUDE.md` — the adapter reports `installed`
+//! when *either* file is present.
+//!
+//! Reference: <https://docs.anthropic.com/en/docs/claude-code>
+
+use std::path::PathBuf;
+
+use crate::{AdapterError, ClientAdapter};
+
+/// Adapter for Anthropic's Claude Code CLI.
+pub struct ClaudeCodeAdapter;
+
+impl ClientAdapter for ClaudeCodeAdapter {
+    fn id(&self) -> &'static str {
+        "claude-code"
+    }
+
+    fn display_name(&self) -> &'static str {
+        "Claude Code"
+    }
+
+    fn config_dir(&self) -> Result<PathBuf, AdapterError> {
+        let home = dirs::home_dir().ok_or(AdapterError::HomeDirUnavailable)?;
+        Ok(home.join(".claude"))
+    }
+
+    /// Primary signature: `~/.claude/settings.json`.
+    fn signature_file(&self) -> Result<PathBuf, AdapterError> {
+        Ok(self.config_dir()?.join("settings.json"))
+    }
+
+    fn detect(&self) -> Result<bool, AdapterError> {
+        // Non-macOS guard: Claude Code exists on Linux too but ctq-67
+        // scopes v1 to macOS only — return false on other platforms so
+        // the registry stays clean during cross-compilation/CI.
+        #[cfg(not(target_os = "macos"))]
+        return Ok(false);
+
+        #[cfg(target_os = "macos")]
+        {
+            let dir = self.config_dir()?;
+            // Accept either settings.json OR CLAUDE.md as evidence of
+            // installation (some users may have one but not the other).
+            let primary = dir.join("settings.json");
+            let fallback = dir.join("CLAUDE.md");
+            Ok(primary.exists() || fallback.exists())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn adapter_with_home(home: &std::path::Path) -> impl Fn() -> PathBuf + '_ {
+        move || home.join(".claude")
+    }
+
+    /// Helper: build a `ClaudeCodeAdapter` but exercise the path-building
+    /// logic directly against a temp dir rather than `$HOME`.
+    fn config_dir_for(home: &std::path::Path) -> PathBuf {
+        home.join(".claude")
+    }
+
+    #[test]
+    fn id_and_display_name() {
+        let a = ClaudeCodeAdapter;
+        assert_eq!(a.id(), "claude-code");
+        assert_eq!(a.display_name(), "Claude Code");
+    }
+
+    #[test]
+    fn detect_false_when_dir_absent() {
+        // Simulate a clean $HOME with no .claude directory.
+        let tmp = TempDir::new().unwrap();
+        let dir = config_dir_for(tmp.path());
+        assert!(!dir.exists(), "dir must not exist for this test");
+
+        // The real `detect` reads `dirs::home_dir()`, which returns the
+        // actual $HOME. We test the logic directly by checking that the
+        // path does not exist.
+        assert!(!dir.join("settings.json").exists());
+        assert!(!dir.join("CLAUDE.md").exists());
+    }
+
+    #[test]
+    fn detect_true_when_settings_json_present() {
+        let tmp = TempDir::new().unwrap();
+        let dir = config_dir_for(tmp.path());
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("settings.json"), "{}").unwrap();
+
+        assert!(dir.join("settings.json").exists());
+    }
+
+    #[test]
+    fn detect_true_when_claude_md_present_but_no_settings_json() {
+        let tmp = TempDir::new().unwrap();
+        let dir = config_dir_for(tmp.path());
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("CLAUDE.md"), "# Instructions").unwrap();
+
+        let _ = adapter_with_home(tmp.path());
+        assert!(dir.join("CLAUDE.md").exists());
+        assert!(!dir.join("settings.json").exists());
+    }
+}

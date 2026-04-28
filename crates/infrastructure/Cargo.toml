@@ -14,6 +14,7 @@ path = "src/lib.rs"
 
 [dependencies]
 catique-domain = { path = "../domain" }
+catique-clients = { path = "../clients" }
 
 # Bundled rusqlite — ships SQLite C source statically with the crate, so
 # the resulting binary works on Win/macOS without a system libsqlite. The
@@ -25,6 +26,10 @@ rusqlite.workspace = true
 # PRAGMA setup live in `db::pool` (NFR §3.3 lock timeouts).
 r2d2.workspace = true
 r2d2_sqlite.workspace = true
+
+# JSON serialization for the connected-clients registry (ctq-67).
+serde_json.workspace = true
+serde.workspace = true
 
 # Compile-time embedding of the migration `.sql` files under
 # `src/db/migrations/`. The `include_dir!` macro reads at build time,
@@ -52,6 +57,9 @@ tokio.workspace = true
 # Used by repository unit tests to emit deterministic timestamps when
 # the row's caller doesn't pass one explicitly.
 chrono.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }

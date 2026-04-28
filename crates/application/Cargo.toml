@@ -15,6 +15,7 @@ path = "src/lib.rs"
 [dependencies]
 catique-domain = { path = "../domain" }
 catique-infrastructure = { path = "../infrastructure" }
+catique-clients = { path = "../clients" }
 
 # AppError lives here (E2: moved from `catique-api`) — needs serde + ts-rs
 # for the same reasons documented in `crates/domain/Cargo.toml`.
@@ -34,6 +35,9 @@ dirs.workspace = true
 
 # MCP tools use case: validate schema_json as parseable JSON at create time.
 serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }

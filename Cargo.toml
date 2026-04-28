@@ -26,6 +26,7 @@ resolver = "2"
 members = [
     "crates/domain",
     "crates/application",
+    "crates/clients",
     "crates/infrastructure",
     "crates/api",
     "crates/sidecar",
@@ -70,6 +71,9 @@ dirs = "5"
 tauri = { version = "2.10", default-features = false }
 tauri-build = { version = "2.5", features = [] }
 tauri-plugin-dialog = "2"
+
+# Test helpers — not pulled into production binaries.
+tempfile = "3"
 
 [profile.release]
 panic = "abort"

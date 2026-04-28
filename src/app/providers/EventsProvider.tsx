@@ -19,6 +19,7 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import { boardsKeys } from "@entities/board";
 import { columnsKeys } from "@entities/column";
 import { tasksKeys } from "@entities/task";
+import { connectedClientsKeys } from "@entities/connected-client";
 import { on } from "@shared/api";
 
 /** Top-level provider — wire listeners and tear them down on unmount. */
@@ -303,6 +304,29 @@ export function EventsProvider({
     sub(
       on("import:completed", () => {
         void qc.invalidateQueries();
+      }),
+    );
+
+    // ---------------- connected clients (ctq-67) ----------------
+    sub(
+      on("client:discovered", () => {
+        void qc.invalidateQueries({
+          queryKey: connectedClientsKeys.list(),
+        });
+      }),
+    );
+    sub(
+      on("client:updated", () => {
+        void qc.invalidateQueries({
+          queryKey: connectedClientsKeys.list(),
+        });
+      }),
+    );
+    sub(
+      on("client:removed", () => {
+        void qc.invalidateQueries({
+          queryKey: connectedClientsKeys.list(),
+        });
       }),
     );
 

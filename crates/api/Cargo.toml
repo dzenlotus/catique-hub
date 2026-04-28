@@ -18,6 +18,8 @@ catique-application = { path = "../application" }
 catique-infrastructure = { path = "../infrastructure" }
 # ADR-0002 spike (ctq-56): sidecar lifecycle manager exposed via IPC.
 catique-sidecar = { path = "../sidecar" }
+# ctq-67: connected-clients adapter layer (needed for handler compilation).
+catique-clients = { path = "../clients" }
 
 serde.workspace = true
 serde_json.workspace = true

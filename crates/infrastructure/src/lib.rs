@@ -7,6 +7,7 @@
 
 // Lints configured via [lints.clippy] in Cargo.toml.
 
+pub mod clients;
 pub mod db;
 pub mod fs;
 pub mod import;

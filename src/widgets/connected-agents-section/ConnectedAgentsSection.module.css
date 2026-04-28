@@ -1,0 +1,49 @@
+/*
+ * ConnectedAgentsSection — settings section for discovered clients.
+ * Token-based; no hard-coded colour values.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+/* ── Header row ────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+}
+
+/* ── Client grid ───────────────────────────────────────────── */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-12);
+}
+
+/* ── Status / empty / error messages ──────────────────────── */
+
+.message {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.errorMessage {
+  color: var(--color-status-danger, #dc2626);
+}
