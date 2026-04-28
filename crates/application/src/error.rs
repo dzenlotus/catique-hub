@@ -8,7 +8,18 @@
 //! `AppError` derives `Serialize` so Tauri can flatten it into the
 //! `invoke` Promise's reject value. It also derives `TS` so the UI gets
 //! a typed union — see `bindings/AppError.ts` after `cargo test
-//! -p catique-api`.
+//! -p catique-application`.
+//!
+//! ## Why does this live in `catique-application`, not `catique-api`?
+//!
+//! Wave-E1 (Olga) put it under `crates/api/src/error.rs` because at
+//! that time api was the only crate that needed it. E2 introduces a
+//! `BoardsUseCase` whose methods return `Result<_, AppError>` so the api
+//! handler can `?`-propagate without converting. To keep the dependency
+//! arrow strictly application → infrastructure → domain (and api on top
+//! of all three), the type now lives in the use-case layer; the api
+//! crate re-exports it for its `pub use` ergonomics.
+//! No public surface change for downstream callers.
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

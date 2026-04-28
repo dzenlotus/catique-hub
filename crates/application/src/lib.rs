@@ -1,19 +1,26 @@
 //! Catique HUB — application (use case) layer.
 //!
-//! Wave-E1 stub: module skeleton only. Each module file is empty bar a
-//! marker comment; E2 populates the use cases (e.g. `boards::list_boards`,
-//! `tasks::move_task`). Use cases consume `catique-domain` types and
-//! depend on infrastructure traits via dependency injection (no direct
-//! infra imports here — `catique-application` must remain pure).
+//! Use cases consume `catique-domain` types and call into
+//! `catique-infrastructure` repositories via a connection pool. The
+//! single typed error returned to the IPC boundary is [`AppError`] —
+//! moved here from `catique-api` in E2 (see `error.rs` module doc for
+//! the rationale).
+//!
+//! Wave-E2 (Olga, 2026-04-28): the `boards` module is fully implemented
+//! as the first vertical slice. Other domain modules are still empty
+//! stubs; they fill in over E2.x as their slice lands.
 
 // Lints configured via [lints.clippy] in Cargo.toml.
 
 pub mod attachments;
 pub mod boards;
 pub mod columns;
+pub mod error;
 pub mod prompts;
 pub mod reports;
 pub mod roles;
 pub mod settings;
 pub mod tags;
 pub mod tasks;
+
+pub use error::AppError;

@@ -15,9 +15,14 @@ path = "src/lib.rs"
 [dependencies]
 catique-domain = { path = "../domain" }
 catique-application = { path = "../application" }
+catique-infrastructure = { path = "../infrastructure" }
 
 serde.workspace = true
 serde_json.workspace = true
+# ts-rs no longer derived directly here — `AppError` moved to
+# `catique-application` in E2 — but kept as a workspace dep so future
+# IPC-only types (e.g. `BoardCreateInput` if we ever break it out from
+# positional args) can `#[derive(TS)]` without a Cargo.toml round-trip.
 ts-rs.workspace = true
 thiserror.workspace = true
 

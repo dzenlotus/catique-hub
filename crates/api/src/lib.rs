@@ -5,17 +5,21 @@
 //! domain's commands; the only "flat" artefact is the registration list
 //! that `src-tauri/src/lib.rs` passes to `tauri::generate_handler!`.
 //!
-//! Wave-E1 stub: each handler module exports `pub fn register() {}`
-//! plus, for `settings`, a single `ping` command used to smoke-test the
-//! IPC wiring end-to-end before E2 fleshes out real handlers.
+//! Wave-E2 (Olga, 2026-04-28): the `boards` module is fully wired —
+//! see `handlers::boards::{list_boards, create_board, get_board}`.
+//! Other handler modules remain Wave-E1 stubs.
 //!
-//! `error::AppError` is the single typed error enum returned from every
-//! command. Variants enumerated per ADR-0001 §Условия выбора-3 + NFR
-//! §3-§4.
+//! [`AppError`] is the single typed error enum returned from every
+//! command. It now lives in `catique-application` (moved in E2 to break
+//! the would-be cycle when use cases started returning it themselves).
+//! Re-exported here so existing callers (`catique_api::AppError`) keep
+//! working — and so ts-rs's `#[ts(export)]` test fires when callers run
+//! `cargo test -p catique-application`.
 
 // Lints configured via [lints.clippy] in Cargo.toml.
 
-pub mod error;
 pub mod handlers;
+pub mod state;
 
-pub use error::AppError;
+pub use catique_application::AppError;
+pub use state::AppState;

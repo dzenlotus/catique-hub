@@ -34,3 +34,14 @@ pub fn app_data_dir() -> Result<PathBuf, &'static str> {
         .ok_or("platform data-local dir is unavailable; check $HOME / %LOCALAPPDATA%")?;
     Ok(base.join("catique"))
 }
+
+/// Full path to the primary SQLite store. Equivalent to
+/// `app_data_dir().join("db.sqlite")` but exposed as its own helper so
+/// the use-case + shell layers don't have to re-encode the filename.
+///
+/// # Errors
+///
+/// Propagates [`app_data_dir`]'s error.
+pub fn db_path() -> Result<PathBuf, &'static str> {
+    Ok(app_data_dir()?.join("db.sqlite"))
+}

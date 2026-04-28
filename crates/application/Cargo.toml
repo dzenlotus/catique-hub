@@ -14,6 +14,18 @@ path = "src/lib.rs"
 
 [dependencies]
 catique-domain = { path = "../domain" }
+catique-infrastructure = { path = "../infrastructure" }
+
+# AppError lives here (E2: moved from `catique-api`) — needs serde + ts-rs
+# for the same reasons documented in `crates/domain/Cargo.toml`.
+serde.workspace = true
+ts-rs.workspace = true
+thiserror.workspace = true
+
+# Rusqlite is brought in for the typed `Error` / `ErrorCode` patterns the
+# DbError → AppError mapper inspects, and for the seed-helper used by
+# the use-case unit tests.
+rusqlite.workspace = true
 
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }

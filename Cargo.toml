@@ -46,6 +46,18 @@ serde_json = "=1.0.140"
 ts-rs = { version = "=8.1.0", features = ["serde-compat", "chrono-impl"] }
 rusqlite = { version = "=0.32.1", features = ["bundled"] }
 
+# E2 (Olga): SQLite connection pool and migration runner machinery.
+# All exact-pinned because they touch the storage layer (NFR §5.3).
+# r2d2_sqlite ^0.25 is the version family that requires rusqlite 0.32
+# (0.24 caps at rusqlite 0.31, which would conflict with our pin above —
+# brief asked for "0.24, verify exact versions"; the version-bump to 0.25
+# is a forced consequence of the rusqlite pin).
+r2d2 = "=0.8.10"
+r2d2_sqlite = "=0.25.0"
+include_dir = "=0.7.4"
+nanoid = "=0.4.0"
+sha2 = "=0.10.8"
+
 # Caret-allowed: stable, well-maintained, no IPC contract impact.
 chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
 thiserror = "1"

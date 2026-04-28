@@ -25,6 +25,8 @@ serde_json.workspace = true
 # Workspace crates — Wave-E1.2 split.
 catique-domain = { path = "../crates/domain" }
 catique-application = { path = "../crates/application" }
+# E2 (Olga): shell now opens the SQLite pool + runs migrations on
+# startup, so it depends on infrastructure directly.
 catique-infrastructure = { path = "../crates/infrastructure" }
 catique-api = { path = "../crates/api" }
 
