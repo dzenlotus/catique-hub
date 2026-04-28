@@ -8,7 +8,7 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
 
 import {
   useColumns,
@@ -18,6 +18,7 @@ import {
   useUpdateColumnMutation,
   type Column,
 } from "@entities/column";
+import { useBoard } from "@entities/board";
 import {
   useTasksByBoard,
   useCreateTaskMutation,
@@ -76,8 +77,16 @@ export function KanbanBoard({
   onTaskSelect,
 }: KanbanBoardProps): ReactElement {
   const [, setLocation] = useLocation();
+  const boardQuery = useBoard(boardId);
   const columnsQuery = useColumns(boardId);
   const tasksQuery = useTasksByBoard(boardId);
+
+  const boardName =
+    boardQuery.status === "success"
+      ? boardQuery.data.name
+      : boardQuery.status === "pending"
+        ? "…"
+        : "Board";
 
   const createColumn = useCreateColumnMutation();
   const updateColumn = useUpdateColumnMutation();
@@ -383,24 +392,57 @@ export function KanbanBoard({
   return (
     <section className={styles.root} data-testid="kanban-board">
       <header className={styles.boardHeader}>
-        <h2 className={styles.boardHeading}>Канбан</h2>
-        <Button
-          variant="ghost"
-          size="md"
-          onPress={() => setIsPanelOpen((v) => !v)}
-          aria-expanded={isPanelOpen}
-          aria-controls="kanban-prompt-panel"
-          data-testid="kanban-board-prompts-toggle"
-        >
-          <span className={styles.btnLabel}>
-            {isPanelOpen ? (
-              <ChevronRight size={14} aria-hidden="true" />
-            ) : (
-              <ChevronLeft size={14} aria-hidden="true" />
-            )}
-            Промпты
-          </span>
-        </Button>
+        {/* Left: board name + description */}
+        <div className={styles.boardHeadingGroup}>
+          <h2 className={styles.boardHeading}>{boardName}</h2>
+          {/* Static description — Board entity v1 has no description field yet;
+              placeholder shown as per DS v1 mockup. TODO: wire to DB in v2. */}
+          <p className={styles.boardDescription} aria-hidden="true">
+            Orchestrating AI agents to build beautiful software.
+          </p>
+        </div>
+
+        {/* Right: Group by dropdown + kebab + prompts toggle */}
+        <div className={styles.boardHeaderActions}>
+          {/* "Group by: Status" — static visual, no functional grouping yet */}
+          <button
+            type="button"
+            className={styles.groupByButton}
+            aria-label="Group by"
+          >
+            <span className={styles.groupByLabel}>Group by:</span>
+            <span className={styles.groupByValue}>Status</span>
+            <ChevronDown size={12} aria-hidden="true" />
+          </button>
+
+          {/* Kebab menu */}
+          <button
+            type="button"
+            className={styles.kebabButton}
+            aria-label="Board options"
+          >
+            <MoreHorizontal size={16} aria-hidden="true" />
+          </button>
+
+          {/* Prompts panel toggle */}
+          <Button
+            variant="ghost"
+            size="md"
+            onPress={() => setIsPanelOpen((v) => !v)}
+            aria-expanded={isPanelOpen}
+            aria-controls="kanban-prompt-panel"
+            data-testid="kanban-board-prompts-toggle"
+          >
+            <span className={styles.btnLabel}>
+              {isPanelOpen ? (
+                <ChevronRight size={14} aria-hidden="true" />
+              ) : (
+                <ChevronLeft size={14} aria-hidden="true" />
+              )}
+              Промпты
+            </span>
+          </Button>
+        </div>
       </header>
 
       <PromptAttachmentBoundary>

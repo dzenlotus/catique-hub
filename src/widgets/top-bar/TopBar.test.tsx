@@ -115,8 +115,8 @@ describe("TopBar", () => {
     const trigger = screen.getByTestId("top-bar-search-trigger");
     expect(trigger).toBeInTheDocument();
 
-    // Placeholder text
-    expect(screen.getByText("Поиск...")).toBeInTheDocument();
+    // Placeholder text (English per mockup)
+    expect(screen.getByText("Search tasks, boards, agents...")).toBeInTheDocument();
 
     // ⌘K badge
     expect(screen.getByText("⌘K")).toBeInTheDocument();
@@ -152,12 +152,13 @@ describe("TopBar", () => {
     expect(capturedIsOpen).toBe(true);
   });
 
-  it('рендерит кнопку «+ Новая задача» с иконкой Plus и лейблом', () => {
+  it('рендерит кнопку «+ New task» с иконкой Plus и лейблом', () => {
     renderAt();
 
     const btn = screen.getByTestId("top-bar-new-task");
     expect(btn).toBeInTheDocument();
-    expect(btn).toHaveTextContent("Новая задача");
+    // Label is English per mockup
+    expect(btn).toHaveTextContent("New task");
     // SVG Lucide Plus icon should be present (aria-hidden)
     expect(btn.querySelector("svg")).toBeInTheDocument();
   });
@@ -178,12 +179,13 @@ describe("TopBar", () => {
     expect(btn).toHaveAttribute("aria-label", "Уведомления");
   });
 
-  it("аватар рендерится с инициалом M и aria-label", () => {
+  it("аватар рендерится с инициалом C и aria-label", () => {
     renderAt();
 
     const avatar = screen.getByTestId("top-bar-avatar");
     expect(avatar).toBeInTheDocument();
-    expect(avatar).toHaveTextContent("M");
+    // Avatar initial is "C" (for Catique) per DS v1 mockup
+    expect(avatar).toHaveTextContent("C");
     expect(avatar).toHaveAttribute("aria-label", "Профиль пользователя");
   });
 

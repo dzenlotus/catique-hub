@@ -18,6 +18,7 @@ import {
   FolderTree,
   Heart,
 } from "lucide-react";
+import mascotSprite from "./assets/mascot-sprite.png";
 import { Button as AriaButton } from "react-aria-components";
 import { useLocation } from "wouter";
 import { cn } from "@shared/lib";
@@ -393,16 +394,14 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
 
       {/* ── Wordmark block ───────────────────────────────────────────────── */}
       <div className={styles.wordmark}>
-        {/* TODO: replace Heart glyph with extracted pixel-art cat SVG from
-            image3.png once designer provides individual SVG files.
-            See handoff.md §"What is out of scope" — pixel-art icon extraction. */}
-        <Heart
-          size={20}
-          aria-hidden={true}
-          className={styles.wordmarkIcon}
-        />
         <div className={styles.wordmarkText}>
-          <span className={styles.wordmarkTitle}>Catique HUB</span>
+          <span className={styles.wordmarkTitle}>Catique Hub</span>
+          <Heart
+            size={12}
+            aria-hidden={true}
+            className={styles.wordmarkHeart}
+            fill="currentColor"
+          />
           <span className={styles.wordmarkSub}>Orchestrate. Build. Ship.</span>
         </div>
       </div>
@@ -440,10 +439,7 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
         </>
       )}
 
-      {/* ── WORKSPACE ───────────────────────────────────────────────────────── */}
-      <div className={styles.sectionLabel} aria-label="Рабочее пространство">
-        WORKSPACE
-      </div>
+      {/* ── WORKSPACE — label hidden per mockup; items flow without a header ── */}
       <ul className={styles.navList} role="list">
         {WORKSPACE_ITEMS.map(({ view, label, Icon }) => {
           const isActive = view === activeView;
@@ -473,7 +469,22 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
          * per Maria's mockup spec.
          */}
         <div className={styles.mascot} aria-hidden="true">
-          <span className={styles.mascotEmoji} role="img" aria-label="Кот-маскот">🐱</span>
+          {/*
+           * Mascot — CSS sprite from the pixel-art icon set (image3.png).
+           * The cat-with-beret-espresso icon occupies cell [col=0, row=0]
+           * of a 10-column × 9-row grid (1402×1122 px source image).
+           * Each cell is approximately 140×124.7 px → we display at 64×64
+           * with background-size scaled proportionally.
+           * background-position: 0 0 (top-left cell needs no offset).
+           */}
+          <div
+            className={styles.mascotSprite}
+            role="img"
+            aria-label="Кот-маскот"
+            style={{
+              backgroundImage: `url(${mascotSprite})`,
+            }}
+          />
           <p className={styles.mascotTagline}>
             Bonjour, développeur.{" "}
             <em>Stay curious. Ship lovely things.</em>

@@ -39,38 +39,41 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-8);
-  padding: var(--space-16);
+  padding: var(--space-16) var(--space-16) var(--space-12);
   border-bottom: 1px solid var(--color-border-subtle);
   flex-shrink: 0;
-}
-
-.wordmarkIcon {
-  color: var(--color-cta-bg);
-  flex-shrink: 0;
-  margin-top: 2px; /* optical align with first text line */
 }
 
 .wordmarkText {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-2);
   min-width: 0;
 }
 
 .wordmarkTitle {
   font-family: var(--font-display);
-  font-size: var(--font-size-display, 17px);
-  font-weight: var(--font-weight-bold);
-  line-height: var(--line-height-tight);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
   color: var(--color-text-wordmark);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+/* Small filled heart centred below the wordmark title */
+.wordmarkHeart {
+  color: var(--color-cta-bg);
+  align-self: flex-start;
+  margin-left: 2px;
 }
 
 .wordmarkSub {
   font-family: var(--font-sans);
-  font-size: var(--font-size-body-sm);
+  font-size: var(--font-size-caption);
   line-height: var(--line-height-normal);
   color: var(--color-text-wordmark-sub);
   white-space: nowrap;
@@ -427,8 +430,11 @@
 
 /*
  * Mascot block.
- * Pixel-art cat placeholder — 🐱 emoji until designer extracts
- * the SVG from image3.png. See JSDoc in Sidebar.tsx.
+ * Pixel-art cat rendered via CSS sprite from the icon-set image.
+ * The cat-with-beret occupies cell [col=0, row=0] of a 10×9 grid
+ * (1402×1122 px source). Displayed at 64×64 px; background-size
+ * scales the full sheet to 640×640 (×10 scale-down per column count).
+ * background-position 0 0 targets the top-left cell exactly.
  */
 .mascot {
   display: flex;
@@ -436,10 +442,20 @@
   gap: var(--space-8);
 }
 
-.mascotEmoji {
-  font-size: 32px;
-  line-height: 1;
+.mascotSprite {
   flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  background-repeat: no-repeat;
+  /* Scale the full sprite sheet so each 140×124.7 px cell → 64×56.8 px.
+   * To get 64 px height we scale differently: 1122/1402 ≈ 0.8003 ratio.
+   * Target cell height = 1122/9 ≈ 124.7 px. Scale = 64/124.7 ≈ 0.513.
+   * Full sheet at that scale: 1402 × 0.513 ≈ 719 px wide, 1122 × 0.513 ≈ 576 px tall.
+   * Cell width at that scale: 1402/10 × 0.513 ≈ 71.9 px → wider than 64 px; acceptable.
+   * background-position: 0 0 → top-left cell, no offset needed. */
+  background-size: 719px 576px;
+  background-position: 0 0;
+  image-rendering: pixelated;
 }
 
 .mascotTagline {

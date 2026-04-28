@@ -131,24 +131,18 @@ function CardBody({
 
   return (
     <>
-      {/* Top row: slug chip + done checkmark */}
-      <div className={styles.topRow}>
-        <span
-          className={styles.slugChip}
-          title={slugLabel}
-          data-testid="task-card-slug-chip"
-        >
-          {slugLabel}
-        </span>
-        {isDoneColumn ? (
+      {/* Top row: done checkmark (top-right only, no slug here) */}
+      {isDoneColumn ? (
+        <div className={styles.topRow}>
+          <span className={styles.topRowSpacer} />
           <Check
             size={16}
             aria-label="Выполнено"
             className={styles.doneCheck}
             data-testid="task-card-done-check"
           />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {/* Title — 2-line clamp */}
       <span className={styles.title}>{task.title}</span>
@@ -158,28 +152,38 @@ function CardBody({
         <span className={styles.description}>{task.description}</span>
       ) : null}
 
-      {/* Bottom meta row */}
-      <span className={styles.meta}>
-        {task.roleId ? (
-          <span
-            className={styles.roleBadge}
-            title={`Role: ${task.roleId}`}
-            data-testid="task-card-role-badge"
-          >
-            {task.roleId}
-          </span>
-        ) : null}
-        {attachmentsCount > 0 ? (
-          <span
-            className={styles.attachments}
-            aria-label={`${attachmentsCount} attachments`}
-            data-testid="task-card-attachments"
-          >
-            <Paperclip size={12} aria-hidden={true} />
-            {attachmentsCount}
-          </span>
-        ) : null}
-      </span>
+      {/* Bottom meta row: role badge + attachments + slug chip at right */}
+      <div className={styles.bottomRow}>
+        <span className={styles.meta}>
+          {task.roleId ? (
+            <span
+              className={styles.roleBadge}
+              title={`Role: ${task.roleId}`}
+              data-testid="task-card-role-badge"
+            >
+              {task.roleId}
+            </span>
+          ) : null}
+          {attachmentsCount > 0 ? (
+            <span
+              className={styles.attachments}
+              aria-label={`${attachmentsCount} attachments`}
+              data-testid="task-card-attachments"
+            >
+              <Paperclip size={12} aria-hidden={true} />
+              {attachmentsCount}
+            </span>
+          ) : null}
+        </span>
+        {/* Slug chip — bottom-right per DS v1 mockup */}
+        <span
+          className={styles.slugChip}
+          title={slugLabel}
+          data-testid="task-card-slug-chip"
+        >
+          {slugLabel}
+        </span>
+      </div>
     </>
   );
 }

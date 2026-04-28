@@ -18,6 +18,10 @@
   border-bottom: 1px solid var(--color-border-subtle);
   /* Allow dragging the window from this region on macOS / Tauri */
   -webkit-app-region: drag;
+  /* Centre the search trigger horizontally — we use a flex trick:
+     the two edge spacers (.spacerLeft / .spacerRight) plus flex-grow
+     on the search trigger push it to the centre of the bar. */
+  position: relative;
 }
 
 /* Prevent drag on interactive children */
@@ -25,24 +29,35 @@
   -webkit-app-region: no-drag;
 }
 
-/* ── Search trigger ────────────────────────────────────────────────────── */
+/* ── Search trigger — centred pill ────────────────────────────────────── */
 
+/*
+ * Centering strategy: the TopBar is a flex row. The search trigger is
+ * absolutely positioned at the horizontal centre so it always sits in
+ * the visual middle regardless of how wide the action buttons are on
+ * the right. Non-interactive children still receive pointer events via
+ * the `no-drag` class on all direct children.
+ */
 .searchTrigger {
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  flex: 1 1 0;
-  max-width: 480px;
+  /* Absolute centre trick — sits in the middle of the bar */
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(540px, 45vw);
   height: 32px;
   padding: 0 var(--space-12);
   background-color: var(--color-overlay-hover);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   cursor: text;
   /* reset button */
   appearance: none;
   -webkit-appearance: none;
   text-align: left;
+  -webkit-app-region: no-drag;
   transition: background-color var(--duration-instant) var(--easing-default),
     border-color var(--duration-instant) var(--easing-default);
 }
@@ -137,10 +152,12 @@
   user-select: none;
 }
 
-/* ── Spacer ─────────────────────────────────────────────────────────────── */
+/* ── Spacer — pushes right-side buttons to the far right ────────────── */
 
 .spacer {
   flex: 1 1 0;
+  /* Min width ensures the CTA button never collides with the centred search */
+  min-width: var(--space-8);
 }
 
 /* ── CTA «+ Новая задача» ──────────────────────────────────────────────── */

@@ -107,9 +107,9 @@ describe("Sidebar — DS v1 wordmark and section labels", () => {
     invokeMock.mockImplementation(() => new Promise(() => {}));
   });
 
-  it("renders the wordmark 'Catique HUB'", () => {
+  it("renders the wordmark 'Catique Hub'", () => {
     setup();
-    expect(screen.getByText("Catique HUB")).toBeInTheDocument();
+    expect(screen.getByText("Catique Hub")).toBeInTheDocument();
   });
 
   it("renders the SPACES section label", () => {
@@ -117,9 +117,11 @@ describe("Sidebar — DS v1 wordmark and section labels", () => {
     expect(screen.getByText(/^SPACES$/)).toBeInTheDocument();
   });
 
-  it("renders the WORKSPACE section label", () => {
+  it("does not render a standalone WORKSPACE section label (hidden per mockup)", () => {
     setup();
-    expect(screen.getByText(/^WORKSPACE$/)).toBeInTheDocument();
+    // Per DS v1 mockup image.png, the WORKSPACE label is NOT shown in the
+    // default sidebar view — the workspace nav items flow without a header.
+    expect(screen.queryByText(/^WORKSPACE$/)).not.toBeInTheDocument();
   });
 });
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -63,6 +63,8 @@ export function KanbanColumn({
   dragOverlay = false,
 }: KanbanColumnProps): ReactElement {
   const [settingsColumnId, setSettingsColumnId] = useState<string | null>(null);
+  // Ref-based signal: header "+" click triggers the ColumnFooter's add-task form.
+  const [headerAddTaskSignal, setHeaderAddTaskSignal] = useState(0);
 
   const sortable = useSortable({
     id: column.id,
@@ -126,6 +128,9 @@ export function KanbanColumn({
           {...(dragHandle ? { dragHandle } : {})}
           {...(onRenameColumn ? { onRename: onRenameColumn } : {})}
           {...(onDeleteColumn ? { onDelete: onDeleteColumn } : {})}
+          {...(!dragOverlay && onAddTask
+            ? { onAddTask: () => setHeaderAddTaskSignal((n) => n + 1) }
+            : {})}
         />
         {!dragOverlay ? (
           <Button
@@ -176,6 +181,7 @@ export function KanbanColumn({
       {!dragOverlay ? (
         <ColumnFooter
           columnId={column.id}
+          openSignal={headerAddTaskSignal}
           {...(onAddTask ? { onAddTask } : {})}
         />
       ) : null}
@@ -236,14 +242,22 @@ function SortableTaskItem({
 interface ColumnFooterProps {
   columnId: string;
   onAddTask?: (columnId: string, title: string) => void;
+  /** Incremented by the column header "+" button to open the add form. */
+  openSignal?: number;
 }
 
 function ColumnFooter({
   columnId,
   onAddTask,
+  openSignal = 0,
 }: ColumnFooterProps): ReactElement {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
+
+  // When the header "+" button fires, open the inline add form.
+  useEffect(() => {
+    if (openSignal > 0) setIsAdding(true);
+  }, [openSignal]);
 
   const submit = (): void => {
     const trimmed = title.trim();

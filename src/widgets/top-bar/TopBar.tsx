@@ -16,7 +16,7 @@
  */
 
 import { useState, useCallback, type ReactElement } from "react";
-import { Search, Plus, Settings, Bell } from "lucide-react";
+import { Search, Plus, SlidersHorizontal, Activity } from "lucide-react";
 import { useLocation, useRoute } from "wouter";
 
 import { useBoard } from "@entities/board";
@@ -90,7 +90,7 @@ function Avatar(): ReactElement {
       data-testid="top-bar-avatar"
       // TODO v2: открыть меню пользователя
     >
-      M
+      C
     </button>
   );
 }
@@ -143,7 +143,7 @@ export function TopBar(): ReactElement {
             className={styles.searchIcon}
             aria-hidden="true"
           />
-          <span className={styles.searchPlaceholder}>Поиск...</span>
+          <span className={styles.searchPlaceholder}>Search tasks, boards, agents...</span>
           <kbd className={styles.kbdHint} aria-label="Горячая клавиша ⌘K">
             ⌘K
           </kbd>
@@ -157,7 +157,7 @@ export function TopBar(): ReactElement {
         {/* ── Spacer ────────────────────────────────────────────────────── */}
         <div className={styles.spacer} aria-hidden="true" />
 
-        {/* ── «+ Новая задача» CTA ──────────────────────────────────────── */}
+        {/* ── «+ New task» CTA ──────────────────────────────────────────── */}
         <button
           type="button"
           className={styles.ctaButton}
@@ -169,10 +169,10 @@ export function TopBar(): ReactElement {
           aria-label="Новая задача"
         >
           <Plus size={14} aria-hidden="true" />
-          <span>Новая задача</span>
+          <span>New task</span>
         </button>
 
-        {/* ── Settings icon button ─────────────────────────────────────── */}
+        {/* ── Settings (sliders) icon button ──────────────────────────── */}
         <button
           type="button"
           className={styles.iconButton}
@@ -180,10 +180,10 @@ export function TopBar(): ReactElement {
           data-testid="top-bar-settings"
           onClick={() => setLocation("/settings")}
         >
-          <Settings size={16} aria-hidden="true" />
+          <SlidersHorizontal size={16} aria-hidden="true" />
         </button>
 
-        {/* ── Bell / notifications icon button ────────────────────────── */}
+        {/* ── Activity / heartbeat icon button ─────────────────────────── */}
         <button
           type="button"
           className={styles.iconButton}
@@ -191,7 +191,7 @@ export function TopBar(): ReactElement {
           data-testid="top-bar-bell"
           // TODO v2: открыть панель уведомлений
         >
-          <Bell size={16} aria-hidden="true" />
+          <Activity size={16} aria-hidden="true" />
         </button>
 
         {/* ── Avatar ───────────────────────────────────────────────────── */}

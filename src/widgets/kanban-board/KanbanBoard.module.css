@@ -19,18 +19,114 @@
 
 .boardHeader {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-12);
+  gap: var(--space-16);
   flex: 0 0 auto;
+  padding-bottom: var(--space-8);
+}
+
+.boardHeadingGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .boardHeading {
   margin: 0;
-  font-size: var(--font-size-headline-lg);
+  font-size: var(--font-size-headline);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-default);
   line-height: var(--line-height-tight);
+  letter-spacing: -0.01em;
+}
+
+.boardDescription {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
+  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.boardHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-shrink: 0;
+  padding-top: var(--space-2);
+}
+
+/* "Group by: Status" static dropdown button */
+.groupByButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 28px;
+  padding: 0 var(--space-8);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  transition: background-color var(--duration-instant) var(--easing-default),
+    border-color var(--duration-instant) var(--easing-default);
+}
+
+.groupByButton:hover {
+  background-color: var(--color-overlay-hover);
+  border-color: var(--color-border-strong);
+}
+
+.groupByButton:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.groupByLabel {
+  color: var(--color-text-subtle);
+}
+
+.groupByValue {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Kebab / more options button */
+.kebabButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: background-color var(--duration-instant) var(--easing-default);
+}
+
+.kebabButton:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.kebabButton:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .groupByButton,
+  .kebabButton {
+    transition: none;
+  }
 }
 
 .btnLabel {

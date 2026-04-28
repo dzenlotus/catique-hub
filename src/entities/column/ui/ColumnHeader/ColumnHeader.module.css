@@ -80,6 +80,49 @@
   flex: 1 1 auto;
 }
 
+/* Per-column "+" add-task button in the header right edge */
+.addTaskButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-text-subtle);
+  opacity: 0;
+  transition: opacity var(--duration-instant) var(--easing-default),
+    background-color var(--duration-instant) var(--easing-default),
+    color var(--duration-instant) var(--easing-default);
+  flex: 0 0 auto;
+}
+
+.header:hover .addTaskButton,
+.addTaskButton:focus-visible {
+  opacity: 1;
+}
+
+.addTaskButton:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+  opacity: 1;
+}
+
+.addTaskButton:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .addTaskButton {
+    transition: none;
+  }
+}
+
 .moreButton {
   padding: 0 var(--space-8);
   min-width: 28px;
