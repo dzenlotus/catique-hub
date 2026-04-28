@@ -2,12 +2,21 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DndContext } from "@dnd-kit/core";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Column } from "@entities/column";
 import type { Task } from "@entities/task";
+import { ToastProvider } from "@app/providers/ToastProvider";
 
+vi.mock("@shared/api", () => ({
+  invoke: vi.fn(),
+}));
+
+import { invoke } from "@shared/api";
 import { KanbanColumn } from "./KanbanColumn";
+
+const invokeMock = vi.mocked(invoke);
 
 function makeColumn(overrides: Partial<Column> = {}): Column {
   return {
@@ -41,7 +50,19 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 // Tests don't simulate drags — they render markup and verify props
 // flow correctly.
 function renderInDnd(ui: ReactElement) {
-  return render(<DndContext>{ui}</DndContext>);
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <ToastProvider>
+        <DndContext>{ui}</DndContext>
+      </ToastProvider>
+    </QueryClientProvider>,
+  );
 }
 
 describe("KanbanColumn", () => {
@@ -106,6 +127,7 @@ describe("KanbanColumn", () => {
   });
 
   it("hides the add-task footer when rendered as drag overlay", () => {
+    invokeMock.mockImplementation(() => new Promise(() => {}));
     renderInDnd(
       <KanbanColumn
         column={makeColumn({ id: "col-overlay" })}
@@ -116,5 +138,41 @@ describe("KanbanColumn", () => {
     expect(
       screen.queryByTestId("kanban-column-add-task-col-overlay"),
     ).toBeNull();
+  });
+
+  it("renders a settings button in the column header", () => {
+    invokeMock.mockImplementation(() => new Promise(() => {}));
+    renderInDnd(
+      <KanbanColumn
+        column={makeColumn({ id: "col-settings" })}
+        tasks={[]}
+      />,
+    );
+    expect(
+      screen.getByTestId("kanban-column-settings-col-settings"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Настройки колонки" }),
+    ).toBeInTheDocument();
+  });
+
+  it("clicking the settings button opens the ColumnEditor dialog", async () => {
+    // Return pending so the dialog stays in loading state — we only need
+    // to verify the dialog mounts.
+    invokeMock.mockImplementation(() => new Promise(() => {}));
+    const user = userEvent.setup();
+    renderInDnd(
+      <KanbanColumn
+        column={makeColumn({ id: "col-open-settings" })}
+        tasks={[]}
+      />,
+    );
+
+    const settingsBtn = screen.getByTestId("kanban-column-settings-col-open-settings");
+    await user.click(settingsBtn);
+
+    // Dialog should now be in the DOM.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("column-editor")).toBeInTheDocument();
   });
 });

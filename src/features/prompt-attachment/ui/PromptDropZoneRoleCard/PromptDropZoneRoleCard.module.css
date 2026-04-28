@@ -1,0 +1,30 @@
+/*
+ * PromptDropZoneRoleCard — wraps RoleCard with a droppable zone.
+ *
+ * The wrapper must be `position: relative` so the absolute overlay
+ * paints inside the card boundary. `border-radius` matches the card's
+ * own radius token so the overlay clips correctly.
+ */
+
+.wrapper {
+  position: relative;
+  border-radius: var(--radius-md);
+}
+
+/* Drop-hover overlay — painted above the card, pointer-events: none so
+ * clicks still reach the underlying RoleCard button. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: var(--color-accent-soft);
+  border: 2px dashed var(--color-border-focus);
+  pointer-events: none;
+  transition: opacity 80ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    transition: none;
+  }
+}

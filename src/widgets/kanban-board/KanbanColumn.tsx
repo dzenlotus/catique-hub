@@ -3,6 +3,7 @@ import type { CSSProperties, ReactElement } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Settings } from "lucide-react";
 
 import { ColumnHeader } from "@entities/column";
 import type { Column } from "@entities/column";
@@ -10,6 +11,7 @@ import { TaskCard } from "@entities/task";
 import type { Task } from "@entities/task";
 import { Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
+import { ColumnEditor } from "@widgets/column-editor";
 
 import styles from "./KanbanColumn.module.css";
 
@@ -56,6 +58,8 @@ export function KanbanColumn({
   onTaskSelect,
   dragOverlay = false,
 }: KanbanColumnProps): ReactElement {
+  const [settingsColumnId, setSettingsColumnId] = useState<string | null>(null);
+
   const sortable = useSortable({
     id: column.id,
     data: { type: "column" },
@@ -114,13 +118,33 @@ export function KanbanColumn({
       aria-label={`Column ${column.name}`}
       data-testid={`kanban-column-${column.id}`}
     >
-      <ColumnHeader
-        id={column.id}
-        name={column.name}
-        taskCount={tasks.length}
-        {...(dragHandle ? { dragHandle } : {})}
-        {...(onRenameColumn ? { onRename: onRenameColumn } : {})}
-        {...(onDeleteColumn ? { onDelete: onDeleteColumn } : {})}
+      <div className={styles.headerRow}>
+        <ColumnHeader
+          id={column.id}
+          name={column.name}
+          taskCount={tasks.length}
+          className={styles.headerFlex}
+          {...(dragHandle ? { dragHandle } : {})}
+          {...(onRenameColumn ? { onRename: onRenameColumn } : {})}
+          {...(onDeleteColumn ? { onDelete: onDeleteColumn } : {})}
+        />
+        {!dragOverlay ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="Настройки колонки"
+            className={styles.settingsButton}
+            onPress={() => setSettingsColumnId(column.id)}
+            data-testid={`kanban-column-settings-${column.id}`}
+          >
+            <Settings size={14} aria-hidden="true" />
+          </Button>
+        ) : null}
+      </div>
+
+      <ColumnEditor
+        columnId={settingsColumnId}
+        onClose={() => setSettingsColumnId(null)}
       />
 
       <div ref={droppable.setNodeRef} className={styles.body}>

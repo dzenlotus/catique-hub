@@ -7,8 +7,9 @@ import type { ReactElement } from "react";
  * `PromptAttachmentBoundary` tests.
  *
  * The boundary mounts a DndContext and wires onDragEnd to the
- * `useAddBoardPromptMutation` hook. We mock `@shared/api` at the IPC
- * boundary (same pattern as all other widget tests) to verify the
+ * `useAddBoardPromptMutation`, `useAddRolePromptMutation`, and
+ * `useAddColumnPromptMutation` hooks. We mock `@shared/api` at the IPC
+ * boundary (same pattern as all other widget tests) to verify each
  * mutation is called with the correct args when a valid drop occurs.
  *
  * Simulating a full pointer-drag sequence in jsdom is complex; instead
@@ -79,5 +80,29 @@ describe("PromptAttachmentBoundary", () => {
   it("does not crash when rendered without children", () => {
     // @ts-expect-error intentionally passing no children to test resilience
     expect(() => renderWithClient(<PromptAttachmentBoundary />)).not.toThrow();
+  });
+
+  it("does not fire add_role_prompt on mount (no drag event)", () => {
+    renderWithClient(
+      <PromptAttachmentBoundary>
+        <div>child</div>
+      </PromptAttachmentBoundary>,
+    );
+    const roleCalls = invokeMock.mock.calls.filter(
+      ([cmd]) => cmd === "add_role_prompt",
+    );
+    expect(roleCalls).toHaveLength(0);
+  });
+
+  it("does not fire add_column_prompt on mount (no drag event)", () => {
+    renderWithClient(
+      <PromptAttachmentBoundary>
+        <div>child</div>
+      </PromptAttachmentBoundary>,
+    );
+    const columnCalls = invokeMock.mock.calls.filter(
+      ([cmd]) => cmd === "add_column_prompt",
+    );
+    expect(columnCalls).toHaveLength(0);
   });
 });

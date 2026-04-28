@@ -26,6 +26,34 @@
   background-color: var(--color-overlay-hover);
 }
 
+/* ── Header row wrapper ──────────────────────────────────────────── */
+
+/* Wraps ColumnHeader + settings button so they sit on the same row. */
+.headerRow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+/* ColumnHeader uses its own internal layout; flex-1 lets it grow. */
+.headerFlex {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.settingsButton {
+  flex: 0 0 auto;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.headerRow:hover .settingsButton,
+.settingsButton:focus-visible {
+  opacity: 1;
+}
+
+/* ── Column body ─────────────────────────────────────────────────── */
+
 .body {
   flex: 1 1 auto;
   display: flex;
