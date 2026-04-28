@@ -18,6 +18,7 @@ import {
   FolderTree,
 } from "lucide-react";
 import { Button as AriaButton } from "react-aria-components";
+import { useLocation } from "wouter";
 import { cn } from "@shared/lib";
 import { Button, Menu, MenuItem, MenuTrigger, Separator } from "@shared/ui";
 import { useSpaces } from "@entities/space";
@@ -26,6 +27,7 @@ import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 import { GlobalSearch, useGlobalSearchKeybind } from "@widgets/global-search";
 import type { SearchResult } from "@bindings/SearchResult";
+import { boardPath, pathForView } from "@app/routes";
 import styles from "./Sidebar.module.css";
 
 /** All navigable top-level views in the app shell. */
@@ -221,6 +223,7 @@ function SpaceSwitcher({
 export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElement {
   const spacesQuery = useSpaces();
   const { activeSpaceId, setActiveSpaceId } = useActiveSpace();
+  const [, setLocation] = useLocation();
 
   const spaces = spacesQuery.data ?? [];
   const effectiveSpaceId = activeSpaceId;
@@ -235,27 +238,18 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
   /**
    * Handle a result selected in the global search palette.
    *
-   * - agentReport → navigates to the "reports" view via `onSelectView`.
-   * - task        → full task-deep-linking is out of scope for this release.
-   *                 The palette closes and a console.warn is emitted so the
-   *                 user at least sees their result. Wire up route navigation
-   *                 when the task-detail route is implemented (E5.x).
+   * - agentReport → navigates to `/reports` via the router.
+   * - task        → navigates to the task's board via `boardPath(result.boardId)`.
+   *                 The board opens and the user can locate the specific task.
    */
   function handleSearchResult(result: SearchResult): void {
     setIsSearchOpen(false);
     if (result.type === "agentReport") {
-      onSelectView("reports");
+      setLocation(pathForView("reports"));
     } else {
-      // TODO(E5.x): Navigate to the task's board/column once deep-linking is
-      // implemented. For now we close the palette and surface the result id so
-      // the developer can trace which task was selected.
-      // eslint-disable-next-line no-console
-      console.warn(
-        "[global-search] Task navigation not yet implemented. Selected task id:",
-        result.id,
-        "boardId:",
-        result.boardId,
-      );
+      // Navigate to the board that contains this task so the user can find it.
+      // boardId is guaranteed on task results per the SearchResult binding.
+      setLocation(boardPath(result.boardId));
     }
   }
 

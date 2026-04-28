@@ -122,6 +122,51 @@ impl<'a> PromptsUseCase<'a> {
         }
     }
 
+    /// Recompute and persist the token count for a prompt, then return the
+    /// refreshed `Prompt`.
+    ///
+    /// ## Heuristic
+    ///
+    /// `token_count = (content_chars + 3) / 4`
+    ///
+    /// NOTE: this is a coarse approximation — roughly 1 token per 4 UTF-8
+    /// characters, which holds reasonably well for English/mixed Latin text.
+    /// It is intentionally kept dependency-free (no `tiktoken-rs`). If accurate
+    /// per-model counts are ever needed, replace the single expression below
+    /// and wire the real tokeniser here; the repository and handler require no
+    /// further changes.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound` if `id` is unknown.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn recompute_token_count(&self, id: String) -> Result<Prompt, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        // 1. Fetch — propagate NotFound if absent.
+        let row = repo::get_by_id(&conn, &id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "prompt".into(),
+                id: id.clone(),
+            })?;
+        // 2. Compute — coarse heuristic, see NOTE above.
+        // `chars().count()` is at most `usize::MAX`; realistic prompts fit
+        // well inside `i64::MAX`, so saturating is fine here.
+        #[allow(clippy::cast_possible_wrap)]
+        let char_count = row.content.chars().count() as i64;
+        let count = (char_count + 3) / 4;
+        // 3. Persist.
+        repo::set_token_count(&conn, &id, count).map_err(map_db_err)?;
+        // 4. Re-fetch so the returned value is authoritative.
+        let fresh = repo::get_by_id(&conn, &id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "prompt".into(),
+                id,
+            })?;
+        Ok(row_to_prompt(fresh))
+    }
+
     /// Delete a prompt.
     ///
     /// # Errors
@@ -213,6 +258,29 @@ mod tests {
         let pool = fresh_pool();
         let uc = PromptsUseCase::new(&pool);
         match uc.delete("ghost").expect_err("nf") {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "prompt"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn recompute_token_count_stores_heuristic_value() {
+        let pool = fresh_pool();
+        let uc = PromptsUseCase::new(&pool);
+        // "Hello" = 5 chars → (5 + 3) / 4 = 2 tokens.
+        let p = uc
+            .create("TC".into(), "Hello".into(), None, None)
+            .unwrap();
+        let updated = uc.recompute_token_count(p.id.clone()).unwrap();
+        assert_eq!(updated.token_count, Some(2));
+        assert_eq!(updated.id, p.id);
+    }
+
+    #[test]
+    fn recompute_token_count_returns_not_found_for_missing_id() {
+        let pool = fresh_pool();
+        let uc = PromptsUseCase::new(&pool);
+        match uc.recompute_token_count("ghost".into()).expect_err("nf") {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "prompt"),
             other => panic!("got {other:?}"),
         }

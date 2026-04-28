@@ -78,6 +78,7 @@ pub fn run() {
             handlers::prompts::list_prompts,
             handlers::prompts::remove_board_prompt,
             handlers::prompts::remove_column_prompt,
+            handlers::prompts::recompute_prompt_token_count,
             handlers::prompts::update_prompt,
             // ---------------- roles (E2.4) ----------------
             handlers::roles::add_role_mcp_tool,

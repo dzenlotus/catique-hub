@@ -3,6 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
+import { Router } from "wouter";
+import { memoryLocation } from "wouter/memory-location";
 
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 import { Sidebar } from "./Sidebar";
@@ -34,12 +36,16 @@ function makeQueryClient(): QueryClient {
 function renderWithClient(
   ui: ReactElement,
   client = makeQueryClient(),
+  initialPath = "/",
 ): { user: ReturnType<typeof userEvent.setup> } {
   const user = userEvent.setup();
+  const { hook } = memoryLocation({ path: initialPath, static: true });
   render(
-    <QueryClientProvider client={client}>
-      <ActiveSpaceProvider>{ui}</ActiveSpaceProvider>
-    </QueryClientProvider>,
+    <Router hook={hook}>
+      <QueryClientProvider client={client}>
+        <ActiveSpaceProvider>{ui}</ActiveSpaceProvider>
+      </QueryClientProvider>
+    </Router>,
   );
   return { user };
 }

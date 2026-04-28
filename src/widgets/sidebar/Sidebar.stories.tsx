@@ -1,11 +1,27 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Router } from "wouter";
+import { memoryLocation } from "wouter/memory-location";
 
 import { spacesKeys } from "@entities/space";
 import type { Space } from "@entities/space";
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 
 import { Sidebar } from "./Sidebar";
+
+// ── Router helper ─────────────────────────────────────────────────────────────
+
+/** Wraps children in a wouter memory router seeded at `path`. */
+function StoryRouter({
+  path = "/",
+  children,
+}: {
+  path?: string;
+  children: React.ReactNode;
+}): React.ReactElement {
+  const { hook } = memoryLocation({ path, static: true });
+  return <Router hook={hook}>{children}</Router>;
+}
 
 // ── Stub factories ────────────────────────────────────────────────────────────
 
@@ -84,13 +100,15 @@ export const DefaultBoardsActive: Story = {
   args: { activeView: "boards" },
   decorators: [
     (Story) => (
-      <QueryClientProvider client={makeSeededClient(sampleSpaces)}>
-        <ActiveSpaceProvider>
-          <div style={{ display: "flex", height: "100vh" }}>
-            <Story />
-          </div>
-        </ActiveSpaceProvider>
-      </QueryClientProvider>
+      <StoryRouter path="/">
+        <QueryClientProvider client={makeSeededClient(sampleSpaces)}>
+          <ActiveSpaceProvider>
+            <div style={{ display: "flex", height: "100vh" }}>
+              <Story />
+            </div>
+          </ActiveSpaceProvider>
+        </QueryClientProvider>
+      </StoryRouter>
     ),
   ],
 };
@@ -100,13 +118,15 @@ export const PromptsViewActive: Story = {
   args: { activeView: "prompts" },
   decorators: [
     (Story) => (
-      <QueryClientProvider client={makeSeededClient(sampleSpaces)}>
-        <ActiveSpaceProvider>
-          <div style={{ display: "flex", height: "100vh" }}>
-            <Story />
-          </div>
-        </ActiveSpaceProvider>
-      </QueryClientProvider>
+      <StoryRouter path="/prompts">
+        <QueryClientProvider client={makeSeededClient(sampleSpaces)}>
+          <ActiveSpaceProvider>
+            <div style={{ display: "flex", height: "100vh" }}>
+              <Story />
+            </div>
+          </ActiveSpaceProvider>
+        </QueryClientProvider>
+      </StoryRouter>
     ),
   ],
 };
@@ -116,13 +136,15 @@ export const NoSpaces: Story = {
   args: { activeView: "boards" },
   decorators: [
     (Story) => (
-      <QueryClientProvider client={makeSeededClient([])}>
-        <ActiveSpaceProvider>
-          <div style={{ display: "flex", height: "100vh" }}>
-            <Story />
-          </div>
-        </ActiveSpaceProvider>
-      </QueryClientProvider>
+      <StoryRouter path="/">
+        <QueryClientProvider client={makeSeededClient([])}>
+          <ActiveSpaceProvider>
+            <div style={{ display: "flex", height: "100vh" }}>
+              <Story />
+            </div>
+          </ActiveSpaceProvider>
+        </QueryClientProvider>
+      </StoryRouter>
     ),
   ],
 };
@@ -132,13 +154,15 @@ export const LoadingSpaces: Story = {
   args: { activeView: "boards" },
   decorators: [
     (Story) => (
-      <QueryClientProvider client={makePendingClient()}>
-        <ActiveSpaceProvider>
-          <div style={{ display: "flex", height: "100vh" }}>
-            <Story />
-          </div>
-        </ActiveSpaceProvider>
-      </QueryClientProvider>
+      <StoryRouter path="/">
+        <QueryClientProvider client={makePendingClient()}>
+          <ActiveSpaceProvider>
+            <div style={{ display: "flex", height: "100vh" }}>
+              <Story />
+            </div>
+          </ActiveSpaceProvider>
+        </QueryClientProvider>
+      </StoryRouter>
     ),
   ],
 };
@@ -148,13 +172,15 @@ export const ErrorLoadingSpaces: Story = {
   args: { activeView: "boards" },
   decorators: [
     (Story) => (
-      <QueryClientProvider client={makeErrorClient()}>
-        <ActiveSpaceProvider>
-          <div style={{ display: "flex", height: "100vh" }}>
-            <Story />
-          </div>
-        </ActiveSpaceProvider>
-      </QueryClientProvider>
+      <StoryRouter path="/">
+        <QueryClientProvider client={makeErrorClient()}>
+          <ActiveSpaceProvider>
+            <div style={{ display: "flex", height: "100vh" }}>
+              <Story />
+            </div>
+          </ActiveSpaceProvider>
+        </QueryClientProvider>
+      </StoryRouter>
     ),
   ],
 };
@@ -166,13 +192,15 @@ export const DarkTheme: Story = {
     (Story) => {
       document.documentElement.dataset["theme"] = "dark";
       return (
-        <QueryClientProvider client={makeSeededClient(sampleSpaces)}>
-          <ActiveSpaceProvider>
-            <div style={{ display: "flex", height: "100vh" }}>
-              <Story />
-            </div>
-          </ActiveSpaceProvider>
-        </QueryClientProvider>
+        <StoryRouter path="/">
+          <QueryClientProvider client={makeSeededClient(sampleSpaces)}>
+            <ActiveSpaceProvider>
+              <div style={{ display: "flex", height: "100vh" }}>
+                <Story />
+              </div>
+            </ActiveSpaceProvider>
+          </QueryClientProvider>
+        </StoryRouter>
       );
     },
   ],
@@ -185,13 +213,15 @@ export const LightTheme: Story = {
     (Story) => {
       document.documentElement.dataset["theme"] = "light";
       return (
-        <QueryClientProvider client={makeSeededClient(sampleSpaces)}>
-          <ActiveSpaceProvider>
-            <div style={{ display: "flex", height: "100vh" }}>
-              <Story />
-            </div>
-          </ActiveSpaceProvider>
-        </QueryClientProvider>
+        <StoryRouter path="/">
+          <QueryClientProvider client={makeSeededClient(sampleSpaces)}>
+            <ActiveSpaceProvider>
+              <div style={{ display: "flex", height: "100vh" }}>
+                <Story />
+              </div>
+            </ActiveSpaceProvider>
+          </QueryClientProvider>
+        </StoryRouter>
       );
     },
   ],

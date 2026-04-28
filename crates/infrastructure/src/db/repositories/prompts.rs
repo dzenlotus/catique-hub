@@ -207,6 +207,23 @@ pub fn delete(conn: &Connection, id: &str) -> Result<bool, DbError> {
     Ok(n > 0)
 }
 
+/// Overwrite `token_count` for a single prompt and bump `updated_at` to now.
+///
+/// Returns `true` when the row was found and updated, `false` when no row
+/// matched `id` (the prompt was deleted between the fetch and the write).
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn set_token_count(conn: &Connection, id: &str, count: i64) -> Result<bool, DbError> {
+    let now = now_millis();
+    let n = conn.execute(
+        "UPDATE prompts SET token_count = ?1, updated_at = ?2 WHERE id = ?3",
+        params![count, now, id],
+    )?;
+    Ok(n > 0)
+}
+
 // ---------------------------------------------------------------------
 // Join-table helpers — board_prompts, column_prompts, prompt_group_members.
 // (role_prompts/task_prompts/prompt_tags live on their owner repos.)
@@ -418,5 +435,21 @@ mod tests {
         assert!(update(&conn, "ghost", &PromptPatch::default())
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn set_token_count_updates_and_returns_true() {
+        let conn = fresh_db();
+        let row = insert(&conn, &draft("p")).unwrap();
+        assert!(set_token_count(&conn, &row.id, 99).unwrap());
+        let updated = get_by_id(&conn, &row.id).unwrap().unwrap();
+        assert_eq!(updated.token_count, Some(99));
+        assert!(updated.updated_at >= row.updated_at);
+    }
+
+    #[test]
+    fn set_token_count_returns_false_for_missing_id() {
+        let conn = fresh_db();
+        assert!(!set_token_count(&conn, "ghost", 42).unwrap());
     }
 }

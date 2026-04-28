@@ -88,6 +88,26 @@ pub async fn delete_prompt(state: State<'_, AppState>, id: String) -> Result<(),
     Ok(())
 }
 
+/// IPC: recompute the token count for a prompt using the coarse
+/// `(chars + 3) / 4` heuristic, persist the result, and return the
+/// updated `Prompt`.
+///
+/// Emits `prompt.updated` on success so every listener invalidates its
+/// cache without a manual refetch.
+///
+/// # Errors
+///
+/// `AppError::NotFound` if `id` is unknown; forwards any storage error.
+#[tauri::command]
+pub async fn recompute_prompt_token_count(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Prompt, AppError> {
+    let prompt = PromptsUseCase::new(&state.pool).recompute_token_count(id)?;
+    events::emit(&state, events::PROMPT_UPDATED, json!({ "id": prompt.id }));
+    Ok(prompt)
+}
+
 // ---------------------------------------------------------------------
 // Join-table helpers (board_prompts, column_prompts) — minimal
 // add/remove pair per the wave-brief. No full CRUD.

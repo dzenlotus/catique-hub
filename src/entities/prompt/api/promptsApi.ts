@@ -116,16 +116,14 @@ export async function deletePrompt(id: string): Promise<void> {
 
 /**
  * `recompute_prompt_token_count` — ask the backend to recount tokens for a
- * prompt and persist the result, returning the updated `Prompt`.
+ * prompt using the coarse `(chars + 3) / 4` heuristic, persist the result,
+ * and return the updated `Prompt`.
  *
- * ⚠️  NOT YET SHIPPED — the Tauri command `recompute_prompt_token_count` does
- * not exist in `crates/api/src/handlers/prompts.rs` as of wave E2.4.
- * When the backend command lands (expected signature:
- *   `pub async fn recompute_prompt_token_count(state, id: String) -> Result<Prompt, AppError>`)
- * this wrapper will work without changes.
+ * The backend emits `prompt.updated` after the write so any listener
+ * relying on Tauri events will also invalidate without an extra round-trip.
  *
- * Until then every call throws so callers must keep the trigger disabled.
+ * Throws `AppError` (`notFound`) when the prompt id is unknown.
  */
-export async function recomputePromptTokenCount(id: string): Promise<import("@bindings/Prompt").Prompt> {
-  return invokeWithAppError<import("@bindings/Prompt").Prompt>("recompute_prompt_token_count", { id });
+export async function recomputePromptTokenCount(id: string): Promise<Prompt> {
+  return invokeWithAppError<Prompt>("recompute_prompt_token_count", { id });
 }

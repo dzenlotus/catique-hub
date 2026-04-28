@@ -64,8 +64,6 @@ function PromptEditorContent({
 }: PromptEditorContentProps): ReactElement {
   const query = usePrompt(promptId);
   const updateMutation = useUpdatePromptMutation();
-  // ⚠️  IPC `recompute_prompt_token_count` not yet shipped — button stays disabled.
-  // See: entities/prompt/api/promptsApi.ts → recomputePromptTokenCount
   const recountMutation = useRecomputePromptTokenCountMutation();
 
   // Local edit state — initialised from the loaded prompt.
@@ -320,17 +318,11 @@ function PromptEditorContent({
             ? `Текущий счётчик: ≈${prompt.tokenCount.toString()} tokens`
             : "Текущий счётчик: не подсчитан"}
         </span>
-        {/*
-         * Recount button is intentionally DISABLED — backend IPC
-         * `recompute_prompt_token_count` is not yet available in
-         * crates/api/src/handlers/prompts.rs. Remove `isDisabled` and
-         * the tooltip once the command ships.
-         */}
         <TooltipTrigger>
           <Button
             variant="ghost"
             size="sm"
-            isDisabled
+            isPending={recountMutation.status === "pending"}
             onPress={() => recountMutation.mutate(prompt.id)}
             data-testid="prompt-editor-recount-button"
             aria-label="Пересчитать токены"
@@ -338,7 +330,7 @@ function PromptEditorContent({
             <RefreshCw size={14} aria-hidden="true" />
             Пересчитать
           </Button>
-          <Tooltip>Backend recompute IPC ещё не реализован</Tooltip>
+          <Tooltip>Пересчитать токены</Tooltip>
         </TooltipTrigger>
       </div>
 
