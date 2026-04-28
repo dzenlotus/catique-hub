@@ -11,7 +11,7 @@
 //! This keeps cold-start time unaffected (ADR-0003 §startup-budget).
 
 use catique_application::{clients::ClientsUseCase, AppError};
-use catique_domain::{ClientInstructions, ConnectedClient};
+use catique_domain::{ClientInstructions, ConnectedClient, RoleSyncReport, SyncedRoleFile};
 use serde_json::json;
 use tauri::State;
 
@@ -110,4 +110,52 @@ pub async fn write_client_instructions(
         json!({ "clientId": client_id }),
     );
     Ok(instructions)
+}
+
+/// IPC: list synced role files for a client (ctq-69).
+///
+/// Returns every file in the client's `agents_dir` that is marked as
+/// Catique-managed (`catique-` prefix + `managed-by: catique-hub`
+/// frontmatter). Returns an empty array when the directory doesn't exist
+/// yet or the client doesn't support sync.
+///
+/// # Errors
+///
+/// - `AppError::NotFound` when `client_id` is not a known adapter.
+/// - `AppError::Validation` when the client doesn't support role sync.
+/// - `AppError::TransactionRolledBack` for I/O failures.
+#[tauri::command]
+pub async fn list_synced_client_roles(
+    _state: State<'_, AppState>,
+    client_id: String,
+) -> Result<Vec<SyncedRoleFile>, AppError> {
+    ClientsUseCase::new().list_synced_roles(&client_id)
+}
+
+/// IPC: one-way sync of all Catique Hub roles to a client's agent
+/// directory (ctq-69).
+///
+/// Creates, updates, and deletes managed role files. Leaves
+/// user-authored files untouched. Emits `client:roles_synced` with the
+/// full `RoleSyncReport` on success.
+///
+/// # Errors
+///
+/// - `AppError::NotFound` — unknown `client_id`.
+/// - `AppError::Validation` — client doesn't support role sync.
+/// - `AppError::TransactionRolledBack` — I/O or DB failures.
+#[tauri::command]
+pub async fn sync_roles_to_client(
+    state: State<'_, AppState>,
+    client_id: String,
+) -> Result<RoleSyncReport, AppError> {
+    let report = ClientsUseCase::new()
+        .with_pool(state.pool.clone())
+        .sync_roles_to_client(client_id)?;
+    events::emit(
+        &state,
+        events::CLIENT_ROLES_SYNCED,
+        json!(report),
+    );
+    Ok(report)
 }

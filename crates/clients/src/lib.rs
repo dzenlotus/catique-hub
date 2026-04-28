@@ -86,6 +86,52 @@ pub trait ClientAdapter: Send + Sync {
     /// Propagates [`config_dir`]'s error
     /// ([`AdapterError::HomeDirUnavailable`]).
     fn instructions_file(&self) -> Result<PathBuf, AdapterError>;
+
+    // ── Role-sync extension (ctq-69) ───────────────────────────────────────
+
+    /// `true` when this adapter supports one-way role-file sync from
+    /// Catique Hub.
+    ///
+    /// Per-client v1 support matrix:
+    ///
+    /// | Client         | supported |
+    /// |----------------|-----------|
+    /// | Claude Code    | true      |
+    /// | Claude Desktop | false     |
+    /// | Cursor         | true      |
+    /// | Qwen CLI       | false     |
+    fn supports_role_sync(&self) -> bool;
+
+    /// Directory where managed agent-definition files are written.
+    ///
+    /// Only called when [`supports_role_sync`] returns `true`.
+    ///
+    /// | Client      | Path                  |
+    /// |-------------|-----------------------|
+    /// | Claude Code | `~/.claude/agents/`   |
+    /// | Cursor      | `~/.cursor/rules/`    |
+    ///
+    /// # Errors
+    ///
+    /// - [`AdapterError::SyncNotSupported`] when the adapter does not
+    ///   support sync.
+    /// - [`AdapterError::HomeDirUnavailable`] propagated from
+    ///   [`config_dir`].
+    fn agents_dir(&self) -> Result<PathBuf, AdapterError>;
+
+    /// Filename for the managed file for a given `role_id`.
+    ///
+    /// Includes the `catique-` prefix (defence-in-depth: files are
+    /// identifiable even if frontmatter is hand-edited away) and the
+    /// correct extension per client format.
+    ///
+    /// | Client      | Pattern                   |
+    /// |-------------|---------------------------|
+    /// | Claude Code | `catique-{role_id}.md`    |
+    /// | Cursor      | `catique-{role_id}.mdc`   |
+    ///
+    /// Always returns a valid filename string (no path separators).
+    fn agent_filename(&self, role_id: &str) -> String;
 }
 
 /// Build the canonical ordered list of v1 adapters.

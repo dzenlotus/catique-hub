@@ -155,13 +155,15 @@ pub fn rescan(
                 installed,
                 enabled,
                 last_seen_at: now_ms,
+                supports_role_sync: adapter.supports_role_sync(),
             }
         })
         .collect();
 
     // Append previously-known clients whose adapter is no longer in the
     // current adapter set (shouldn't happen in v1 but guards future
-    // adapter removals).
+    // adapter removals). Keep `supports_role_sync` from the existing
+    // record — we no longer have the adapter to re-query it.
     for prev in existing {
         if !processed_ids.contains(prev.id.as_str()) {
             result.push(ConnectedClient {
@@ -221,6 +223,15 @@ mod tests {
         fn detect(&self) -> Result<bool, AdapterError> {
             Ok(self.detected)
         }
+        fn supports_role_sync(&self) -> bool {
+            false
+        }
+        fn agents_dir(&self) -> Result<PathBuf, AdapterError> {
+            Err(AdapterError::SyncNotSupported)
+        }
+        fn agent_filename(&self, _role_id: &str) -> String {
+            String::new()
+        }
     }
 
     fn stub(id: &'static str, detected: bool) -> Box<dyn ClientAdapter> {
@@ -267,6 +278,7 @@ mod tests {
             installed: true,
             enabled: false, // user override
             last_seen_at: 0,
+            supports_role_sync: false,
         }];
         let adapters: Vec<Box<dyn ClientAdapter>> = vec![stub("a", true)];
         let result = rescan(&adapters, &existing);
@@ -286,6 +298,7 @@ mod tests {
             installed: true,
             enabled: true,
             last_seen_at: 0,
+            supports_role_sync: false,
         }];
         let adapters: Vec<Box<dyn ClientAdapter>> = vec![stub("new-tool", true)];
         let result = rescan(&adapters, &existing);
@@ -314,6 +327,7 @@ mod tests {
             installed: true,
             enabled: true,
             last_seen_at: 1_700_000_000_000,
+            supports_role_sync: true,
         }];
 
         let tmp = TempDir::new().unwrap();

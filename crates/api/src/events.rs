@@ -193,6 +193,10 @@ pub const CLIENT_REMOVED: &str = "client:removed";
 /// `write_client_instructions`; payload `{ client_id }`.
 pub const CLIENT_INSTRUCTIONS_CHANGED: &str = "client:instructions_changed";
 
+/// `client:roles_synced` — emitted after `sync_roles_to_client` succeeds
+/// (ctq-69); payload is the full `RoleSyncReport` JSON object.
+pub const CLIENT_ROLES_SYNCED: &str = "client:roles_synced";
+
 /// Emit a typed Tauri event to every webview attached to the app.
 ///
 /// Behaviour:
@@ -298,6 +302,7 @@ mod tests {
             CLIENT_UPDATED,
             CLIENT_REMOVED,
             CLIENT_INSTRUCTIONS_CHANGED,
+            CLIENT_ROLES_SYNCED,
         ] {
             assert!(
                 name.contains(':') || name.contains('-'),

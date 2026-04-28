@@ -55,6 +55,22 @@ impl ClientAdapter for ClaudeCodeAdapter {
             Ok(primary.exists() || fallback.exists())
         }
     }
+
+    // ── Role-sync (ctq-69) ─────────────────────────────────────────────────
+
+    fn supports_role_sync(&self) -> bool {
+        true
+    }
+
+    /// Returns `~/.claude/agents/`.
+    fn agents_dir(&self) -> Result<PathBuf, AdapterError> {
+        Ok(self.config_dir()?.join("agents"))
+    }
+
+    /// Returns `catique-{role_id}.md`.
+    fn agent_filename(&self, role_id: &str) -> String {
+        format!("catique-{role_id}.md")
+    }
 }
 
 #[cfg(test)]
@@ -138,5 +154,31 @@ mod tests {
         let _ = adapter_with_home(tmp.path());
         assert!(dir.join("CLAUDE.md").exists());
         assert!(!dir.join("settings.json").exists());
+    }
+
+    // ── Role-sync trait surface ───────────────────────────────────────────
+
+    #[test]
+    fn supports_role_sync_is_true() {
+        let a = ClaudeCodeAdapter;
+        assert!(a.supports_role_sync());
+    }
+
+    #[test]
+    fn agents_dir_is_dot_claude_agents() {
+        let a = ClaudeCodeAdapter;
+        if let Ok(dir) = a.agents_dir() {
+            let name = dir.file_name().unwrap().to_str().unwrap();
+            assert_eq!(name, "agents");
+            let parent = dir.parent().unwrap().file_name().unwrap().to_str().unwrap();
+            assert_eq!(parent, ".claude");
+        }
+    }
+
+    #[test]
+    fn agent_filename_has_catique_prefix_and_md_extension() {
+        let a = ClaudeCodeAdapter;
+        let name = a.agent_filename("rust-backend");
+        assert_eq!(name, "catique-rust-backend.md");
     }
 }

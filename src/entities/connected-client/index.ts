@@ -12,6 +12,8 @@ export {
   setClientEnabled,
   readClientInstructions,
   writeClientInstructions,
+  listSyncedClientRoles,
+  syncRolesToClient,
 } from "./api";
 export type { SetClientEnabledArgs } from "./api";
 
@@ -23,6 +25,8 @@ export {
   useSetClientEnabledMutation,
   useClientInstructions,
   useWriteClientInstructionsMutation,
+  useSyncedClientRoles,
+  useSyncRolesToClientMutation,
 } from "./model";
 export type { ConnectedClient, WriteClientInstructionsArgs } from "./model";
 

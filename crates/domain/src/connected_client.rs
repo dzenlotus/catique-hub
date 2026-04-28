@@ -35,4 +35,11 @@ pub struct ConnectedClient {
     pub enabled: bool,
     /// Unix-millisecond timestamp of the last registry rescan.
     pub last_seen_at: i64,
+    /// `true` when this client supports one-way role-file sync from
+    /// Catique Hub (ctq-69). Populated from
+    /// `ClientAdapter::supports_role_sync()` at scan time.
+    ///
+    /// Clients where this is `false` (Claude Desktop, Qwen CLI v1) show
+    /// a "не поддерживается" hint in the Settings UI.
+    pub supports_role_sync: bool,
 }

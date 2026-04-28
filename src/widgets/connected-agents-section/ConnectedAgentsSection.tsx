@@ -7,24 +7,67 @@ import {
   useConnectedClients,
   useDiscoverClientsMutation,
   useSetClientEnabledMutation,
+  useSyncedClientRoles,
+  useSyncRolesToClientMutation,
 } from "@entities/connected-client";
 import { ClientInstructionsEditor } from "@widgets/client-instructions-editor";
 
 import styles from "./ConnectedAgentsSection.module.css";
 
 /**
+ * `ClientCardRow` — one card with its synced-roles query and sync mutation
+ * isolated in a component boundary so hooks aren't called in a loop.
+ */
+function ClientCardRow({
+  client,
+  onToggleEnabled,
+  onEditInstructions,
+  isToggling,
+  syncMutation,
+}: {
+  client: import("@entities/connected-client").ConnectedClient;
+  onToggleEnabled: (id: string, enabled: boolean) => void;
+  onEditInstructions: (id: string) => void;
+  isToggling: boolean;
+  syncMutation: ReturnType<typeof useSyncRolesToClientMutation>;
+}): ReactElement {
+  const { data: syncedRoles } = useSyncedClientRoles(
+    client.supportsRoleSync ? client.id : "",
+  );
+
+  const handleSyncRoles = (id: string): void => {
+    syncMutation.mutate(id);
+  };
+
+  return (
+    <ConnectedClientCard
+      client={client}
+      onToggleEnabled={onToggleEnabled}
+      onEditInstructions={onEditInstructions}
+      onSyncRoles={handleSyncRoles}
+      isSyncing={
+        syncMutation.isPending && syncMutation.variables === client.id
+      }
+      {...(syncedRoles !== undefined ? { syncedRoles } : {})}
+      isToggling={isToggling}
+    />
+  );
+}
+
+/**
  * `ConnectedAgentsSection` — "Connected agents" section for the
- * Settings view (ctq-67 / ctq-68).
+ * Settings view (ctq-67 / ctq-68 / ctq-69).
  *
  * Shows all known agentic clients with their installed/enabled status.
  * Provides a "Просканировать" button that triggers a filesystem rescan
- * via `discover_clients`. Each card also exposes "Редактировать
- * инструкции" which opens `ClientInstructionsEditor`.
+ * via `discover_clients`. Each card exposes "Редактировать инструкции"
+ * (ctq-68) and "Синхронизировать роли" (ctq-69).
  */
 export function ConnectedAgentsSection(): ReactElement {
   const { data: clients, status, error } = useConnectedClients();
   const discoverMutation = useDiscoverClientsMutation();
   const toggleMutation = useSetClientEnabledMutation();
+  const syncMutation = useSyncRolesToClientMutation();
 
   /** Id of the client whose instructions are currently being edited. */
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -90,7 +133,7 @@ export function ConnectedAgentsSection(): ReactElement {
       {status === "success" && clients.length > 0 && (
         <div className={styles.grid} data-testid="connected-agents-grid">
           {clients.map((client) => (
-            <ConnectedClientCard
+            <ClientCardRow
               key={client.id}
               client={client}
               onToggleEnabled={handleToggle}
@@ -99,6 +142,7 @@ export function ConnectedAgentsSection(): ReactElement {
                 toggleMutation.isPending &&
                 toggleMutation.variables?.id === client.id
               }
+              syncMutation={syncMutation}
             />
           ))}
         </div>

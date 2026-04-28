@@ -155,7 +155,7 @@ export type AppEvent =
   | { type: "prompt_group:updated"; payload: { id: string } }
   | { type: "prompt_group:deleted"; payload: { id: string } }
   | { type: "prompt_group:members_changed"; payload: { group_id: string } }
-  // ---------------- connected clients (ctq-67 / ctq-68) ----------------
+  // ---------------- connected clients (ctq-67 / ctq-68 / ctq-69) ----------------
   | {
       type: "client:discovered";
       payload: { clients: unknown[] };
@@ -164,6 +164,11 @@ export type AppEvent =
   | { type: "client:removed"; payload: { id: string } }
   | {
       type: "client:instructions_changed";
+      payload: { clientId: string };
+    }
+  | {
+      /** Emitted after a successful `sync_roles_to_client` (ctq-69). */
+      type: "client:roles_synced";
       payload: { clientId: string };
     }
   // ---------------- generic ----------------

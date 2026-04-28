@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 
 import { cn } from "@shared/lib";
+import type { SyncedRoleFile } from "@bindings/SyncedRoleFile";
 
 import type { ConnectedClient } from "../../model/types";
 
@@ -22,6 +23,20 @@ export interface ConnectedClientCardProps {
    * client id so the parent can open the `ClientInstructionsEditor`.
    */
   onEditInstructions?: (id: string) => void;
+  /**
+   * Called when the user clicks "Синхронизировать роли". Receives the
+   * client id so the parent can trigger `useSyncRolesToClientMutation`.
+   */
+  onSyncRoles?: (id: string) => void;
+  /**
+   * `true` while a sync mutation is in-flight for this card.
+   */
+  isSyncing?: boolean;
+  /**
+   * Currently synced role files for this client. Shown as an inline list
+   * below the sync button when `supportsRoleSync` is true.
+   */
+  syncedRoles?: SyncedRoleFile[];
   /**
    * `true` while a toggle mutation is in-flight for this card.
    * Disables the switch to prevent double-clicks.
@@ -45,6 +60,9 @@ export function ConnectedClientCard({
   client,
   onToggleEnabled,
   onEditInstructions,
+  onSyncRoles,
+  isSyncing = false,
+  syncedRoles,
   isToggling = false,
   isPending = false,
   className,
@@ -69,6 +87,10 @@ export function ConnectedClientCard({
 
   const handleEditInstructions = (): void => {
     onEditInstructions?.(client.id);
+  };
+
+  const handleSyncRoles = (): void => {
+    onSyncRoles?.(client.id);
   };
 
   return (
@@ -132,6 +154,48 @@ export function ConnectedClientCard({
       >
         Редактировать инструкции
       </button>
+
+      {/* ── Role sync (ctq-69) ─────────────────────────────────────── */}
+      {client.supportsRoleSync ? (
+        <>
+          <button
+            type="button"
+            className={styles.editInstructionsBtn}
+            onClick={handleSyncRoles}
+            disabled={isSyncing}
+            data-testid="client-sync-roles-btn"
+            aria-label={`Синхронизировать роли для ${client.displayName}`}
+          >
+            {isSyncing ? "Синхронизация…" : "Синхронизировать роли"}
+          </button>
+
+          {syncedRoles !== undefined && syncedRoles.length > 0 && (
+            <ul
+              className={styles.syncedRolesList}
+              data-testid="client-synced-roles-list"
+            >
+              {syncedRoles.map((f) => (
+                <li key={f.roleId} className={styles.syncedRolesItem}>
+                  <span className={styles.syncedRoleId}>{f.roleId}</span>
+                  <span
+                    className={styles.syncedRolePath}
+                    title={f.filePath}
+                  >
+                    {f.filePath}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : (
+        <p
+          className={styles.syncNotSupported}
+          data-testid="client-sync-not-supported"
+        >
+          Синхронизация ролей не поддерживается
+        </p>
+      )}
     </div>
   );
 }

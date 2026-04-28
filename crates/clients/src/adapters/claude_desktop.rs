@@ -51,6 +51,22 @@ impl ClientAdapter for ClaudeDesktopAdapter {
             Ok(sig.exists())
         }
     }
+
+    // ── Role-sync (ctq-69) ─────────────────────────────────────────────────
+
+    /// Claude Desktop: per-project agents are out of scope for v1.
+    /// Global-only mode is undefined in the Desktop app. Sync disabled.
+    fn supports_role_sync(&self) -> bool {
+        false
+    }
+
+    fn agents_dir(&self) -> Result<PathBuf, AdapterError> {
+        Err(AdapterError::SyncNotSupported)
+    }
+
+    fn agent_filename(&self, _role_id: &str) -> String {
+        String::new()
+    }
 }
 
 #[cfg(test)]
@@ -108,6 +124,23 @@ mod tests {
                 sig.file_name().unwrap().to_str().unwrap(),
                 "claude_desktop_config.json"
             );
+        }
+    }
+
+    // ── Role-sync trait surface ───────────────────────────────────────────
+
+    #[test]
+    fn supports_role_sync_is_false() {
+        let a = ClaudeDesktopAdapter;
+        assert!(!a.supports_role_sync());
+    }
+
+    #[test]
+    fn agents_dir_returns_sync_not_supported() {
+        let a = ClaudeDesktopAdapter;
+        match a.agents_dir() {
+            Err(AdapterError::SyncNotSupported) => {}
+            other => panic!("expected SyncNotSupported, got {other:?}"),
         }
     }
 }

@@ -48,6 +48,26 @@ impl ClientAdapter for CursorAdapter {
             Ok(sig.exists())
         }
     }
+
+    // ── Role-sync (ctq-69) ─────────────────────────────────────────────────
+
+    fn supports_role_sync(&self) -> bool {
+        true
+    }
+
+    /// Returns `~/.cursor/rules/`.
+    ///
+    /// Note: Cursor's "rules" directory is separate from the single
+    /// global `rules.mdc` instructions file — we write per-role `.mdc`
+    /// files here.
+    fn agents_dir(&self) -> Result<PathBuf, AdapterError> {
+        Ok(self.config_dir()?.join("rules"))
+    }
+
+    /// Returns `catique-{role_id}.mdc`.
+    fn agent_filename(&self, role_id: &str) -> String {
+        format!("catique-{role_id}.mdc")
+    }
 }
 
 #[cfg(test)]
@@ -94,5 +114,31 @@ mod tests {
         // No mcp.json — even if the .cursor dir exists, not installed.
         fs::create_dir_all(&dir).unwrap();
         assert!(!dir.join("mcp.json").exists());
+    }
+
+    // ── Role-sync trait surface ───────────────────────────────────────────
+
+    #[test]
+    fn supports_role_sync_is_true() {
+        let a = CursorAdapter;
+        assert!(a.supports_role_sync());
+    }
+
+    #[test]
+    fn agents_dir_is_dot_cursor_rules() {
+        let a = CursorAdapter;
+        if let Ok(dir) = a.agents_dir() {
+            let name = dir.file_name().unwrap().to_str().unwrap();
+            assert_eq!(name, "rules");
+            let parent = dir.parent().unwrap().file_name().unwrap().to_str().unwrap();
+            assert_eq!(parent, ".cursor");
+        }
+    }
+
+    #[test]
+    fn agent_filename_has_catique_prefix_and_mdc_extension() {
+        let a = CursorAdapter;
+        let name = a.agent_filename("frontend-engineer");
+        assert_eq!(name, "catique-frontend-engineer.mdc");
     }
 }

@@ -12,4 +12,12 @@ pub enum AdapterError {
     /// configuration error in the UI.
     #[error("home directory is unavailable on this system")]
     HomeDirUnavailable,
+
+    /// This adapter does not support role-file sync.
+    ///
+    /// Returned by adapters where the agent-definition file format is
+    /// unknown (e.g. Qwen CLI in v1) or where per-project agents are
+    /// out of scope (e.g. Claude Desktop v1).
+    #[error("role sync is not supported for this client")]
+    SyncNotSupported,
 }

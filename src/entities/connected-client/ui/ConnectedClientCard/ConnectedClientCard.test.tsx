@@ -14,6 +14,7 @@ function makeClient(overrides: Partial<ConnectedClient> = {}): ConnectedClient {
     installed: true,
     enabled: true,
     lastSeenAt: 0n,
+    supportsRoleSync: true,
     ...overrides,
   };
 }
@@ -95,5 +96,72 @@ describe("ConnectedClientCard", () => {
       />,
     );
     expect(screen.getByTestId("client-enabled-toggle")).toBeDisabled();
+  });
+
+  // ── Role-sync (ctq-69) ───────────────────────────────────────────────
+
+  it("renders the sync roles button when supportsRoleSync is true", () => {
+    render(<ConnectedClientCard client={makeClient({ supportsRoleSync: true })} />);
+    expect(screen.getByTestId("client-sync-roles-btn")).toBeInTheDocument();
+  });
+
+  it("renders 'не поддерживается' hint when supportsRoleSync is false", () => {
+    render(
+      <ConnectedClientCard client={makeClient({ supportsRoleSync: false })} />,
+    );
+    expect(screen.getByTestId("client-sync-not-supported")).toBeInTheDocument();
+    expect(screen.queryByTestId("client-sync-roles-btn")).not.toBeInTheDocument();
+  });
+
+  it("disables sync button when isSyncing is true", () => {
+    render(
+      <ConnectedClientCard
+        client={makeClient({ supportsRoleSync: true })}
+        isSyncing
+      />,
+    );
+    expect(screen.getByTestId("client-sync-roles-btn")).toBeDisabled();
+  });
+
+  it("calls onSyncRoles with the client id on sync button click", async () => {
+    const onSync = vi.fn();
+    render(
+      <ConnectedClientCard
+        client={makeClient({ id: "cursor", supportsRoleSync: true })}
+        onSyncRoles={onSync}
+      />,
+    );
+    await userEvent.click(screen.getByTestId("client-sync-roles-btn"));
+    expect(onSync).toHaveBeenCalledWith("cursor");
+  });
+
+  it("renders synced roles list when syncedRoles is provided", () => {
+    render(
+      <ConnectedClientCard
+        client={makeClient({ supportsRoleSync: true })}
+        syncedRoles={[
+          {
+            clientId: "claude-code",
+            roleId: "backend-engineer",
+            filePath: "/Users/test/.claude/agents/catique-backend-engineer.md",
+            syncedAt: 1_000n,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("client-synced-roles-list")).toBeInTheDocument();
+    expect(screen.getByText("backend-engineer")).toBeInTheDocument();
+  });
+
+  it("does not render synced roles list when syncedRoles is empty", () => {
+    render(
+      <ConnectedClientCard
+        client={makeClient({ supportsRoleSync: true })}
+        syncedRoles={[]}
+      />,
+    );
+    expect(
+      screen.queryByTestId("client-synced-roles-list"),
+    ).not.toBeInTheDocument();
   });
 });

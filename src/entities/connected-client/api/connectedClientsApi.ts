@@ -11,6 +11,8 @@ import { AppErrorInstance } from "@entities/board";
 import type { AppError } from "@bindings/AppError";
 import type { ClientInstructions } from "@bindings/ClientInstructions";
 import type { ConnectedClient } from "@bindings/ConnectedClient";
+import type { RoleSyncReport } from "@bindings/RoleSyncReport";
+import type { SyncedRoleFile } from "@bindings/SyncedRoleFile";
 
 function isAppErrorShape(value: unknown): value is AppError {
   if (typeof value !== "object" || value === null) return false;
@@ -84,5 +86,29 @@ export async function writeClientInstructions(
   return invokeWithAppError<ClientInstructions>("write_client_instructions", {
     clientId,
     content,
+  });
+}
+
+/**
+ * `list_synced_client_roles` — list agent-definition files managed by
+ * Catique Hub for this client.
+ */
+export async function listSyncedClientRoles(
+  clientId: string,
+): Promise<SyncedRoleFile[]> {
+  return invokeWithAppError<SyncedRoleFile[]>("list_synced_client_roles", {
+    clientId,
+  });
+}
+
+/**
+ * `sync_roles_to_client` — one-way sync of all Catique Hub roles to the
+ * client's agent directory.
+ */
+export async function syncRolesToClient(
+  clientId: string,
+): Promise<RoleSyncReport> {
+  return invokeWithAppError<RoleSyncReport>("sync_roles_to_client", {
+    clientId,
   });
 }

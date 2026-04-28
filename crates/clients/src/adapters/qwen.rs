@@ -60,6 +60,22 @@ impl ClientAdapter for QwenAdapter {
             Ok(dir.exists())
         }
     }
+
+    // ── Role-sync (ctq-69) ─────────────────────────────────────────────────
+
+    /// Qwen CLI: agent-definition format is unknown as of 2026-Q2
+    /// (OQ-1, ctq-67). Sync disabled in v1.
+    fn supports_role_sync(&self) -> bool {
+        false
+    }
+
+    fn agents_dir(&self) -> Result<PathBuf, AdapterError> {
+        Err(AdapterError::SyncNotSupported)
+    }
+
+    fn agent_filename(&self, _role_id: &str) -> String {
+        String::new()
+    }
 }
 
 #[cfg(test)]
@@ -114,5 +130,22 @@ mod tests {
         let dir = config_dir_for(tmp.path());
         fs::create_dir_all(&dir).unwrap();
         assert!(dir.exists());
+    }
+
+    // ── Role-sync trait surface ───────────────────────────────────────────
+
+    #[test]
+    fn supports_role_sync_is_false() {
+        let a = QwenAdapter;
+        assert!(!a.supports_role_sync());
+    }
+
+    #[test]
+    fn agents_dir_returns_sync_not_supported() {
+        let a = QwenAdapter;
+        match a.agents_dir() {
+            Err(AdapterError::SyncNotSupported) => {}
+            other => panic!("expected SyncNotSupported, got {other:?}"),
+        }
     }
 }

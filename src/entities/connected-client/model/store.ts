@@ -17,12 +17,16 @@ import {
 import {
   discoverClients,
   listConnectedClients,
+  listSyncedClientRoles,
   readClientInstructions,
   setClientEnabled,
+  syncRolesToClient,
   writeClientInstructions,
   type SetClientEnabledArgs,
 } from "../api";
 import type { ClientInstructions } from "@bindings/ClientInstructions";
+import type { RoleSyncReport } from "@bindings/RoleSyncReport";
+import type { SyncedRoleFile } from "@bindings/SyncedRoleFile";
 import type { ConnectedClient } from "./types";
 
 /** Query-key factory. */
@@ -31,6 +35,8 @@ export const connectedClientsKeys = {
   list: () => [...connectedClientsKeys.all] as const,
   instructions: (clientId: string) =>
     [...connectedClientsKeys.all, "instructions", clientId] as const,
+  syncedRoles: (clientId: string) =>
+    [...connectedClientsKeys.all, "synced_roles", clientId] as const,
 };
 
 /**
@@ -129,6 +135,41 @@ export function useWriteClientInstructionsMutation(): UseMutationResult<
       });
       void queryClient.invalidateQueries({
         queryKey: connectedClientsKeys.list(),
+      });
+    },
+  });
+}
+
+/**
+ * `useSyncedClientRoles` — list agent-definition files currently managed by
+ * Catique Hub for a given client. Disabled when `clientId` is empty.
+ */
+export function useSyncedClientRoles(
+  clientId: string,
+): UseQueryResult<SyncedRoleFile[], Error> {
+  return useQuery({
+    queryKey: connectedClientsKeys.syncedRoles(clientId),
+    queryFn: () => listSyncedClientRoles(clientId),
+    enabled: clientId.length > 0,
+  });
+}
+
+/**
+ * `useSyncRolesToClientMutation` — trigger a one-way role-file sync.
+ * On success, invalidates the `syncedRoles` query for the client so the
+ * inline list refreshes immediately.
+ */
+export function useSyncRolesToClientMutation(): UseMutationResult<
+  RoleSyncReport,
+  Error,
+  string // clientId
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (clientId: string) => syncRolesToClient(clientId),
+    onSuccess: (_data, clientId) => {
+      void queryClient.invalidateQueries({
+        queryKey: connectedClientsKeys.syncedRoles(clientId),
       });
     },
   });
