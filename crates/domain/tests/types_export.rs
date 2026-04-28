@@ -12,8 +12,8 @@
 //! get confused chasing a non-existent `export_all`.
 
 use catique_domain::{
-    AgentReport, Attachment, Board, Column, ImportOptions, ImportReport, PreflightResults,
-    Prompt, PrompteryDbInfo, Role, Space, Tag, Task,
+    AgentReport, Attachment, Board, Column, ImportOptions, ImportReport, PreflightResults, Prompt,
+    PrompteryDbInfo, Role, Space, Tag, Task,
 };
 use ts_rs::TS;
 

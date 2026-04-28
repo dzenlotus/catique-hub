@@ -106,6 +106,20 @@ pub const TAG_UPDATED: &str = "tag.updated";
 /// `tag.deleted` — payload `{ id }`.
 pub const TAG_DELETED: &str = "tag.deleted";
 
+/// `skill.created` — payload `{ id }`.
+pub const SKILL_CREATED: &str = "skill.created";
+/// `skill.updated` — payload `{ id }`.
+pub const SKILL_UPDATED: &str = "skill.updated";
+/// `skill.deleted` — payload `{ id }`.
+pub const SKILL_DELETED: &str = "skill.deleted";
+
+/// `mcp_tool.created` — payload `{ id }`.
+pub const MCP_TOOL_CREATED: &str = "mcp_tool.created";
+/// `mcp_tool.updated` — payload `{ id }`.
+pub const MCP_TOOL_UPDATED: &str = "mcp_tool.updated";
+/// `mcp_tool.deleted` — payload `{ id }`.
+pub const MCP_TOOL_DELETED: &str = "mcp_tool.deleted";
+
 /// `agent_report.created` — payload `{ id, task_id }`.
 pub const AGENT_REPORT_CREATED: &str = "agent_report.created";
 /// `agent_report.updated` — payload `{ id, task_id }`.
@@ -195,12 +209,16 @@ mod tests {
         // not blow up". A debug-build assertion would also catch a
         // regression that started panicking on the empty cell.
         emit(&state, BOARD_CREATED, json!({ "id": "b1" }));
-        emit(&state, TASK_MOVED, json!({
-            "id": "t1",
-            "from_column_id": "c1",
-            "to_column_id": "c2",
-            "board_id": "bd1",
-        }));
+        emit(
+            &state,
+            TASK_MOVED,
+            json!({
+                "id": "t1",
+                "from_column_id": "c1",
+                "to_column_id": "c2",
+                "board_id": "bd1",
+            }),
+        );
         // Sanity: the cell really was empty.
         assert!(state.app_handle.get().is_none());
     }
@@ -239,6 +257,12 @@ mod tests {
             ATTACHMENT_CREATED,
             ATTACHMENT_UPDATED,
             ATTACHMENT_DELETED,
+            SKILL_CREATED,
+            SKILL_UPDATED,
+            SKILL_DELETED,
+            MCP_TOOL_CREATED,
+            MCP_TOOL_UPDATED,
+            MCP_TOOL_DELETED,
             IMPORT_STARTED,
             IMPORT_PROGRESS,
             IMPORT_COMPLETED,

@@ -90,6 +90,18 @@ pub fn run() {
             handlers::roles::remove_role_prompt,
             handlers::roles::remove_role_skill,
             handlers::roles::update_role,
+            // ---------------- skills (E2.x) ----------------
+            handlers::skills::create_skill,
+            handlers::skills::delete_skill,
+            handlers::skills::get_skill,
+            handlers::skills::list_skills,
+            handlers::skills::update_skill,
+            // ---------------- mcp tools (E2.x) ----------------
+            handlers::mcp_tools::create_mcp_tool,
+            handlers::mcp_tools::delete_mcp_tool,
+            handlers::mcp_tools::get_mcp_tool,
+            handlers::mcp_tools::list_mcp_tools,
+            handlers::mcp_tools::update_mcp_tool,
             // ---------------- tags (E2.4) ----------------
             handlers::tags::add_prompt_tag,
             handlers::tags::create_tag,
@@ -115,6 +127,10 @@ pub fn run() {
             handlers::import::import_from_promptery,
             // ---------------- settings ----------------
             handlers::settings::ping,
+            // ---------------- search (E4.1) ----------------
+            handlers::search::search_tasks,
+            handlers::search::search_agent_reports,
+            handlers::search::search_all,
         ])
         .run(tauri::generate_context!())
     {
@@ -127,7 +143,8 @@ pub fn run() {
 /// at the call-site level (via integration tests in E2.7).
 fn init_state() -> Result<AppState, String> {
     let path = db_path().map_err(|e| format!("resolve db path: {e}"))?;
-    let pool = open_pool(&path).map_err(|e| format!("open sqlite pool at {}: {e}", path.display()))?;
+    let pool =
+        open_pool(&path).map_err(|e| format!("open sqlite pool at {}: {e}", path.display()))?;
 
     let mut conn = pool
         .get()

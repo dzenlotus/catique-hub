@@ -20,6 +20,7 @@
 
 import { useState, type FormEvent, type ReactElement } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Sparkles, Database } from "lucide-react";
 
 import { invoke } from "@shared/api";
 import { Button, Dialog, Input } from "@shared/ui";
@@ -74,7 +75,10 @@ export function WelcomeWidget({
           onPress={() => setActive("createSpace")}
           data-testid="welcome-create-space"
         >
-          {strings.welcome.createSpaceCta}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-6)" }}>
+            <Sparkles size={16} aria-hidden="true" />
+            {strings.welcome.createSpaceCta}
+          </span>
         </Button>
         <Button
           variant="secondary"
@@ -82,7 +86,10 @@ export function WelcomeWidget({
           onPress={() => setActive("locatePromptery")}
           data-testid="welcome-locate-promptery"
         >
-          {strings.welcome.locatePrompteryCta}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-6)" }}>
+            <Database size={16} aria-hidden="true" />
+            {strings.welcome.locatePrompteryCta}
+          </span>
         </Button>
       </div>
 

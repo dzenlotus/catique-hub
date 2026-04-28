@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Board } from "@entities/board";
+import type { Space } from "@entities/space";
 
 // Mock the Tauri invoke wrapper at the shared/api boundary — this is
 // the single place IPC traffic crosses, so all four states (loading,
@@ -48,6 +49,20 @@ function makeBoard(overrides: Partial<Board> = {}): Board {
   };
 }
 
+function makeSpace(overrides: Partial<Space> = {}): Space {
+  return {
+    id: "spc-default",
+    name: "default",
+    prefix: "def",
+    description: null,
+    isDefault: true,
+    position: 1,
+    createdAt: 0n,
+    updatedAt: 0n,
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   invokeMock.mockReset();
 });
@@ -64,14 +79,20 @@ describe("BoardsList", () => {
     expect(skeletons).toHaveLength(3);
   });
 
-  it("shows the empty CTA when the list is empty", async () => {
+  it("shows the create header button always (loading state)", () => {
+    invokeMock.mockImplementation(() => new Promise(() => {}));
+    renderWithClient(<BoardsList />);
+    expect(screen.getByTestId("boards-list-create-button")).toBeInTheDocument();
+  });
+
+  it("shows the empty state when the list is empty", async () => {
     invokeMock.mockResolvedValue([] satisfies Board[]);
     renderWithClient(<BoardsList />);
     await waitFor(() => {
       expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
     });
     expect(
-      screen.getByRole("button", { name: /create your first board/i }),
+      screen.getByRole("button", { name: /создать первую доску/i }),
     ).toBeInTheDocument();
   });
 
@@ -97,15 +118,10 @@ describe("BoardsList", () => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
     expect(screen.getByText(/transport down/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
   });
 
   it("creates a board and invalidates the list cache (refetches)", async () => {
-    // 1st call: list_boards → empty. Spaces query returns one preset
-    // space so the dialog skips the bootstrap branch and goes straight
-    // to the populated form.
-    // 2nd call: create_board → returns the new board.
-    // 3rd call (after invalidation): list_boards → returns [newBoard].
     const newBoard = makeBoard({
       id: "brd-new",
       name: "Sprint 14",
@@ -120,7 +136,7 @@ describe("BoardsList", () => {
           : [newBoard];
       }
       if (cmd === "list_spaces") {
-        return [{ id: "spc-default", name: "default" }];
+        return [makeSpace()];
       }
       if (cmd === "create_board") {
         return newBoard;
@@ -137,13 +153,16 @@ describe("BoardsList", () => {
 
     // Open the dialog from the empty CTA.
     await user.click(
-      screen.getByRole("button", { name: /create your first board/i }),
+      screen.getByRole("button", { name: /создать первую доску/i }),
     );
 
-    // Dialog open — fill name and submit.
-    const nameInput = await screen.findByLabelText("Board name");
+    // Dialog open — fill name and submit via the BoardCreateDialog.
+    const nameInput = await screen.findByTestId("board-create-dialog-name-input");
     await user.type(nameInput, "Sprint 14");
-    await user.click(screen.getByRole("button", { name: /^create board$/i }));
+
+    // Wait for space picker to be available (spaces query).
+    await screen.findByTestId("board-create-dialog-space-select");
+    await user.click(screen.getByTestId("board-create-dialog-save"));
 
     // After mutation success: dialog closes, list re-fetches and now
     // contains the new board.
@@ -173,9 +192,7 @@ describe("BoardsList", () => {
   it("validates that a board name is required before submitting", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_boards") return [] satisfies Board[];
-      if (cmd === "list_spaces") {
-        return [{ id: "spc-default", name: "default" }];
-      }
+      if (cmd === "list_spaces") return [makeSpace()];
       throw new Error(`unexpected command: ${cmd}`);
     });
     const { user } = renderWithClient(<BoardsList />);
@@ -183,23 +200,24 @@ describe("BoardsList", () => {
     await waitFor(() => {
       expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
     });
-    await user.click(
-      screen.getByRole("button", { name: /create your first board/i }),
-    );
-    // Submit empty form.
+
+    // Open dialog via header button.
+    await user.click(screen.getByTestId("boards-list-create-button"));
+
+    // Space select should appear; save should be disabled (name empty).
+    await screen.findByTestId("board-create-dialog-space-select");
+    const saveBtn = screen.getByTestId("board-create-dialog-save");
+    expect(saveBtn).toBeDisabled();
+
+    // Clicking while disabled should not fire the mutation.
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: /^create board$/i }));
+      await user.click(saveBtn);
     });
 
-    // No create_board IPC call should have fired.
     const createCalls = invokeMock.mock.calls.filter(
       ([cmd]) => cmd === "create_board",
     );
     expect(createCalls).toHaveLength(0);
-    // An error message is rendered inside the dialog (Input field error
-    // and the form-level alert may both surface — getAllByText covers
-    // either rendering path).
-    expect(screen.getAllByText(/name is required/i).length).toBeGreaterThan(0);
   });
 
   it("calls onSelectBoard with the board id when a card is activated", async () => {
@@ -208,7 +226,7 @@ describe("BoardsList", () => {
         return [makeBoard({ id: "brd-pick", name: "Pick me" })];
       }
       if (cmd === "list_spaces") {
-        return [{ id: "spc-default", name: "default" }];
+        return [makeSpace()];
       }
       throw new Error(`unexpected command: ${cmd}`);
     });
@@ -235,11 +253,9 @@ describe("BoardsList", () => {
     await waitFor(() => {
       expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
     });
-    await user.click(
-      screen.getByRole("button", { name: /create your first board/i }),
-    );
+    await user.click(screen.getByTestId("boards-list-create-button"));
     expect(
-      await screen.findByTestId("bootstrap-default-space"),
+      await screen.findByTestId("board-create-dialog-bootstrap-space"),
     ).toBeInTheDocument();
   });
 });

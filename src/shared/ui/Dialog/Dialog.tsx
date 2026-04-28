@@ -38,6 +38,8 @@ export interface DialogProps {
   onOpenChange?: (isOpen: boolean) => void;
   /** Optional class merged onto the inner Dialog content panel. */
   className?: string;
+  /** Optional test identifier forwarded to the dialog panel element. */
+  "data-testid"?: string;
   /**
    * Body. May be a ReactNode or a render-prop receiving `close`.
    * Render-prop is preferred when the dialog has a close-control inside.
@@ -68,6 +70,7 @@ export function Dialog({
   isOpen,
   onOpenChange,
   className,
+  "data-testid": dataTestId,
   children,
 }: DialogProps): ReactElement {
   return (
@@ -78,7 +81,10 @@ export function Dialog({
       {...(onOpenChange ? { onOpenChange } : {})}
     >
       <Modal className={styles.modal}>
-        <AriaDialog className={cn(styles.dialog, className)}>
+        <AriaDialog
+            className={cn(styles.dialog, className)}
+            {...(dataTestId ? { "data-testid": dataTestId } : {})}
+          >
           {({ close }) => (
             <>
               <Heading slot="title" className={styles.title}>

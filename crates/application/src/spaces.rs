@@ -206,7 +206,10 @@ mod tests {
     fn create_with_empty_name_returns_validation() {
         let pool = fresh_pool();
         let uc = SpacesUseCase::new(&pool);
-        match uc.create(String::new(), "abc".into(), None, false).expect_err("v") {
+        match uc
+            .create(String::new(), "abc".into(), None, false)
+            .expect_err("v")
+        {
             AppError::Validation { field, .. } => assert_eq!(field, "name"),
             other => panic!("got {other:?}"),
         }

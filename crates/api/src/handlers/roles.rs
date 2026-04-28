@@ -5,10 +5,7 @@
 
 use catique_application::{roles::RolesUseCase, AppError};
 use catique_domain::Role;
-use catique_infrastructure::db::{
-    pool::acquire,
-    repositories::roles as repo,
-};
+use catique_infrastructure::db::{pool::acquire, repositories::roles as repo};
 use serde_json::json;
 use tauri::State;
 

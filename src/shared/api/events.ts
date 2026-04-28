@@ -90,6 +90,14 @@ export type AppEvent =
   | { type: "tag.created"; payload: { id: string } }
   | { type: "tag.updated"; payload: { id: string } }
   | { type: "tag.deleted"; payload: { id: string } }
+  // ---------------- skills ----------------
+  | { type: "skill.created"; payload: { id: string } }
+  | { type: "skill.updated"; payload: { id: string } }
+  | { type: "skill.deleted"; payload: { id: string } }
+  // ---------------- mcp tools ----------------
+  | { type: "mcp_tool.created"; payload: { id: string } }
+  | { type: "mcp_tool.updated"; payload: { id: string } }
+  | { type: "mcp_tool.deleted"; payload: { id: string } }
   // ---------------- agent reports ----------------
   | {
       type: "agent_report.created";

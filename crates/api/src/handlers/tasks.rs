@@ -154,8 +154,10 @@ pub async fn add_task_prompt(
     position: f64,
 ) -> Result<(), AppError> {
     let conn = catique_infrastructure::db::pool::acquire(&state.pool).map_err(map_db)?;
-    catique_infrastructure::db::repositories::tasks::add_task_prompt(&conn, &task_id, &prompt_id, position)
-        .map_err(map_db)
+    catique_infrastructure::db::repositories::tasks::add_task_prompt(
+        &conn, &task_id, &prompt_id, position,
+    )
+    .map_err(map_db)
 }
 
 /// Detach a direct prompt from a task.

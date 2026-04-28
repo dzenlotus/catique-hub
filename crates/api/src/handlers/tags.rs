@@ -5,10 +5,7 @@
 
 use catique_application::{tags::TagsUseCase, AppError};
 use catique_domain::Tag;
-use catique_infrastructure::db::{
-    pool::acquire,
-    repositories::tags as repo,
-};
+use catique_infrastructure::db::{pool::acquire, repositories::tags as repo};
 use serde_json::json;
 use tauri::State;
 

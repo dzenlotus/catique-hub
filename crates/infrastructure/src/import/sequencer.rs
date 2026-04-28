@@ -152,8 +152,7 @@ pub fn run_import_transaction(
     let outcome = (|| -> Result<SequencerOutcome, ImportError> {
         let mut outcome = SequencerOutcome::default();
 
-        let tx = target_conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let tx = target_conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
         for (table, cols, flag) in PLAN {
             match *flag {
@@ -168,9 +167,7 @@ pub fn run_import_transaction(
                     let sql = "INSERT INTO tasks_fts(task_id, title, description) \
                                SELECT id, title, description FROM tasks";
                     let n = u64::try_from(tx.execute(sql, [])?).unwrap_or(0);
-                    outcome
-                        .fts_rows_rebuilt
-                        .insert("tasks_fts".to_owned(), n);
+                    outcome.fts_rows_rebuilt.insert("tasks_fts".to_owned(), n);
                 }
                 FtsFlag::AgentReportsFts => {
                     tx.execute_batch("DELETE FROM agent_reports_fts")?;
@@ -230,9 +227,7 @@ fn run_simple_copy(
     table: &str,
     cols: &str,
 ) -> Result<u64, ImportError> {
-    let sql = format!(
-        "INSERT INTO {table} ({cols}) SELECT {cols} FROM src.{table}"
-    );
+    let sql = format!("INSERT INTO {table} ({cols}) SELECT {cols} FROM src.{table}");
     let n = tx.execute(&sql, [])?;
     Ok(u64::try_from(n).unwrap_or(0))
 }
@@ -261,8 +256,7 @@ mod tests {
             return;
         }
         let mut target = fresh_target();
-        let outcome =
-            run_import_transaction(&mut target, &golden).expect("import");
+        let outcome = run_import_transaction(&mut target, &golden).expect("import");
 
         // Basic counts
         let tasks: i64 = target
@@ -313,8 +307,7 @@ mod tests {
         {
             let conn = Connection::open(&tmp).unwrap();
             conn.execute_batch("PRAGMA foreign_keys = OFF;").unwrap();
-            let (schema, migrations) =
-                super::super::schema::schema_bundle_apply_sql().unwrap();
+            let (schema, migrations) = super::super::schema::schema_bundle_apply_sql().unwrap();
             conn.execute_batch(&schema).unwrap();
             for m in &migrations {
                 let _ = conn.execute_batch(m); // tolerant — no-ops on dup CREATE IF NOT EXISTS
@@ -333,10 +326,7 @@ mod tests {
             .expect_err("FK check must reject orphan board");
         match err {
             ImportError::Validation { reason } => {
-                assert!(
-                    reason.contains("FK"),
-                    "expected FK reason, got: {reason}"
-                );
+                assert!(reason.contains("FK"), "expected FK reason, got: {reason}");
             }
             other => panic!("expected Validation, got {other:?}"),
         }
@@ -367,16 +357,14 @@ mod tests {
         {
             let conn = Connection::open(&tmp).unwrap();
             conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
-            let (schema, migrations) =
-                super::super::schema::schema_bundle_apply_sql().unwrap();
+            let (schema, migrations) = super::super::schema::schema_bundle_apply_sql().unwrap();
             conn.execute_batch(&schema).unwrap();
             for m in &migrations {
                 let _ = conn.execute_batch(m);
             }
         }
         let mut target = fresh_target();
-        let outcome =
-            run_import_transaction(&mut target, &tmp).expect("import empty");
+        let outcome = run_import_transaction(&mut target, &tmp).expect("import empty");
         // Every count must be zero.
         for n in outcome.rows_imported.values() {
             assert_eq!(*n, 0);

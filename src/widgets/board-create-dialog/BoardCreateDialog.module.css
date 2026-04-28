@@ -1,0 +1,103 @@
+/*
+ * BoardCreateDialog — create-board modal.
+ *
+ * Layout: flex-column body with bordered sections. Footer is right-aligned
+ * action row. Mirrors PromptEditor.module.css for consistency.
+ */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Form sections ───────────────────────────────────────────────── */
+
+.section {
+  padding: var(--space-16) 0;
+  border-bottom: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.section:first-child {
+  padding-top: 0;
+}
+
+.fullWidthInput {
+  width: 100%;
+}
+
+/* ── Space select field ──────────────────────────────────────────── */
+
+.selectField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-family: var(--font-sans);
+}
+
+.selectLabel {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+}
+
+.select {
+  height: 32px;
+  padding: 0 var(--space-12);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  outline: none;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.select:focus-visible {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+/* ── Bootstrap hint ──────────────────────────────────────────────── */
+
+.bootstrap {
+  padding: var(--space-12);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-canvas);
+}
+
+.bootstrapHint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-8);
+  padding-top: var(--space-16);
+}
+
+.saveError {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .select {
+    transition: none;
+  }
+}

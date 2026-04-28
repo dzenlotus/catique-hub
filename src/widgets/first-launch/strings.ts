@@ -43,6 +43,7 @@ export const strings = {
       attachmentsTotalLabel: "Размер вложений",
       runImportCta: "Запустить импорт",
       backCta: "Назад",
+      skipCta: "Пропустить — начать с нуля",
       failureTitle: "Не получилось проанализировать базу",
     },
     running: {

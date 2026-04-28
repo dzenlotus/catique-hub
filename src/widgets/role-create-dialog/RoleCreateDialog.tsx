@@ -1,0 +1,199 @@
+/**
+ * RoleCreateDialog — modal for creating a new role.
+ *
+ * Props:
+ *   - `isOpen`    — controls dialog visibility.
+ *   - `onClose`   — called on Cancel, successful Save, or Esc.
+ *   - `onCreated` — optional callback with the newly-created Role.
+ *
+ * Fields: name (required), content (markdown textarea, default ""),
+ * color (optional with reset).
+ */
+
+import { useState, type ReactElement } from "react";
+
+import { useCreateRoleMutation } from "@entities/role";
+import type { Role } from "@entities/role";
+import { Dialog, Button, Input } from "@shared/ui";
+
+import styles from "./RoleCreateDialog.module.css";
+
+export interface RoleCreateDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreated?: (role: Role) => void;
+}
+
+/**
+ * `RoleCreateDialog` — modal dialog for creating a new role.
+ */
+export function RoleCreateDialog({
+  isOpen,
+  onClose,
+  onCreated,
+}: RoleCreateDialogProps): ReactElement {
+  return (
+    <Dialog
+      title="Создать роль"
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      isDismissable
+      className={styles.dialogBody}
+      data-testid="role-create-dialog"
+    >
+      {() =>
+        isOpen ? (
+          <RoleCreateDialogContent
+            onClose={onClose}
+            {...(onCreated !== undefined ? { onCreated } : {})}
+          />
+        ) : null
+      }
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RoleCreateDialogContentProps {
+  onClose: () => void;
+  onCreated?: (role: Role) => void;
+}
+
+function RoleCreateDialogContent({
+  onClose,
+  onCreated,
+}: RoleCreateDialogContentProps): ReactElement {
+  const createMutation = useCreateRoleMutation();
+
+  const [name, setName] = useState("");
+  const [content, setContent] = useState("");
+  const [color, setColor] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const canSubmit = name.trim().length > 0;
+
+  const handleSave = (): void => {
+    setSaveError(null);
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setSaveError("Название не может быть пустым.");
+      return;
+    }
+
+    type MutationArgs = Parameters<typeof createMutation.mutate>[0];
+    const args: MutationArgs = { name: trimmedName };
+    // content defaults to "" on Rust side when omitted; send only when non-empty.
+    if (content !== "") args.content = content;
+    if (color !== "") args.color = color;
+
+    createMutation.mutate(args, {
+      onSuccess: (role) => {
+        onCreated?.(role);
+        onClose();
+      },
+      onError: (err) => {
+        setSaveError(`Не удалось создать: ${err.message}`);
+      },
+    });
+  };
+
+  const handleCancel = (): void => {
+    onClose();
+  };
+
+  return (
+    <>
+      {/* Name */}
+      <div className={styles.section}>
+        <Input
+          label="Название"
+          value={name}
+          onChange={setName}
+          placeholder="Название роли"
+          autoFocus
+          className={styles.fullWidthInput}
+          data-testid="role-create-dialog-name-input"
+        />
+      </div>
+
+      {/* Color */}
+      <div className={styles.section}>
+        <p className={styles.sectionLabel}>Цвет</p>
+        <div className={styles.colorRow}>
+          {color !== "" && (
+            <span
+              className={styles.colorSwatch}
+              style={{ backgroundColor: color }}
+              aria-hidden="true"
+            />
+          )}
+          <input
+            type="color"
+            className={styles.colorInput}
+            value={color === "" ? "#000000" : color}
+            onChange={(e) => setColor(e.target.value)}
+            aria-label="Цвет роли"
+            data-testid="role-create-dialog-color-input"
+          />
+          {color !== "" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => setColor("")}
+              data-testid="role-create-dialog-color-reset"
+            >
+              Сбросить
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className={styles.section}>
+        <p className={styles.sectionLabel}>Содержимое</p>
+        <textarea
+          className={styles.contentTextarea}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Содержимое роли (Markdown)..."
+          data-testid="role-create-dialog-content-textarea"
+          aria-label="Содержимое"
+        />
+      </div>
+
+      {/* Footer */}
+      <div className={styles.footer}>
+        {saveError ? (
+          <p
+            className={styles.saveError}
+            role="alert"
+            data-testid="role-create-dialog-error"
+          >
+            {saveError}
+          </p>
+        ) : null}
+        <Button
+          variant="ghost"
+          size="md"
+          onPress={handleCancel}
+          data-testid="role-create-dialog-cancel"
+        >
+          Отмена
+        </Button>
+        <Button
+          variant="primary"
+          size="md"
+          isPending={createMutation.status === "pending"}
+          isDisabled={!canSubmit}
+          onPress={handleSave}
+          data-testid="role-create-dialog-save"
+        >
+          Создать
+        </Button>
+      </div>
+    </>
+  );
+}

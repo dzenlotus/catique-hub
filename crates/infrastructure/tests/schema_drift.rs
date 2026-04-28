@@ -81,7 +81,12 @@ fn pf4_detects_drifted_migrations_ledger() {
         "PF-4 must reject ledger drift; messages: {:?}",
         outcome.results.messages
     );
-    let detail = outcome.results.messages.get("PF-4").cloned().unwrap_or_default();
+    let detail = outcome
+        .results
+        .messages
+        .get("PF-4")
+        .cloned()
+        .unwrap_or_default();
     assert!(
         detail.contains("mismatch"),
         "expected mismatch error, got: {detail}"
@@ -110,7 +115,11 @@ fn pf4_passes_on_byte_identical_golden_fixture() {
         attachments_dir: None,
     };
     let outcome = run_preflight(&ctx).expect("preflight runs");
-    assert!(outcome.results.pf4_schema_hash_ok, "PF-4 must pass: {:?}", outcome.results.messages);
+    assert!(
+        outcome.results.pf4_schema_hash_ok,
+        "PF-4 must pass: {:?}",
+        outcome.results.messages
+    );
     assert_eq!(outcome.source_schema_hash, outcome.target_schema_hash);
     let _ = std::fs::remove_dir_all(&tmp);
 }

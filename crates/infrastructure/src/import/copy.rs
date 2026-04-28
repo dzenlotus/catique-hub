@@ -47,9 +47,7 @@ pub fn snapshot_source(source: &Path, tmp_dir: &Path) -> Result<SnapshotOutcome,
     let dst_hash = hash_file(&copy_path)?;
     if src_hash != dst_hash {
         return Err(ImportError::Validation {
-            reason: format!(
-                "snapshot hash mismatch: src={src_hash} dst={dst_hash} — corrupt copy"
-            ),
+            reason: format!("snapshot hash mismatch: src={src_hash} dst={dst_hash} — corrupt copy"),
         });
     }
     Ok(SnapshotOutcome {
@@ -94,10 +92,8 @@ mod tests {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.subsec_nanos());
-        let dir = std::env::temp_dir().join(format!(
-            "catique-snapshot-{}-{nanos}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("catique-snapshot-{}-{nanos}", std::process::id()));
         fs::create_dir_all(&dir).expect("tmp");
         dir
     }

@@ -159,12 +159,12 @@ pub fn update(
     let desc_new = patch.short_description.as_ref();
     let tok_new = patch.token_count.as_ref();
 
-    let mut sql = String::from("UPDATE prompts SET name = COALESCE(?1, name), content = COALESCE(?2, content)");
+    let mut sql = String::from(
+        "UPDATE prompts SET name = COALESCE(?1, name), content = COALESCE(?2, content)",
+    );
     let mut next_param = 3_usize;
-    let mut params_vec: Vec<rusqlite::types::Value> = vec![
-        patch.name.clone().into(),
-        patch.content.clone().into(),
-    ];
+    let mut params_vec: Vec<rusqlite::types::Value> =
+        vec![patch.name.clone().into(), patch.content.clone().into()];
     if let Some(c) = color_new {
         let _ = write!(sql, ", color = ?{next_param}");
         params_vec.push(rusqlite::types::Value::from(c.clone()));
@@ -188,10 +188,7 @@ pub fn update(
     params_vec.push(rusqlite::types::Value::from(now));
     params_vec.push(rusqlite::types::Value::from(id.to_owned()));
 
-    let updated = conn.execute(
-        &sql,
-        rusqlite::params_from_iter(params_vec.iter()),
-    )?;
+    let updated = conn.execute(&sql, rusqlite::params_from_iter(params_vec.iter()))?;
     if updated == 0 {
         return Ok(None);
     }

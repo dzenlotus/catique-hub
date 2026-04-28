@@ -17,6 +17,7 @@
  */
 
 import type { ReactElement } from "react";
+import { ArrowRight, X } from "lucide-react";
 
 import { Button } from "@shared/ui";
 import type { PrompteryDbInfo } from "@bindings/PrompteryDbInfo";
@@ -91,7 +92,10 @@ export function DetectionStage({
 
       <div className={styles.actions}>
         <Button variant="ghost" onPress={onSkip} data-testid="detection-skip">
-          {strings.importWizard.detection.skipCta}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-6)" }}>
+            <X size={14} aria-hidden="true" />
+            {strings.importWizard.detection.skipCta}
+          </span>
         </Button>
         <Button
           variant="primary"
@@ -99,7 +103,10 @@ export function DetectionStage({
           isDisabled={!schemaMatch}
           data-testid="detection-continue"
         >
-          {strings.importWizard.detection.continueCta}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-6)" }}>
+            {strings.importWizard.detection.continueCta}
+            <ArrowRight size={14} aria-hidden="true" />
+          </span>
         </Button>
       </div>
     </div>

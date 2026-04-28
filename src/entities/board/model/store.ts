@@ -28,7 +28,9 @@ import {
   createBoard,
   getBoard,
   listBoards,
+  updateBoard,
   type CreateBoardArgs,
+  type UpdateBoardArgs,
 } from "../api";
 import type { Board } from "./types";
 
@@ -83,6 +85,31 @@ export function useCreateBoardMutation(): UseMutationResult<
     mutationFn: createBoard,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: boardsKeys.list() });
+    },
+  });
+}
+
+/**
+ * `useUpdateBoardMutation` — partial-update a board, then invalidate the
+ * list cache and the specific detail entry so all mounted consumers
+ * re-fetch automatically.
+ *
+ * Mirrors `useCreateBoardMutation` shape and follows the same pattern as
+ * `useUpdateSpaceMutation` in `entities/space/model/store.ts`.
+ */
+export function useUpdateBoardMutation(): UseMutationResult<
+  Board,
+  Error,
+  UpdateBoardArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateBoard,
+    onSuccess: (updated) => {
+      void queryClient.invalidateQueries({ queryKey: boardsKeys.list() });
+      void queryClient.invalidateQueries({
+        queryKey: boardsKeys.detail(updated.id),
+      });
     },
   });
 }

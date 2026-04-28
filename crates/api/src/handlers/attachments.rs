@@ -101,10 +101,7 @@ pub async fn update_attachment(
 ///
 /// Forwards every error from `AttachmentsUseCase::delete`.
 #[tauri::command]
-pub async fn delete_attachment(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), AppError> {
+pub async fn delete_attachment(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
     let uc = AttachmentsUseCase::new(&state.pool);
     let attachment = uc.get(&id)?;
     uc.delete(&id)?;

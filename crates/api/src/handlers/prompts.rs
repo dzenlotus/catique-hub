@@ -7,10 +7,7 @@
 
 use catique_application::{prompts::PromptsUseCase, AppError};
 use catique_domain::Prompt;
-use catique_infrastructure::db::{
-    pool::acquire,
-    repositories::prompts as repo,
-};
+use catique_infrastructure::db::{pool::acquire, repositories::prompts as repo};
 use serde_json::json;
 use tauri::State;
 

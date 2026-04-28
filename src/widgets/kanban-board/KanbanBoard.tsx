@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
+import { TaskDialog } from "../task-dialog";
 import {
   DragOverlay,
   type CollisionDetection,
@@ -85,6 +86,17 @@ export function KanbanBoard({
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  // Internal task-select handler: opens local TaskDialog and also
+  // forwards to the caller's onTaskSelect prop if provided.
+  const handleTaskSelect = useCallback(
+    (id: string): void => {
+      setSelectedTaskId(id);
+      onTaskSelect?.(id);
+    },
+    [onTaskSelect],
+  );
 
   const columnIds = useMemo(() => columns.map((c) => c.id), [columns]);
   const columnIdSet = useMemo(() => new Set(columnIds), [columnIds]);
@@ -380,7 +392,7 @@ export function KanbanBoard({
               onDeleteColumn={(id) =>
                 deleteColumn.mutate({ id, boardId })
               }
-              {...(onTaskSelect ? { onTaskSelect } : {})}
+              onTaskSelect={handleTaskSelect}
             />
           ))}
 
@@ -443,6 +455,11 @@ export function KanbanBoard({
           ) : null}
         </DragOverlay>
       </DnDProvider>
+
+      <TaskDialog
+        taskId={selectedTaskId}
+        onClose={() => setSelectedTaskId(null)}
+      />
     </section>
   );
 }

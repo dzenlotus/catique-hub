@@ -1,0 +1,97 @@
+/*
+ * TagChip — compact inline pill for a Tag.
+ *
+ * Reads only semantic tokens (per shared/ui/README.md convention).
+ * Shape: pill with rounded-full border, small caption text,
+ * optional colour swatch on the left.
+ */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border-default);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+  cursor: default;
+  /* Reset <button> defaults when used as interactive variant. */
+  font: inherit;
+  font-size: var(--font-size-caption);
+  appearance: none;
+  text-align: left;
+}
+
+/* ---------- Interactive variant ---------- */
+
+.interactive {
+  cursor: pointer;
+  transition:
+    border-color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
+.interactive:hover {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-overlay-hover);
+}
+
+.interactive:active {
+  background-color: var(--color-overlay-active);
+}
+
+.interactive:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ---------- Colour swatch ---------- */
+
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ---------- Name ---------- */
+
+.name {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+}
+
+/* ---------- Skeleton variant ---------- */
+
+.skeleton {
+  width: 64px;
+  height: 20px;
+  background-color: var(--color-overlay-hover);
+  border: none;
+  animation: tag-chip-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+@keyframes tag-chip-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interactive {
+    transition: none;
+  }
+  .skeleton {
+    animation: none;
+  }
+}

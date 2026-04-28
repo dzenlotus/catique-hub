@@ -1,0 +1,168 @@
+/*
+ * McpToolCard — entity-level presentational card.
+ *
+ * Reads only semantic tokens (per shared/ui/README.md convention).
+ * Layout is vertical: name on top, optional description preview in the
+ * middle, meta row (tool badge + optional color swatch + JSON hint) at the bottom.
+ */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  align-items: flex-start;
+  padding: var(--space-16);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-default);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: default;
+  min-height: 96px;
+  box-shadow: var(--shadow-low);
+  transition:
+    border-color 120ms ease-out,
+    background-color 120ms ease-out,
+    box-shadow 120ms ease-out,
+    transform 120ms ease-out;
+}
+
+.interactive {
+  cursor: pointer;
+  width: 100%;
+  /* Reset native <button> chrome — keep the semantic role only. */
+  font: inherit;
+  appearance: none;
+}
+
+.interactive:hover {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-surface-raised);
+  box-shadow: var(--shadow-med);
+  transform: translateY(-1px);
+}
+
+.interactive:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-low);
+  background-color: var(--color-overlay-active);
+}
+
+.interactive:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ---------- Name ---------- */
+
+.name {
+  font-size: var(--font-size-headline-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-default);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Description preview ---------- */
+
+.descriptionPreview {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-normal);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Meta row ---------- */
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin-top: auto;
+}
+
+.toolBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-xs);
+  background-color: var(--color-accent-soft);
+  color: var(--color-text-default);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.colorSwatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border-default);
+}
+
+.jsonHint {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ---------- Skeleton variant ---------- */
+
+.skeleton {
+  cursor: default;
+  pointer-events: none;
+  box-shadow: none;
+}
+
+.skeletonLine {
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-xs);
+  animation: mcp-tool-card-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+.skeletonName {
+  height: 14px;
+  width: 70%;
+}
+
+.skeletonDescription {
+  height: 10px;
+  width: 90%;
+}
+
+.skeletonMeta {
+  height: 10px;
+  width: 30%;
+}
+
+@keyframes mcp-tool-card-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .interactive {
+    transition: none;
+  }
+  .interactive:hover,
+  .interactive:active {
+    transform: none;
+  }
+  .skeletonLine {
+    animation: none;
+  }
+}

@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import { Paperclip } from "lucide-react";
 
 import { cn } from "@shared/lib";
 
@@ -124,8 +125,7 @@ function CardBody({ task, attachmentsCount }: CardBodyProps): ReactElement {
             aria-label={`${attachmentsCount} attachments`}
             data-testid="task-card-attachments"
           >
-            {/* Paperclip glyph — replace with proper icon when icon-set lands. */}
-            <span aria-hidden="true">📎</span>
+            <Paperclip size={12} aria-hidden={true} />
             {attachmentsCount}
           </span>
         ) : null}

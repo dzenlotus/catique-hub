@@ -91,10 +91,7 @@ pub async fn update_agent_report(
 ///
 /// Forwards every error from `ReportsUseCase::delete`.
 #[tauri::command]
-pub async fn delete_agent_report(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), AppError> {
+pub async fn delete_agent_report(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
     // GET first so we can include `task_id` in the event payload —
     // the frontend's report list is keyed by `task_id`.
     let uc = ReportsUseCase::new(&state.pool);

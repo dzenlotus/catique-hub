@@ -35,6 +35,8 @@ export interface InputProps
   placeholder?: string;
   /** Native input type — defaults to "text". */
   type?: "text" | "email" | "password" | "search" | "tel" | "url";
+  /** Test identifier forwarded to the inner `<input>` element. */
+  "data-testid"?: string;
 }
 
 /**
@@ -54,7 +56,16 @@ export interface InputProps
  *                  contrast WCAG 1.4.11).
  */
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, description, errorMessage, className, placeholder, type = "text", ...rest },
+  {
+    label,
+    description,
+    errorMessage,
+    className,
+    placeholder,
+    type = "text",
+    "data-testid": dataTestId,
+    ...rest
+  },
   ref,
 ) {
   const reactId = useId();
@@ -74,6 +85,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         placeholder={placeholder ?? ""}
         className={styles.input}
         {...(descriptionId ? { "aria-describedby": descriptionId } : {})}
+        {...(dataTestId ? { "data-testid": dataTestId } : {})}
       />
       {description ? (
         <Text id={descriptionId} slot="description" className={styles.description}>

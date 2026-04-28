@@ -114,7 +114,14 @@ pub fn insert(conn: &Connection, draft: &ColumnDraft) -> Result<ColumnRow, DbErr
         "INSERT INTO columns \
             (id, board_id, name, position, role_id, created_at) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![id, draft.board_id, draft.name, draft.position, draft.role_id, now],
+        params![
+            id,
+            draft.board_id,
+            draft.name,
+            draft.position,
+            draft.role_id,
+            now
+        ],
     )?;
     Ok(ColumnRow {
         id,

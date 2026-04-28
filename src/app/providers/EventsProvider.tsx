@@ -237,6 +237,42 @@ export function EventsProvider({
       }),
     );
 
+    // ---------------- skills / mcp_tools ----------------
+    //
+    // These slices are back-filled in Round 6. Invalidate by stable
+    // top-level key so existing entity slices (once they land) wake
+    // immediately. Costs nothing today if no queries match.
+    sub(
+      on("skill.created", () => {
+        void qc.invalidateQueries({ queryKey: ["skills"] });
+      }),
+    );
+    sub(
+      on("skill.updated", () => {
+        void qc.invalidateQueries({ queryKey: ["skills"] });
+      }),
+    );
+    sub(
+      on("skill.deleted", () => {
+        void qc.invalidateQueries({ queryKey: ["skills"] });
+      }),
+    );
+    sub(
+      on("mcp_tool.created", () => {
+        void qc.invalidateQueries({ queryKey: ["mcp_tools"] });
+      }),
+    );
+    sub(
+      on("mcp_tool.updated", () => {
+        void qc.invalidateQueries({ queryKey: ["mcp_tools"] });
+      }),
+    );
+    sub(
+      on("mcp_tool.deleted", () => {
+        void qc.invalidateQueries({ queryKey: ["mcp_tools"] });
+      }),
+    );
+
     // ---------------- agent reports / attachments ----------------
     sub(
       on("agent_report.created", ({ task_id }) => {

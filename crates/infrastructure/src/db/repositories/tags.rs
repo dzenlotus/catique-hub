@@ -56,9 +56,8 @@ pub struct TagPatch {
 ///
 /// Surfaces rusqlite errors.
 pub fn list_all(conn: &Connection) -> Result<Vec<TagRow>, DbError> {
-    let mut stmt = conn.prepare(
-        "SELECT id, name, color, created_at, updated_at FROM tags ORDER BY name ASC",
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT id, name, color, created_at, updated_at FROM tags ORDER BY name ASC")?;
     let rows = stmt.query_map([], TagRow::from_row)?;
     let mut out = Vec::new();
     for row in rows {
@@ -73,9 +72,8 @@ pub fn list_all(conn: &Connection) -> Result<Vec<TagRow>, DbError> {
 ///
 /// Surfaces rusqlite errors.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<TagRow>, DbError> {
-    let mut stmt = conn.prepare(
-        "SELECT id, name, color, created_at, updated_at FROM tags WHERE id = ?1",
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT id, name, color, created_at, updated_at FROM tags WHERE id = ?1")?;
     Ok(stmt.query_row(params![id], TagRow::from_row).optional()?)
 }
 
@@ -106,11 +104,7 @@ pub fn insert(conn: &Connection, draft: &TagDraft) -> Result<TagRow, DbError> {
 /// # Errors
 ///
 /// UNIQUE(name) violation surfaces as [`DbError::Sqlite`].
-pub fn update(
-    conn: &Connection,
-    id: &str,
-    patch: &TagPatch,
-) -> Result<Option<TagRow>, DbError> {
+pub fn update(conn: &Connection, id: &str, patch: &TagPatch) -> Result<Option<TagRow>, DbError> {
     let now = now_millis();
     let updated = match &patch.color {
         Some(new_color) => conn.execute(
@@ -147,11 +141,7 @@ pub fn delete(conn: &Connection, id: &str) -> Result<bool, DbError> {
 /// # Errors
 ///
 /// FK violation surfaces as [`DbError::Sqlite`].
-pub fn add_prompt_tag(
-    conn: &Connection,
-    prompt_id: &str,
-    tag_id: &str,
-) -> Result<(), DbError> {
+pub fn add_prompt_tag(conn: &Connection, prompt_id: &str, tag_id: &str) -> Result<(), DbError> {
     let now = now_millis();
     conn.execute(
         "INSERT INTO prompt_tags (prompt_id, tag_id, added_at) \

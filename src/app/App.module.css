@@ -1,21 +1,43 @@
-.main {
-  max-width: 1024px;
-  margin: 0 auto;
-  padding: var(--space-48) var(--space-24);
+/* -----------------------------------------------------------------------
+ * App shell layout
+ * ----------------------------------------------------------------------- */
+
+/**
+ * Full-viewport flex row: sidebar on the left, main pane on the right.
+ * Height is set to 100dvh so both columns fill the window without
+ * the outer page scrolling.
+ */
+.shell {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-32);
+  flex-direction: row;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: var(--color-bg-default);
 }
 
-.appHeader {
+/* Left rail: sidebar column */
+.sidebarSlot {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  width: 210px;
+  min-width: 210px;
+  height: 100%;
+  overflow-y: auto;
+  background-color: var(--color-surface-canvas);
+  border-right: 1px solid var(--color-border-subtle);
+}
+
+.sidebarHeader {
+  padding: var(--space-24) var(--space-16) var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .heading {
   margin: 0;
-  font-size: var(--font-size-headline-lg);
+  font-size: var(--font-size-body-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-default);
   line-height: var(--line-height-tight);
@@ -23,9 +45,40 @@
 
 .subhead {
   margin: 0;
-  font-size: var(--font-size-body);
-  color: var(--color-text-muted);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
 }
+
+/* Right pane: scrollable content area */
+.mainPane {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-32) var(--space-24);
+  background-color: var(--color-bg-default);
+}
+
+/* -----------------------------------------------------------------------
+ * Board detail view (kanban)
+ * ----------------------------------------------------------------------- */
+
+.boardView {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  height: 100%;
+}
+
+.boardViewHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+/* -----------------------------------------------------------------------
+ * Legacy helpers (kept in case any widget or test still references them)
+ * ----------------------------------------------------------------------- */
 
 .row {
   display: flex;
@@ -38,18 +91,4 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--space-8);
-}
-
-.boardView {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-12);
-  height: 70vh;
-  min-height: 480px;
-}
-
-.boardViewHeader {
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
 }

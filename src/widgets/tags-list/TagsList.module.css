@@ -1,0 +1,71 @@
+/*
+ * TagsList — widget.
+ *
+ * Layout: wrapping flex row of TagChip pills. Reads only semantic
+ * tokens (per shared/ui/README.md convention — no Tailwind).
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  width: 100%;
+}
+
+/* ---------- Header ---------- */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--font-size-headline-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-default);
+  line-height: var(--line-height-tight);
+}
+
+.btnLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+/* ---------- Chips row ---------- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: center;
+}
+
+/* ---------- Empty state ---------- */
+
+.emptyHint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+/* ---------- Error state ---------- */
+
+.error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--color-status-danger);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-danger-soft);
+}
+
+.errorMessage {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-default);
+}

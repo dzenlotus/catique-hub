@@ -13,7 +13,9 @@
 use catique_domain::AgentReport;
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
-    repositories::agent_reports::{self as repo, AgentReportDraft, AgentReportPatch, AgentReportRow},
+    repositories::agent_reports::{
+        self as repo, AgentReportDraft, AgentReportPatch, AgentReportRow,
+    },
 };
 use rusqlite::params;
 
@@ -80,9 +82,11 @@ impl<'a> ReportsUseCase<'a> {
         let trimmed_kind = validate_non_empty("kind", &kind)?;
         let conn = acquire(self.pool).map_err(map_db_err)?;
         let task_exists: bool = conn
-            .query_row("SELECT 1 FROM tasks WHERE id = ?1", params![task_id], |_| {
-                Ok(())
-            })
+            .query_row(
+                "SELECT 1 FROM tasks WHERE id = ?1",
+                params![task_id],
+                |_| Ok(()),
+            )
             .map(|()| true)
             .or_else(|e| match e {
                 rusqlite::Error::QueryReturnedNoRows => Ok(false),
@@ -207,7 +211,13 @@ mod tests {
         let pool = fresh_pool_with_task();
         let uc = ReportsUseCase::new(&pool);
         let err = uc
-            .create("ghost".into(), "summary".into(), "T".into(), "c".into(), None)
+            .create(
+                "ghost".into(),
+                "summary".into(),
+                "T".into(),
+                "c".into(),
+                None,
+            )
             .expect_err("nf");
         match err {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "task"),

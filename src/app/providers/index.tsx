@@ -9,17 +9,25 @@
  * realtime listener bridge can call `useQueryClient()`. The order
  * matters — react-query's client must be in scope when EventsProvider
  * mounts.
+ *
+ * E4.x: adds `ActiveSpaceProvider` inside `EventsProvider` so it can
+ * consume `useSpaces()` which depends on the query client.
+ *
+ * Provider order: QueryProvider > EventsProvider > ActiveSpaceProvider > children.
  */
 
 import type { PropsWithChildren, ReactElement } from "react";
 
+import { ActiveSpaceProvider } from "./ActiveSpaceProvider";
 import { EventsProvider } from "./EventsProvider";
 import { QueryProvider } from "./QueryProvider";
 
 export function AppProviders({ children }: PropsWithChildren): ReactElement {
   return (
     <QueryProvider>
-      <EventsProvider>{children}</EventsProvider>
+      <EventsProvider>
+        <ActiveSpaceProvider>{children}</ActiveSpaceProvider>
+      </EventsProvider>
     </QueryProvider>
   );
 }

@@ -10,6 +10,7 @@
  */
 
 import type { ReactElement } from "react";
+import { RefreshCw, X } from "lucide-react";
 
 import { Button } from "@shared/ui";
 import type { PreflightResults } from "@bindings/PreflightResults";
@@ -58,14 +59,20 @@ export function FailedStage({
 
       <div className={styles.actions}>
         <Button variant="ghost" onPress={onSkip} data-testid="failed-skip">
-          {strings.importWizard.failed.skipCta}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-6)" }}>
+            <X size={14} aria-hidden="true" />
+            {strings.importWizard.failed.skipCta}
+          </span>
         </Button>
         <Button
           variant="primary"
           onPress={onRetry}
           data-testid="failed-retry"
         >
-          {strings.importWizard.failed.retryCta}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-6)" }}>
+            <RefreshCw size={14} aria-hidden="true" />
+            {strings.importWizard.failed.retryCta}
+          </span>
         </Button>
       </div>
     </div>

@@ -373,8 +373,7 @@ fn check_disk_space(dir: &Path, source_size: u64) -> bool {
         let mut file = std::fs::File::create(&probe)?;
         let mut left = needed;
         while left > 0 {
-            let chunk = usize::try_from(std::cmp::min(left, buf.len() as u64))
-                .unwrap_or(buf.len());
+            let chunk = usize::try_from(std::cmp::min(left, buf.len() as u64)).unwrap_or(buf.len());
             file.write_all(&buf[..chunk])?;
             left = left.saturating_sub(chunk as u64);
         }
@@ -385,10 +384,7 @@ fn check_disk_space(dir: &Path, source_size: u64) -> bool {
     result.is_ok()
 }
 
-fn target_is_safe_to_overwrite(
-    target: &Path,
-    overwrite: bool,
-) -> Result<bool, std::io::Error> {
+fn target_is_safe_to_overwrite(target: &Path, overwrite: bool) -> Result<bool, std::io::Error> {
     match std::fs::metadata(target) {
         Ok(md) if md.is_file() && md.len() > 0 => Ok(overwrite),
         Ok(_) => Ok(true),
@@ -416,10 +412,8 @@ mod tests {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.subsec_nanos());
-        let dir = std::env::temp_dir().join(format!(
-            "catique-pf-{}-{label}-{nanos}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("catique-pf-{}-{label}-{nanos}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -540,8 +534,7 @@ mod tests {
         let bad = tmp.join("bad.sqlite");
         {
             let conn = Connection::open(&bad).unwrap();
-            conn.execute_batch("CREATE TABLE only_one(x INT);")
-                .unwrap();
+            conn.execute_batch("CREATE TABLE only_one(x INT);").unwrap();
         }
         let ctx = PreflightContext {
             source_path: &bad,

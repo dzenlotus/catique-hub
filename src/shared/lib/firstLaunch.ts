@@ -27,17 +27,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { invoke } from "@shared/api";
 import type { PrompteryDbInfo } from "@bindings/PrompteryDbInfo";
+import { spacesKeys } from "@entities/space";
 
 interface SpaceLike {
   id: string;
   name: string;
 }
-
-/** Stable react-query key for the spaces peek. */
-export const spacesKeys = {
-  all: ["spaces"] as const,
-  list: ["spaces", "list"] as const,
-} as const;
 
 /** Stable react-query key for the Promptery DB detection probe. */
 export const prompteryDetectKeys = {
@@ -94,7 +89,7 @@ export interface FirstLaunchCheck {
  */
 export function useFirstLaunchCheck(): FirstLaunchCheck {
   const spaces = useQuery({
-    queryKey: spacesKeys.list,
+    queryKey: spacesKeys.list(),
     queryFn: listSpacesPeek,
     retry: false,
   });

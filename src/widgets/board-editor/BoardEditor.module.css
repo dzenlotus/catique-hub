@@ -1,0 +1,168 @@
+/*
+ * BoardEditor — board detail / edit modal.
+ *
+ * Layout: flex column body with bordered sections. Footer is
+ * right-aligned actions row. Mirrors PromptEditor / RoleEditor styling.
+ */
+
+/* ── Dialog body override ────────────────────────────────────────── */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Form sections ───────────────────────────────────────────────── */
+
+.section {
+  padding: var(--space-16) 0;
+  border-bottom: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.section:first-child {
+  padding-top: 0;
+}
+
+.sectionLabel {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.fullWidthInput {
+  width: 100%;
+}
+
+/* ── Number input (position) ─────────────────────────────────────── */
+
+.numberInput {
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--space-12);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  outline: none;
+  box-sizing: border-box;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.numberInput:focus-visible {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+.numberInput::placeholder {
+  color: var(--color-text-subtle);
+}
+
+/* ── Space error ─────────────────────────────────────────────────── */
+
+.spaceError {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-8);
+  padding-top: var(--space-16);
+}
+
+.saveError {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+/* ── Loading skeleton ────────────────────────────────────────────── */
+
+.skeletonRow {
+  height: 16px;
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-xs);
+  animation: board-editor-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+.skeletonRowWide {
+  width: 70%;
+}
+
+.skeletonRowMedium {
+  width: 50%;
+}
+
+.skeletonRowNarrow {
+  width: 30%;
+}
+
+.skeletonBlock {
+  height: 80px;
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-sm);
+  animation: board-editor-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+@keyframes board-editor-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* ── Error / not-found banners ───────────────────────────────────── */
+
+.errorBanner {
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-danger-soft);
+  color: var(--color-status-danger);
+  border: 1px solid var(--color-status-danger);
+  font-size: var(--font-size-body);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.errorBannerMessage {
+  margin: 0;
+}
+
+.notFoundBanner {
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-warning-soft);
+  color: var(--color-status-warning);
+  border: 1px solid var(--color-status-warning);
+  font-size: var(--font-size-body);
+}
+
+.notFoundBannerMessage {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonRow,
+  .skeletonBlock {
+    animation: none;
+  }
+}

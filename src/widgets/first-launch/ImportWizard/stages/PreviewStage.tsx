@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useState, type ReactElement } from "react";
+import { ArrowLeft, X, Check } from "lucide-react";
 
 import { Button } from "@shared/ui";
 import { invoke } from "@shared/api";
@@ -33,6 +34,16 @@ export interface PreviewStageProps {
   onConfirm: (dryRunReport: ImportReport) => void;
   /** "Cancel" — host moves back to DetectionStage. */
   onBack: () => void;
+  /**
+   * "Skip — start fresh" — close the wizard outright.
+   *
+   * Mirrors DetectionStage / FailedStage so the user has a visible
+   * escape on the preview step too. Without this the only way out
+   * after a failed dry-run is to walk back to DetectionStage and
+   * skip from there, or trigger the Esc keyboard shortcut — neither
+   * is discoverable.
+   */
+  onSkip: () => void;
 }
 
 type DryRunState =
@@ -44,6 +55,7 @@ export function PreviewStage({
   sourcePath,
   onConfirm,
   onBack,
+  onSkip,
 }: PreviewStageProps): ReactElement {
   const [state, setState] = useState<DryRunState>({ status: "running" });
 
@@ -120,7 +132,16 @@ export function PreviewStage({
 
       <div className={styles.actions}>
         <Button variant="ghost" onPress={onBack} data-testid="preview-back">
-          {strings.importWizard.preview.backCta}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-6)" }}>
+            <ArrowLeft size={14} aria-hidden="true" />
+            {strings.importWizard.preview.backCta}
+          </span>
+        </Button>
+        <Button variant="ghost" onPress={onSkip} data-testid="preview-skip">
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-6)" }}>
+            <X size={14} aria-hidden="true" />
+            {strings.importWizard.preview.skipCta}
+          </span>
         </Button>
         <Button
           variant="primary"
@@ -130,7 +151,10 @@ export function PreviewStage({
           }}
           data-testid="preview-confirm"
         >
-          {strings.importWizard.preview.runImportCta}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-6)" }}>
+            <Check size={14} aria-hidden="true" />
+            {strings.importWizard.preview.runImportCta}
+          </span>
         </Button>
       </div>
     </div>

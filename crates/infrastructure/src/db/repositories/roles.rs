@@ -116,11 +116,7 @@ pub fn insert(conn: &Connection, draft: &RoleDraft) -> Result<RoleRow, DbError> 
 /// # Errors
 ///
 /// Surfaces rusqlite errors.
-pub fn update(
-    conn: &Connection,
-    id: &str,
-    patch: &RolePatch,
-) -> Result<Option<RoleRow>, DbError> {
+pub fn update(conn: &Connection, id: &str, patch: &RolePatch) -> Result<Option<RoleRow>, DbError> {
     let now = now_millis();
     let updated = match &patch.color {
         Some(new_color) => conn.execute(
@@ -335,7 +331,9 @@ mod tests {
     #[test]
     fn update_returns_none_for_missing_id() {
         let conn = fresh_db();
-        assert!(update(&conn, "ghost", &RolePatch::default()).unwrap().is_none());
+        assert!(update(&conn, "ghost", &RolePatch::default())
+            .unwrap()
+            .is_none());
     }
 
     #[test]

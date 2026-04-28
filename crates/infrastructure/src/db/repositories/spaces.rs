@@ -99,9 +99,7 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<SpaceRow>, DbErro
         "SELECT id, name, prefix, description, is_default, position, created_at, updated_at \
          FROM spaces WHERE id = ?1",
     )?;
-    Ok(stmt
-        .query_row(params![id], SpaceRow::from_row)
-        .optional()?)
+    Ok(stmt.query_row(params![id], SpaceRow::from_row).optional()?)
 }
 
 /// Insert one space. Generates id via `nanoid`, stamps timestamps from
@@ -123,7 +121,15 @@ pub fn insert(conn: &Connection, draft: &SpaceDraft) -> Result<SpaceRow, DbError
         "INSERT INTO spaces \
             (id, name, prefix, description, is_default, position, created_at, updated_at) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
-        params![id, draft.name, draft.prefix, draft.description, is_default, position, now],
+        params![
+            id,
+            draft.name,
+            draft.prefix,
+            draft.description,
+            is_default,
+            position,
+            now
+        ],
     )?;
 
     Ok(SpaceRow {

@@ -1,0 +1,209 @@
+/*
+ * GlobalSearch — Cmd+K palette.
+ *
+ * We use RAC ModalOverlay/Modal/Dialog directly (not the shared Dialog
+ * wrapper) so we can fully control the panel layout without the wrapper's
+ * title/description/body slots.
+ */
+
+/* Backdrop scrim — same token as Dialog.module.css */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: min(15vh, 120px);
+  background-color: var(--color-overlay-scrim);
+  animation: gs-fade-in 160ms ease-out;
+}
+
+.overlay[data-exiting] {
+  animation: gs-fade-out 120ms ease-in;
+}
+
+/* Centering wrapper (RAC Modal) */
+.modal {
+  width: 100%;
+  max-width: min(640px, calc(100vw - var(--space-32)));
+  outline: none;
+  animation: gs-zoom-in 200ms ease-out;
+}
+
+.modal[data-exiting] {
+  animation: gs-zoom-out 160ms ease-in;
+}
+
+@keyframes gs-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes gs-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes gs-zoom-in {
+  from { opacity: 0; transform: scale(0.96) translateY(-8px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);     }
+}
+
+@keyframes gs-zoom-out {
+  from { opacity: 1; transform: scale(1)    translateY(0);     }
+  to   { opacity: 0; transform: scale(0.96) translateY(-8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .modal {
+    animation: none;
+  }
+}
+
+/* Panel override — wider than the default 480px Dialog */
+.panel {
+  padding: 0;
+  width: min(640px, calc(100vw - var(--space-32)));
+  max-height: min(70vh, 600px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* ── Search input area ────────────────────────────────────────── */
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-12) var(--space-16);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.searchIcon {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.input {
+  flex: 1;
+  height: 36px;
+  padding: 0 var(--space-8);
+  border: none;
+  background: transparent;
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--color-text-subtle);
+}
+
+/* ── Results body ─────────────────────────────────────────────── */
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-8) 0;
+  /* Scrollbar styling — matches the app shell */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-default) transparent;
+}
+
+/* ── State panels ─────────────────────────────────────────────── */
+
+.hint,
+.empty,
+.error {
+  padding: var(--space-24) var(--space-16);
+  text-align: center;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.error {
+  color: var(--color-status-danger);
+}
+
+.loadingWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-24) var(--space-16);
+  gap: var(--space-8);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body-sm);
+}
+
+/* ── Group header ─────────────────────────────────────────────── */
+
+.groupHeader {
+  padding: var(--space-4) var(--space-16) var(--space-2);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+
+/* ── Result row ───────────────────────────────────────────────── */
+
+.resultItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-16);
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  transition:
+    background-color 100ms ease-out,
+    border-color 100ms ease-out;
+}
+
+.resultItem:hover,
+.resultItem[data-focused="true"] {
+  background-color: var(--color-overlay-hover);
+}
+
+.resultItem[aria-selected="true"] {
+  background-color: var(--color-accent-soft);
+  border-color: transparent;
+}
+
+.resultItem:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+}
+
+.resultTitle {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-default);
+  line-height: var(--line-height-tight);
+}
+
+.resultSnippet {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resultItem {
+    transition: none;
+  }
+}

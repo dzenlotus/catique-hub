@@ -1,0 +1,219 @@
+/*
+ * TaskDialog — task detail / edit modal.
+ *
+ * Layout: flex column body with bordered sections separating each
+ * concern (title, description, placeholder areas). Footer is
+ * right-aligned actions row.
+ */
+
+/* ── Dialog body override ────────────────────────────────────────── */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Form fields ─────────────────────────────────────────────────── */
+
+.section {
+  padding: var(--space-16) 0;
+  border-bottom: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.section:first-child {
+  padding-top: 0;
+}
+
+.sectionLabel {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.titleInput {
+  width: 100%;
+}
+
+.descriptionTextarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-8) var(--space-12);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-normal);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.descriptionTextarea:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+
+.descriptionTextarea::placeholder {
+  color: var(--color-text-subtle);
+}
+
+/* ── Content sections (prompts / attachments / agent reports) ────── */
+
+.sectionBlock {
+  padding: var(--space-16) 0;
+  border-bottom: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.sectionHeading {
+  margin: 0;
+  font-size: var(--font-size-headline-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-tight);
+}
+
+.sectionEmptyState {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sectionEmptyHint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
+}
+
+.sectionComingHint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+/* ── Placeholder sections (kept for backward compat test ids) ────── */
+
+.placeholderSection {
+  padding: var(--space-16) 0;
+  border-bottom: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.placeholderTitle {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.placeholderHint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-8);
+  padding-top: var(--space-16);
+}
+
+.saveError {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+/* ── Loading skeleton ────────────────────────────────────────────── */
+
+.skeletonRow {
+  height: 16px;
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-xs);
+  animation: task-dialog-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+.skeletonRowWide {
+  width: 70%;
+}
+
+.skeletonRowMedium {
+  width: 50%;
+}
+
+.skeletonRowNarrow {
+  width: 30%;
+}
+
+.skeletonBlock {
+  height: 80px;
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-sm);
+  animation: task-dialog-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+@keyframes task-dialog-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* ── Error / not-found banners ───────────────────────────────────── */
+
+.errorBanner {
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-danger-soft);
+  color: var(--color-status-danger);
+  border: 1px solid var(--color-status-danger);
+  font-size: var(--font-size-body);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.errorBannerMessage {
+  margin: 0;
+}
+
+.notFoundBanner {
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-warning-soft);
+  color: var(--color-status-warning);
+  border: 1px solid var(--color-status-warning);
+  font-size: var(--font-size-body);
+}
+
+.notFoundBannerMessage {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonRow,
+  .skeletonBlock {
+    animation: none;
+  }
+}

@@ -68,7 +68,11 @@ fn import_golden_fixture_into_fresh_catique_db() {
     eprintln!("[ac-1] golden-fixture import elapsed: {elapsed:?} (target <=10 s on M1)");
 
     // ---- Preflight: every PF passed ----
-    assert!(report.preflight.all_ok(), "preflight: {:?}", report.preflight);
+    assert!(
+        report.preflight.all_ok(),
+        "preflight: {:?}",
+        report.preflight
+    );
 
     // ---- D-019 row-count contract ----
     let final_db = report

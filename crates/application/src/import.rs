@@ -25,12 +25,12 @@ use std::time::SystemTime;
 use catique_domain::{ImportOptions, ImportReport, PrompteryDbInfo};
 use catique_infrastructure::db::pool::{open as open_pool, Pool};
 use catique_infrastructure::db::runner::run_pending;
-use catique_infrastructure::import::{
-    self, copy_attachments, run_import_transaction, snapshot_source, ImportError,
-};
 use catique_infrastructure::import::attachments::default_source_attachments_dir;
 use catique_infrastructure::import::preflight::{run_preflight, PreflightContext};
 use catique_infrastructure::import::schema::{compute_db_schema_fingerprint, open_readonly};
+use catique_infrastructure::import::{
+    self, copy_attachments, run_import_transaction, snapshot_source, ImportError,
+};
 
 use crate::error::AppError;
 
@@ -113,8 +113,7 @@ impl<'a> ImportUseCase<'a> {
         options: &ImportOptions,
     ) -> Result<ImportReport, AppError> {
         let started_at_ms = now_ms();
-        let source_path =
-            source_override.map_or_else(default_source_path, Path::to_path_buf);
+        let source_path = source_override.map_or_else(default_source_path, Path::to_path_buf);
 
         let target_db_path = self.target_data_dir.join("db.sqlite");
         let target_attachments = self.target_data_dir.join("attachments");
@@ -223,10 +222,8 @@ impl<'a> ImportUseCase<'a> {
         if options.overwrite_existing {
             if let Ok(md) = std::fs::metadata(&target_db_path) {
                 if md.is_file() && md.len() > 0 {
-                    let bak = target_db_path.with_extension(format!(
-                        "sqlite.{}.bak",
-                        iso8601_now()
-                    ));
+                    let bak =
+                        target_db_path.with_extension(format!("sqlite.{}.bak", iso8601_now()));
                     let _ = std::fs::rename(&target_db_path, &bak);
                 }
             }
@@ -395,10 +392,7 @@ fn format_preflight_errors(pf: &catique_domain::PreflightResults) -> String {
     ];
     for (key, ok) in table {
         if !ok {
-            let detail = pf
-                .messages
-                .get(key)
-                .map_or("(no detail)", String::as_str);
+            let detail = pf.messages.get(key).map_or("(no detail)", String::as_str);
             parts.push(format!("{key} failed: {detail}"));
         }
     }
@@ -510,8 +504,7 @@ mod tests {
         }
         let target = unique_tmp("pf9block");
         // Plant a non-empty file at db.sqlite
-        std::fs::write(target.join("db.sqlite"), b"some bytes 0123456789")
-            .unwrap();
+        std::fs::write(target.join("db.sqlite"), b"some bytes 0123456789").unwrap();
         let uc = ImportUseCase::new(&target);
         let err = uc
             .import(Some(&golden), &ImportOptions::default())
@@ -533,8 +526,7 @@ mod tests {
         }
         let target = unique_tmp("over");
         // Plant a non-empty existing DB
-        std::fs::write(target.join("db.sqlite"), b"existing-data-1234567890")
-            .unwrap();
+        std::fs::write(target.join("db.sqlite"), b"existing-data-1234567890").unwrap();
         let uc = ImportUseCase::new(&target);
         let report = uc
             .import(
@@ -550,11 +542,7 @@ mod tests {
         let bak_count = std::fs::read_dir(&target)
             .unwrap()
             .filter_map(Result::ok)
-            .filter(|e| {
-                e.file_name()
-                    .to_string_lossy()
-                    .contains("db.sqlite.")
-            })
+            .filter(|e| e.file_name().to_string_lossy().contains("db.sqlite."))
             .count();
         assert!(bak_count >= 1, "expected at least one .bak file");
         let _ = std::fs::remove_dir_all(&target);

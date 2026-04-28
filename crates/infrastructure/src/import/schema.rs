@@ -140,11 +140,12 @@ pub fn compute_source_schema_hash() -> Result<String, ImportError> {
         return Ok(hit.clone());
     }
 
-    let migrations_dir = SCHEMA_BUNDLE
-        .get_dir("migrations")
-        .ok_or_else(|| ImportError::Validation {
-            reason: "embedded migrations/ missing".into(),
-        })?;
+    let migrations_dir =
+        SCHEMA_BUNDLE
+            .get_dir("migrations")
+            .ok_or_else(|| ImportError::Validation {
+                reason: "embedded migrations/ missing".into(),
+            })?;
     let mut migration_names: Vec<String> = migrations_dir
         .files()
         .filter_map(|f| {
@@ -184,11 +185,12 @@ pub fn schema_bundle_apply_sql() -> Result<(String, Vec<String>), ImportError> {
             reason: "schema not utf-8".into(),
         })?
         .to_owned();
-    let migrations_dir = SCHEMA_BUNDLE
-        .get_dir("migrations")
-        .ok_or_else(|| ImportError::Validation {
-            reason: "embedded migrations/ missing".into(),
-        })?;
+    let migrations_dir =
+        SCHEMA_BUNDLE
+            .get_dir("migrations")
+            .ok_or_else(|| ImportError::Validation {
+                reason: "embedded migrations/ missing".into(),
+            })?;
     let mut files: Vec<&'static File<'static>> = migrations_dir
         .files()
         .filter(|f| {
@@ -269,10 +271,8 @@ mod tests {
     #[test]
     fn open_readonly_rejects_writes() {
         // Build a tmp DB, then re-open r/o and assert writes fail.
-        let tmp = std::env::temp_dir().join(format!(
-            "catique-import-ro-{}.sqlite",
-            std::process::id()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("catique-import-ro-{}.sqlite", std::process::id()));
         let _ = std::fs::remove_file(&tmp);
         {
             let rw = Connection::open(&tmp).unwrap();

@@ -110,7 +110,10 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<TaskRow>, DbError
 /// # Errors
 ///
 /// Surfaces rusqlite errors.
-pub fn space_prefix_for_board(conn: &Connection, board_id: &str) -> Result<Option<String>, DbError> {
+pub fn space_prefix_for_board(
+    conn: &Connection,
+    board_id: &str,
+) -> Result<Option<String>, DbError> {
     let mut stmt = conn.prepare(
         "SELECT s.prefix FROM boards b JOIN spaces s ON s.id = b.space_id \
          WHERE b.id = ?1",
@@ -135,8 +138,7 @@ pub fn space_prefix_for_board(conn: &Connection, board_id: &str) -> Result<Optio
 pub fn insert(conn: &Connection, draft: &TaskDraft) -> Result<TaskRow, DbError> {
     let id = new_id();
     let now = now_millis();
-    let prefix = space_prefix_for_board(conn, &draft.board_id)?
-        .unwrap_or_else(|| "x".to_owned());
+    let prefix = space_prefix_for_board(conn, &draft.board_id)?.unwrap_or_else(|| "x".to_owned());
     let slug = format!("{prefix}-{}", short_id());
 
     conn.execute(
@@ -174,11 +176,7 @@ pub fn insert(conn: &Connection, draft: &TaskDraft) -> Result<TaskRow, DbError> 
 /// # Errors
 ///
 /// FK violations on column / role surface as [`DbError::Sqlite`].
-pub fn update(
-    conn: &Connection,
-    id: &str,
-    patch: &TaskPatch,
-) -> Result<Option<TaskRow>, DbError> {
+pub fn update(conn: &Connection, id: &str, patch: &TaskPatch) -> Result<Option<TaskRow>, DbError> {
     use std::fmt::Write as _;
 
     let now = now_millis();

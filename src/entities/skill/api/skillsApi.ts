@@ -1,0 +1,107 @@
+/**
+ * Skills IPC client.
+ *
+ * Wraps Tauri `invoke` calls for the `Skill` aggregate. Argument shape
+ * follows the contract the Rust side accepts: keys are camelCase on
+ * the JS side (Tauri auto-converts to snake_case for Rust per the
+ * v2.x convention).
+ *
+ * Errors thrown by the underlying Rust handler arrive here as a JSON-
+ * serialised `AppError`. We unwrap and re-throw a typed
+ * `AppErrorInstance` (imported from `@entities/board`) so call-sites
+ * get a discriminated union via `.error.kind`.
+ *
+ * Mirrors `entities/role/api/rolesApi.ts` — imports
+ * `AppErrorInstance` from `@entities/board` and locally defines
+ * `isAppErrorShape` + `invokeWithAppError`.
+ */
+
+import { invoke } from "@shared/api";
+import { AppErrorInstance } from "@entities/board";
+import type { AppError } from "@bindings/AppError";
+import type { Skill } from "@bindings/Skill";
+
+/** Same `AppError` discriminator used in `boardsApi` / `columnsApi`. */
+function isAppErrorShape(value: unknown): value is AppError {
+  if (typeof value !== "object" || value === null) return false;
+  const kind = (value as { kind?: unknown }).kind;
+  if (typeof kind !== "string") return false;
+  return (
+    kind === "validation" ||
+    kind === "transactionRolledBack" ||
+    kind === "dbBusy" ||
+    kind === "lockTimeout" ||
+    kind === "internalPanic" ||
+    kind === "notFound" ||
+    kind === "conflict" ||
+    kind === "secretAccessDenied"
+  );
+}
+
+async function invokeWithAppError<T>(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  try {
+    return await invoke<T>(command, args);
+  } catch (raw) {
+    if (isAppErrorShape(raw)) {
+      throw new AppErrorInstance(raw);
+    }
+    throw raw;
+  }
+}
+
+/** `list_skills` — return every skill. */
+export async function listSkills(): Promise<Skill[]> {
+  return invokeWithAppError<Skill[]>("list_skills");
+}
+
+/** `get_skill` — fetch a single skill by id. */
+export async function getSkill(id: string): Promise<Skill> {
+  return invokeWithAppError<Skill>("get_skill", { id });
+}
+
+export interface CreateSkillArgs {
+  name: string;
+  description?: string;
+  color?: string;
+}
+
+/** `create_skill` — create a new skill. */
+export async function createSkill(args: CreateSkillArgs): Promise<Skill> {
+  const payload: Record<string, unknown> = { name: args.name };
+  if (args.description !== undefined) payload.description = args.description;
+  if (args.color !== undefined) payload.color = args.color;
+  return invokeWithAppError<Skill>("create_skill", payload);
+}
+
+export interface UpdateSkillArgs {
+  id: string;
+  /** Skip = `undefined`. */
+  name?: string;
+  /**
+   * Skip = `undefined`, set = string, clear-to-NULL = `null`.
+   * Mirrors Rust's `Option<Option<String>>`.
+   */
+  description?: string | null;
+  /** Skip = `undefined`, set = string, clear-to-NULL = `null`. */
+  color?: string | null;
+  /** Skip = `undefined`. */
+  position?: number;
+}
+
+/** `update_skill` — partial update. */
+export async function updateSkill(args: UpdateSkillArgs): Promise<Skill> {
+  const payload: Record<string, unknown> = { id: args.id };
+  if (args.name !== undefined) payload.name = args.name;
+  if (args.description !== undefined) payload.description = args.description;
+  if (args.color !== undefined) payload.color = args.color;
+  if (args.position !== undefined) payload.position = args.position;
+  return invokeWithAppError<Skill>("update_skill", payload);
+}
+
+/** `delete_skill` — remove a skill. */
+export async function deleteSkill(id: string): Promise<void> {
+  return invokeWithAppError<void>("delete_skill", { id });
+}

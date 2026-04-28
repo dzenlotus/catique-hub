@@ -32,6 +32,9 @@ rusqlite.workspace = true
 chrono.workspace = true
 dirs.workspace = true
 
+# MCP tools use case: validate schema_json as parseable JSON at create time.
+serde_json.workspace = true
+
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }
 module_name_repetitions = "allow"

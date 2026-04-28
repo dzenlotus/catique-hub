@@ -144,6 +144,7 @@ export function ImportWizard({
               onSkipped();
             }
           }}
+          onSkip={onSkipped}
         />
       ) : null}
 

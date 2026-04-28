@@ -1,0 +1,313 @@
+/*
+ * Sidebar — left-rail navigation shell.
+ *
+ * Uses semantic design tokens exclusively. Width is fixed at 210px;
+ * the sidebar is sticky so it stays visible while the main pane scrolls.
+ */
+
+.sidebar {
+  width: 210px;
+  min-width: 210px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-8) var(--space-8);
+  border-right: 1px solid var(--color-border-subtle);
+  background-color: var(--color-surface-canvas);
+}
+
+.navList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+
+.navItem:hover:not(.active) {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.navItem:active:not(.active) {
+  background-color: var(--color-overlay-active);
+}
+
+.navItem:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* Active / selected state — accent treatment */
+.navItem.active {
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent-bg);
+  border-color: transparent;
+}
+
+.navItem.active:hover {
+  background-color: var(--color-accent-soft);
+}
+
+.navLabel {
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navItem {
+    transition: none;
+  }
+}
+
+/* ============================================================
+ * Search button — pinned above the space switcher
+ * ============================================================ */
+
+.searchButtonWrap {
+  padding: var(--space-8) var(--space-4) var(--space-4);
+}
+
+.searchButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  padding: var(--space-5) var(--space-8);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-default);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 120ms ease-out,
+    border-color 120ms ease-out,
+    color 120ms ease-out;
+}
+
+.searchButton:hover {
+  background-color: var(--color-overlay-hover);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-default);
+}
+
+.searchButton:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.searchButtonLabel {
+  flex: 1;
+}
+
+.searchButtonKbd {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono, monospace);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .searchButton {
+    transition: none;
+  }
+}
+
+/* ============================================================
+ * Space switcher — sits between the sidebar header and the nav
+ * list, separated by a subtle bottom border.
+ * ============================================================ */
+
+.spaceSwitcher {
+  display: flex;
+  align-items: center;
+  padding: var(--space-8) var(--space-4) var(--space-8);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+/* Trigger button — full-width, ghost style with prefix chip */
+.spaceTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+
+.spaceTrigger:hover {
+  background-color: var(--color-overlay-hover);
+}
+
+.spaceTrigger:active {
+  background-color: var(--color-overlay-active);
+}
+
+.spaceTrigger:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* Prefix chip — mirrors SpaceCard.prefixBadge token-by-token (local copy,
+   NOT imported from entities/space to maintain widget isolation). */
+.spacePrefix {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-xs);
+  background-color: var(--color-accent-soft);
+  color: var(--color-text-default);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono, monospace);
+  flex-shrink: 0;
+}
+
+.spaceName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spaceChevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform 120ms ease-out;
+}
+
+/* Skeleton placeholder shown while useSpaces() is pending */
+.spaceSwitcherSkeleton {
+  height: 28px;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-overlay-hover);
+  animation: space-switcher-pulse 1400ms ease-in-out infinite;
+}
+
+@keyframes space-switcher-pulse {
+  0%,
+  100% { opacity: 0.45; }
+  50%  { opacity: 0.85; }
+}
+
+/* Error state glyph + label */
+.spaceErrorIcon {
+  color: var(--color-status-danger);
+  flex-shrink: 0;
+}
+
+.spaceErrorText {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  margin-left: var(--space-4);
+}
+
+/* Menu item internals */
+.spaceMenuPrefix {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-xs);
+  background-color: var(--color-accent-soft);
+  color: var(--color-text-default);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono, monospace);
+  flex-shrink: 0;
+}
+
+.spaceMenuName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spaceMenuDefault {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+/* Action items (+ New space, Manage spaces) in the space-switcher menu */
+.spaceMenuAction {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spaceTrigger {
+    transition: none;
+  }
+  .spaceChevron {
+    transition: none;
+  }
+  .spaceSwitcherSkeleton {
+    animation: none;
+  }
+}
+
+/* ============================================================
+ * Sidebar footer — theme toggle pinned to the bottom
+ * ============================================================ */
+
+.sidebarFooter {
+  margin-top: auto;
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.themeToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  justify-content: flex-start;
+}

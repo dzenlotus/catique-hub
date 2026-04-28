@@ -4,4 +4,5 @@ export {
   useBoards,
   useBoard,
   useCreateBoardMutation,
+  useUpdateBoardMutation,
 } from "./store";

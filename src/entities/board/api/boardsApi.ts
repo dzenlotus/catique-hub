@@ -158,3 +158,31 @@ export async function createBoard(args: CreateBoardArgs): Promise<Board> {
     spaceId: args.spaceId,
   });
 }
+
+/**
+ * Args for `updateBoard`. All fields except `id` are optional — only
+ * the fields present in the payload are mutated on the server side.
+ * Mirrors `UpdateSpaceArgs` shape from `spacesApi`.
+ */
+export interface UpdateBoardArgs {
+  id: string;
+  /** Skip = `undefined`. */
+  name?: string;
+  /** Skip = `undefined`. */
+  spaceId?: string;
+  /** Skip = `undefined`. */
+  position?: number;
+}
+
+/**
+ * `update_board` — partial update. Only supplied fields are changed.
+ * Throws AppError `notFound` if the id is unknown, `validation` for
+ * constraint violations.
+ */
+export async function updateBoard(args: UpdateBoardArgs): Promise<Board> {
+  const payload: Record<string, unknown> = { id: args.id };
+  if (args.name !== undefined) payload.name = args.name;
+  if (args.spaceId !== undefined) payload.spaceId = args.spaceId;
+  if (args.position !== undefined) payload.position = args.position;
+  return invokeWithAppError<Board>("update_board", payload);
+}

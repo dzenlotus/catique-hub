@@ -194,7 +194,9 @@ mod tests {
     fn create_with_empty_name_returns_validation() {
         let pool = fresh_pool_with_space("sp1", "abc");
         let uc = BoardsUseCase::new(&pool);
-        let err = uc.create("   ".into(), "sp1".into()).expect_err("validation");
+        let err = uc
+            .create("   ".into(), "sp1".into())
+            .expect_err("validation");
         match err {
             AppError::Validation { field, .. } => assert_eq!(field, "name"),
             other => panic!("got {other:?}"),
@@ -205,7 +207,9 @@ mod tests {
     fn create_with_missing_space_returns_not_found() {
         let pool = fresh_pool_no_space();
         let uc = BoardsUseCase::new(&pool);
-        let err = uc.create("B".into(), "ghost".into()).expect_err("not found");
+        let err = uc
+            .create("B".into(), "ghost".into())
+            .expect_err("not found");
         match err {
             AppError::NotFound { entity, id } => {
                 assert_eq!(entity, "space");

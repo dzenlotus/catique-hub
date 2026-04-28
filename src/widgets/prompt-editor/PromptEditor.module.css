@@ -1,0 +1,193 @@
+/*
+ * PromptEditor — prompt detail / edit modal.
+ *
+ * Layout: flex column body with bordered sections. Footer is
+ * right-aligned actions row. Color swatch sits inline with the picker.
+ */
+
+/* ── Dialog body override ────────────────────────────────────────── */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Form sections ───────────────────────────────────────────────── */
+
+.section {
+  padding: var(--space-16) 0;
+  border-bottom: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.section:first-child {
+  padding-top: 0;
+}
+
+.sectionLabel {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.fullWidthInput {
+  width: 100%;
+}
+
+/* ── Color picker row ────────────────────────────────────────────── */
+
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.colorSwatch {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-default);
+  flex-shrink: 0;
+}
+
+.colorInput {
+  /* Native color picker — minimal styling to fit the design language */
+  width: 40px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.colorInput:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ── Content textarea ────────────────────────────────────────────── */
+
+.contentTextarea {
+  width: 100%;
+  min-height: 160px;
+  resize: vertical;
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-8) var(--space-12);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-normal);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.contentTextarea:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+
+.contentTextarea::placeholder {
+  color: var(--color-text-subtle);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-8);
+  padding-top: var(--space-16);
+}
+
+.saveError {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+/* ── Loading skeleton ────────────────────────────────────────────── */
+
+.skeletonRow {
+  height: 16px;
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-xs);
+  animation: prompt-editor-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+.skeletonRowWide {
+  width: 70%;
+}
+
+.skeletonRowMedium {
+  width: 50%;
+}
+
+.skeletonRowNarrow {
+  width: 30%;
+}
+
+.skeletonBlock {
+  height: 80px;
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-sm);
+  animation: prompt-editor-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+@keyframes prompt-editor-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* ── Error / not-found banners ───────────────────────────────────── */
+
+.errorBanner {
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-danger-soft);
+  color: var(--color-status-danger);
+  border: 1px solid var(--color-status-danger);
+  font-size: var(--font-size-body);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.errorBannerMessage {
+  margin: 0;
+}
+
+.notFoundBanner {
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-warning-soft);
+  color: var(--color-status-warning);
+  border: 1px solid var(--color-status-warning);
+  font-size: var(--font-size-body);
+}
+
+.notFoundBannerMessage {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonRow,
+  .skeletonBlock {
+    animation: none;
+  }
+}

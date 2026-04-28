@@ -94,9 +94,11 @@ impl<'a> AttachmentsUseCase<'a> {
         }
         let conn = acquire(self.pool).map_err(map_db_err)?;
         let task_exists: bool = conn
-            .query_row("SELECT 1 FROM tasks WHERE id = ?1", params![task_id], |_| {
-                Ok(())
-            })
+            .query_row(
+                "SELECT 1 FROM tasks WHERE id = ?1",
+                params![task_id],
+                |_| Ok(()),
+            )
             .map(|()| true)
             .or_else(|e| match e {
                 rusqlite::Error::QueryReturnedNoRows => Ok(false),

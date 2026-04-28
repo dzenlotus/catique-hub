@@ -68,8 +68,7 @@ impl CustomizeConnection<Connection, rusqlite::Error> for ApplyPragmas {
         // In-memory DBs ignore the request and stay on the `memory`
         // journal mode; we silently accept that — the assertion is just
         // a debug aid for file-backed DBs that should always end in WAL.
-        let mode: String =
-            conn.query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))?;
+        let mode: String = conn.query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))?;
         debug_assert!(
             matches!(mode.to_ascii_lowercase().as_str(), "wal" | "memory"),
             "unexpected journal_mode: {mode}"
@@ -219,4 +218,3 @@ mod tests {
         dir
     }
 }
-

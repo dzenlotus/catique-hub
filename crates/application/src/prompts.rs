@@ -113,9 +113,7 @@ impl<'a> PromptsUseCase<'a> {
             short_description,
             token_count: None,
         };
-        match repo::update(&conn, &id, &patch)
-            .map_err(|e| map_db_err_unique(e, "prompt"))?
-        {
+        match repo::update(&conn, &id, &patch).map_err(|e| map_db_err_unique(e, "prompt"))? {
             Some(row) => Ok(row_to_prompt(row)),
             None => Err(AppError::NotFound {
                 entity: "prompt".into(),
@@ -174,7 +172,10 @@ mod tests {
     fn create_with_empty_name_returns_validation() {
         let pool = fresh_pool();
         let uc = PromptsUseCase::new(&pool);
-        match uc.create(String::new(), String::new(), None, None).expect_err("v") {
+        match uc
+            .create(String::new(), String::new(), None, None)
+            .expect_err("v")
+        {
             AppError::Validation { field, .. } => assert_eq!(field, "name"),
             other => panic!("got {other:?}"),
         }

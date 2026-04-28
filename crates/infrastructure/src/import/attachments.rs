@@ -58,8 +58,7 @@ pub fn copy_attachments(
         return Ok(outcome);
     }
 
-    let mut stmt =
-        source_db.prepare("SELECT storage_path, size_bytes FROM task_attachments")?;
+    let mut stmt = source_db.prepare("SELECT storage_path, size_bytes FROM task_attachments")?;
     let rows = stmt.query_map([], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
     })?;
@@ -105,9 +104,7 @@ pub fn copy_attachments(
 /// `<source_dir>/attachments/`.
 #[must_use]
 pub fn default_source_attachments_dir(source_db_path: &Path) -> Option<PathBuf> {
-    source_db_path
-        .parent()
-        .map(|p| p.join("attachments"))
+    source_db_path.parent().map(|p| p.join("attachments"))
 }
 
 #[cfg(test)]
@@ -126,10 +123,7 @@ mod tests {
         dir
     }
 
-    fn make_source_db_with_one_attachment(
-        size: i64,
-        storage_path: &str,
-    ) -> (PathBuf, Connection) {
+    fn make_source_db_with_one_attachment(size: i64, storage_path: &str) -> (PathBuf, Connection) {
         let tmp = unique_tmp("seedone");
         let db_path = tmp.join("src.sqlite");
         let conn = Connection::open(&db_path).unwrap();
@@ -205,8 +199,8 @@ mod tests {
         std::fs::create_dir_all(src_root.join("t1")).unwrap();
         std::fs::write(src_root.join("t1/f.png"), b"abc").unwrap();
         let target = unique_tmp("attbad");
-        let err = copy_attachments(&conn, Some(&src_root), &target)
-            .expect_err("size mismatch must fail");
+        let err =
+            copy_attachments(&conn, Some(&src_root), &target).expect_err("size mismatch must fail");
         match err {
             ImportError::Validation { reason } => {
                 assert!(reason.contains("size mismatch"));
