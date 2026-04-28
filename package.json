@@ -17,27 +17,28 @@
     "test:cov": "vitest run --coverage"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.100.5",
     "@tauri-apps/api": "2.10.1",
+    "clsx": "^2.1.1",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5",
     "react-aria-components": "1.17.0",
-    "clsx": "^2.1.1"
+    "react-dom": "^19.2.5"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.10.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.5",
+    "@vitest/ui": "^4.1.5",
+    "jsdom": "^29.1.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
-    "vitest": "^4.1.5",
-    "@vitest/ui": "^4.1.5",
-    "@vitest/coverage-v8": "^4.1.5",
-    "jsdom": "^29.1.0",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/user-event": "^14.6.1"
+    "vitest": "^4.1.5"
   },
   "packageManager": "pnpm@10.30.3",
   "engines": {

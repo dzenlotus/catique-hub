@@ -10,9 +10,12 @@ import react from "@vitejs/plugin-react";
 // - HMR over the same fixed port
 //
 // FSD aliases (mirror tsconfig.json paths):
-//   @/*       → src/*
-//   @app/*    → src/app/*
-//   @shared/* → src/shared/*
+//   @/*         → src/*
+//   @app/*      → src/app/*
+//   @shared/*   → src/shared/*
+//   @entities/* → src/entities/*
+//   @widgets/*  → src/widgets/*
+//   @bindings/* → bindings/*  (ts-rs auto-generated Rust→TS types)
 //
 // Vitest config is colocated below the Vite config (same module).
 //
@@ -25,6 +28,9 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
       "@app": fileURLToPath(new URL("./src/app", import.meta.url)),
       "@shared": fileURLToPath(new URL("./src/shared", import.meta.url)),
+      "@entities": fileURLToPath(new URL("./src/entities", import.meta.url)),
+      "@widgets": fileURLToPath(new URL("./src/widgets", import.meta.url)),
+      "@bindings": fileURLToPath(new URL("./bindings", import.meta.url)),
     },
   },
   server: {

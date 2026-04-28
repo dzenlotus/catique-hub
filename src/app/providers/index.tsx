@@ -1,14 +1,15 @@
 /**
  * Root providers stack.
  *
- * E1: empty pass-through. Reserved for E2 (QueryClientProvider, ThemeProvider,
- * RouterProvider, I18nProvider, etc.). Wrapping App in <AppProviders> from
- * day one means we add new providers in one place — no churn at the
- * <App/> mount-site.
+ * E2.3 (Anna): adds `QueryProvider` (TanStack Query). Future providers
+ * (Theme, Router, I18n, Toast region) slot in here so the App mount-site
+ * never grows beyond `<AppProviders><App /></AppProviders>`.
  */
 
 import type { PropsWithChildren, ReactElement } from "react";
 
+import { QueryProvider } from "./QueryProvider";
+
 export function AppProviders({ children }: PropsWithChildren): ReactElement {
-  return <>{children}</>;
+  return <QueryProvider>{children}</QueryProvider>;
 }

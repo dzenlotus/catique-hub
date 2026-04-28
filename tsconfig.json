@@ -23,10 +23,13 @@
     "paths": {
       "@/*": ["./src/*"],
       "@app/*": ["./src/app/*"],
-      "@shared/*": ["./src/shared/*"]
+      "@shared/*": ["./src/shared/*"],
+      "@entities/*": ["./src/entities/*"],
+      "@widgets/*": ["./src/widgets/*"],
+      "@bindings/*": ["./bindings/*"]
     },
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src"],
+  "include": ["src", "bindings"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
