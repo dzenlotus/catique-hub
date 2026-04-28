@@ -1,8 +1,8 @@
 /*
  * McpToolsList — MCP tools widget.
  *
- * Layout: header bar + content area. Content area is a CSS grid for
- * the populated state; flex-column for empty/error/loading states.
+ * Layout: DS v1 page header (icon + Playfair title + muted description +
+ * right-side actions) followed by a responsive card grid.
  */
 
 .root {
@@ -10,21 +10,61 @@
   flex-direction: column;
   gap: var(--space-16);
   width: 100%;
+  padding: var(--space-24);
+  box-sizing: border-box;
 }
+
+/* ---------- Page header ---------- */
 
 .header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: var(--space-16);
+}
+
+.headingGroup {
+  display: flex;
+  align-items: flex-start;
   gap: var(--space-12);
+  min-width: 0;
+}
+
+.headingIcon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  opacity: 0.75;
+}
+
+.headingText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .heading {
   margin: 0;
+  font-family: var(--font-display);
   font-size: var(--font-size-headline-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-default);
   line-height: var(--line-height-tight);
+  letter-spacing: -0.02em;
+}
+
+.description {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-normal);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-shrink: 0;
 }
 
 .btnLabel {
@@ -35,7 +75,7 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--space-16);
 }
 

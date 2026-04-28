@@ -2,7 +2,7 @@ import { useState, type ReactElement } from "react";
 import { Plus, Paperclip } from "lucide-react";
 
 import { PromptCard, usePrompts } from "@entities/prompt";
-import { Button } from "@shared/ui";
+import { Button, Icon } from "@shared/ui";
 import { PromptEditor } from "@widgets/prompt-editor";
 import { PromptCreateDialog } from "@widgets/prompt-create-dialog";
 import { AttachPromptDialog } from "@widgets/attach-prompt-dialog";
@@ -32,31 +32,46 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
   return (
     <section className={styles.root} aria-labelledby="prompts-list-heading">
       <header className={styles.header}>
-        <h2 id="prompts-list-heading" className={styles.heading}>
-          Промпты
-        </h2>
-        <Button
-          variant="secondary"
-          size="md"
-          onPress={() => setIsAttachOpen(true)}
-          data-testid="prompts-list-attach-button"
-        >
-          <span className={styles.btnLabel}>
-            <Paperclip size={14} aria-hidden="true" />
-            Прикрепить промпт
-          </span>
-        </Button>
-        <Button
-          variant="primary"
-          size="md"
-          onPress={() => setIsCreateOpen(true)}
-          data-testid="prompts-list-create-button"
-        >
-          <span className={styles.btnLabel}>
-            <Plus size={14} aria-hidden="true" />
-            Создать промпт
-          </span>
-        </Button>
+        <div className={styles.headingGroup}>
+          <Icon
+            name="prompts"
+            size={20}
+            className={styles.headingIcon}
+            aria-hidden="true"
+          />
+          <div className={styles.headingText}>
+            <h2 id="prompts-list-heading" className={styles.heading}>
+              Prompts
+            </h2>
+            <p className={styles.description}>
+              Reusable agent prompts inheriting through space → board → column → task.
+            </p>
+          </div>
+        </div>
+        <div className={styles.headerActions}>
+          <Button
+            variant="secondary"
+            size="md"
+            onPress={() => setIsAttachOpen(true)}
+            data-testid="prompts-list-attach-button"
+          >
+            <span className={styles.btnLabel}>
+              <Paperclip size={14} aria-hidden="true" />
+              Прикрепить промпт
+            </span>
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            onPress={() => setIsCreateOpen(true)}
+            data-testid="prompts-list-create-button"
+          >
+            <span className={styles.btnLabel}>
+              <Plus size={14} aria-hidden="true" />
+              Создать промпт
+            </span>
+          </Button>
+        </div>
       </header>
 
       {promptsQuery.status === "pending" ? (

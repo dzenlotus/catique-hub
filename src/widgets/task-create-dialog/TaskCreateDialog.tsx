@@ -135,14 +135,17 @@ function TaskCreateDialogContent({
     // subsequent reorders will normalise.
     const position = colTasks ? Number(colTasks.position) * 1000 + 1 : 1;
 
+    const mutationArgs: Parameters<typeof createTask.mutate>[0] = {
+      boardId: selectedBoardId,
+      columnId: selectedColumnId,
+      title: trimmedTitle,
+      description: description.trim() !== "" ? description.trim() : null,
+      position,
+    };
+    if (selectedRoleId !== null) mutationArgs.roleId = selectedRoleId;
+
     createTask.mutate(
-      {
-        boardId: selectedBoardId,
-        columnId: selectedColumnId,
-        title: trimmedTitle,
-        description: description.trim() !== "" ? description.trim() : null,
-        position,
-      },
+      mutationArgs,
       {
         onSuccess: () => {
           pushToast("success", "Задача создана");

@@ -441,6 +441,28 @@ mod tests {
     }
 
     #[test]
+    fn insert_with_role_id_persists_it() {
+        let (conn, bd, col) = fresh_db_with_board();
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) \
+             VALUES ('rl-x','Reviewer','',0,0)",
+            [],
+        )
+        .unwrap();
+        let row = insert(
+            &conn,
+            &TaskDraft {
+                role_id: Some("rl-x".into()),
+                ..draft(&bd, &col)
+            },
+        )
+        .unwrap();
+        assert_eq!(row.role_id.as_deref(), Some("rl-x"));
+        let got = get_by_id(&conn, &row.id).unwrap().unwrap();
+        assert_eq!(got.role_id.as_deref(), Some("rl-x"));
+    }
+
+    #[test]
     fn task_prompt_override_round_trip() {
         let (conn, bd, col) = fresh_db_with_board();
         let task = insert(&conn, &draft(&bd, &col)).unwrap();

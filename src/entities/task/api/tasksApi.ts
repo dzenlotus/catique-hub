@@ -89,6 +89,8 @@ export interface CreateTaskArgs {
    * `lastTask.position + 1` for an append.
    */
   position: number;
+  /** Skip = `undefined`, set = string id, clear = `null`. */
+  roleId?: string | null;
 }
 
 /** `create_task` — append a task to a column. */
@@ -100,6 +102,7 @@ export async function createTask(args: CreateTaskArgs): Promise<Task> {
     position: args.position,
   };
   if (args.description !== undefined) payload.description = args.description;
+  if (args.roleId !== undefined) payload.roleId = args.roleId;
   return invokeWithAppError<Task>("create_task", payload);
 }
 

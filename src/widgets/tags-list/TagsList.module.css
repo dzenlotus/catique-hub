@@ -1,32 +1,70 @@
 /*
  * TagsList — widget.
  *
- * Layout: wrapping flex row of TagChip pills. Reads only semantic
- * tokens (per shared/ui/README.md convention — no Tailwind).
+ * Layout: DS v1 page header (icon + Playfair title + muted description +
+ * right-side actions) followed by a wrapping flex row of TagChip pills.
  */
 
 .root {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--space-16);
   width: 100%;
+  padding: var(--space-24);
+  box-sizing: border-box;
 }
 
-/* ---------- Header ---------- */
+/* ---------- Page header ---------- */
 
 .header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: var(--space-16);
+}
+
+.headingGroup {
+  display: flex;
+  align-items: flex-start;
   gap: var(--space-12);
+  min-width: 0;
+}
+
+.headingIcon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  opacity: 0.75;
+}
+
+.headingText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .heading {
   margin: 0;
+  font-family: var(--font-display);
   font-size: var(--font-size-headline-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-default);
   line-height: var(--line-height-tight);
+  letter-spacing: -0.02em;
+}
+
+.description {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-normal);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-shrink: 0;
 }
 
 .btnLabel {

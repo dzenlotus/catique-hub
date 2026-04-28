@@ -70,6 +70,7 @@ impl<'a> TasksUseCase<'a> {
         title: String,
         description: Option<String>,
         position: f64,
+        role_id: Option<String>,
     ) -> Result<Task, AppError> {
         let trimmed = validate_non_empty("title", &title)?;
         let conn = acquire(self.pool).map_err(map_db_err)?;
@@ -119,7 +120,7 @@ impl<'a> TasksUseCase<'a> {
                 title: trimmed,
                 description,
                 position,
-                role_id: None,
+                role_id,
             },
         )
         .map_err(map_db_err)?;
@@ -223,7 +224,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let t = uc
-            .create("bd1".into(), "c1".into(), "Title".into(), None, 1.0)
+            .create("bd1".into(), "c1".into(), "Title".into(), None, 1.0, None)
             .unwrap();
         let got = uc.get(&t.id).unwrap();
         assert_eq!(got, t);
@@ -234,7 +235,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         match uc
-            .create("ghost".into(), "c1".into(), "T".into(), None, 1.0)
+            .create("ghost".into(), "c1".into(), "T".into(), None, 1.0, None)
             .expect_err("nf")
         {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "board"),
@@ -247,7 +248,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         match uc
-            .create("bd1".into(), "ghost".into(), "T".into(), None, 1.0)
+            .create("bd1".into(), "ghost".into(), "T".into(), None, 1.0, None)
             .expect_err("nf")
         {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "column"),
@@ -260,7 +261,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         match uc
-            .create("bd1".into(), "c1".into(), "  ".into(), None, 1.0)
+            .create("bd1".into(), "c1".into(), "  ".into(), None, 1.0, None)
             .expect_err("v")
         {
             AppError::Validation { field, .. } => assert_eq!(field, "title"),
@@ -273,12 +274,42 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let t = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0)
+            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
             .unwrap();
         let updated = uc
             .update(t.id.clone(), Some("New".into()), None, None, None, None)
             .unwrap();
         assert_eq!(updated.title, "New");
         assert!((updated.position - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn create_with_role_id_persists_it() {
+        let pool = fresh_pool();
+        // Insert a role so the FK constraint is satisfied.
+        {
+            let conn = pool.get().unwrap();
+            conn.execute(
+                "INSERT INTO roles (id, name, content, created_at, updated_at) \
+                 VALUES ('rl-x','Reviewer','',0,0)",
+                [],
+            )
+            .unwrap();
+        }
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create(
+                "bd1".into(),
+                "c1".into(),
+                "With Role".into(),
+                None,
+                1.0,
+                Some("rl-x".into()),
+            )
+            .unwrap();
+        assert_eq!(task.role_id.as_deref(), Some("rl-x"));
+        // Round-trip: get should return the same role_id.
+        let got = uc.get(&task.id).unwrap();
+        assert_eq!(got.role_id.as_deref(), Some("rl-x"));
     }
 }

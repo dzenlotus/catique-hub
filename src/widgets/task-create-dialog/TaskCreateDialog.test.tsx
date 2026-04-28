@@ -312,4 +312,57 @@ describe("TaskCreateDialog", () => {
     expect(roleSelect).toBeInTheDocument();
     expect(screen.getByText("(нет роли)")).toBeInTheDocument();
   });
+
+  it("selected role id is included in create_task payload", async () => {
+    const newTask = makeTask({ roleId: "role-1" });
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_boards") return [makeBoard()];
+      if (cmd === "list_columns") return [makeColumn()];
+      if (cmd === "list_roles") return [makeRole()];
+      if (cmd === "list_spaces") return [];
+      if (cmd === "create_task") return newTask;
+      return [];
+    });
+
+    const onClose = vi.fn();
+    const { user } = renderDialog(true, onClose);
+
+    // Fill title.
+    const titleInput = await screen.findByTestId("task-create-dialog-title-input");
+    await user.type(titleInput, "Role task");
+
+    // Select board.
+    const boardSelect = await screen.findByTestId("task-create-dialog-board-select");
+    const boardOpt = boardSelect.querySelector("[role='option']");
+    if (boardOpt) await user.click(boardOpt);
+
+    // Select column.
+    const columnSelect = await screen.findByTestId("task-create-dialog-column-select");
+    const colOpt = columnSelect.querySelector("[role='option']");
+    if (colOpt) await user.click(colOpt);
+
+    // Select the role (second option in the role listbox — first is "(нет роли)").
+    const roleSelect = await screen.findByTestId("task-create-dialog-role-select");
+    const roleOptions = roleSelect.querySelectorAll("[role='option']");
+    // roleOptions[0] is "(нет роли)", roleOptions[1] is "Developer".
+    if (roleOptions[1]) await user.click(roleOptions[1]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("task-create-dialog-save")).not.toBeDisabled();
+    });
+
+    await user.click(screen.getByTestId("task-create-dialog-save"));
+
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    const createCall = invokeMock.mock.calls.find(([cmd]) => cmd === "create_task");
+    expect(createCall?.[1]).toMatchObject({
+      boardId: "brd-1",
+      columnId: "col-1",
+      title: "Role task",
+      roleId: "role-1",
+    });
+  });
 });
