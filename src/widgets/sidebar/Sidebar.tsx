@@ -1,98 +1,99 @@
-import { useState, useCallback, type ReactElement } from "react";
 import {
-  LayoutGrid,
-  FileText,
-  User,
-  Tag,
-  BarChart3,
-  ChevronDown,
-  AlertCircle,
-  Settings,
-  Sun,
-  Moon,
-  Plus,
-  Settings2,
-  Search,
-  Wrench,
-  Plug,
-  FolderTree,
-  Heart,
-} from "lucide-react";
-import mascotSprite from "./assets/mascot-sprite.png";
-import { Button as AriaButton } from "react-aria-components";
+  useState,
+  useCallback,
+  useEffect,
+  type ReactElement,
+} from "react";
+import { Sun, Moon, Search, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
 import { useLocation } from "wouter";
 import { cn } from "@shared/lib";
-import { Button, Menu, MenuItem, MenuTrigger, Separator } from "@shared/ui";
+import { Button, Icon } from "@shared/ui";
 import { useSpaces } from "@entities/space";
 import type { Space } from "@entities/space";
 import { useBoards } from "@entities/board";
+import type { Board } from "@entities/board";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 import { GlobalSearch, useGlobalSearchKeybind } from "@widgets/global-search";
 import type { SearchResult } from "@bindings/SearchResult";
-import { pathForView, taskPath, boardPath } from "@app/routes";
+import { taskPath, boardPath } from "@app/routes";
+import { Heart, AlertCircle } from "lucide-react";
 import styles from "./Sidebar.module.css";
+
+// ---------------------------------------------------------------------------
+// NavView — the 7 navigable top-level views shown in WORKSPACE section.
+// "spaces" is kept for internal routing but not shown as a nav item.
+// ---------------------------------------------------------------------------
 
 /** All navigable top-level views in the app shell. */
 export type NavView =
   | "boards"
+  | "agent-roles"
   | "prompts"
   | "prompt-groups"
-  | "roles"
-  | "tags"
-  | "reports"
   | "skills"
-  | "mcp-tools"
-  | "spaces"
-  | "settings";
+  | "mcp-servers"
+  | "settings"
+  // Not shown in sidebar nav but still routable:
+  | "spaces";
 
 export interface SidebarProps {
   activeView: NavView;
   onSelectView: (view: NavView) => void;
 }
 
-interface NavItem {
+interface WorkspaceItem {
   view: NavView;
   label: string;
-  Icon: React.FC<{ size?: number; "aria-hidden"?: boolean | "true" | "false" }>;
+  iconName: import("@shared/ui").IconName;
 }
 
 /**
- * WORKSPACE section — the 9 core navigable views.
- *
- * Icon substitutions vs. original (matching pixel-art visual weight from image3.png):
- * - Roles: `User` instead of `UserCircle2` — cleaner 16 px pixel match.
- * - Reports: `BarChart3` instead of `FileBarChart` — matches bar-chart icon in pixel set.
- * - MCP Tools: `Plug` instead of `Cog` — matches the plug/connector icon in pixel set.
- *
- * TODO: replace with extracted pixel-art SVGs once designer provides individual
- * SVG files from image3.png. (Follow-up task per handoff.md §"What is out of scope".)
+ * WORKSPACE section — 7 core navigable views matching the pixel-art mockup.
  */
-const WORKSPACE_ITEMS: NavItem[] = [
-  { view: "boards", label: "Boards", Icon: LayoutGrid },
-  { view: "prompts", label: "Prompts", Icon: FileText },
-  { view: "prompt-groups", label: "Prompt Groups", Icon: FolderTree },
-  { view: "roles", label: "Roles", Icon: User },
-  { view: "tags", label: "Tags", Icon: Tag },
-  { view: "reports", label: "Reports", Icon: BarChart3 },
-  { view: "skills", label: "Skills", Icon: Wrench },
-  { view: "mcp-tools", label: "MCP Tools", Icon: Plug },
-  { view: "settings", label: "Settings", Icon: Settings },
+const WORKSPACE_ITEMS: WorkspaceItem[] = [
+  { view: "boards",        label: "Boards",        iconName: "boards" },
+  { view: "agent-roles",   label: "Agent roles",   iconName: "agent-roles" },
+  { view: "prompts",       label: "Prompts",        iconName: "prompts" },
+  { view: "prompt-groups", label: "Prompt groups",  iconName: "prompt-groups" },
+  { view: "skills",        label: "Skills",         iconName: "skills" },
+  { view: "mcp-servers",   label: "MCP servers",    iconName: "mcp-servers" },
+  { view: "settings",      label: "Settings",       iconName: "settings" },
 ];
 
-/** Maximum number of boards to show in the RECENT BOARDS section. */
-const RECENT_BOARDS_LIMIT = 5;
+/** Maximum number of boards shown in RECENT BOARDS section. */
+const RECENT_BOARDS_LIMIT = 3;
 
 // ---------------------------------------------------------------------------
-// ThemeToggle — sidebar footer component
+// Persistence helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Reads the current theme from `document.documentElement.dataset.theme`.
- * Defaults to "dark" when the attribute is absent (matching the design-token
- * file's default: `:root` maps to the light palette, but our UX default is
- * dark, so the toggle reads from the DOM attribute set at app init).
- */
+function getExpandedKey(spaceId: string): string {
+  return `catique:sidebar:expanded:${spaceId}`;
+}
+
+function readExpandedFromStorage(spaceId: string, defaultValue: boolean): boolean {
+  try {
+    const stored = localStorage.getItem(getExpandedKey(spaceId));
+    if (stored === null) return defaultValue;
+    return stored === "true";
+  } catch {
+    return defaultValue;
+  }
+}
+
+function writeExpandedToStorage(spaceId: string, value: boolean): void {
+  try {
+    localStorage.setItem(getExpandedKey(spaceId), String(value));
+  } catch {
+    /* restricted environment — in-memory state still works */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ThemeToggle
+// ---------------------------------------------------------------------------
+
 function readTheme(): "dark" | "light" {
   const t = document.documentElement.dataset["theme"];
   return t === "light" ? "light" : "dark";
@@ -108,11 +109,10 @@ function ThemeToggle(): ReactElement {
     try {
       localStorage.setItem("catique:theme", next);
     } catch {
-      /* private mode or restricted environment — DOM attribute still updated */
+      /* private mode — DOM attribute still updated */
     }
   }
 
-  // Label + icon describe what will happen when pressed (the target state).
   const nextLabel = theme === "dark" ? "Светлая тема" : "Тёмная тема";
   const ariaLabel = `Переключить на ${nextLabel.toLowerCase()}`;
 
@@ -136,98 +136,121 @@ function ThemeToggle(): ReactElement {
 }
 
 // ---------------------------------------------------------------------------
-// SpaceSwitcher — popover-based space selector inlined in SPACES section
+// SpaceRow — inline collapsible space item
 // ---------------------------------------------------------------------------
 
-/**
- * SpaceSwitcher — trigger + popover menu for switching the active space.
- *
- * Active space state is now held in `ActiveSpaceProvider` (global context)
- * so any part of the app can read the selection. The context also persists
- * to localStorage so the selection survives page reloads.
- */
-interface SpaceSwitcherProps {
-  spaces: Space[];
-  activeSpaceId: string;
-  onSelect: (id: string) => void;
-  onNewSpace: () => void;
-  onManageSpaces: () => void;
+interface SpaceRowProps {
+  space: Space;
+  boards: Board[];
+  isActiveSpace: boolean;
+  activeBoardId: string | null;
+  onSelectSpace: (id: string) => void;
+  onSelectBoard: (id: string) => void;
+  isDefaultExpanded: boolean;
 }
 
-function SpaceSwitcher({
-  spaces,
-  activeSpaceId,
-  onSelect,
-  onNewSpace,
-  onManageSpaces,
-}: SpaceSwitcherProps): ReactElement {
-  const active = spaces.find((s) => s.id === activeSpaceId) ?? spaces[0];
+function SpaceRow({
+  space,
+  boards,
+  isActiveSpace,
+  activeBoardId,
+  onSelectSpace,
+  onSelectBoard,
+  isDefaultExpanded,
+}: SpaceRowProps): ReactElement {
+  const [isExpanded, setIsExpanded] = useState(() =>
+    readExpandedFromStorage(space.id, isDefaultExpanded),
+  );
+
+  // Persist on every toggle
+  useEffect(() => {
+    writeExpandedToStorage(space.id, isExpanded);
+  }, [space.id, isExpanded]);
+
+  const spaceBoards = boards.filter((b) => b.spaceId === space.id);
+
+  function handleNameClick(): void {
+    onSelectSpace(space.id);
+  }
+
+  function handleChevronClick(e: React.MouseEvent): void {
+    e.stopPropagation();
+    setIsExpanded((prev) => !prev);
+  }
 
   return (
-    <MenuTrigger>
-      {/*
-       * RAC MenuTrigger requires a RAC-aware pressable child.
-       * We use AriaButton directly (not our Button wrapper) so we can
-       * apply custom CSS without the wrapper's variant/size class logic.
-       */}
-      <AriaButton
-        className={styles.spaceTrigger}
-        aria-haspopup="menu"
-        aria-label={`Active space: ${active.name}. Switch space`}
+    <li className={styles.spaceItem}>
+      {/* Space header row */}
+      <div
+        className={cn(styles.spaceRow, isActiveSpace && styles.spaceRowActive)}
       >
-        <span className={styles.spacePrefix}>{active.prefix}</span>
-        <span className={styles.spaceName}>{active.name}</span>
-        <ChevronDown size={12} aria-hidden={true} className={styles.spaceChevron} />
-      </AriaButton>
-      <Menu<Space>
-        onAction={(key) => {
-          const k = String(key);
-          if (k === "__new__") { onNewSpace(); return; }
-          if (k === "__manage__") { onManageSpaces(); return; }
-          onSelect(k);
-        }}
-        placement="bottom start"
-        aria-label="Switch space"
-      >
-        {spaces.map((space) => (
-          <MenuItem
-            id={space.id}
-            key={space.id}
-            aria-label={`${space.name}${space.isDefault ? " (default)" : ""}`}
-          >
-            <span className={styles.spaceMenuPrefix}>{space.prefix}</span>
-            <span className={styles.spaceMenuName}>{space.name}</span>
-            {space.isDefault ? (
-              <span className={styles.spaceMenuDefault} aria-hidden="true">
-                ★
-              </span>
-            ) : null}
-          </MenuItem>
-        ))}
-        <Separator />
-        <MenuItem
-          id="__new__"
-          aria-label="Новое пространство"
-          className={styles.spaceMenuAction}
+        {/* Chevron — toggles expand/collapse, does NOT change active space */}
+        <button
+          type="button"
+          className={styles.spaceChevronBtn}
+          onClick={handleChevronClick}
+          aria-label={isExpanded ? `Свернуть ${space.name}` : `Развернуть ${space.name}`}
+          aria-expanded={isExpanded}
         >
-          <Plus size={12} aria-hidden={true} />
-          <span>+ Новое пространство</span>
-        </MenuItem>
-        <MenuItem
-          id="__manage__"
-          aria-label="Управление пространствами"
-          className={styles.spaceMenuAction}
+          {isExpanded ? (
+            <ChevronDown size={12} aria-hidden={true} />
+          ) : (
+            <ChevronRight size={12} aria-hidden={true} />
+          )}
+        </button>
+
+        {/* Space icon + name — clicking sets active space */}
+        <button
+          type="button"
+          className={styles.spaceNameBtn}
+          onClick={handleNameClick}
+          aria-label={`${space.name}${isActiveSpace ? " (активное пространство)" : ""}`}
         >
-          <Settings2 size={12} aria-hidden={true} />
-          <span>Управление пространствами</span>
-        </MenuItem>
-      </Menu>
-    </MenuTrigger>
+          <Icon name="catique" size={14} aria-hidden={true} />
+          <span className={styles.spaceNameText}>{space.name}</span>
+        </button>
+
+        {/* Kebab placeholder — visual only in v1 */}
+        <button
+          type="button"
+          className={styles.spaceKebabBtn}
+          aria-label={`Действия для ${space.name}`}
+          tabIndex={-1}
+        >
+          <MoreHorizontal size={12} aria-hidden={true} />
+        </button>
+      </div>
+
+      {/* Board rows inside expanded space */}
+      {isExpanded && spaceBoards.length > 0 && (
+        <ul className={styles.boardList} role="list">
+          {spaceBoards.map((board) => {
+            const isActive = activeBoardId === board.id;
+            return (
+              <li key={board.id}>
+                <button
+                  type="button"
+                  className={cn(styles.boardRow, isActive && styles.boardRowActive)}
+                  onClick={() => onSelectBoard(board.id)}
+                  aria-current={isActive ? "page" : undefined}
+                  aria-label={board.name}
+                >
+                  {/* Active strip for board row */}
+                  {isActive && <span className={styles.boardActiveStrip} aria-hidden="true" />}
+                  <Icon name="engineering" size={14} aria-hidden={true} />
+                  <span className={styles.boardRowLabel}>{board.name}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </li>
   );
 }
 
 // ---------------------------------------------------------------------------
-// NavRow — single row item (shared by WORKSPACE and RECENT BOARDS sections)
+// NavRow — single workspace / recent-board row
 // ---------------------------------------------------------------------------
 
 interface NavRowProps {
@@ -262,50 +285,61 @@ function NavRow({
 // ---------------------------------------------------------------------------
 
 /**
- * Left-rail navigation sidebar — Design System v1.
+ * Left-rail navigation sidebar — DS v1 (Round 4).
  *
  * Structure:
- *   Wordmark block
- *   ├─ Search button (Cmd+K)  [TODO: move to top bar — parallel agent scope]
- *   ├─ Section: SPACES
- *   │    └─ SpaceSwitcher (popover-based space rows)
- *   ├─ Section: RECENT BOARDS
- *   │    └─ top-5 boards by updatedAt desc
- *   └─ Section: WORKSPACE
- *        └─ 9 nav items (Boards / Prompts / Prompt Groups / Roles / Tags / Reports / Skills / MCP Tools / Settings)
- *   Footer: Mascot + theme toggle
- *
- * Active nav-item gets a 3 px red left strip (`--color-cta-bg`) + soft
- * background (`--color-accent-soft`) per DS v1 components.md § Sidebar.
+ *   Wordmark block (Catique Hub / ♥ / tagline)
+ *   Search button (Cmd+K)
+ *   ──────────
+ *   SPACES section label
+ *     ▼ [cat] Catique  ···      ← inline collapsible space rows
+ *       ┃ [grid] Engineering    ← active board
+ *         [grid] Agent Ops
+ *         [map]  Roadmap
+ *     ▶ [cup]  Side projects ···
+ *   ──────────
+ *   WORKSPACE section label
+ *     [boards] Boards           ← active when activeView === "boards"
+ *     [roles]  Agent roles
+ *     [bubble] Prompts
+ *     [layers] Prompt groups
+ *     [spark]  Skills
+ *     [server] MCP servers
+ *     [gear]   Settings
+ *   ──────────
+ *   RECENT BOARDS section label
+ *     [grid] Engineering
+ *     [grid] Roadmap
+ *   ──────────
+ *   Mascot area + tagline
+ *   Theme toggle
  */
 export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElement {
   const spacesQuery = useSpaces();
   const { activeSpaceId, setActiveSpaceId } = useActiveSpace();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
   const boardsQuery = useBoards();
 
   const spaces = spacesQuery.data ?? [];
-  const effectiveSpaceId = activeSpaceId;
+  const boards = boardsQuery.data ?? [];
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // Cmd+K / Ctrl+K keybind — opens the palette from anywhere in the sidebar
-  // subtree, skipping inputs/textareas/contenteditable.
+  // Cmd+K keybind — opens the palette from anywhere in the sidebar
   useGlobalSearchKeybind(useCallback(() => setIsSearchOpen(true), []));
 
-  /**
-   * Handle a result selected in the global search palette.
-   *
-   * - agentReport → navigates to `/reports` via the router.
-   * - task        → navigates directly to `/tasks/:id` which opens TaskDialog
-   *                 on top of BoardsList regardless of the current view.
-   */
+  // Derive the currently active board id from the URL
+  const activeBoardId: string | null = (() => {
+    const match = location.match(/^\/boards\/(.+)$/);
+    return match ? match[1] : null;
+  })();
+
   function handleSearchResult(result: SearchResult): void {
     setIsSearchOpen(false);
     if (result.type === "agentReport") {
-      setLocation(pathForView("reports"));
+      onSelectView("boards");
     } else {
       setLocation(taskPath(result.id));
     }
@@ -340,7 +374,7 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
       );
     }
 
-    if (spaces.length === 0 || effectiveSpaceId === null) {
+    if (spaces.length === 0 || activeSpaceId === null) {
       return (
         <div className={styles.sectionEmpty}>
           <span className={styles.sectionEmptyText}>Нет пространств</span>
@@ -349,42 +383,51 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
     }
 
     return (
-      <div className={styles.spaceSwitcher}>
-        <SpaceSwitcher
-          spaces={spaces}
-          activeSpaceId={effectiveSpaceId}
-          onSelect={(id) => setActiveSpaceId(id)}
-          onNewSpace={() => setCreateDialogOpen(true)}
-          onManageSpaces={() => onSelectView("spaces")}
-        />
-      </div>
+      <ul className={styles.spaceList} role="list">
+        {spaces.map((space, index) => (
+          <SpaceRow
+            key={space.id}
+            space={space}
+            boards={boards}
+            isActiveSpace={space.id === activeSpaceId}
+            activeBoardId={activeBoardId}
+            onSelectSpace={(id) => setActiveSpaceId(id)}
+            onSelectBoard={(id) => setLocation(boardPath(id))}
+            isDefaultExpanded={index === 0 || space.isDefault}
+          />
+        ))}
+      </ul>
     );
   };
 
   // ── RECENT BOARDS section renderer ─────────────────────────────────────
 
   const renderRecentBoards = (): ReactElement => {
-    if (boardsQuery.status !== "success" || boardsQuery.data.length === 0) {
+    if (boardsQuery.status !== "success" || boards.length === 0) {
       return <></>;
     }
 
-    const recent = [...boardsQuery.data]
+    const recent = [...boards]
       .sort((a, b) => Number(b.updatedAt - a.updatedAt))
       .slice(0, RECENT_BOARDS_LIMIT);
 
     return (
       <ul className={styles.navList} role="list">
-        {recent.map((board) => (
-          <li key={board.id}>
-            <NavRow
-              isActive={false}
-              onClick={() => setLocation(boardPath(board.id))}
-            >
-              <LayoutGrid size={16} aria-hidden={true} />
-              <span className={styles.navLabel}>{board.name}</span>
-            </NavRow>
-          </li>
-        ))}
+        {recent.map((board) => {
+          const isActive = activeBoardId === board.id;
+          return (
+            <li key={board.id}>
+              <NavRow
+                isActive={isActive}
+                onClick={() => setLocation(boardPath(board.id))}
+                aria-current={isActive ? "page" : undefined}
+              >
+                <Icon name="engineering" size={16} aria-hidden={true} />
+                <span className={styles.navLabel}>{board.name}</span>
+              </NavRow>
+            </li>
+          );
+        })}
       </ul>
     );
   };
@@ -406,9 +449,7 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
         </div>
       </div>
 
-      {/* ── Search button — TODO: move to top-bar widget (parallel agent scope)
-          Kept here temporarily so search functionality is not broken.
-          Coordinate with: top-bar agent / ctq-topbar ticket. ───────────────── */}
+      {/* ── Search button ─────────────────────────────────────────────────── */}
       <div className={styles.searchButtonWrap}>
         <button
           type="button"
@@ -423,67 +464,70 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
         </button>
       </div>
 
-      {/* ── SPACES ──────────────────────────────────────────────────────────── */}
-      <div className={styles.sectionLabel} aria-label="Пространства">
-        SPACES
+      <div className={styles.sectionsWrap}>
+
+        {/* ── SPACES ────────────────────────────────────────────────────────── */}
+        <div className={styles.sectionLabel} aria-label="Пространства">
+          SPACES
+        </div>
+        {renderSpacesSection()}
+
+        <div className={styles.divider} aria-hidden="true" />
+
+        {/* ── WORKSPACE ─────────────────────────────────────────────────────── */}
+        <div className={styles.sectionLabel} aria-label="Workspace">
+          WORKSPACE
+        </div>
+        <ul className={styles.navList} role="list">
+          {WORKSPACE_ITEMS.map(({ view, label, iconName }) => {
+            const isActive = view === activeView;
+            const isBoards = view === "boards";
+            return (
+              <li key={view}>
+                <NavRow
+                  isActive={isActive}
+                  onClick={() => onSelectView(view)}
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  <Icon
+                    name={iconName}
+                    size={16}
+                    active={isActive && isBoards}
+                    aria-hidden={true}
+                  />
+                  <span className={styles.navLabel}>{label}</span>
+                </NavRow>
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className={styles.divider} aria-hidden="true" />
+
+        {/* ── RECENT BOARDS ───────────────────────────────────────────────────── */}
+        {boardsQuery.status === "success" && boards.length > 0 && (
+          <>
+            <div className={styles.sectionLabel} aria-label="Недавние доски">
+              RECENT BOARDS
+            </div>
+            {renderRecentBoards()}
+          </>
+        )}
+
       </div>
-      {renderSpacesSection()}
-
-      {/* ── RECENT BOARDS ───────────────────────────────────────────────────── */}
-      {boardsQuery.status === "success" && boardsQuery.data.length > 0 && (
-        <>
-          <div className={styles.sectionLabel} aria-label="Недавние доски">
-            RECENT BOARDS
-          </div>
-          {renderRecentBoards()}
-        </>
-      )}
-
-      {/* ── WORKSPACE — label hidden per mockup; items flow without a header ── */}
-      <ul className={styles.navList} role="list">
-        {WORKSPACE_ITEMS.map(({ view, label, Icon }) => {
-          const isActive = view === activeView;
-          return (
-            <li key={view}>
-              <NavRow
-                isActive={isActive}
-                onClick={() => onSelectView(view)}
-                aria-current={isActive ? "page" : undefined}
-              >
-                <Icon size={16} aria-hidden={true} />
-                <span className={styles.navLabel}>{label}</span>
-              </NavRow>
-            </li>
-          );
-        })}
-      </ul>
 
       {/* ── Footer: Mascot + theme toggle ───────────────────────────────────── */}
       <div className={styles.sidebarFooter}>
         {/*
-         * Mascot block — pixel-art cat placeholder.
-         *
-         * TODO: replace 🐱 emoji with extracted pixel-art cat SVG (32×32 px) from
-         * image3.png row 1, position [0,0] once designer provides individual SVG
-         * files. See handoff.md §"What is out of scope". The tagline text below is
-         * per Maria's mockup spec.
+         * Mascot area — placeholder for the pixel-art beret-cat illustration.
+         * The actual beret-cat asset is a designer follow-up.
+         * Tagline from the mockup spec (French/English bilingual).
          */}
-        <div className={styles.mascot} aria-hidden="true">
-          {/*
-           * Mascot — CSS sprite from the pixel-art icon set (image3.png).
-           * The cat-with-beret-espresso icon occupies cell [col=0, row=0]
-           * of a 10-column × 9-row grid (1402×1122 px source image).
-           * Each cell is approximately 140×124.7 px → we display at 64×64
-           * with background-size scaled proportionally.
-           * background-position: 0 0 (top-left cell needs no offset).
-           */}
+        <div className={styles.mascotArea} aria-hidden="true">
           <div
-            className={styles.mascotSprite}
+            className={styles.mascotPlaceholder}
             role="img"
-            aria-label="Кот-маскот"
-            style={{
-              backgroundImage: `url(${mascotSprite})`,
-            }}
+            aria-label="Кот-маскот (заглушка)"
           />
           <p className={styles.mascotTagline}>
             Bonjour, développeur.{" "}

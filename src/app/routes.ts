@@ -6,6 +6,9 @@
  *
  * E4.x (router): introduced with wouter migration. Previously navigation was
  * purely in-memory via `useState<NavView>` in App.tsx.
+ * Round 4: NavView "roles" → "agent-roles", "mcp-tools" → "mcp-servers".
+ *          URL paths are unchanged (backward compat). "tags" and "reports"
+ *          are no longer sidebar nav items but routes remain for deep-links.
  */
 
 import type { NavView } from "@widgets/sidebar";
@@ -20,10 +23,14 @@ export const routes = {
   task: "/tasks/:taskId",
   prompts: "/prompts",
   promptGroups: "/prompt-groups",
+  /** /roles — maps to "agent-roles" NavView */
   roles: "/roles",
+  /** /tags — no longer a sidebar nav item but route still valid */
   tags: "/tags",
+  /** /reports — no longer a sidebar nav item but route still valid */
   reports: "/reports",
   skills: "/skills",
+  /** /mcp-tools — maps to "mcp-servers" NavView */
   mcpTools: "/mcp-tools",
   spaces: "/spaces",
   settings: "/settings",
@@ -55,15 +62,11 @@ export function pathForView(view: NavView): string {
       return routes.prompts;
     case "prompt-groups":
       return routes.promptGroups;
-    case "roles":
+    case "agent-roles":
       return routes.roles;
-    case "tags":
-      return routes.tags;
-    case "reports":
-      return routes.reports;
     case "skills":
       return routes.skills;
-    case "mcp-tools":
+    case "mcp-servers":
       return routes.mcpTools;
     case "spaces":
       return routes.spaces;
@@ -82,11 +85,9 @@ export function viewForPath(path: string): NavView {
   if (path === "/" || path === "") return "boards";
   if (path === routes.prompts) return "prompts";
   if (path === routes.promptGroups) return "prompt-groups";
-  if (path === routes.roles) return "roles";
-  if (path === routes.tags) return "tags";
-  if (path === routes.reports) return "reports";
+  if (path === routes.roles) return "agent-roles";
   if (path === routes.skills) return "skills";
-  if (path === routes.mcpTools) return "mcp-tools";
+  if (path === routes.mcpTools) return "mcp-servers";
   if (path === routes.spaces) return "spaces";
   if (path === routes.settings) return "settings";
   // Board detail: /boards/<id>

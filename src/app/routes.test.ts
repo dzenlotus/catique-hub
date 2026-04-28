@@ -5,17 +5,17 @@ import type { NavView } from "@widgets/sidebar";
 
 // ---------------------------------------------------------------------------
 // All nav views for round-trip coverage
+// "roles" → "agent-roles", "mcp-tools" → "mcp-servers" (Round 4 rename)
+// "tags" and "reports" removed from sidebar nav but routes still exist
 // ---------------------------------------------------------------------------
 
 const ALL_VIEWS: NavView[] = [
   "boards",
   "prompts",
   "prompt-groups",
-  "roles",
-  "tags",
-  "reports",
+  "agent-roles",
   "skills",
-  "mcp-tools",
+  "mcp-servers",
   "spaces",
   "settings",
 ];
@@ -70,24 +70,16 @@ describe("pathForView", () => {
     expect(pathForView("prompt-groups")).toBe("/prompt-groups");
   });
 
-  it("maps roles → /roles", () => {
-    expect(pathForView("roles")).toBe("/roles");
-  });
-
-  it("maps tags → /tags", () => {
-    expect(pathForView("tags")).toBe("/tags");
-  });
-
-  it("maps reports → /reports", () => {
-    expect(pathForView("reports")).toBe("/reports");
+  it("maps agent-roles → /roles", () => {
+    expect(pathForView("agent-roles")).toBe("/roles");
   });
 
   it("maps skills → /skills", () => {
     expect(pathForView("skills")).toBe("/skills");
   });
 
-  it("maps mcp-tools → /mcp-tools", () => {
-    expect(pathForView("mcp-tools")).toBe("/mcp-tools");
+  it("maps mcp-servers → /mcp-tools", () => {
+    expect(pathForView("mcp-servers")).toBe("/mcp-tools");
   });
 
   it("maps spaces → /spaces", () => {
@@ -130,24 +122,16 @@ describe("viewForPath", () => {
     expect(viewForPath("/prompt-groups")).toBe("prompt-groups");
   });
 
-  it("maps /roles → roles", () => {
-    expect(viewForPath("/roles")).toBe("roles");
-  });
-
-  it("maps /tags → tags", () => {
-    expect(viewForPath("/tags")).toBe("tags");
-  });
-
-  it("maps /reports → reports", () => {
-    expect(viewForPath("/reports")).toBe("reports");
+  it("maps /roles → agent-roles (renamed in Round 4)", () => {
+    expect(viewForPath("/roles")).toBe("agent-roles");
   });
 
   it("maps /skills → skills", () => {
     expect(viewForPath("/skills")).toBe("skills");
   });
 
-  it("maps /mcp-tools → mcp-tools", () => {
-    expect(viewForPath("/mcp-tools")).toBe("mcp-tools");
+  it("maps /mcp-tools → mcp-servers (renamed in Round 4)", () => {
+    expect(viewForPath("/mcp-tools")).toBe("mcp-servers");
   });
 
   it("maps /spaces → spaces", () => {
@@ -168,7 +152,17 @@ describe("viewForPath", () => {
     expect(viewForPath("/tasks/some-other-id")).toBe("boards");
   });
 
-  // Round-trip: pathForView(view) → viewForPath → same view (excluding board detail which maps back to boards)
+  // /tags and /reports are no longer in the sidebar but the routes still exist.
+  // viewForPath falls back to "boards" for them (they are no longer NavView members).
+  it("maps /tags → boards (removed from sidebar nav)", () => {
+    expect(viewForPath("/tags")).toBe("boards");
+  });
+
+  it("maps /reports → boards (removed from sidebar nav)", () => {
+    expect(viewForPath("/reports")).toBe("boards");
+  });
+
+  // Round-trip: pathForView(view) → viewForPath → same view
   it.each(ALL_VIEWS)(
     "round-trip: viewForPath(pathForView('%s')) === '%s'",
     (view) => {

@@ -1,18 +1,19 @@
 /*
- * Sidebar — Design System v1
+ * Sidebar — DS v1 Round 4
  *
  * Width: 220 px (fixed, no resize in v1).
  * Background: --color-surface-sidebar (cream #f0ece4 light / #1a1714 dark).
  * Right border: 1px solid var(--color-border-default).
  *
- * Internal structure:
+ * Structure:
  *   .wordmark         — top block with logotype
- *   .searchButtonWrap — Cmd+K search (TODO: move to top-bar)
+ *   .searchButtonWrap — Cmd+K search
+ *   .sectionsWrap     — SPACES / WORKSPACE / RECENT BOARDS
  *   .sectionLabel     — ALL-CAPS muted section labels
- *   .navList / .navItem — rows (SPACES / RECENT BOARDS / WORKSPACE)
- *   .sidebarFooter    — mascot + theme toggle, sticky bottom
- *
- * Refs: docs/design-system-v1/components.md §2, layout.md §2.
+ *   .divider          — horizontal rule between sections
+ *   .spaceList        — inline collapsible space rows
+ *   .navList / .navItem — workspace + recent board rows
+ *   .sidebarFooter    — mascot placeholder + theme toggle, sticky bottom
  */
 
 /* ============================================================
@@ -54,7 +55,7 @@
 
 .wordmarkTitle {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
   line-height: 1.2;
   color: var(--color-text-wordmark);
@@ -64,7 +65,6 @@
   letter-spacing: -0.01em;
 }
 
-/* Small filled heart centred below the wordmark title */
 .wordmarkHeart {
   color: var(--color-cta-bg);
   align-self: flex-start;
@@ -72,7 +72,8 @@
 }
 
 .wordmarkSub {
-  font-family: var(--font-sans);
+  font-family: var(--font-display, serif);
+  font-style: italic;
   font-size: var(--font-size-caption);
   line-height: var(--line-height-normal);
   color: var(--color-text-wordmark-sub);
@@ -82,115 +83,7 @@
 }
 
 /* ============================================================
- * Section labels — "SPACES", "RECENT BOARDS", "WORKSPACE"
- * ============================================================ */
-
-.sectionLabel {
-  padding: var(--space-16) var(--space-12) var(--space-4);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-tight);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-text-subtle);
-  user-select: none;
-  flex-shrink: 0;
-}
-
-/* ============================================================
- * Nav list + rows (shared by WORKSPACE and RECENT BOARDS)
- * ============================================================ */
-
-.navList {
-  list-style: none;
-  margin: 0;
-  padding: 0 var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  flex-shrink: 0;
-}
-
-.navItem {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  width: 100%;
-  padding: var(--space-6) var(--space-12);
-  border-radius: var(--radius-sm);
-  border: none;
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-  user-select: none;
-  transition:
-    background-color var(--duration-instant, 80ms) var(--easing-default, ease-out),
-    color var(--duration-instant, 80ms) var(--easing-default, ease-out);
-  min-height: 32px;
-}
-
-.navItem:hover:not(.active) {
-  background-color: var(--color-overlay-hover);
-  color: var(--color-text-default);
-}
-
-.navItem:active:not(.active) {
-  background-color: var(--color-overlay-active);
-}
-
-.navItem:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-/*
- * Active state: soft accent background + 3 px red left strip (--color-cta-bg).
- * The strip is a pseudo-element so it sits within border-radius without overflow.
- */
-.navItem.active {
-  background-color: var(--color-accent-soft);
-  color: var(--color-accent-bg);
-  font-weight: var(--font-weight-semibold);
-  border-color: transparent;
-}
-
-.navItem.active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 4px;
-  bottom: 4px;
-  width: 3px;
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  background-color: var(--color-cta-bg);
-}
-
-.navItem.active:hover {
-  background-color: var(--color-accent-soft);
-}
-
-.navLabel {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .navItem {
-    transition: none;
-  }
-}
-
-/* ============================================================
- * Search button — TODO: move to top-bar widget (parallel agent)
+ * Search button
  * ============================================================ */
 
 .searchButtonWrap {
@@ -249,7 +142,342 @@
 }
 
 /* ============================================================
- * Space switcher — SPACES section
+ * Sections wrapper — scrollable area between search and footer
+ * ============================================================ */
+
+.sectionsWrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+ * Section labels — "SPACES", "WORKSPACE", "RECENT BOARDS"
+ * ============================================================ */
+
+.sectionLabel {
+  padding: var(--space-12) var(--space-12) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: var(--line-height-tight);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+ * Divider between sections
+ * ============================================================ */
+
+.divider {
+  height: 1px;
+  background-color: var(--color-border-subtle);
+  margin: var(--space-8) var(--space-12);
+  flex-shrink: 0;
+}
+
+/* ============================================================
+ * SPACES section — inline collapsible space rows
+ * ============================================================ */
+
+.spaceList {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.spaceItem {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Space header row (chevron + name + kebab) */
+.spaceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  min-height: 30px;
+}
+
+.spaceRow:hover {
+  background-color: var(--color-overlay-hover);
+}
+
+.spaceRowActive {
+  /* No special highlight on the space header itself — active board row carries it */
+}
+
+/* Chevron toggle button */
+.spaceChevronBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  padding: 0;
+}
+
+.spaceChevronBtn:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.spaceChevronBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+
+/* Space name button (icon + name) */
+.spaceNameBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  border: none;
+  background: transparent;
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  padding: var(--space-2) 0;
+  min-width: 0;
+}
+
+.spaceNameBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+  border-radius: var(--radius-xs);
+}
+
+.spaceNameText {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Kebab "⋯" button — visual only in v1 */
+.spaceKebabBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  padding: 0;
+  opacity: 0;
+  transition: opacity 80ms ease-out;
+}
+
+.spaceRow:hover .spaceKebabBtn {
+  opacity: 1;
+}
+
+.spaceKebabBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+/* Board rows inside expanded space */
+.boardList {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 var(--space-4) var(--space-20, 20px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.boardRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  padding: var(--space-4) var(--space-8) var(--space-4) var(--space-6);
+  border-radius: var(--radius-sm);
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  min-height: 28px;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.boardRow:hover:not(.boardRowActive) {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.boardRow:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/*
+ * Active board row: soft accent background + 3 px red strip.
+ */
+.boardRowActive {
+  background-color: var(--color-accent-soft);
+  color: var(--color-cta-bg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.boardRowActive:hover {
+  background-color: var(--color-accent-soft);
+}
+
+/* 3 px red strip pseudo-element inside board row */
+.boardActiveStrip {
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 3px;
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  background-color: var(--color-cta-bg);
+}
+
+.boardRowLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boardRow {
+    transition: none;
+  }
+}
+
+/* ============================================================
+ * Nav list + rows (WORKSPACE and RECENT BOARDS)
+ * ============================================================ */
+
+.navList {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.navItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  padding: var(--space-6) var(--space-12);
+  border-radius: var(--radius-sm);
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--duration-instant, 80ms) var(--easing-default, ease-out),
+    color var(--duration-instant, 80ms) var(--easing-default, ease-out);
+  min-height: 32px;
+}
+
+.navItem:hover:not(.active) {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.navItem:active:not(.active) {
+  background-color: var(--color-overlay-active);
+}
+
+.navItem:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/*
+ * Active state: soft accent background + 3 px red left strip.
+ * For "boards" item: icon also gets red tint via Icon active prop.
+ */
+.navItem.active {
+  background-color: var(--color-accent-soft);
+  color: var(--color-cta-bg);
+  font-weight: var(--font-weight-semibold);
+  border-color: transparent;
+}
+
+.navItem.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  background-color: var(--color-cta-bg);
+}
+
+.navItem.active:hover {
+  background-color: var(--color-accent-soft);
+}
+
+.navLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navItem {
+    transition: none;
+  }
+}
+
+/* ============================================================
+ * Space switcher legacy helpers (error / skeleton / empty states)
  * ============================================================ */
 
 .spaceSwitcher {
@@ -259,72 +487,6 @@
   flex-shrink: 0;
 }
 
-/* Trigger button — full-width, ghost style with prefix chip */
-.spaceTrigger {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  width: 100%;
-  padding: var(--space-6) var(--space-12);
-  border-radius: var(--radius-sm);
-  border: none;
-  background-color: transparent;
-  color: var(--color-text-default);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-medium);
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-  user-select: none;
-  min-height: 32px;
-  transition:
-    background-color var(--duration-instant, 80ms) ease-out,
-    color var(--duration-instant, 80ms) ease-out;
-}
-
-.spaceTrigger:hover {
-  background-color: var(--color-overlay-hover);
-}
-
-.spaceTrigger:active {
-  background-color: var(--color-overlay-active);
-}
-
-.spaceTrigger:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-/* Prefix chip */
-.spacePrefix {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--space-2) var(--space-6);
-  border-radius: var(--radius-xs);
-  background-color: var(--color-accent-soft);
-  color: var(--color-text-default);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-medium);
-  font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono, monospace);
-  flex-shrink: 0;
-}
-
-.spaceName {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spaceChevron {
-  flex-shrink: 0;
-  color: var(--color-text-muted);
-  transition: transform var(--duration-instant, 80ms) ease-out;
-}
-
-/* Skeleton placeholder shown while useSpaces() is pending */
 .spaceSwitcherSkeleton {
   height: 28px;
   width: 100%;
@@ -339,7 +501,6 @@
   50%  { opacity: 0.85; }
 }
 
-/* Error state glyph + label */
 .spaceErrorIcon {
   color: var(--color-status-danger);
   flex-shrink: 0;
@@ -351,7 +512,6 @@
   margin-left: var(--space-4);
 }
 
-/* Empty state */
 .sectionEmpty {
   padding: var(--space-4) var(--space-12);
 }
@@ -362,50 +522,7 @@
   font-style: italic;
 }
 
-/* Menu item internals */
-.spaceMenuPrefix {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--space-2) var(--space-6);
-  border-radius: var(--radius-xs);
-  background-color: var(--color-accent-soft);
-  color: var(--color-text-default);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-medium);
-  font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono, monospace);
-  flex-shrink: 0;
-}
-
-.spaceMenuName {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spaceMenuDefault {
-  font-size: var(--font-size-caption);
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
-/* Action items (+ New space, Manage spaces) in the space-switcher menu */
-.spaceMenuAction {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-body-sm);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .spaceTrigger {
-    transition: none;
-  }
-  .spaceChevron {
-    transition: none;
-  }
   .spaceSwitcherSkeleton {
     animation: none;
   }
@@ -429,43 +546,33 @@
 }
 
 /*
- * Mascot block.
- * Pixel-art cat rendered via CSS sprite from the icon-set image.
- * The cat-with-beret occupies cell [col=0, row=0] of a 10×9 grid
- * (1402×1122 px source). Displayed at 64×64 px; background-size
- * scales the full sheet to 640×640 (×10 scale-down per column count).
- * background-position 0 0 targets the top-left cell exactly.
+ * Mascot area.
+ * Placeholder: dashed border + muted background.
+ * Designer asset (beret-cat) is a follow-up; the placeholder preserves layout.
  */
-.mascot {
+.mascotArea {
   display: flex;
   align-items: flex-start;
   gap: var(--space-8);
 }
 
-.mascotSprite {
+.mascotPlaceholder {
   flex-shrink: 0;
-  width: 64px;
-  height: 64px;
-  background-repeat: no-repeat;
-  /* Scale the full sprite sheet so each 140×124.7 px cell → 64×56.8 px.
-   * To get 64 px height we scale differently: 1122/1402 ≈ 0.8003 ratio.
-   * Target cell height = 1122/9 ≈ 124.7 px. Scale = 64/124.7 ≈ 0.513.
-   * Full sheet at that scale: 1402 × 0.513 ≈ 719 px wide, 1122 × 0.513 ≈ 576 px tall.
-   * Cell width at that scale: 1402/10 × 0.513 ≈ 71.9 px → wider than 64 px; acceptable.
-   * background-position: 0 0 → top-left cell, no offset needed. */
-  background-size: 719px 576px;
-  background-position: 0 0;
-  image-rendering: pixelated;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  border: 1.5px dashed var(--color-border-strong);
+  background-color: var(--color-overlay-hover);
 }
 
 .mascotTagline {
   margin: 0;
-  font-family: var(--font-content);
+  font-family: var(--font-display, serif);
   font-size: var(--font-size-caption);
   font-style: italic;
   line-height: var(--line-height-normal);
   color: var(--color-text-subtle);
-  padding-top: var(--space-4);
+  padding-top: var(--space-2);
 }
 
 .themeToggle {
