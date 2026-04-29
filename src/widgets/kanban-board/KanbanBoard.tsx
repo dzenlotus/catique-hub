@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { useLocation } from "wouter";
 import {
@@ -24,6 +24,7 @@ import {
   useTasksByBoard,
   useCreateTaskMutation,
   useMoveTaskMutation,
+  useDeleteTaskMutation,
   type Task,
 } from "@entities/task";
 import { TaskCard } from "@entities/task";
@@ -32,6 +33,7 @@ import { useRoles, type Role } from "@entities/role";
 import { Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { taskPath } from "@app/routes";
+import { useToast } from "@app/providers/ToastProvider";
 import {
   PromptAttachmentBoundary,
   DraggablePromptRow,
@@ -52,6 +54,8 @@ import {
   reorderColumnIds,
 } from "./dragLogic";
 import { GroupingMenu } from "./KanbanBoard.parts";
+import { BulkActionsBar } from "./BulkActionsBar";
+import { useTaskSelection } from "./useTaskSelection";
 
 import styles from "./KanbanBoard.module.css";
 
@@ -133,10 +137,23 @@ export function KanbanBoard({
 
   const createTask = useCreateTaskMutation();
   const moveTask = useMoveTaskMutation();
+  const deleteTask = useDeleteTaskMutation();
+
+  const { pushToast } = useToast();
 
   const columns: Column[] = columnsQuery.data ?? [];
   const tasks: Task[] = tasksQuery.data ?? [];
   const roles: Role[] = rolesQuery.data ?? [];
+
+  // ── Bulk task selection ────────────────────────────────────────────
+  const selection = useTaskSelection();
+
+  // Ref for the kanban area — used to scope Cmd+A so it only fires when
+  // focus is inside the kanban board.
+  const kanbanAreaRef = useRef<HTMLDivElement>(null);
+
+  // Track the last-selected task id per column for Shift-click range.
+  const lastSelectedRef = useRef<Map<string, string>>(new Map());
 
   const promptsQuery = usePrompts();
   const prompts = promptsQuery.data ?? [];
@@ -178,6 +195,126 @@ export function KanbanBoard({
     }
     return grouped;
   }, [columns, tasks]);
+
+  // ── Bulk selection callbacks (need tasksByColumn) ──────────────────
+
+  /**
+   * Toggle-selection handler — handles Shift and Ctrl/Cmd modifiers.
+   *
+   * Shift-click: range-select within the same column (from last-selected
+   * to the clicked task). Cross-column shift-click falls through to
+   * single toggle.
+   */
+  const handleToggleTaskSelection = useCallback(
+    (taskId: string, event: React.MouseEvent): void => {
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) return;
+
+      const colId = task.columnId;
+      const lastId = lastSelectedRef.current.get(colId);
+
+      if (event.shiftKey && lastId !== undefined && lastId !== taskId) {
+        // Range-select within this column.
+        const colTasks = (tasksByColumn[colId] ?? []).map((t) => t.id);
+        selection.selectRange(lastId, taskId, colTasks);
+        lastSelectedRef.current.set(colId, taskId);
+        return;
+      }
+
+      // Ctrl/Cmd or plain toggle.
+      selection.toggle(taskId);
+      lastSelectedRef.current.set(colId, taskId);
+    },
+    [tasks, tasksByColumn, selection],
+  );
+
+  /**
+   * Bulk "Move to column" handler — fires useMoveTaskMutation for each
+   * selected id, then clears selection and shows a toast.
+   */
+  const handleBulkMove = useCallback(
+    (targetColumnId: string): void => {
+      const ids = [...selection.selected];
+      if (ids.length === 0) return;
+
+      const siblings = (tasksByColumn[targetColumnId] ?? []).map((t) => ({
+        id: t.id,
+        position: t.position,
+      }));
+
+      const promises = ids.map((id, idx) => {
+        const position = computeNewPosition(siblings, siblings.length + idx);
+        return moveTask.mutateAsync({
+          boardId,
+          id,
+          columnId: targetColumnId,
+          position,
+        });
+      });
+
+      Promise.all(promises)
+        .then(() => {
+          pushToast(
+            "success",
+            `Moved ${String(ids.length)} ${ids.length === 1 ? "task" : "tasks"}`,
+          );
+          selection.clear();
+        })
+        .catch(() => {
+          pushToast("error", "Failed to move some tasks");
+        });
+    },
+    [selection, tasksByColumn, moveTask, boardId, pushToast],
+  );
+
+  /**
+   * Bulk delete handler — fires useDeleteTaskMutation for each selected
+   * id, then clears selection and shows a toast.
+   */
+  const handleBulkDelete = useCallback((): void => {
+    const ids = [...selection.selected];
+    if (ids.length === 0) return;
+
+    const promises = ids.map((id) => deleteTask.mutateAsync({ id, boardId }));
+
+    Promise.all(promises)
+      .then(() => {
+        pushToast(
+          "success",
+          `Deleted ${String(ids.length)} ${ids.length === 1 ? "task" : "tasks"}`,
+        );
+        selection.clear();
+      })
+      .catch(() => {
+        pushToast("error", "Failed to delete some tasks");
+      });
+  }, [selection, deleteTask, boardId, pushToast]);
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────
+  // Esc: clear selection (only when count > 0).
+  // Cmd/Ctrl+A: select all tasks when focus is inside the kanban area.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === "Escape" && selection.selectionActive) {
+        selection.clear();
+        return;
+      }
+
+      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+      if (isCmdOrCtrl && e.key === "a") {
+        const area = kanbanAreaRef.current;
+        if (!area) return;
+        const active = document.activeElement;
+        if (active && area.contains(active)) {
+          e.preventDefault();
+          selection.select(tasks.map((t) => t.id));
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selection, tasks]);
 
   // ── Synthetic column derivation for "role" / "none" grouping ──────────
 
@@ -501,6 +638,9 @@ export function KanbanBoard({
               deleteColumn.mutate({ id, boardId })
             }
             onTaskSelect={handleTaskSelect}
+            selectedTaskIds={selection.selected}
+            selectionActive={selection.selectionActive}
+            onToggleTaskSelection={handleToggleTaskSelection}
           />
         ))}
 
@@ -574,6 +714,9 @@ export function KanbanBoard({
           name={sc.name}
           tasks={sc.tasks}
           onTaskSelect={handleTaskSelect}
+          selectedTaskIds={selection.selected}
+          selectionActive={selection.selectionActive}
+          onToggleTaskSelection={handleToggleTaskSelection}
         />
       ))}
     </div>
@@ -638,7 +781,7 @@ export function KanbanBoard({
 
       <PromptAttachmentBoundary>
         <div className={cn(styles.layout, isPanelOpen && styles.layoutWithPanel)}>
-          <div className={styles.kanbanArea}>
+          <div className={styles.kanbanArea} ref={kanbanAreaRef}>
             {isDndEnabled
               ? renderStatusColumns()
               : groupingMode === "role"
@@ -683,6 +826,14 @@ export function KanbanBoard({
           )}
         </div>
       </PromptAttachmentBoundary>
+
+      <BulkActionsBar
+        count={selection.selected.size}
+        columns={columns}
+        onMoveTo={handleBulkMove}
+        onDelete={handleBulkDelete}
+        onClear={selection.clear}
+      />
     </section>
   );
 }
@@ -694,6 +845,9 @@ interface SyntheticKanbanColumnProps {
   name: string;
   tasks: Task[];
   onTaskSelect?: (taskId: string) => void;
+  selectedTaskIds?: ReadonlySet<string>;
+  selectionActive?: boolean;
+  onToggleTaskSelection?: (taskId: string, event: React.MouseEvent) => void;
 }
 
 /**
@@ -705,6 +859,9 @@ function SyntheticKanbanColumn({
   name,
   tasks,
   onTaskSelect,
+  selectedTaskIds,
+  selectionActive = false,
+  onToggleTaskSelection,
 }: SyntheticKanbanColumnProps): ReactElement {
   return (
     <section
@@ -723,7 +880,12 @@ function SyntheticKanbanColumn({
             <TaskCard
               key={task.id}
               task={task}
+              selected={selectedTaskIds?.has(task.id) ?? false}
+              selectionActive={selectionActive}
               {...(onTaskSelect ? { onSelect: onTaskSelect } : {})}
+              {...(onToggleTaskSelection
+                ? { onToggleSelection: onToggleTaskSelection }
+                : {})}
             />
           ))
         )}

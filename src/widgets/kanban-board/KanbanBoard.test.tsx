@@ -10,6 +10,7 @@ import type { Column } from "@entities/column";
 import type { Task } from "@entities/task";
 import type { Prompt } from "@entities/prompt";
 import type { Role } from "@entities/role";
+import { ToastProvider } from "@app/providers/ToastProvider";
 
 vi.mock("@shared/api", () => ({
   invoke: vi.fn(),
@@ -31,7 +32,9 @@ function renderWithClient(ui: ReactElement, initialPath = "/") {
   const { hook, history } = memoryLocation({ path: initialPath, record: true });
   render(
     <Router hook={hook}>
-      <QueryClientProvider client={client}>{ui}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <ToastProvider>{ui}</ToastProvider>
+      </QueryClientProvider>
     </Router>,
   );
   return { client, user, history };
@@ -529,6 +532,165 @@ describe("KanbanBoard", () => {
       });
 
       expect(localStorage.getItem("catique:kanban:grouping:brd-write")).toBe("none");
+    });
+  });
+
+  // ── Bulk task selection ──────────────────────────────────────────────────
+
+  describe("bulk task selection", () => {
+    function setupBoard() {
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "list_columns") {
+          return [
+            makeColumn({ id: "col-1", name: "Todo", position: 1n }),
+          ] satisfies Column[];
+        }
+        if (cmd === "list_tasks") {
+          return [
+            makeTask({ id: "t1", columnId: "col-1", title: "Task One" }),
+            makeTask({ id: "t2", columnId: "col-1", title: "Task Two" }),
+          ] satisfies Task[];
+        }
+        if (cmd === "list_roles") return [] satisfies Role[];
+        if (cmd === "get_board") return { id: "brd-1", name: "Board" };
+        throw new Error(`unexpected: ${cmd}`);
+      });
+    }
+
+    it("bulk actions bar is hidden with no selection", async () => {
+      setupBoard();
+      renderWithClient(<KanbanBoard boardId="brd-1" />);
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId("bulk-actions-bar")).toBeNull();
+    });
+
+    it("clicking a checkbox selects the task and shows the actions bar", async () => {
+      setupBoard();
+      const { user } = renderWithClient(<KanbanBoard boardId="brd-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("Task One")).toBeInTheDocument();
+      });
+
+      // Click the checkbox input directly (the span wrapper has pointer-events: none
+      // in CSS, but the input itself is always clickable).
+      const checkboxes = screen.getAllByRole("checkbox");
+      // First checkbox belongs to Task One (t1).
+      await user.click(checkboxes[0]!);
+
+      expect(screen.getByTestId("bulk-actions-bar")).toBeInTheDocument();
+      expect(screen.getByTestId("bulk-actions-count")).toHaveTextContent(
+        "1 selected",
+      );
+    });
+
+    it("Esc clears the selection", async () => {
+      setupBoard();
+      const { user } = renderWithClient(<KanbanBoard boardId="brd-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("Task One")).toBeInTheDocument();
+      });
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[0]!);
+      expect(screen.getByTestId("bulk-actions-bar")).toBeInTheDocument();
+
+      await user.keyboard("{Escape}");
+      expect(screen.queryByTestId("bulk-actions-bar")).toBeNull();
+    });
+
+    it("Clear button deselects all tasks", async () => {
+      setupBoard();
+      const { user } = renderWithClient(<KanbanBoard boardId="brd-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("Task One")).toBeInTheDocument();
+      });
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[0]!);
+      expect(screen.getByTestId("bulk-actions-bar")).toBeInTheDocument();
+
+      await user.click(screen.getByTestId("bulk-actions-clear"));
+      expect(screen.queryByTestId("bulk-actions-bar")).toBeNull();
+    });
+
+    it("Move fires useMoveTaskMutation per selected task", async () => {
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "list_columns") {
+          return [
+            makeColumn({ id: "col-1", name: "Todo", position: 1n }),
+            makeColumn({ id: "col-2", name: "Done", position: 2n }),
+          ] satisfies Column[];
+        }
+        if (cmd === "list_tasks") {
+          return [
+            makeTask({ id: "t1", columnId: "col-1", title: "Task One" }),
+          ] satisfies Task[];
+        }
+        if (cmd === "list_roles") return [] satisfies Role[];
+        if (cmd === "update_task") return makeTask({ id: "t1", columnId: "col-2" });
+        if (cmd === "get_board") return { id: "brd-1", name: "Board" };
+        throw new Error(`unexpected: ${cmd}`);
+      });
+
+      const { user } = renderWithClient(<KanbanBoard boardId="brd-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("Task One")).toBeInTheDocument();
+      });
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[0]!);
+      await user.click(screen.getByTestId("bulk-actions-move-trigger"));
+      await user.click(screen.getByTestId("bulk-actions-move-option-col-2"));
+
+      await waitFor(() => {
+        // useMoveTaskMutation calls update_task internally.
+        const moveCall = invokeMock.mock.calls.find(
+          ([c, args]) => c === "update_task" && (args as Record<string, unknown>)?.columnId === "col-2",
+        );
+        expect(moveCall).toBeDefined();
+        expect(moveCall?.[1]).toMatchObject({ id: "t1", columnId: "col-2" });
+      });
+    });
+
+    it("Delete fires useDeleteTaskMutation per selected task after confirmation", async () => {
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "list_columns") {
+          return [
+            makeColumn({ id: "col-1", name: "Todo", position: 1n }),
+          ] satisfies Column[];
+        }
+        if (cmd === "list_tasks") {
+          return [
+            makeTask({ id: "t1", columnId: "col-1", title: "Task One" }),
+          ] satisfies Task[];
+        }
+        if (cmd === "list_roles") return [] satisfies Role[];
+        if (cmd === "delete_task") return null;
+        if (cmd === "get_board") return { id: "brd-1", name: "Board" };
+        throw new Error(`unexpected: ${cmd}`);
+      });
+
+      const { user } = renderWithClient(<KanbanBoard boardId="brd-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("Task One")).toBeInTheDocument();
+      });
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[0]!);
+      // First click on Delete shows confirmation
+      await user.click(screen.getByTestId("bulk-actions-delete"));
+      expect(screen.getByTestId("bulk-actions-confirm-label")).toBeInTheDocument();
+
+      // Second click (Confirm) fires the mutation
+      await user.click(screen.getByTestId("bulk-actions-delete-confirm"));
+
+      await waitFor(() => {
+        const deleteCall = invokeMock.mock.calls.find(([c]) => c === "delete_task");
+        expect(deleteCall).toBeDefined();
+        expect(deleteCall?.[1]).toMatchObject({ id: "t1" });
+      });
     });
   });
 });

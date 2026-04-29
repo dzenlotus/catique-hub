@@ -34,6 +34,15 @@ export interface KanbanColumnProps {
    * `<DragOverlay>`. Inert (no DnD wiring, no add-task affordance).
    */
   dragOverlay?: boolean;
+  /** Set of currently selected task ids. Forwarded to each TaskCard. */
+  selectedTaskIds?: ReadonlySet<string>;
+  /** Whether selection mode is active. Forwarded to each TaskCard. */
+  selectionActive?: boolean;
+  /**
+   * Called when the user toggles a task's selection via checkbox or
+   * body-click while selection mode is active.
+   */
+  onToggleTaskSelection?: (taskId: string, event: React.MouseEvent) => void;
 }
 
 /**
@@ -61,6 +70,9 @@ export function KanbanColumn({
   onDeleteColumn,
   onTaskSelect,
   dragOverlay = false,
+  selectedTaskIds,
+  selectionActive = false,
+  onToggleTaskSelection,
 }: KanbanColumnProps): ReactElement {
   const [settingsColumnId, setSettingsColumnId] = useState<string | null>(null);
   // Ref-based signal: header "+" click triggers the ColumnFooter's add-task form.
@@ -171,7 +183,12 @@ export function KanbanColumn({
                 key={task.id}
                 task={task}
                 isDoneColumn={isDone}
+                selected={selectedTaskIds?.has(task.id) ?? false}
+                selectionActive={selectionActive}
                 {...(onTaskSelect ? { onSelect: onTaskSelect } : {})}
+                {...(onToggleTaskSelection
+                  ? { onToggleSelection: onToggleTaskSelection }
+                  : {})}
               />
             ))
           )}
@@ -193,6 +210,9 @@ interface SortableTaskItemProps {
   task: Task;
   isDoneColumn: boolean;
   onSelect?: (id: string) => void;
+  selected?: boolean;
+  selectionActive?: boolean;
+  onToggleSelection?: (id: string, event: React.MouseEvent) => void;
 }
 
 /**
@@ -204,6 +224,9 @@ function SortableTaskItem({
   task,
   isDoneColumn,
   onSelect,
+  selected = false,
+  selectionActive = false,
+  onToggleSelection,
 }: SortableTaskItemProps): ReactElement {
   const sortable = useSortable({
     id: task.id,
@@ -222,7 +245,10 @@ function SortableTaskItem({
       <TaskCard
         task={task}
         isDoneColumn={isDoneColumn}
+        selected={selected}
+        selectionActive={selectionActive}
         {...(onSelect ? { onSelect } : {})}
+        {...(onToggleSelection ? { onToggleSelection } : {})}
       />
       <button
         type="button"

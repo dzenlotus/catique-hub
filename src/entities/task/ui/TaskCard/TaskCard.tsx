@@ -65,6 +65,22 @@ export interface TaskCardProps {
   /** Optional secondary action — e.g. open edit dialog. */
   onEdit?: (id: string) => void;
   /**
+   * Whether this card is currently selected (part of the bulk selection).
+   * When true the card renders an accent selection ring.
+   */
+  selected?: boolean;
+  /**
+   * Whether selection mode is active on the parent board (i.e. at least
+   * one task is selected). Controls checkbox visibility and body-click
+   * semantics.
+   */
+  selectionActive?: boolean;
+  /**
+   * Called when the user clicks the checkbox or the card body while
+   * selection mode is active. Parent handles Shift/Ctrl modifier logic.
+   */
+  onToggleSelection?: (id: string, event: React.MouseEvent) => void;
+  /**
    * Number of attachments. When > 0 a paperclip badge appears on the
    * card. Source comes from the attachments slice (E4c) — pass 0 (or
    * omit) until then.
@@ -134,6 +150,9 @@ export function TaskCard({
   roleName,
   roleColor,
   className,
+  selected = false,
+  selectionActive = false,
+  onToggleSelection,
 }: TaskCardProps): ReactElement {
   if (isPending || !task) {
     return (
@@ -175,14 +194,60 @@ export function TaskCard({
     );
   }
 
+  const handleBodyClick = (e: React.MouseEvent): void => {
+    if (selectionActive) {
+      onToggleSelection?.(task.id, e);
+    } else {
+      onSelect?.(task.id);
+    }
+  };
+
+  const handleCheckboxClick = (e: React.MouseEvent<HTMLInputElement>): void => {
+    // Stop the click from bubbling to the card body button.
+    e.stopPropagation();
+    onToggleSelection?.(task.id, e);
+  };
+
+  // onChange is required to make React happy with a controlled checkbox,
+  // but the actual state change is driven by onClick above.
+  const handleCheckboxChange = (): void => {
+    // Intentionally empty — state driven by handleCheckboxClick.
+  };
+
   return (
     <button
       type="button"
-      className={cn(styles.card, styles.interactive, className)}
-      onClick={() => onSelect?.(task.id)}
+      className={cn(
+        styles.card,
+        styles.interactive,
+        selected && styles.cardSelected,
+        selectionActive && styles.cardInSelectionMode,
+        className,
+      )}
+      onClick={handleBodyClick}
       aria-label={ariaLabel}
+      aria-pressed={selectionActive ? selected : undefined}
       data-testid={`task-card-${task.id}`}
     >
+      {/* Checkbox is always in DOM; visibility controlled by CSS so hover
+          can reveal it even without JS, and tests can locate it always. */}
+      <span
+        className={cn(
+          styles.checkboxWrapper,
+          (selectionActive || selected) && styles.checkboxVisible,
+        )}
+        data-testid={`task-card-checkbox-${task.id}`}
+      >
+        <input
+          type="checkbox"
+          className={styles.checkbox}
+          checked={selected}
+          onChange={handleCheckboxChange}
+          onClick={handleCheckboxClick}
+          aria-label={`Select task ${task.title}`}
+          tabIndex={-1}
+        />
+      </span>
       <CardBody
         task={task}
         attachmentsCount={attachmentsCount}

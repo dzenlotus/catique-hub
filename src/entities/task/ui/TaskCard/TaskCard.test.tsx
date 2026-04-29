@@ -112,4 +112,107 @@ describe("TaskCard", () => {
     expect(screen.getByTestId("task-card-skeleton")).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();
   });
+
+  // ── Selection mode ─────────────────────────────────────────────────────
+
+  it("checkbox is always in the DOM (opacity-controlled via CSS)", () => {
+    render(<TaskCard task={makeTask({ id: "tsk-sel" })} />);
+    // Checkbox wrapper is always rendered; CSS controls opacity (hover / selectionActive).
+    expect(screen.getByTestId("task-card-checkbox-tsk-sel")).toBeInTheDocument();
+  });
+
+  it("checkbox wrapper has visible class when selectionActive is true", () => {
+    render(
+      <TaskCard
+        task={makeTask({ id: "tsk-s1" })}
+        selectionActive
+      />,
+    );
+    // The wrapper gets the checkboxVisible CSS module class when active.
+    const wrapper = screen.getByTestId("task-card-checkbox-tsk-s1");
+    // Class name contains "checkboxVisible" fragment (CSS Modules mangles the name).
+    expect(wrapper.className).toMatch(/checkboxVisible/);
+  });
+
+  it("checkbox wrapper has visible class when selected is true", () => {
+    render(
+      <TaskCard
+        task={makeTask({ id: "tsk-s2" })}
+        selected
+      />,
+    );
+    const wrapper = screen.getByTestId("task-card-checkbox-tsk-s2");
+    expect(wrapper.className).toMatch(/checkboxVisible/);
+  });
+
+  it("checkbox wrapper has NO visible class when neither selectionActive nor selected", () => {
+    render(
+      <TaskCard task={makeTask({ id: "tsk-s0" })} />,
+    );
+    const wrapper = screen.getByTestId("task-card-checkbox-tsk-s0");
+    expect(wrapper.className).not.toMatch(/checkboxVisible/);
+  });
+
+  it("checkbox is checked when selected=true", () => {
+    render(
+      <TaskCard
+        task={makeTask({ id: "tsk-s3" })}
+        selected
+        selectionActive
+      />,
+    );
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).toBeChecked();
+  });
+
+  it("checkbox is unchecked when selectionActive but not selected", () => {
+    render(
+      <TaskCard
+        task={makeTask({ id: "tsk-s4" })}
+        selectionActive
+        selected={false}
+      />,
+    );
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).not.toBeChecked();
+  });
+
+  it("body click calls onToggleSelection instead of onSelect when selectionActive", async () => {
+    const onSelect = vi.fn();
+    const onToggleSelection = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <TaskCard
+        task={makeTask({ id: "tsk-body" })}
+        onSelect={onSelect}
+        selectionActive
+        onToggleSelection={onToggleSelection}
+      />,
+    );
+    const btn = screen.getByRole("button");
+    await user.click(btn);
+    expect(onToggleSelection).toHaveBeenCalledWith(
+      "tsk-body",
+      expect.any(Object),
+    );
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("body click calls onSelect when selectionActive is false", async () => {
+    const onSelect = vi.fn();
+    const onToggleSelection = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <TaskCard
+        task={makeTask({ id: "tsk-body2" })}
+        onSelect={onSelect}
+        selectionActive={false}
+        onToggleSelection={onToggleSelection}
+      />,
+    );
+    const btn = screen.getByRole("button");
+    await user.click(btn);
+    expect(onSelect).toHaveBeenCalledWith("tsk-body2");
+    expect(onToggleSelection).not.toHaveBeenCalled();
+  });
 });
