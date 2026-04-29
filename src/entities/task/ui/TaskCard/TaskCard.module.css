@@ -12,70 +12,132 @@
   flex-direction: column;
   gap: var(--space-6);
   align-items: stretch;
-  /* DS v1 brief: 16 px padding on cards */
   padding: var(--space-16);
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-border-card);
+  border: 1px solid var(--color-border-strong);
   background-color: var(--color-surface-raised);
   color: var(--color-text-default);
   font-family: var(--font-sans);
   text-align: left;
   cursor: default;
-  box-shadow: var(--shadow-low);
+  /*
+   * IMPORTANT: do NOT transition `transform`. The card sits inside a
+   * dnd-kit sortable wrapper that drives its own `transform` via
+   * inline style during drag. A CSS transition on the wrapper's child
+   * fights the wrapper's transform, producing visible "wobble" while
+   * dragging. Only colour transitions are safe here.
+   */
   transition:
     border-color 120ms ease-out,
-    background-color 120ms ease-out,
-    box-shadow 120ms ease-out,
-    transform 120ms ease-out;
+    background-color 120ms ease-out;
 }
 
-.interactive {
-  cursor: pointer;
+/* Card body inner button — expands to fill the article and handles navigation/selection clicks */
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
   width: 100%;
   font: inherit;
   appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  /* Pad left to make room for the drag handle that is absolutely positioned */
+  padding-left: var(--space-24);
 }
 
-.interactive:hover {
-  box-shadow: var(--shadow-med);
-  /* DS v1 brief: 2 px lift */
-  transform: translateY(-2px);
+/* Card hover state on the article itself */
+.card:hover {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-overlay-hover);
 }
 
-.interactive:active {
-  transform: translateY(0);
-  box-shadow: var(--shadow-low);
+.card:has(.cardBody:active) {
+  border-color: var(--color-border-default);
   background-color: var(--color-overlay-active);
 }
 
-.interactive:focus-visible {
+.cardBody:focus-visible {
   outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
-/* Drag-overlay variant: render with stronger shadow for the lift effect. */
+/* ── Drag handle ───────────────────────────────────────────────────── */
+
+.dragHandle {
+  position: absolute;
+  top: var(--space-12);
+  left: var(--space-12);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-subtle);
+  font-size: 14px;
+  cursor: grab;
+  border-radius: var(--radius-xs);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+  pointer-events: auto;
+}
+
+.card:hover .dragHandle {
+  opacity: 1;
+}
+
+.dragHandle:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.dragHandle:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+/* Drag-overlay variant: stronger shadow only — no transform here, the
+   <DragOverlay> already handles position. Adding `transform` would
+   compound with dnd-kit's overlay transform and visibly offset the
+   ghost. */
 .overlay {
   box-shadow: var(--shadow-high);
-  transform: translateY(-2px) scale(1.02);
   cursor: grabbing;
 }
 
 /* Selected state — 2px accent ring per spec. */
 .cardSelected {
-  box-shadow: 0 0 0 2px var(--color-cta-bg, var(--color-blue-500)), var(--shadow-low);
+  box-shadow: 0 0 0 2px var(--color-cta-bg, var(--color-blue-500));
 }
 
 .cardSelected:hover {
-  box-shadow: 0 0 0 2px var(--color-cta-bg, var(--color-blue-500)), var(--shadow-med);
+  box-shadow: 0 0 0 2px var(--color-cta-bg, var(--color-blue-500));
 }
 
 /* ── Selection checkbox ────────────────────────────────────────────── */
 
 .checkboxWrapper {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 1;
+  top: var(--space-12);
+  right: var(--space-12);
+  /* Round 18: checkbox lives in the TOP-RIGHT corner so it doesn't
+     collide with the title text. Hidden by default; revealed on
+     hover or when selection mode is active. */
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -87,7 +149,7 @@
 }
 
 /* Reveal checkbox on card hover */
-.interactive:hover .checkboxWrapper {
+.card:hover .checkboxWrapper {
   opacity: 1;
 }
 
@@ -96,13 +158,50 @@
   opacity: 1;
 }
 
+/* Round 18: custom-styled checkbox — native UA chrome (Safari pill,
+   Chrome rounded square, Firefox flat box) was inconsistent and
+   ugly. We hide the input visually and paint a square outline +
+   accent-filled box ourselves via the wrapper background. */
 .checkbox {
-  width: 16px;
-  height: 16px;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
   margin: 0;
+  padding: 0;
   cursor: pointer;
-  accent-color: var(--color-cta-bg, var(--color-blue-500));
+  background-color: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border-strong);
   border-radius: var(--radius-xs);
+  transition: background-color 80ms ease-out, border-color 80ms ease-out;
+  position: relative;
+}
+
+.checkbox:hover {
+  border-color: var(--color-cta-bg);
+}
+
+.checkbox:checked {
+  background-color: var(--color-cta-bg);
+  border-color: var(--color-cta-bg);
+}
+
+/* Tick mark drawn via clip-path — sharp, no font-icon dependency. */
+.checkbox:checked::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 5px;
+  width: 5px;
+  height: 9px;
+  border-right: 2px solid var(--color-cta-fg);
+  border-bottom: 2px solid var(--color-cta-fg);
+  transform: rotate(45deg);
+}
+
+.checkbox:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
 }
 
 /* ── Top row: done checkmark only (top-right) ─────────────────────── */
@@ -276,13 +375,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .card,
-  .interactive {
+  .cardBody,
+  .dragHandle {
     transition: none;
-  }
-  .interactive:hover,
-  .interactive:active,
-  .overlay {
-    transform: none;
   }
   .skeletonLine {
     animation: none;

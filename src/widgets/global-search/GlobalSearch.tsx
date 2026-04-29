@@ -6,7 +6,7 @@ import {
   type ReactElement,
   type KeyboardEvent,
 } from "react";
-import { Search } from "lucide-react";
+import { PixelInterfaceEssentialSearch1 } from "@shared/ui/Icon";
 import {
   Dialog as AriaDialog,
   Modal,
@@ -290,7 +290,7 @@ export function GlobalSearch({
           <div onKeyDown={handleKeyDown}>
             {/* ── Search input ── */}
             <div className={styles.inputWrap}>
-              <Search size={16} className={styles.searchIcon} aria-hidden="true" />
+              <PixelInterfaceEssentialSearch1 width={16} height={16} className={styles.searchIcon} aria-hidden="true" />
               <input
                 ref={inputRef}
                 type="search"

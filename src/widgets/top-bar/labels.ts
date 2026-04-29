@@ -5,34 +5,34 @@
  * из удалённого виджета, чтобы избежать скрытой зависимости.
  */
 
+import type { FC, SVGProps } from "react";
+
 import {
-  LayoutGrid,
-  FileText,
-  FolderTree,
-  UserCircle2,
-  Tag,
-  FileBarChart,
-  Wrench,
-  Cog,
-  Globe,
-  Settings,
-} from "lucide-react";
-import type { FC } from "react";
+  PixelCodingAppsWebsitesModule,
+  PixelInterfaceEssentialMessage,
+  PixelInterfaceEssentialList,
+  PixelBusinessProductsNetworkUser,
+  PixelBusinessProductPriceTag,
+  PixelInterfaceEssentialPieChartPollReport1,
+  PixelDesignMagicWand,
+  PixelCodingAppsWebsitesDatabase,
+  PixelInterfaceEssentialSettingCog,
+} from "@shared/ui/Icon";
 
 export interface NavLabel {
   label: string;
-  Icon: FC<{ size?: number; "aria-hidden"?: boolean | "true" | "false"; className?: string }>;
+  Icon: FC<SVGProps<SVGSVGElement>>;
 }
 
 export const NAV_LABELS: Record<string, NavLabel> = {
-  boards: { label: "Boards", Icon: LayoutGrid },
-  prompts: { label: "Prompts", Icon: FileText },
-  "prompt-groups": { label: "Prompt Groups", Icon: FolderTree },
-  roles: { label: "Roles", Icon: UserCircle2 },
-  tags: { label: "Tags", Icon: Tag },
-  reports: { label: "Reports", Icon: FileBarChart },
-  skills: { label: "Skills", Icon: Wrench },
-  "mcp-tools": { label: "MCP Tools", Icon: Cog },
-  spaces: { label: "Spaces", Icon: Globe },
-  settings: { label: "Settings", Icon: Settings },
+  boards: { label: "Boards", Icon: PixelCodingAppsWebsitesModule },
+  prompts: { label: "Prompts", Icon: PixelInterfaceEssentialMessage },
+  "prompt-groups": { label: "Prompt Groups", Icon: PixelInterfaceEssentialList },
+  roles: { label: "Roles", Icon: PixelBusinessProductsNetworkUser },
+  tags: { label: "Tags", Icon: PixelBusinessProductPriceTag },
+  reports: { label: "Reports", Icon: PixelInterfaceEssentialPieChartPollReport1 },
+  skills: { label: "Skills", Icon: PixelDesignMagicWand },
+  "mcp-tools": { label: "MCP Tools", Icon: PixelCodingAppsWebsitesDatabase },
+  spaces: { label: "Spaces", Icon: PixelCodingAppsWebsitesModule },
+  settings: { label: "Settings", Icon: PixelInterfaceEssentialSettingCog },
 } as const;

@@ -24,8 +24,7 @@
   transition:
     background-color 120ms ease-out,
     border-color 120ms ease-out,
-    color 120ms ease-out,
-    box-shadow 120ms ease-out;
+    color 120ms ease-out;
 }
 
 .button[data-disabled] {
@@ -63,7 +62,6 @@
   background-color: var(--color-accent-bg);
   color: var(--color-accent-fg);
   border-color: var(--color-accent-bg);
-  box-shadow: var(--shadow-low);
 }
 
 .primary[data-hovered]:not([data-disabled]) {

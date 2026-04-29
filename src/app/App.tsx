@@ -18,7 +18,6 @@ import type { NavView } from "@widgets/sidebar";
 import { TopBar } from "@widgets/top-bar";
 import { Toaster } from "@widgets/toaster";
 import { TaskDialog } from "@widgets/task-dialog";
-import { Button } from "@shared/ui";
 
 import { routes, pathForView, viewForPath, boardPath } from "./routes";
 import styles from "./App.module.css";
@@ -78,20 +77,7 @@ export default function App(): ReactElement {
 
           {/* Board detail — boardId comes from URL params */}
           <Route path={routes.board}>
-            {(params) => (
-              <section className={styles.boardView}>
-                <div className={styles.boardViewHeader}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onPress={() => setLocation(routes.boards)}
-                  >
-                    ← Back to boards
-                  </Button>
-                </div>
-                <KanbanBoard boardId={params.boardId} />
-              </section>
-            )}
+            {(params) => <KanbanBoard boardId={params.boardId} />}
           </Route>
 
           {/* All other top-level views */}

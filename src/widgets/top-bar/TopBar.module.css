@@ -1,60 +1,68 @@
 /*
- * TopBar — верхняя панель главного pane.
+ * TopBar — Round 18, Image #24:
+ *   - Vertical 2-row stack
+ *   - Search row on top (centred trigger + CTA right)
+ *   - Black divider
+ *   - Breadcrumb row below (board name only on the left)
  *
- * Высота: 56 px (по spec tasks doc; DS v1 layout.md говорит 48 px для drag-
- * region — мы ставим 56 px по deliverable brief).
- * Все токены из Design System v1.
+ * Toplevel uses macOS frameless overlay (titleBarStyle: "Overlay") so
+ * the bar must reserve 80 px on the left for traffic-light buttons.
  */
 
 .topBar {
   display: flex;
-  align-items: center;
-  gap: var(--space-12);
-  height: 56px;
-  min-height: 56px;
+  flex-direction: column;
   flex-shrink: 0;
-  padding: 0 var(--space-24);
-  background-color: var(--color-surface-topbar);
-  border-bottom: 1px solid var(--color-border-default);
-  /* Allow dragging the window from this region on macOS / Tauri */
+  background-color: transparent;
   -webkit-app-region: drag;
-  /* Centre the search trigger horizontally — we use a flex trick:
-     the two edge spacers (.spacerLeft / .spacerRight) plus flex-grow
-     on the search trigger push it to the centre of the bar. */
-  position: relative;
 }
 
-/* Prevent drag on interactive children */
-.topBar > * {
+/* Prevent drag on interactive children (recursively) */
+.topBar button,
+.topBar a,
+.topBar input,
+.topBar [role="button"] {
   -webkit-app-region: no-drag;
 }
 
-/* ── Search trigger — centred pill ────────────────────────────────────── */
+/* ── Search row (top) ──────────────────────────────────────────────────── */
 
-/*
- * Centering strategy: the TopBar is a flex row. The search trigger is
- * absolutely positioned at the horizontal centre so it always sits in
- * the visual middle regardless of how wide the action buttons are on
- * the right. Non-interactive children still receive pointer events via
- * the `no-drag` class on all direct children.
- */
+.searchRow {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, auto);
+  align-items: center;
+  gap: var(--space-16);
+  height: 56px;
+  /* Reserve macOS traffic-light gutter on the left. */
+  padding: 0 var(--space-24) 0 80px;
+}
+
+/* ── Black divider between search row and breadcrumb row ──────────────── */
+
+.divider {
+  height: 1px;
+  background-color: var(--color-text-default);
+  width: 100%;
+  flex-shrink: 0;
+}
+
+/* ── Search trigger ───────────────────────────────────────────────────── */
+
 .searchTrigger {
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  /* Absolute centre trick — sits in the middle of the bar */
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(540px, 45vw);
-  height: 32px;
+  /* Live in left grid cell; centre the pill via margin auto so it sits
+     in the middle of the available width regardless of CTA size. */
+  justify-self: center;
+  width: 100%;
+  max-width: 560px;
+  height: 36px;
   padding: 0 var(--space-12);
-  /* No border per mockup — very subtle filled background only */
   background-color: var(--color-overlay-hover);
-  border: none;
-  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
   cursor: text;
-  /* reset button */
   appearance: none;
   -webkit-appearance: none;
   text-align: left;
@@ -66,7 +74,6 @@
   background-color: var(--color-overlay-active);
 }
 
-/* In dark theme the search field needs a slightly stronger fill */
 [data-theme="dark"] .searchTrigger {
   background-color: var(--color-overlay-active);
 }
@@ -102,14 +109,13 @@
   user-select: none;
 }
 
-/* ⌘K hint badge */
 .kbdHint {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
   padding: 2px 6px;
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono, monospace);
   font-size: var(--font-size-caption);
   line-height: 1;
@@ -118,20 +124,12 @@
   user-select: none;
 }
 
-/* ── Breadcrumb ─────────────────────────────────────────────────────────── */
-
-.breadcrumbWrap {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  max-width: 260px;
-  overflow: hidden;
-}
+/* ── Breadcrumb (in lower row) ────────────────────────────────────────── */
 
 .breadcrumb {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-6);
   min-width: 0;
 }
 
@@ -142,7 +140,7 @@
 
 .breadcrumbSeg {
   font-family: var(--font-sans);
-  font-size: var(--font-size-body-sm);
+  font-size: var(--font-size-body);
   color: var(--color-text-subtle);
   white-space: nowrap;
   overflow: hidden;
@@ -150,36 +148,27 @@
 }
 
 .breadcrumbCurrent {
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
 }
 
 .breadcrumbSep {
   color: var(--color-text-subtle);
-  font-size: var(--font-size-body-sm);
+  font-size: var(--font-size-body);
   flex-shrink: 0;
   user-select: none;
 }
 
-/* ── Spacer — pushes right-side buttons to the far right ────────────── */
-
-.spacer {
-  flex: 1 1 0;
-  /* Min width ensures the CTA button never collides with the centred search */
-  min-width: var(--space-8);
-}
-
-/* ── CTA «+ Новая задача» ──────────────────────────────────────────────── */
+/* ── CTA «+ Новая задача» ─────────────────────────────────────────────── */
 
 .ctaButton {
   display: inline-flex;
   align-items: center;
   gap: var(--space-6);
-  height: 32px;
+  height: 36px;
   padding: 0 var(--space-16);
   background-color: var(--color-cta-bg);
   color: var(--color-cta-fg);
-  border: none;
   border-radius: var(--radius-md);
   font-family: var(--font-sans);
   font-size: var(--font-size-body);
@@ -187,8 +176,7 @@
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  /* Red-tinted subtle shadow per mockup */
-  box-shadow: 0 1px 2px rgba(232, 65, 58, 0.25);
+  border: 1px solid var(--color-cta-bg);
   transition: background-color var(--duration-instant) var(--easing-default);
 }
 
@@ -207,91 +195,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ctaButton {
-    transition: none;
-  }
-}
-
-/* ── Actions row — right-side icon buttons + avatar ─────────────────────── */
-
-.actionsRow {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  flex-shrink: 0;
-}
-
-/* ── Ghost icon buttons ─────────────────────────────────────────────────── */
-
-.iconButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: background-color var(--duration-instant) var(--easing-default),
-    color var(--duration-instant) var(--easing-default);
-}
-
-.iconButton:hover {
-  background-color: var(--color-overlay-hover);
-  color: var(--color-text-default);
-}
-
-.iconButton:active {
-  background-color: var(--color-overlay-active);
-}
-
-.iconButton:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .iconButton {
-    transition: none;
-  }
-}
-
-/* ── Avatar ─────────────────────────────────────────────────────────────── */
-
-.avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  /* DS v1 topbar avatar: 28 px, cream background, navy serif initial */
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  /* Squircle per mockup: 30% border-radius instead of 50% */
-  border-radius: 30%;
-  background-color: var(--color-cream-100, #f0ece4);
-  border: 1px solid var(--color-border-default);
-  /* Navy text — use navy-900 directly since no semantic token for it */
-  color: #1a1d2e;
-  font-family: var(--font-display);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-bold);
-  cursor: pointer;
-  transition: opacity var(--duration-instant) var(--easing-default);
-}
-
-.avatar:hover {
-  opacity: 0.85;
-}
-
-.avatar:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .avatar {
     transition: none;
   }
 }

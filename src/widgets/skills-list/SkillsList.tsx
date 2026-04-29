@@ -1,5 +1,4 @@
 import { useState, type ReactElement } from "react";
-import { Plus } from "lucide-react";
 
 import { SkillCard, useSkills } from "@entities/skill";
 import { Button, EmptyState } from "@shared/ui";
@@ -55,7 +54,7 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
             data-testid="skills-list-create-button"
           >
             <span className={styles.btnLabel}>
-              <Plus size={14} aria-hidden="true" />
+              <span aria-hidden="true">+</span>
               + Create skill
             </span>
           </Button>
@@ -96,7 +95,7 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
                 onPress={() => setIsCreateOpen(true)}
               >
                 <span className={styles.btnLabel}>
-                  <Plus size={14} aria-hidden="true" />
+                  <span aria-hidden="true">+</span>
                   + Create skill
                 </span>
               </Button>

@@ -24,7 +24,7 @@ import type { Role } from "@entities/role";
 import { useCreateTaskMutation } from "@entities/task";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { useToast } from "@app/providers/ToastProvider";
-import { Dialog, Button, Input, Listbox, ListboxItem, MarkdownPreview } from "@shared/ui";
+import { Dialog, Button, Input, Listbox, ListboxItem, MarkdownPreview, Scrollable } from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import styles from "./TaskCreateDialog.module.css";
@@ -184,7 +184,7 @@ function TaskCreateDialogContent({
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className={styles.body}>
+    <Scrollable axis="y" className={styles.body}>
       {/* Title */}
       <div className={styles.section}>
         <Input
@@ -380,6 +380,6 @@ function TaskCreateDialogContent({
           Создать
         </Button>
       </div>
-    </div>
+    </Scrollable>
   );
 }

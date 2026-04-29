@@ -1,5 +1,4 @@
 import { useState, type ReactElement } from "react";
-import { Plus } from "lucide-react";
 
 import { PromptGroupCard, usePromptGroups } from "@entities/prompt-group";
 import { Button, EmptyState } from "@shared/ui";
@@ -60,7 +59,7 @@ export function PromptGroupsList({
             data-testid="prompt-groups-list-create-button"
           >
             <span className={styles.btnLabel}>
-              <Plus size={14} aria-hidden="true" />
+              <span aria-hidden="true">+</span>
               + Create group
             </span>
           </Button>
@@ -101,7 +100,7 @@ export function PromptGroupsList({
                 onPress={() => setIsCreateOpen(true)}
               >
                 <span className={styles.btnLabel}>
-                  <Plus size={14} aria-hidden="true" />
+                  <span aria-hidden="true">+</span>
                   + Create group
                 </span>
               </Button>

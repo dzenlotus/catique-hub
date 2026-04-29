@@ -1,5 +1,4 @@
 import { useState, type ReactElement } from "react";
-import { Plus } from "lucide-react";
 
 import { TagChip, useTags } from "@entities/tag";
 import { Button, EmptyState } from "@shared/ui";
@@ -71,7 +70,7 @@ export function TagsList({
           data-testid="tags-list-create-button"
         >
           <span className={styles.btnLabel}>
-            <Plus size={14} aria-hidden="true" />
+            <span aria-hidden="true">+</span>
             + Create tag
           </span>
         </Button>
@@ -136,7 +135,7 @@ export function TagsList({
               onPress={() => setIsCreateOpen(true)}
             >
               <span className={styles.btnLabel}>
-                <Plus size={14} aria-hidden="true" />
+                <span aria-hidden="true">+</span>
                 + Create tag
               </span>
             </Button>

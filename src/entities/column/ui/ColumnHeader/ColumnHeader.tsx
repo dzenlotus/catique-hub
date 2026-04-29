@@ -1,6 +1,10 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Briefcase, Loader2, CheckCircle2, Layers, Check, Plus } from "lucide-react";
+import {
+  PixelInterfaceEssentialRefresh,
+  PixelBusinessProductCheck,
+  PixelDesignLayer,
+} from "@shared/ui/Icon";
 
 import { Button, Dialog, Input, Menu, MenuItem, MenuTrigger } from "@shared/ui";
 import { cn } from "@shared/lib";
@@ -37,15 +41,15 @@ export interface ColumnHeaderProps {
 /** Derive a column icon from its display name. Case-insensitive heuristic.
  *
  * Icon mapping per DS v1 mockup (image.png):
- *   Backlog    → Briefcase (bag/briefcase — matches pixel-art icon)
- *   In Progress → Loader2  (circular spinner — matches the spin arrow icon)
- *   Done        → CheckCircle2 (checkmark-in-circle — matches mockup)
- *   Default     → Layers
+ *   Backlog     → PixelDesignLayer (closest available)
+ *   In Progress → PixelInterfaceEssentialRefresh (circular arrow)
+ *   Done        → PixelBusinessProductCheck (checkmark)
+ *   Default     → PixelDesignLayer
  */
 function getColumnIcon(name: string): ReactElement {
   const lower = name.toLowerCase();
   if (lower.includes("backlog") || lower.includes("бэклог")) {
-    return <Briefcase size={14} aria-hidden="true" className={styles.columnIcon} />;
+    return <PixelDesignLayer width={14} height={14} aria-hidden="true" className={styles.columnIcon} />;
   }
   if (
     lower.includes("in progress") ||
@@ -53,20 +57,21 @@ function getColumnIcon(name: string): ReactElement {
     lower.includes("doing")
   ) {
     return (
-      <Loader2 size={14} aria-hidden="true" className={styles.columnIcon} />
+      <PixelInterfaceEssentialRefresh width={14} height={14} aria-hidden="true" className={styles.columnIcon} />
     );
   }
   if (lower.includes("done") || lower.includes("готово")) {
     return (
-      <CheckCircle2
-        size={14}
+      <PixelBusinessProductCheck
+        width={14}
+        height={14}
         aria-hidden="true"
         className={cn(styles.columnIcon, styles.columnIconDone)}
         data-testid="column-header-icon-done"
       />
     );
   }
-  return <Layers size={14} aria-hidden="true" className={styles.columnIcon} />;
+  return <PixelDesignLayer width={14} height={14} aria-hidden="true" className={styles.columnIcon} />;
 }
 
 /**
@@ -127,8 +132,9 @@ export function ColumnHeader({
       </span>
 
       {isDoneColumn ? (
-        <Check
-          size={14}
+        <PixelBusinessProductCheck
+          width={14}
+          height={14}
           aria-hidden="true"
           className={styles.doneCheck}
           data-testid="column-header-done-check"
@@ -158,7 +164,7 @@ export function ColumnHeader({
           onClick={() => onAddTask(id)}
           data-testid={`column-header-add-task-${id}`}
         >
-          <Plus size={12} aria-hidden="true" />
+          <span aria-hidden="true">+</span>
         </button>
       ) : null}
 

@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState, type ReactElement } from "react";
-import { RefreshCw } from "lucide-react";
+import { PixelInterfaceEssentialRefresh } from "@shared/ui/Icon";
 import { usePrompt, useUpdatePromptMutation, useRecomputePromptTokenCountMutation } from "@entities/prompt";
 import { Dialog, Button, Input, Tooltip, TooltipTrigger, MarkdownPreview } from "@shared/ui";
 import { cn } from "@shared/lib";
@@ -366,7 +366,7 @@ function PromptEditorContent({
             data-testid="prompt-editor-recount-button"
             aria-label="Пересчитать токены"
           >
-            <RefreshCw size={14} aria-hidden="true" />
+            <PixelInterfaceEssentialRefresh width={14} height={14} aria-hidden="true" />
             Пересчитать
           </Button>
           <Tooltip>Пересчитать токены</Tooltip>

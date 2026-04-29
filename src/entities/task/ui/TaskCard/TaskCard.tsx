@@ -1,5 +1,9 @@
 import type { ReactElement } from "react";
-import { MessageSquare, Paperclip, Check } from "lucide-react";
+import {
+  PixelInterfaceEssentialMessage,
+  PixelInterfaceEssentialClip1,
+  PixelBusinessProductCheck,
+} from "@shared/ui/Icon";
 
 import { cn } from "@shared/lib";
 
@@ -125,6 +129,23 @@ export interface TaskCardProps {
   roleColor?: string | null;
   /** Optional class merged onto the root. */
   className?: string;
+  /**
+   * Inline style — used by the kanban DnD wrapper to apply `opacity`
+   * during drag. Forwarded to the root article element.
+   */
+  style?: React.CSSProperties;
+  /**
+   * React ref forwarded to the root article element. The kanban widget
+   * passes `useSortable().ref` here so dnd-kit can register the element
+   * as the drag source body (what visually moves during drag).
+   */
+  ref?: React.Ref<HTMLElement>;
+  /**
+   * Ref forwarded to the drag-handle button. The kanban widget passes
+   * `useSortable().handleRef` here so that ONLY the handle initiates a
+   * drag — clicking the card body still navigates / toggles selection.
+   */
+  handleRef?: React.Ref<HTMLButtonElement>;
 }
 
 /**
@@ -150,6 +171,9 @@ export function TaskCard({
   roleName,
   roleColor,
   className,
+  style,
+  ref,
+  handleRef,
   selected = false,
   selectionActive = false,
   onToggleSelection,
@@ -179,7 +203,7 @@ export function TaskCard({
   if (dragOverlay) {
     return (
       <div
-        className={cn(styles.card, styles.interactive, styles.overlay, className)}
+        className={cn(styles.card, styles.overlay, className)}
         data-testid={`task-card-overlay-${task.id}`}
       >
         <CardBody
@@ -215,20 +239,30 @@ export function TaskCard({
   };
 
   return (
-    <button
-      type="button"
+    <article
+      ref={ref}
+      style={style}
       className={cn(
         styles.card,
-        styles.interactive,
         selected && styles.cardSelected,
         selectionActive && styles.cardInSelectionMode,
         className,
       )}
-      onClick={handleBodyClick}
-      aria-label={ariaLabel}
-      aria-pressed={selectionActive ? selected : undefined}
       data-testid={`task-card-${task.id}`}
     >
+      {/* Drag handle — ONLY this initiates drag; card body stays clickable */}
+      <button
+        type="button"
+        ref={handleRef}
+        className={styles.dragHandle}
+        aria-label="Перетащить задачу"
+        data-testid={`task-card-drag-handle-${task.id}`}
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span aria-hidden="true" style={{ letterSpacing: "-2px" }}>⋮⋮</span>
+      </button>
+
       {/* Checkbox is always in DOM; visibility controlled by CSS so hover
           can reveal it even without JS, and tests can locate it always. */}
       <span
@@ -248,15 +282,25 @@ export function TaskCard({
           tabIndex={-1}
         />
       </span>
-      <CardBody
-        task={task}
-        attachmentsCount={attachmentsCount}
-        promptsCount={promptsCount}
-        isDoneColumn={isDoneColumn}
-        resolvedRoleName={resolvedRoleName}
-        roleColor={roleColor}
-      />
-    </button>
+
+      {/* Card body — click navigates or toggles selection */}
+      <button
+        type="button"
+        className={styles.cardBody}
+        onClick={handleBodyClick}
+        aria-label={ariaLabel}
+        aria-pressed={selectionActive ? selected : undefined}
+      >
+        <CardBody
+          task={task}
+          attachmentsCount={attachmentsCount}
+          promptsCount={promptsCount}
+          isDoneColumn={isDoneColumn}
+          resolvedRoleName={resolvedRoleName}
+          roleColor={roleColor}
+        />
+      </button>
+    </article>
   );
 }
 
@@ -303,10 +347,10 @@ function CardBody({
       {isDoneColumn ? (
         <div className={styles.topRow}>
           <span className={styles.topRowSpacer} />
-          <Check
-            size={16}
-            strokeWidth={2.5}
-            aria-label="Выполнено"
+          <PixelBusinessProductCheck
+            width={16}
+            height={16}
+            aria-hidden="true"
             className={styles.doneCheck}
             data-testid="task-card-done-check"
           />
@@ -355,7 +399,7 @@ function CardBody({
               aria-label={`${attachmentsCount} attachments`}
               data-testid="task-card-attachments"
             >
-              <Paperclip size={12} aria-hidden={true} />
+              <PixelInterfaceEssentialClip1 width={12} height={12} aria-hidden={true} />
               {attachmentsCount}
             </span>
           ) : null}
@@ -368,7 +412,7 @@ function CardBody({
               aria-label={`${promptsCount} prompts attached`}
               data-testid="task-card-prompts-count"
             >
-              <MessageSquare size={12} aria-hidden={true} />
+              <PixelInterfaceEssentialMessage width={12} height={12} aria-hidden={true} />
               {promptsCount}
             </span>
           ) : null}

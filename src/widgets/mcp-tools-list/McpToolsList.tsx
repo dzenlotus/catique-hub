@@ -1,5 +1,4 @@
 import { useState, type ReactElement } from "react";
-import { Plus } from "lucide-react";
 
 import { McpToolCard, useMcpTools } from "@entities/mcp-tool";
 import { Button, EmptyState } from "@shared/ui";
@@ -55,7 +54,7 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
             data-testid="mcp-tools-list-create-button"
           >
             <span className={styles.btnLabel}>
-              <Plus size={14} aria-hidden="true" />
+              <span aria-hidden="true">+</span>
               + Create server
             </span>
           </Button>
@@ -96,7 +95,7 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
                 onPress={() => setIsCreateOpen(true)}
               >
                 <span className={styles.btnLabel}>
-                  <Plus size={14} aria-hidden="true" />
+                  <span aria-hidden="true">+</span>
                   + Create server
                 </span>
               </Button>

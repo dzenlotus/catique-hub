@@ -3,10 +3,12 @@ import ReactDOM from "react-dom/client";
 
 import App from "./App";
 import { AppProviders } from "./providers";
-// Web-fonts. Nunito Variable comes from `@fontsource-variable/nunito`
-// (same package Promptery uses) and self-hosts the font files in the
-// Vite bundle — no external CDN, no privacy leak. Imported here so the
-// browser starts fetching the font weights before any UI renders.
+// CSS reset — normalize.css. Loaded BEFORE design-token sheets so our
+// `--color-*` rules win over normalize's defaults (e.g. body color).
+import "normalize.css";
+// Web-fonts. Nunito Variable is the primary UI face; Playfair Display
+// Variable is reserved for the wordmark. Self-hosted via
+// @fontsource-variable — no external CDN, no privacy leak.
 import "@fontsource-variable/nunito";
 import "@fontsource-variable/playfair-display";
 // Foundation tokens (typography) come first; generated tokens (colors,

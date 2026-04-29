@@ -12,7 +12,7 @@ vi.mock("@shared/api", () => ({
 }));
 
 import { invoke } from "@shared/api";
-import { PromptGroupEditor, computeMemberReorder } from "./PromptGroupEditor";
+import { PromptGroupEditor } from "./PromptGroupEditor";
 
 const invokeMock = vi.mocked(invoke);
 
@@ -324,50 +324,8 @@ describe("PromptGroupEditor — drag-and-drop reordering", () => {
     ]);
   });
 
-  it("renders a drag handle for each member", async () => {
-    const prompt = makePrompt({ id: "pid-1", name: "Alpha" });
-    invokeMock.mockImplementation(async (cmd: string) => {
-      if (cmd === "get_prompt_group") return makeGroup();
-      if (cmd === "list_prompt_group_members") return ["pid-1"];
-      if (cmd === "get_prompt") return prompt;
-      if (cmd === "list_prompts") return [prompt];
-      throw new Error(`unexpected: ${cmd}`);
-    });
-
-    renderWithClient(<PromptGroupEditor groupId="group-1" onClose={() => {}} />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("prompt-group-editor-drag-handle-pid-1"),
-      ).toBeInTheDocument();
-    });
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// computeMemberReorder — pure unit tests (no DnD simulation needed)
-
-describe("computeMemberReorder", () => {
-  it("moves an item forward in the list", () => {
-    const result = computeMemberReorder(["a", "b", "c"], "a", "c");
-    expect(result).toEqual(["b", "c", "a"]);
-  });
-
-  it("moves an item backward in the list", () => {
-    const result = computeMemberReorder(["a", "b", "c"], "c", "a");
-    expect(result).toEqual(["c", "a", "b"]);
-  });
-
-  it("returns null when active === over (no-op drop)", () => {
-    expect(computeMemberReorder(["a", "b"], "a", "a")).toBeNull();
-  });
-
-  it("returns null when activeId is not in the list", () => {
-    expect(computeMemberReorder(["a", "b"], "x", "a")).toBeNull();
-  });
-
-  it("produces the correct new order for a two-item swap", () => {
-    const result = computeMemberReorder(["pid-A", "pid-B"], "pid-B", "pid-A");
-    expect(result).toEqual(["pid-B", "pid-A"]);
-  });
+  // Drag-handle / member reorder tests removed — drag-and-drop was
+  // dropped from PromptGroupEditor when the project moved off
+  // @dnd-kit/core. Members render as a static list; ordering is set
+  // implicitly by add order on the backend.
 });

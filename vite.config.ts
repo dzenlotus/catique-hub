@@ -21,7 +21,19 @@ import svgr from "vite-plugin-svgr";
 // Vitest config is colocated below the Vite config (same module).
 //
 // Reference: https://tauri.app/start/frontend/vite/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  // CSS-Modules: in dev (`vite serve`) emit human-readable class names
+  // like `TaskCard_dragHandle` so DevTools / live-edits in Inspector are
+  // useful. In `vite build` keep a 5-char hash to stay short and avoid
+  // accidental name collisions.
+  css: {
+    modules: {
+      generateScopedName:
+        command === "serve"
+          ? "[name]__[local]"
+          : "_[hash:base64:5]",
+    },
+  },
   plugins: [
     react(),
     // Imports of `*.svg?react` (or any *.svg from src/shared/ui/icon/svg/)
@@ -95,4 +107,4 @@ export default defineConfig({
       // to see the report.
     },
   },
-});
+}));

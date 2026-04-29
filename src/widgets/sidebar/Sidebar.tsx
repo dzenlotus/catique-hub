@@ -4,10 +4,9 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { Sun, Moon, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
 import { useLocation } from "wouter";
 import { cn } from "@shared/lib";
-import { Button } from "@shared/ui";
+import { Button, Scrollable } from "@shared/ui";
 import {
   PixelPetAnimalsCat,
   PixelCodingAppsWebsitesModule,
@@ -16,8 +15,11 @@ import {
   PixelDesignMagicWand,
   PixelCodingAppsWebsitesDatabase,
   PixelInterfaceEssentialSettingCog,
-  PixelInterfaceEssentialHeartFavorite,
+  PixelEcologyOrganicSunGrowth,
+  PixelWeatherMoon,
+  PixelInterfaceEssentialNavigationMenu1,
 } from "@shared/ui/Icon";
+import HeartSolid from "./assets/heart-solid.svg?react";
 import { useSpaces } from "@entities/space";
 import type { Space } from "@entities/space";
 import { useBoards } from "@entities/board";
@@ -25,7 +27,7 @@ import type { Board } from "@entities/board";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 import { taskPath as _taskPath, boardPath } from "@app/routes";
-import { AlertCircle } from "lucide-react";
+import { PixelInterfaceEssentialAlertCircle1 } from "@shared/ui/Icon";
 import mascotUrl from "./assets/mascot.png";
 import styles from "./Sidebar.module.css";
 
@@ -138,9 +140,9 @@ function ThemeToggle(): ReactElement {
       className={styles.themeToggle}
     >
       {theme === "dark" ? (
-        <Sun size={14} aria-hidden={true} />
+        <PixelEcologyOrganicSunGrowth width={14} height={14} aria-hidden={true} />
       ) : (
-        <Moon size={14} aria-hidden={true} />
+        <PixelWeatherMoon width={14} height={14} aria-hidden={true} />
       )}
       <span>{nextLabel}</span>
     </Button>
@@ -205,9 +207,9 @@ function SpaceRow({
           aria-expanded={isExpanded}
         >
           {isExpanded ? (
-            <ChevronDown size={12} aria-hidden={true} />
+            <span aria-hidden={true}>⌄</span>
           ) : (
-            <ChevronRight size={12} aria-hidden={true} />
+            <span aria-hidden={true}>›</span>
           )}
         </button>
 
@@ -229,7 +231,7 @@ function SpaceRow({
           aria-label={`Действия для ${space.name}`}
           tabIndex={-1}
         >
-          <MoreHorizontal size={12} aria-hidden={true} />
+          <PixelInterfaceEssentialNavigationMenu1 width={12} height={12} aria-hidden={true} />
         </button>
       </div>
 
@@ -363,8 +365,9 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
           title={spacesQuery.error.message}
           aria-label="Failed to load spaces"
         >
-          <AlertCircle
-            size={14}
+          <PixelInterfaceEssentialAlertCircle1
+            width={14}
+            height={14}
             aria-hidden={true}
             className={styles.spaceErrorIcon}
           />
@@ -403,25 +406,20 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
     <nav className={styles.sidebar} aria-label="Main navigation">
 
       {/* ── Wordmark block ─────────────────────────────────────────────────
-          Per reference: "Catique ❤ Hub" — pixel-art heart sits between the
-          two halves of the wordmark. Tagline drops below. */}
+          Per Round 18 reference (Image #2): "Catique Hub" on a single
+          serif line, solid pixel-heart centred below, tagline below. */}
       <div className={styles.wordmark}>
-        <div className={styles.wordmarkText}>
-          <div className={styles.wordmarkTitleRow}>
-            <span className={styles.wordmarkTitle}>Catique</span>
-            <PixelInterfaceEssentialHeartFavorite
-              width={20}
-              height={20}
-              className={styles.wordmarkHeart}
-              aria-hidden={true}
-            />
-            <span className={styles.wordmarkTitle}>Hub</span>
-          </div>
-          <span className={styles.wordmarkSub}>Orchestrate. Build. Ship.</span>
-        </div>
+        <span className={styles.wordmarkTitle}>Catique Hub</span>
+        <HeartSolid
+          width={14}
+          height={14}
+          className={styles.wordmarkHeart}
+          aria-hidden={true}
+        />
+        <span className={styles.wordmarkSub}>Orchestrate. Build. Ship.</span>
       </div>
 
-      <div className={styles.sectionsWrap}>
+      <Scrollable axis="y" className={styles.sectionsWrap}>
 
         {/* ── SPACES ────────────────────────────────────────────────────────── */}
         <div className={styles.sectionLabel} aria-label="Пространства">
@@ -453,7 +451,7 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
           })}
         </ul>
 
-      </div>
+      </Scrollable>
 
       {/* ── Footer: Mascot + theme toggle ───────────────────────────────────── */}
       <div className={styles.sidebarFooter}>

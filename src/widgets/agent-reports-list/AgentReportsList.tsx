@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { BarChart3 } from "lucide-react";
+import { PixelInterfaceEssentialPieChartPollReport1 } from "@shared/ui/Icon";
 
 import {
   AgentReportCard,
@@ -69,11 +69,11 @@ export function AgentReportsList({
     >
       <header className={styles.header}>
         <div className={styles.headingGroup}>
-          <BarChart3
-            size={20}
+          <PixelInterfaceEssentialPieChartPollReport1
+            width={20}
+            height={20}
             className={styles.headingIcon}
             aria-hidden="true"
-            style={{ color: "var(--color-text-default)" }}
           />
           <div className={styles.headingText}>
             <h2 id="agent-reports-list-heading" className={styles.heading}>

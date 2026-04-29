@@ -34,7 +34,7 @@ import { useBoards } from "@entities/board";
 import { useColumns } from "@entities/column";
 import { useRoles } from "@entities/role";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
-import { Dialog, Button, Input, MarkdownPreview } from "@shared/ui";
+import { Dialog, Button, Input, MarkdownPreview, Scrollable } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
 import { useToast } from "@app/providers/ToastProvider";
@@ -544,6 +544,7 @@ function TaskDialogContent({
 
   return (
     <>
+      <Scrollable axis="y" className={styles.scrollArea}>
       {/* Slug chip */}
       <div className={styles.slugRow}>
         <SlugChip slug={task.slug} />
@@ -690,6 +691,8 @@ function TaskDialogContent({
         <h3 className={styles.sectionHeading}>Отчёты агента</h3>
         <AgentReportsList taskId={task.id} />
       </div>
+
+      </Scrollable>
 
       {/* Footer */}
       <div className={styles.footer}>

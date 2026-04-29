@@ -120,11 +120,10 @@ describe("Sidebar — DS v1 wordmark and section labels", () => {
     invokeMock.mockImplementation(() => new Promise(() => {}));
   });
 
-  it("renders the wordmark with 'Catique' and 'Hub' split by a heart", () => {
+  it("renders the 'Catique Hub' wordmark", () => {
     setup();
-    // Round 17: title is two spans separated by a pixel heart icon.
-    expect(screen.getByText("Catique")).toBeInTheDocument();
-    expect(screen.getByText("Hub")).toBeInTheDocument();
+    // Round 18: serif title is back to a single line, heart sits below.
+    expect(screen.getByText("Catique Hub")).toBeInTheDocument();
   });
 
   it("renders the SPACES section label", () => {

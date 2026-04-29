@@ -10,8 +10,11 @@
  *   - Slide-in animation is guarded by `prefers-reduced-motion`.
  */
 
-import { CheckCircle2, Info, X, XCircle } from "lucide-react";
 import type { ReactElement } from "react";
+import {
+  PixelBusinessProductCheck,
+  PixelInterfaceEssentialAlertCircle1,
+} from "@shared/ui/Icon";
 
 import { useToast } from "@app/providers/ToastProvider";
 import type { Toast, ToastKind } from "@app/providers/ToastProvider";
@@ -24,11 +27,11 @@ import styles from "./Toaster.module.css";
 function ToastIcon({ kind }: { kind: ToastKind }): ReactElement {
   switch (kind) {
     case "success":
-      return <CheckCircle2 size={16} aria-hidden="true" className={styles.icon} />;
+      return <PixelBusinessProductCheck width={16} height={16} aria-hidden="true" className={styles.icon} />;
     case "error":
-      return <XCircle size={16} aria-hidden="true" className={styles.icon} />;
+      return <span aria-hidden="true" className={styles.icon}>×</span>;
     case "info":
-      return <Info size={16} aria-hidden="true" className={styles.icon} />;
+      return <PixelInterfaceEssentialAlertCircle1 width={16} height={16} aria-hidden="true" className={styles.icon} />;
   }
 }
 
@@ -57,7 +60,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps): ReactElement {
         aria-label="Закрыть уведомление"
         data-testid={`toast-dismiss-${toast.id}`}
       >
-        <X size={14} aria-hidden="true" />
+        <span aria-hidden="true">×</span>
       </button>
     </div>
   );

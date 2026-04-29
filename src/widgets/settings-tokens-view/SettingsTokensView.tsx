@@ -7,7 +7,7 @@
  */
 
 import { useState, type ReactElement } from "react";
-import { RefreshCw } from "lucide-react";
+import { PixelInterfaceEssentialRefresh } from "@shared/ui/Icon";
 import { usePrompts, useRecomputePromptTokenCountMutation } from "@entities/prompt";
 import type { Prompt } from "@entities/prompt";
 import { Button } from "@shared/ui";
@@ -73,7 +73,7 @@ function PromptRow({ prompt }: PromptRowProps): ReactElement {
           aria-label={`Пересчитать токены для «${prompt.name}»`}
           data-testid={`settings-tokens-view-row-${prompt.id}-recount`}
         >
-          <RefreshCw size={13} aria-hidden="true" />
+          <PixelInterfaceEssentialRefresh width={13} height={13} aria-hidden="true" />
         </Button>
       </td>
     </tr>
@@ -139,7 +139,7 @@ export function SettingsTokensView(): ReactElement {
         <div className={styles.header}>
           <h4 className={styles.title}>Подсчёт токенов</h4>
           <Button variant="ghost" size="sm" isDisabled>
-            <RefreshCw size={14} aria-hidden="true" />
+            <PixelInterfaceEssentialRefresh width={14} height={14} aria-hidden="true" />
             {bulkLabel}
           </Button>
         </div>
@@ -237,7 +237,7 @@ export function SettingsTokensView(): ReactElement {
           data-testid="settings-tokens-view-bulk-recount"
           aria-label="Пересчитать токены для всех промптов"
         >
-          <RefreshCw size={14} aria-hidden="true" />
+          <PixelInterfaceEssentialRefresh width={14} height={14} aria-hidden="true" />
           {bulkLabel}
         </Button>
       </div>

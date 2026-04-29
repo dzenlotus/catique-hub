@@ -44,3 +44,6 @@ export type { MarkdownPreviewProps } from "./MarkdownPreview";
 
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateProps } from "./EmptyState";
+
+export { Scrollable } from "./Scrollable";
+export type { ScrollableProps } from "./Scrollable";

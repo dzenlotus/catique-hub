@@ -14,7 +14,6 @@ import { SpaceCard, useSpaces } from "@entities/space";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { Button, EmptyState } from "@shared/ui";
 import { PixelPetAnimalsCat } from "@shared/ui/Icon";
-import { Plus } from "lucide-react";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 
 import styles from "./SpacesList.module.css";
@@ -64,7 +63,7 @@ export function SpacesList({ onSelectView }: SpacesListProps): ReactElement {
             data-testid="spaces-list-create-button"
           >
             <span className={styles.btnLabel}>
-              <Plus size={14} aria-hidden="true" />
+              <span aria-hidden="true">+</span>
               + Create space
             </span>
           </Button>
@@ -105,7 +104,7 @@ export function SpacesList({ onSelectView }: SpacesListProps): ReactElement {
                 onPress={() => setCreateDialogOpen(true)}
               >
                 <span className={styles.btnLabel}>
-                  <Plus size={14} aria-hidden="true" />
+                  <span aria-hidden="true">+</span>
                   + Create space
                 </span>
               </Button>

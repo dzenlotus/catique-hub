@@ -191,35 +191,14 @@ describe("TopBar", () => {
     expect(btn).toBeInTheDocument();
     // Label is English per mockup
     expect(btn).toHaveTextContent("New task");
-    // SVG Lucide Plus icon should be present (aria-hidden)
-    expect(btn.querySelector("svg")).toBeInTheDocument();
+    // "+" glyph rendered as an aria-hidden span (pixel icon replacement)
+    const plusSpan = btn.querySelector('span[aria-hidden="true"]');
+    expect(plusSpan).toBeInTheDocument();
   });
 
-  it('кнопка настроек имеет aria-label="Настройки"', () => {
-    renderAt();
-
-    const btn = screen.getByTestId("top-bar-settings");
-    expect(btn).toBeInTheDocument();
-    expect(btn).toHaveAttribute("aria-label", "Настройки");
-  });
-
-  it('кнопка уведомлений имеет aria-label="Уведомления"', () => {
-    renderAt();
-
-    const btn = screen.getByTestId("top-bar-bell");
-    expect(btn).toBeInTheDocument();
-    expect(btn).toHaveAttribute("aria-label", "Уведомления");
-  });
-
-  it("аватар рендерится с инициалом C и aria-label", () => {
-    renderAt();
-
-    const avatar = screen.getByTestId("top-bar-avatar");
-    expect(avatar).toBeInTheDocument();
-    // Avatar initial is "C" (for Catique) per DS v1 mockup
-    expect(avatar).toHaveTextContent("C");
-    expect(avatar).toHaveAttribute("aria-label", "Профиль пользователя");
-  });
+  // Round 18 removed the settings, notifications and avatar icons from
+  // the TopBar — only Search + «+ New task» remain. Tests for the
+  // removed elements have been deleted.
 
   it("хлебная крошка не отображается на маршруте /", () => {
     renderAt("/");

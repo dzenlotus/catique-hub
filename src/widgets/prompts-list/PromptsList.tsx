@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, type ReactElement } from "react";
-import { Plus, Paperclip } from "lucide-react";
+import { PixelInterfaceEssentialClip1 } from "@shared/ui/Icon";
 
 import { PromptCard, usePrompts, usePromptTagsMap } from "@entities/prompt";
 import { Button, EmptyState } from "@shared/ui";
@@ -106,7 +106,7 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
             data-testid="prompts-list-attach-button"
           >
             <span className={styles.btnLabel}>
-              <Paperclip size={14} aria-hidden="true" />
+              <PixelInterfaceEssentialClip1 width={14} height={14} aria-hidden="true" />
               Прикрепить промпт
             </span>
           </Button>
@@ -117,7 +117,7 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
             data-testid="prompts-list-create-button"
           >
             <span className={styles.btnLabel}>
-              <Plus size={14} aria-hidden="true" />
+              <span aria-hidden="true">+</span>
               Создать промпт
             </span>
           </Button>
@@ -181,7 +181,7 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
                 onPress={() => setIsCreateOpen(true)}
               >
                 <span className={styles.btnLabel}>
-                  <Plus size={14} aria-hidden="true" />
+                  <span aria-hidden="true">+</span>
                   + Create prompt
                 </span>
               </Button>

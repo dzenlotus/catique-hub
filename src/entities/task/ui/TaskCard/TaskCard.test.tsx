@@ -81,7 +81,8 @@ describe("TaskCard", () => {
     render(
       <TaskCard task={makeTask({ id: "tsk-clk" })} onSelect={onSelect} />,
     );
-    const btn = screen.getByRole("button");
+    // The card body is the button with the task aria-label (drag handle is aria-label="Перетащить задачу").
+    const btn = screen.getByRole("button", { name: /Task Ship kanban widget/i });
     await user.click(btn);
     expect(onSelect).toHaveBeenCalledWith("tsk-clk");
 
@@ -110,7 +111,8 @@ describe("TaskCard", () => {
   it("renders a skeleton when isPending and exposes no button", () => {
     render(<TaskCard isPending />);
     expect(screen.getByTestId("task-card-skeleton")).toBeInTheDocument();
-    expect(screen.queryByRole("button")).toBeNull();
+    // No interactive buttons in the skeleton variant.
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
   // ── Selection mode ─────────────────────────────────────────────────────
@@ -189,7 +191,8 @@ describe("TaskCard", () => {
         onToggleSelection={onToggleSelection}
       />,
     );
-    const btn = screen.getByRole("button");
+    // Target the card body button (not the drag handle).
+    const btn = screen.getByRole("button", { name: /Task Ship kanban widget/i });
     await user.click(btn);
     expect(onToggleSelection).toHaveBeenCalledWith(
       "tsk-body",
@@ -210,7 +213,7 @@ describe("TaskCard", () => {
         onToggleSelection={onToggleSelection}
       />,
     );
-    const btn = screen.getByRole("button");
+    const btn = screen.getByRole("button", { name: /Task Ship kanban widget/i });
     await user.click(btn);
     expect(onSelect).toHaveBeenCalledWith("tsk-body2");
     expect(onToggleSelection).not.toHaveBeenCalled();

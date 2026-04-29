@@ -1,162 +1,160 @@
-/*
- * KanbanColumn — DS v1 visual language.
- *
- * `--color-surface-column` background, `--radius-lg` corners,
- * 12 px task gap, dashed "Add task" button.
- */
-
 .column {
   display: flex;
-  flex-direction: column;
-  /* Mockup: columns ~360 px wide */
   flex: 0 0 320px;
+  flex-direction: column;
   min-width: 280px;
   max-width: 360px;
-  background-color: var(--color-surface-column);
-  border-radius: var(--radius-lg);
   height: 100%;
+  min-height: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-column);
   font-family: var(--font-sans);
+  transition:
+    background-color 120ms ease-out,
+    opacity 120ms ease-out;
 }
 
-/* Highlighted state when a draggable hovers over the column. */
-.columnDropTarget {
-  background-color: var(--color-accent-soft);
+.dropTarget {
   outline: 2px dashed var(--color-accent-bg);
   outline-offset: -2px;
+  background: var(--color-accent-soft);
 }
 
-/* ── Header row wrapper ──────────────────────────────────────────── */
-
-/* Wraps ColumnHeader + settings button so they sit on the same row. */
-.headerRow {
-  display: flex;
-  align-items: center;
-  gap: 0;
+.dragging {
+  opacity: 0.4;
 }
-
-/* ColumnHeader uses its own internal layout; flex-1 lets it grow. */
-.headerFlex {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.settingsButton {
-  flex: 0 0 auto;
-  opacity: 0;
-  transition: opacity 120ms ease-out;
-}
-
-.headerRow:hover .settingsButton,
-.settingsButton:focus-visible {
-  opacity: 1;
-}
-
-/* ── Column body ─────────────────────────────────────────────────── */
 
 .body {
-  flex: 1 1 auto;
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  /* DS v1 brief: card gap 12 px */
   gap: var(--space-12);
-  /* DS v1 brief: column padding 16 px */
-  padding: var(--space-12) var(--space-16) var(--space-16);
+  min-height: 0;
+  padding: var(--space-12) var(--space-16);
   overflow-y: auto;
-  min-height: 200px;
+  scrollbar-width: none;
+}
+
+.body::-webkit-scrollbar {
+  display: none;
 }
 
 .empty {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-8);
-  padding: var(--space-24) var(--space-12);
+  min-height: 88px;
+  padding: var(--space-16);
   border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
   font-size: var(--font-size-body-sm);
   text-align: center;
 }
 
-/* ── Footer — "+ Add task" ────────────────────────────────────────── */
+.empty:hover {
+  border-color: var(--color-border-focus);
+  color: var(--color-text-default);
+}
 
 .footer {
-  padding: var(--space-8) var(--space-16);
-}
-
-/* DS v1: full-width, dashed border ghost button, goes solid on hover */
-.addButton {
-  width: 100%;
-  justify-content: center;
-  border: 1px dashed var(--color-border-strong) !important;
-  border-radius: var(--radius-md) !important;
-  color: var(--color-text-subtle);
-  transition: border-color 120ms ease-out, color 120ms ease-out;
-}
-
-.addButton:hover {
-  border-style: solid !important;
-  color: var(--color-text-default);
-  background-color: var(--color-overlay-hover);
-}
-
-.addForm {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: var(--space-8);
+  flex: 0 0 auto;
+  padding: 0 var(--space-16) var(--space-16);
 }
 
-.addFormActions {
-  display: flex;
-  gap: var(--space-8);
-  justify-content: flex-end;
-}
-
-/* ── Column-level drag handle ─────────────────────────────────────── */
-
-.dragHandle {
+.addTaskButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 22px;
-  padding: 0;
-  border: 0;
+  gap: var(--space-6);
+  flex: 1 1 auto;
+  min-height: 40px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-subtle);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-body);
+}
+
+.addTaskButton:hover {
+  border-style: solid;
+  background: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.settingsButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.settingsButton:hover {
+  background: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.columnDragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: grab;
   font: inherit;
   font-size: 14px;
-  letter-spacing: -2px;
-  cursor: grab;
-  border-radius: var(--radius-xs);
-  flex: 0 0 auto;
+  letter-spacing: 0;
+  opacity: 0;
 }
 
-.dragHandle:hover {
+.column:hover .columnDragHandle,
+.columnDragHandle:focus-visible {
+  opacity: 1;
+}
+
+.columnDragHandle:hover {
+  background: var(--color-overlay-hover);
   color: var(--color-text-default);
-  background-color: var(--color-overlay-hover);
 }
 
-.dragHandle:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 1px;
-}
-
-.dragHandle:active {
+.columnDragHandle:active {
   cursor: grabbing;
 }
 
-/* Per-task drag handle removed — entire SortableTaskItem wrapper is
-   the activator (whole-card drag, mirrors Trello/Linear/GitHub
-   Projects). MouseSensor's 5-px activation distance prevents
-   click-vs-drag confusion. */
+.columnDragHandle:focus-visible,
+.empty:focus-visible,
+.addTaskButton:focus-visible,
+.settingsButton:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .column,
-  .columnDropTarget,
-  .settingsButton,
-  .addButton {
+  .column {
     transition: none;
   }
 }

@@ -22,21 +22,20 @@
 
 :root {
   /* Typography — families.
-     Primary UI face is Nunito Variable, self-hosted via
-     `@fontsource-variable/nunito` (mirrors Promptery to keep visual
-     parity through the migration). System fallbacks behind it for the
-     brief moment before the variable font loads. */
+     Round 18: a single sans-serif (Nunito Variable) drives every UI
+     element. `--font-display`, `--font-content`, `--font-mono` are
+     all aliased to Nunito so the entire app feels typographically
+     unified. The ONLY exception is the sidebar wordmark, which uses
+     `--font-wordmark` (Playfair Display) directly. */
   --font-sans: "Nunito Variable", -apple-system, BlinkMacSystemFont,
     "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
-  /* Display face for the wordmark «Catique Hub» in the sidebar.
-     @fontsource-variable/playfair-display is installed as of Design System v1.
-     Falls back to system serif (Iowan Old Style on macOS) until the font loads. */
-  --font-display: "Playfair Display Variable", "Iowan Old Style", Charter,
+  --font-display: var(--font-sans);
+  --font-content: var(--font-sans);
+  --font-mono: var(--font-sans);
+  /* Wordmark — only place in the app that uses serif. Referenced
+     inline by widgets/sidebar/Sidebar.module.css `.wordmarkTitle`. */
+  --font-wordmark: "Playfair Display Variable", "Iowan Old Style", Charter,
     Georgia, "Times New Roman", serif;
-  --font-content: "Iowan Old Style", Charter, Georgia,
-    "Times New Roman", serif;
-  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
 
   /* Type scale — UI sans + content. Sizes per design-discovery §2.1. */
   --font-size-caption:      11px;

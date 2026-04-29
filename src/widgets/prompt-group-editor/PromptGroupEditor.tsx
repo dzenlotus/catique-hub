@@ -15,60 +15,20 @@
  * Save/Cancel footer.
  */
 
-import { useEffect, useState, useMemo, type CSSProperties, type ReactElement } from "react";
-import { X, GripVertical } from "lucide-react";
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState, useMemo, type ReactElement } from "react";
 
 import {
-  promptGroupsKeys,
   usePromptGroup,
   usePromptGroupMembers,
   useUpdatePromptGroupMutation,
   useAddPromptGroupMemberMutation,
   useRemovePromptGroupMemberMutation,
-  useSetPromptGroupMembersMutation,
 } from "@entities/prompt-group";
 import { usePrompts, usePrompt } from "@entities/prompt";
 import { Dialog, Button, Input, Combobox, type ComboboxItem } from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import styles from "./PromptGroupEditor.module.css";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Pure reorder helper — exported for unit-testing without DnD event simulation.
-
-/**
- * Given the current ordered list and a drag-end (active/over ids), returns
- * the new ordered list, or `null` when the drop is a no-op.
- */
-export function computeMemberReorder(
-  ids: string[],
-  activeId: string,
-  overId: string,
-): string[] | null {
-  if (activeId === overId) return null;
-  const oldIndex = ids.indexOf(activeId);
-  const newIndex = ids.indexOf(overId);
-  if (oldIndex === -1 || newIndex === -1) return null;
-  return arrayMove(ids, oldIndex, newIndex);
-}
 
 export interface PromptGroupEditorProps {
   /** null = closed, string = open for this group id */
@@ -386,62 +346,15 @@ function MembersSection({ groupId }: MembersSectionProps): ReactElement {
   const membersQuery = usePromptGroupMembers(groupId);
   const allPromptsQuery = usePrompts();
   const addMutation = useAddPromptGroupMemberMutation();
-  const setMembersMutation = useSetPromptGroupMembersMutation();
-  const queryClient = useQueryClient();
 
   const [filterValue, setFilterValue] = useState("");
 
-  // Local optimistic order — drives the rendered list.
-  // Stays in sync with server data unless mid-drag.
-  const serverMemberIds: string[] = membersQuery.data ?? [];
-  const [localMemberIds, setLocalMemberIds] = useState<string[]>(serverMemberIds);
-
-  // Sync when server data changes (e.g. after invalidation).
-  useEffect(() => {
-    setLocalMemberIds(membersQuery.data ?? []);
-  }, [membersQuery.data]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
-
-  const handleDragEnd = (event: DragEndEvent): void => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const newOrder = computeMemberReorder(
-      localMemberIds,
-      String(active.id),
-      String(over.id),
-    );
-    if (!newOrder) return;
-
-    // Optimistic update
-    setLocalMemberIds(newOrder);
-    queryClient.setQueryData(promptGroupsKeys.members(groupId), newOrder);
-
-    setMembersMutation.mutate(
-      { groupId, orderedPromptIds: newOrder },
-      {
-        onError: () => {
-          // Rollback to server state
-          setLocalMemberIds(serverMemberIds);
-          queryClient.setQueryData(
-            promptGroupsKeys.members(groupId),
-            serverMemberIds,
-          );
-        },
-      },
-    );
-  };
+  const memberIds: string[] = membersQuery.data ?? [];
 
   // Build combobox items from all prompts, excluding already-members.
   const comboboxItems = useMemo<ComboboxItem[]>(() => {
     const prompts = allPromptsQuery.data ?? [];
-    const memberSet = new Set(localMemberIds);
+    const memberSet = new Set(memberIds);
     return prompts
       .filter((p) => !memberSet.has(p.id))
       .filter(
@@ -450,12 +363,11 @@ function MembersSection({ groupId }: MembersSectionProps): ReactElement {
           p.name.toLowerCase().includes(filterValue.toLowerCase()),
       )
       .map((p) => ({ id: p.id, label: p.name }));
-  }, [allPromptsQuery.data, localMemberIds, filterValue]);
+  }, [allPromptsQuery.data, memberIds, filterValue]);
 
   const handleAddMember = (key: string | number): void => {
     const promptId = String(key);
-    // Append at the end — position = current count (0-based index).
-    const position = BigInt(localMemberIds.length);
+    const position = BigInt(memberIds.length);
     addMutation.mutate({ groupId, promptId, position });
     setFilterValue("");
   };
@@ -468,29 +380,18 @@ function MembersSection({ groupId }: MembersSectionProps): ReactElement {
         <p className={styles.membersError}>
           Не удалось загрузить промпты группы.
         </p>
-      ) : localMemberIds.length === 0 ? (
+      ) : memberIds.length === 0 ? (
         <p className={styles.membersEmpty}>В группе пока нет промптов.</p>
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={localMemberIds}
-            strategy={verticalListSortingStrategy}
-          >
-            <ul className={styles.memberList} aria-label="Промпты группы">
-              {localMemberIds.map((promptId) => (
-                <SortableMemberRow
-                  key={promptId}
-                  promptId={promptId}
-                  groupId={groupId}
-                />
-              ))}
-            </ul>
-          </SortableContext>
-        </DndContext>
+        <ul className={styles.memberList} aria-label="Промпты группы">
+          {memberIds.map((promptId) => (
+            <MemberRow
+              key={promptId}
+              promptId={promptId}
+              groupId={groupId}
+            />
+          ))}
+        </ul>
       )}
 
       {/* Add member combobox */}
@@ -521,18 +422,16 @@ function MembersSection({ groupId }: MembersSectionProps): ReactElement {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SortableMemberRow — single member pill with drag handle + remove button
+// MemberRow — single member pill with remove button.
 
 interface MemberRowProps {
   promptId: string;
   groupId: string;
 }
 
-function SortableMemberRow({ promptId, groupId }: MemberRowProps): ReactElement {
+function MemberRow({ promptId, groupId }: MemberRowProps): ReactElement {
   const promptQuery = usePrompt(promptId);
   const removeMutation = useRemovePromptGroupMemberMutation();
-
-  const sortable = useSortable({ id: promptId });
 
   const name =
     promptQuery.status === "pending"
@@ -541,30 +440,11 @@ function SortableMemberRow({ promptId, groupId }: MemberRowProps): ReactElement 
         ? promptId
         : (promptQuery.data?.name ?? promptId);
 
-  const style: CSSProperties = {
-    transform: CSS.Transform.toString(sortable.transform),
-    transition: sortable.transition,
-    opacity: sortable.isDragging ? 0.5 : 1,
-  };
-
   return (
     <li
-      ref={sortable.setNodeRef}
-      style={style}
-      className={cn(styles.memberRow, sortable.isDragging && styles.memberRowDragging)}
+      className={styles.memberRow}
       data-testid={`prompt-group-editor-member-${promptId}`}
     >
-      <button
-        type="button"
-        ref={(node) => sortable.setActivatorNodeRef(node)}
-        {...sortable.attributes}
-        {...sortable.listeners}
-        className={styles.memberDragHandle}
-        aria-label={`Переместить промпт ${name}`}
-        data-testid={`prompt-group-editor-drag-handle-${promptId}`}
-      >
-        <GripVertical size={14} aria-hidden="true" />
-      </button>
       <span className={styles.memberName} title={name}>
         {name}
       </span>
@@ -575,7 +455,7 @@ function SortableMemberRow({ promptId, groupId }: MemberRowProps): ReactElement 
         data-testid={`prompt-group-editor-remove-member-${promptId}`}
         onClick={() => removeMutation.mutate({ groupId, promptId })}
       >
-        <X size={12} aria-hidden="true" />
+        <span aria-hidden="true">×</span>
       </button>
     </li>
   );

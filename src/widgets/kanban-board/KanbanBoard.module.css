@@ -1,21 +1,11 @@
-/*
- * KanbanBoard — orchestrator layout.
- *
- * Horizontal scroll containing N columns + an "add column" affordance
- * pinned at the right. Optional "Промпты" side panel on the right.
- */
-
 .root {
   display: flex;
   flex-direction: column;
-  gap: 0;
   width: 100%;
   height: 100%;
   min-height: 0;
   font-family: var(--font-sans);
 }
-
-/* ---------- Board header ---------- */
 
 .boardHeader {
   display: flex;
@@ -23,244 +13,89 @@
   justify-content: space-between;
   gap: var(--space-16);
   flex: 0 0 auto;
-  /* 56 px total height: 16px top + 16px bottom + content */
   padding: var(--space-16) var(--space-24);
-  background-color: var(--color-surface-canvas);
-  border-bottom: 1px solid var(--color-border-default);
 }
 
-.boardHeadingGroup {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-/*
- * Row containing the board icon + name + description on the same baseline.
- * Per mockup: "Engineering" name and description are on the same line.
- */
-.boardHeadingRow {
+.boardTitle {
   display: flex;
   align-items: baseline;
   gap: var(--space-8);
   min-width: 0;
-  overflow: hidden;
 }
 
-/* Engineering sprite icon in the board header */
 .boardIcon {
   flex: 0 0 auto;
-  opacity: 0.75;
-  /* Align icon inline with text baseline (shift down slightly for optical balance) */
   align-self: center;
-  margin-bottom: 2px;
+  opacity: 0.75;
 }
 
 .boardHeading {
+  flex: 0 0 auto;
   margin: 0;
-  /* DS v1 board header: display serif face, larger size per mockup */
+  color: var(--color-text-default);
   font-family: var(--font-display);
   font-size: 22px;
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-default);
+  letter-spacing: 0;
   line-height: var(--line-height-tight);
-  letter-spacing: -0.02em;
-  flex-shrink: 0;
 }
 
 .boardDescription {
-  margin: 0;
-  font-size: var(--font-size-body);
-  color: var(--color-text-muted);
-  line-height: 1.45;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  /* Sits to the right of name on the same line — inline baseline alignment */
-  flex: 1 1 0;
+  flex: 1 1 auto;
   min-width: 0;
-}
-
-.boardHeaderActions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  flex-shrink: 0;
-}
-
-/* "Group by: Status" pill button — navy text, subtle border, chevron per mockup */
-.groupByButton {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-full);
-  background: transparent;
-  cursor: pointer;
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-default);
-  transition: background-color var(--duration-instant) var(--easing-default),
-    border-color var(--duration-instant) var(--easing-default);
-}
-
-.groupByButton:hover {
-  background-color: var(--color-overlay-hover);
-  border-color: var(--color-border-strong);
-}
-
-.groupByButton:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-.groupByLabel {
+  margin: 0;
+  overflow: hidden;
   color: var(--color-text-muted);
-  font-weight: var(--font-weight-regular);
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.groupByValue {
-  color: var(--color-text-default);
-  font-weight: var(--font-weight-semibold);
-}
-
-/* Kebab / more options button */
-.kebabButton {
+.iconButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
+  padding: 0;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  cursor: pointer;
   color: var(--color-text-muted);
-  transition: background-color var(--duration-instant) var(--easing-default);
+  cursor: pointer;
 }
 
-.kebabButton:hover {
-  background-color: var(--color-overlay-hover);
+.iconButton:hover {
+  background: var(--color-overlay-hover);
   color: var(--color-text-default);
 }
 
-.kebabButton:focus-visible {
+.iconButton:focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .groupByButton,
-  .kebabButton {
-    transition: none;
-  }
-}
-
-.btnLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-6);
-}
-
-/* ---------- Two-column layout (kanban area + optional prompt panel) ---------- */
-
-.layout {
-  display: flex;
-  gap: 0;
-  flex: 1 1 0;
-  min-height: 0;
-  width: 100%;
-}
-
-.kanbanArea {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Prompt side panel — fixed 280px width, scrollable */
-.promptPanel {
-  flex: 0 0 280px;
-  width: 280px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-  padding: var(--space-12);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface-canvas);
-  overflow-y: auto;
-  align-self: flex-start;
-  max-height: 100%;
-}
-
-.panelHeading {
-  margin: 0;
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-default);
-}
-
-.panelHint {
-  margin: 0;
-  font-size: var(--font-size-caption);
-  color: var(--color-text-muted);
-}
-
-.panelList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.panelItem {
-  display: block;
-}
-
-.panelEmpty,
-.panelError {
-  margin: 0;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-muted);
-}
-
-.panelError {
-  color: var(--color-status-danger);
-}
-
-/* When panel is open the kanban area still gets flex: 1 — no override
- * needed, but the selector is kept so callers can extend it. */
-.layoutWithPanel .kanbanArea {
-  flex: 1 1 0;
-}
-
 .scroller {
   display: flex;
-  flex-direction: row;
+  flex: 1 1 auto;
   align-items: stretch;
-  /* Mockup: ~28-32 px gap between columns */
-  gap: 28px;
+  gap: 24px;
+  min-height: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  /* DS v1 layout.md: 24 px horizontal + vertical top padding */
-  padding: var(--space-24) var(--space-24) var(--space-24);
-  min-height: 0;
-  flex: 1 1 auto;
+  padding: var(--space-16) var(--space-24) var(--space-24);
+  scrollbar-width: none;
+}
+
+.scroller::-webkit-scrollbar {
+  display: none;
 }
 
 .addColumnContainer {
-  flex: 0 0 240px;
   display: flex;
+  flex: 0 0 240px;
   align-items: flex-start;
-  padding-top: var(--space-4);
 }
 
 .addColumnButton {
@@ -277,145 +112,99 @@
 
 .addColumnFormActions {
   display: flex;
-  gap: var(--space-8);
   justify-content: flex-end;
-}
-
-/* ---------- Synthetic columns (Role / None grouping modes) ---------- */
-
-.syntheticColumn {
-  flex: 0 0 280px;
-  display: flex;
-  flex-direction: column;
-  background-color: var(--color-surface-column, var(--color-surface-canvas));
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  min-height: 80px;
-}
-
-.syntheticColumnHeader {
-  display: flex;
-  align-items: center;
-  padding: var(--space-12) var(--space-12) var(--space-8);
-  border-bottom: 1px solid var(--color-border-default);
-}
-
-.syntheticColumnName {
-  margin: 0;
-  font-size: var(--font-size-headline-sm, var(--font-size-body));
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-default);
-}
-
-.syntheticColumnBody {
-  display: flex;
-  flex-direction: column;
   gap: var(--space-8);
-  padding: var(--space-12);
-  flex: 1 1 auto;
-  overflow-y: auto;
 }
-
-.syntheticColumnEmpty {
-  margin: 0;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-muted);
-  text-align: center;
-  padding: var(--space-16) 0;
-}
-
-/* ---------- Loading skeleton ---------- */
 
 .loadingScroller {
-  display: flex;
-  flex-direction: row;
+  height: 100%;
   gap: var(--space-12);
 }
 
 .skeletonColumn {
-  flex: 0 0 280px;
-  background-color: var(--color-surface-canvas);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  height: 360px;
   display: flex;
+  flex: 0 0 300px;
   flex-direction: column;
   gap: var(--space-8);
+  height: 360px;
   padding: var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-canvas);
+}
+
+.skeletonHeader,
+.skeletonCard {
+  border-radius: var(--radius-xs);
+  background: var(--color-overlay-hover);
+  animation: pulse 1400ms ease-in-out infinite;
 }
 
 .skeletonHeader {
-  height: 18px;
   width: 60%;
-  background-color: var(--color-overlay-hover);
-  border-radius: var(--radius-xs);
-  animation: kanban-skeleton-pulse 1400ms ease-in-out infinite;
+  height: 18px;
 }
 
 .skeletonCard {
   height: 56px;
-  background-color: var(--color-overlay-hover);
-  border-radius: var(--radius-sm);
-  animation: kanban-skeleton-pulse 1400ms ease-in-out infinite;
 }
-
-@keyframes kanban-skeleton-pulse {
-  0%,
-  100% {
-    opacity: 0.45;
-  }
-  50% {
-    opacity: 0.85;
-  }
-}
-
-/* ---------- Empty state (no columns) ---------- */
 
 .empty {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--space-12);
+  margin: var(--space-24);
   padding: var(--space-48) var(--space-24);
   border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-lg);
-  background-color: var(--color-surface-canvas);
+  background: var(--color-surface-canvas);
   text-align: center;
 }
 
 .emptyTitle {
   margin: 0;
+  color: var(--color-text-default);
   font-size: var(--font-size-headline);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-default);
 }
 
 .emptyHint {
-  margin: 0;
-  font-size: var(--font-size-body);
-  color: var(--color-text-muted);
   max-width: 36ch;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
 }
-
-/* ---------- Error state ---------- */
 
 .error {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
   align-items: flex-start;
+  gap: var(--space-8);
+  margin: var(--space-24);
   padding: var(--space-16);
   border: 1px solid var(--color-status-danger);
   border-radius: var(--radius-md);
-  background-color: var(--color-status-danger-soft);
+  background: var(--color-status-danger-soft);
 }
 
 .errorMessage {
   margin: 0;
-  font-size: var(--font-size-body);
   color: var(--color-text-default);
+  font-size: var(--font-size-body);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+
+  50% {
+    opacity: 0.85;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

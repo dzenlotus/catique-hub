@@ -8,28 +8,25 @@
  * the outer page scrolling.
  */
 .shell {
-  display: flex;
-  flex-direction: row;
+  /* Two-column layout — grid keeps the columns aligned at the top and
+     the rail width fixed without flex-shrink edge cases. */
+  display: grid;
+  grid-template-columns: 240px 1fr;
   height: 100dvh;
   overflow: hidden;
   background-color: var(--color-bg-default);
 }
 
-/* Left rail: sidebar column — 220 px per DS v1 layout.md */
 .sidebarSlot {
-  display: flex;
-  flex-direction: column;
-  width: 220px;
-  min-width: 220px;
   height: 100%;
-  overflow-y: auto;
-  /* Background and border are set on the <nav> itself inside Sidebar */
+  /* Background and border live on the <nav> inside Sidebar — overflow
+     is governed by the inner Scrollable widget. */
+  overflow: hidden;
 }
 
-/* Right pane: flex column so the sticky header sits at the top and the
-   content area below it scrolls independently. */
+/* Right pane — single continuous canvas: TopBar + content share the
+   same background tone (no separator under the topbar). */
 .mainPane {
-  flex: 1;
   min-width: 0;
   height: 100%;
   display: flex;
@@ -41,8 +38,9 @@
 /* Scrollable content area below the header — 24 px per layout.md §5 */
 .mainPane > :not(header) {
   flex: 1;
-  overflow-y: auto;
-  padding: var(--space-24);
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--space-16) var(--space-24) var(--space-24);
 }
 
 /* -----------------------------------------------------------------------
