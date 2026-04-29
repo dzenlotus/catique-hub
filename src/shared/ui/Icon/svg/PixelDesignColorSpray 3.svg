@@ -1,0 +1,35 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_1128_6964)">
+<path d="M29.715 15.24H28.185V16.76H29.715V15.24Z" fill="currentColor"/>
+<path d="M29.715 12.19H28.185V13.71H29.715V12.19Z" fill="currentColor"/>
+<path d="M29.715 9.14001H28.185V10.66H29.715V9.14001Z" fill="currentColor"/>
+<path d="M29.715 6.09003H28.185V7.62003H29.715V6.09003Z" fill="currentColor"/>
+<path d="M29.715 3.03998H28.185V4.56998H29.715V3.03998Z" fill="currentColor"/>
+<path d="M29.715 0H28.185V1.52H29.715V0Z" fill="currentColor"/>
+<path d="M26.665 13.71H25.145V15.24H26.665V13.71Z" fill="currentColor"/>
+<path d="M26.665 10.66H25.145V12.19H26.665V10.66Z" fill="currentColor"/>
+<path d="M26.665 7.62H25.145V9.14H26.665V7.62Z" fill="currentColor"/>
+<path d="M26.665 4.57001H25.145V6.09001H26.665V4.57001Z" fill="currentColor"/>
+<path d="M26.665 1.52002H25.145V3.04002H26.665V1.52002Z" fill="currentColor"/>
+<path d="M23.615 12.19H22.095V13.71H23.615V12.19Z" fill="currentColor"/>
+<path d="M23.615 9.14001H22.095V10.66H23.615V9.14001Z" fill="currentColor"/>
+<path d="M23.615 6.09003H22.095V7.62003H23.615V6.09003Z" fill="currentColor"/>
+<path d="M23.615 3.03998H22.095V4.56998H23.615V3.03998Z" fill="currentColor"/>
+<path d="M3.805 16.76V15.24H2.285V32H3.805V18.28H19.045V21.33H11.425V22.85H17.525V24.38H15.995V25.9H14.475V27.43H12.945V28.95H11.425V30.47H19.045V32H20.565V15.24H19.045V16.76H3.805Z" fill="currentColor"/>
+<path d="M20.565 10.66H19.045V12.19H20.565V10.66Z" fill="currentColor"/>
+<path d="M20.565 7.62H19.045V9.14H20.565V7.62Z" fill="currentColor"/>
+<path d="M20.565 4.57001H19.045V6.09001H20.565V4.57001Z" fill="currentColor"/>
+<path d="M19.045 13.71H17.525V15.24H19.045V13.71Z" fill="currentColor"/>
+<path d="M17.525 12.19H15.995V13.71H17.525V12.19Z" fill="currentColor"/>
+<path d="M12.945 4.57001H9.905V6.09001H12.945V4.57001Z" fill="currentColor"/>
+<path d="M11.425 22.85H9.905V28.95H11.425V22.85Z" fill="currentColor"/>
+<path d="M9.90501 10.66V6.09003H8.37501V10.66H6.85501V12.19H15.995V10.66H14.475V9.14003H17.525V7.62003H14.475V6.09003H12.945V10.66H9.90501Z" fill="currentColor"/>
+<path d="M6.85501 12.19H5.33501V13.71H6.85501V12.19Z" fill="currentColor"/>
+<path d="M5.33501 13.71H3.80501V15.24H5.33501V13.71Z" fill="currentColor"/>
+</g>
+<defs>
+<clipPath id="clip0_1128_6964">
+<rect width="32" height="32" fill="white"/>
+</clipPath>
+</defs>
+</svg>

@@ -1,0 +1,51 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_1128_10172)">
+<path d="M32 7.61505H30.48V16.7651H32V7.61505Z" fill="currentColor"/>
+<path d="M30.48 6.09503H28.96V7.61503H30.48V6.09503Z" fill="currentColor"/>
+<path d="M28.96 21.335H27.43V22.855H28.96V21.335Z" fill="currentColor"/>
+<path d="M27.43 18.285H28.96V21.335H30.48V16.765H27.43V18.285Z" fill="currentColor"/>
+<path d="M28.96 4.565H27.43V6.095H28.96V4.565Z" fill="currentColor"/>
+<path d="M27.43 22.855H25.91V30.475H27.43V22.855Z" fill="currentColor"/>
+<path d="M27.43 18.285H25.91V19.805H27.43V18.285Z" fill="currentColor"/>
+<path d="M27.43 15.235H24.39V16.765H27.43V15.235Z" fill="currentColor"/>
+<path d="M27.43 7.61505H25.91V9.14505H24.39V7.61505H22.86V9.14505H21.34V10.6651H22.86V12.1851H24.39V13.7151H25.91V12.1851H27.43V10.6651H28.96V9.14505H27.43V7.61505Z" fill="currentColor"/>
+<path d="M27.43 3.04504H24.39V4.56504H27.43V3.04504Z" fill="currentColor"/>
+<path d="M24.39 25.905H22.86V30.475H24.39V25.905Z" fill="currentColor"/>
+<path d="M24.39 22.855H22.86V24.375H24.39V22.855Z" fill="currentColor"/>
+<path d="M25.91 19.8051H22.86V21.3351H25.91V19.8051Z" fill="currentColor"/>
+<path d="M24.39 16.765H22.86V18.285H24.39V16.765Z" fill="currentColor"/>
+<path d="M22.86 15.235H21.34V16.765H22.86V15.235Z" fill="currentColor"/>
+<path d="M22.86 24.375H19.81V25.905H22.86V24.375Z" fill="currentColor"/>
+<path d="M13.72 21.3351V19.8051H12.2V21.3351H4.58V22.8551H18.29V24.3751H19.81V22.8551H22.86V21.3351H13.72Z" fill="currentColor"/>
+<path d="M21.34 18.285H19.81V19.805H21.34V18.285Z" fill="currentColor"/>
+<path d="M21.34 4.565H19.81V7.615H21.34V4.565Z" fill="currentColor"/>
+<path d="M18.29 16.765H16.77V18.285H18.29V16.765Z" fill="currentColor"/>
+<path d="M18.29 4.565H16.77V6.095H18.29V4.565Z" fill="currentColor"/>
+<path d="M16.77 18.285H13.72V19.805H16.77V18.285Z" fill="currentColor"/>
+<path d="M16.77 12.185H15.24V13.715H16.77V12.185Z" fill="currentColor"/>
+<path d="M16.77 6.09503H13.72V7.61503H16.77V6.09503Z" fill="currentColor"/>
+<path d="M21.34 3.04502V4.56502H22.86V3.04502H24.39V1.52502H13.72V3.04502H21.34Z" fill="currentColor"/>
+<path d="M15.24 13.715H13.72V15.235H15.24V13.715Z" fill="currentColor"/>
+<path d="M15.24 10.665H13.72V12.185H15.24V10.665Z" fill="currentColor"/>
+<path d="M13.72 7.61505H12.2V10.6651H13.72V7.61505Z" fill="currentColor"/>
+<path d="M13.72 3.04504H10.67V4.56504H13.72V3.04504Z" fill="currentColor"/>
+<path d="M12.2 6.09503H10.67V7.61503H12.2V6.09503Z" fill="currentColor"/>
+<path d="M10.67 16.765H7.62V18.285H10.67V16.765Z" fill="currentColor"/>
+<path d="M10.67 10.665H9.14999V12.185H10.67V10.665Z" fill="currentColor"/>
+<path d="M10.67 4.565H7.62V6.095H10.67V4.565Z" fill="currentColor"/>
+<path d="M9.14999 12.185H7.62V13.715H9.14999V12.185Z" fill="currentColor"/>
+<path d="M7.62 18.285H4.58V19.805H7.62V18.285Z" fill="currentColor"/>
+<path d="M7.62001 6.09503H6.10001V7.61503H7.62001V6.09503Z" fill="currentColor"/>
+<path d="M7.62 13.715H4.58V15.235H7.62V13.715Z" fill="currentColor"/>
+<path d="M6.1 7.61505H4.58V9.14505H6.1V7.61505Z" fill="currentColor"/>
+<path d="M4.58 19.8051H3.05V21.3351H4.58V19.8051Z" fill="currentColor"/>
+<path d="M4.58 9.14502H3.05V10.665H4.58V9.14502Z" fill="currentColor"/>
+<path d="M3.05 18.285H1.53V19.805H3.05V18.285Z" fill="currentColor"/>
+<path d="M1.53 13.715H4.58V12.185H3.05V10.665H1.53V12.185H0V18.285H1.53V13.715Z" fill="currentColor"/>
+</g>
+<defs>
+<clipPath id="clip0_1128_10172">
+<rect width="32" height="32" fill="white"/>
+</clipPath>
+</defs>
+</svg>

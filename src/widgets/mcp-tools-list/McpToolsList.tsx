@@ -2,7 +2,8 @@ import { useState, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 
 import { McpToolCard, useMcpTools } from "@entities/mcp-tool";
-import { Button, Icon, EmptyState } from "@shared/ui";
+import { Button, EmptyState } from "@shared/ui";
+import { PixelCodingAppsWebsitesDatabase } from "@shared/ui/Icon";
 import { McpToolEditor } from "@widgets/mcp-tool-editor";
 import { McpToolCreateDialog } from "@widgets/mcp-tool-create-dialog";
 
@@ -31,11 +32,11 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
     <section className={styles.root} aria-labelledby="mcp-tools-list-heading">
       <header className={styles.header}>
         <div className={styles.headingGroup}>
-          <Icon
-            name="mcp-servers"
-            size={20}
+          <PixelCodingAppsWebsitesDatabase
+            width={20}
+            height={20}
             className={styles.headingIcon}
-            aria-hidden="true"
+            aria-hidden={true}
           />
           <div className={styles.headingText}>
             <h2 id="mcp-tools-list-heading" className={styles.heading}>
@@ -85,7 +86,7 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
       ) : toolsQuery.data.length === 0 ? (
         <div className={styles.empty} data-testid="mcp-tools-list-empty">
           <EmptyState
-            iconName="mcp-servers"
+            icon={<PixelCodingAppsWebsitesDatabase width={64} height={64} />}
             title="No MCP servers yet"
             description="Connect Model Context Protocol endpoints."
             action={

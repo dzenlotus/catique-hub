@@ -2,7 +2,7 @@
  * EmptyState — DS v1 empty-state block.
  *
  * Renders a centred column (max-width ~400 px) with:
- *   - optional pixel-art Icon at 64 px, 50 % opacity
+ *   - optional icon node at 64 px, 50 % opacity
  *   - Playfair Display heading (18–20 px, navy)
  *   - muted sans-serif description (14 px)
  *   - optional action node (primary CTA button, etc.)
@@ -12,15 +12,13 @@
 
 import type { ReactNode } from "react";
 
-import { Icon } from "@shared/ui/Icon";
-import type { IconName } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 
 import styles from "./EmptyState.module.css";
 
 export interface EmptyStateProps {
-  /** Optional pixel-art icon name shown at 64 px, 50 % opacity. */
-  iconName?: IconName | undefined;
+  /** Optional icon node shown at 50 % opacity. Pass e.g. <PixelFoo width={64} height={64} />. */
+  icon?: ReactNode;
   /** Short heading — Playfair Display, ~18 px, navy. */
   title: string;
   /** One-to-two sentence description — muted, 14 px. */
@@ -32,7 +30,7 @@ export interface EmptyStateProps {
 }
 
 export function EmptyState({
-  iconName,
+  icon,
   title,
   description,
   action,
@@ -43,9 +41,9 @@ export function EmptyState({
       className={cn(styles.root, className)}
       data-testid="empty-state"
     >
-      {iconName !== undefined && (
+      {icon !== undefined && (
         <span className={styles.iconWrap} aria-hidden="true">
-          <Icon name={iconName} size={64} className={styles.icon} />
+          {icon}
         </span>
       )}
 

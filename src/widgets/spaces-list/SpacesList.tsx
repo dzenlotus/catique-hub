@@ -12,7 +12,8 @@ import { useState, type ReactElement } from "react";
 
 import { SpaceCard, useSpaces } from "@entities/space";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
-import { Button, Icon, EmptyState } from "@shared/ui";
+import { Button, EmptyState } from "@shared/ui";
+import { PixelPetAnimalsCat } from "@shared/ui/Icon";
 import { Plus } from "lucide-react";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 
@@ -40,11 +41,11 @@ export function SpacesList({ onSelectView }: SpacesListProps): ReactElement {
     >
       <header className={styles.header}>
         <div className={styles.headingGroup}>
-          <Icon
-            name="catique"
-            size={20}
+          <PixelPetAnimalsCat
+            width={20}
+            height={20}
             className={styles.headingIcon}
-            aria-hidden="true"
+            aria-hidden={true}
           />
           <div className={styles.headingText}>
             <h2 id="spaces-list-heading" className={styles.heading}>
@@ -94,7 +95,7 @@ export function SpacesList({ onSelectView }: SpacesListProps): ReactElement {
       ) : spacesQuery.data.length === 0 ? (
         <div className={styles.empty} data-testid="spaces-list-empty">
           <EmptyState
-            iconName="catique"
+            icon={<PixelPetAnimalsCat width={64} height={64} />}
             title="No spaces yet"
             description="Top-level workspaces for your boards."
             action={

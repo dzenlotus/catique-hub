@@ -160,3 +160,34 @@ export function reorderColumnIds(
   ids.splice(newIdx, 0, moved);
   return ids;
 }
+
+/**
+ * Determine whether the dragged card should land **before** or
+ * **after** the hovered task, based on a vertical comparison of
+ * their rects' centres.
+ *
+ * Why this matters: when the user drags a card and hovers over an
+ * existing task, dnd-kit reports `over.id` but no positional hint.
+ * Always inserting "before" means dragging onto the LAST card of a
+ * column lands the card above it — which feels broken because the
+ * user clearly intended to drop *below*.
+ *
+ * Inputs are the SAME shapes that `DragEndEvent.active.rect.current.translated`
+ * and `DragEndEvent.over.rect` produce: bounding-rect-like objects
+ * with `top` and `height`. We compare midpoints to avoid jitter at
+ * the rect edges.
+ */
+export interface RectLike {
+  top: number;
+  height: number;
+}
+
+export function placementFromRects(
+  activeRect: RectLike | null | undefined,
+  overRect: RectLike | null | undefined,
+): "before" | "after" {
+  if (!activeRect || !overRect) return "before";
+  const activeMid = activeRect.top + activeRect.height / 2;
+  const overMid = overRect.top + overRect.height / 2;
+  return activeMid < overMid ? "before" : "after";
+}

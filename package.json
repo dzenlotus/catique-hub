@@ -17,7 +17,8 @@
     "test:cov": "vitest run --coverage",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "tokens:build": "tsx tools/tokens-build.ts"
+    "tokens:build": "tsx tools/tokens-build.ts",
+    "icons:build": "tsx tools/icons-build.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -54,6 +55,7 @@
     "tsx": "4.21.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
+    "vite-plugin-svgr": "^5.2.0",
     "vitest": "^4.1.5"
   },
   "packageManager": "pnpm@10.30.3",

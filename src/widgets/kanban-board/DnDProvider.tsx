@@ -2,7 +2,8 @@ import type { ReactElement, ReactNode } from "react";
 import {
   DndContext,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   getFirstCollision,
   pointerWithin,
@@ -36,9 +37,12 @@ export interface DnDProviderProps {
  * `DnDProvider` — thin wrapper around `<DndContext>` configured for
  * the kanban widget.
  *
- * Sensors:
- *   - `PointerSensor` with a 6-px activation distance so single-click
- *     interactions on a card don't initiate a drag.
+ * Sensors are split per input modality so each gets the right
+ * activation constraint:
+ *   - `MouseSensor`: 5-px movement threshold so a click on a card body
+ *     doesn't accidentally start a drag.
+ *   - `TouchSensor`: 200-ms hold + 5-px tolerance so the user can scroll
+ *     the kanban with a swipe without grabbing a card on every tap.
  *   - `KeyboardSensor` with `sortableKeyboardCoordinates` so Space
  *     grabs, arrow-keys move, Space drops, Esc cancels (WCAG 2.1.1).
  *
@@ -55,8 +59,11 @@ export function DnDProvider({
   children,
 }: DnDProviderProps): ReactElement {
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 5 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,

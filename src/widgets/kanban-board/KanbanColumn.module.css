@@ -147,47 +147,16 @@
   cursor: grabbing;
 }
 
-/* ── Per-task drag handle ─────────────────────────────────────────── */
-
-.taskDragHandle {
-  position: absolute;
-  top: var(--space-4);
-  right: var(--space-4);
-  width: 16px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-text-subtle);
-  font-size: 12px;
-  letter-spacing: -2px;
-  cursor: grab;
-  border-radius: var(--radius-xs);
-  opacity: 0;
-  transition: opacity 120ms ease-out;
-}
-
-/* Reveal on parent hover/focus. */
-.body > div:hover .taskDragHandle,
-.taskDragHandle:focus-visible {
-  opacity: 1;
-}
-
-.taskDragHandle:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 1px;
-}
-
-.taskDragHandle:active {
-  cursor: grabbing;
-}
+/* Per-task drag handle removed — entire SortableTaskItem wrapper is
+   the activator (whole-card drag, mirrors Trello/Linear/GitHub
+   Projects). MouseSensor's 5-px activation distance prevents
+   click-vs-drag confusion. */
 
 @media (prefers-reduced-motion: reduce) {
   .column,
   .columnDropTarget,
   .settingsButton,
-  .addButton,
-  .taskDragHandle {
+  .addButton {
     transition: none;
   }
 }

@@ -3,6 +3,7 @@ import { fileURLToPath, URL } from "node:url";
 
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import svgr from "vite-plugin-svgr";
 
 // Vite config tuned for Tauri desktop dev:
 // - fixed port 1420 (Tauri reads this from tauri.conf.json devUrl)
@@ -21,7 +22,24 @@ import react from "@vitejs/plugin-react";
 //
 // Reference: https://tauri.app/start/frontend/vite/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Imports of `*.svg?react` (or any *.svg from src/shared/ui/icon/svg/)
+    // are transformed into React components via @svgr/core. We keep the
+    // explicit `?react` query so non-icon SVG asset imports still go
+    // through Vite's default URL handling.
+    svgr({
+      include: ["**/*.svg?react", "src/shared/ui/icon/svg/**/*.svg"],
+      svgrOptions: {
+        // Preserve viewBox so width/height props scale correctly.
+        // `currentColor` is set in the SVG body during the import script,
+        // so no jsx fill replacement needed here.
+        icon: true,
+        titleProp: true,
+        ref: true,
+      },
+    }),
+  ],
   clearScreen: false,
   resolve: {
     alias: {

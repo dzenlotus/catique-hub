@@ -38,24 +38,25 @@ describe("EmptyState", () => {
     expect(container.querySelectorAll("button")).toHaveLength(0);
   });
 
-  it("renders the icon wrapper when iconName is provided", () => {
+  it("renders the icon wrapper when icon node is provided", () => {
     const { container } = render(
       <EmptyState
-        iconName="prompts"
+        icon={<svg data-testid="test-icon" />}
         title="No prompts"
         description="Create your first prompt."
       />,
     );
-    // iconWrap span is aria-hidden and contains the Icon span
+    // iconWrap span is aria-hidden and contains the icon node
     const iconWrap = container.querySelector("[aria-hidden='true']");
     expect(iconWrap).toBeInTheDocument();
+    expect(screen.getByTestId("test-icon")).toBeInTheDocument();
   });
 
-  it("does not render an icon wrapper when iconName is omitted", () => {
+  it("does not render an icon wrapper when icon is omitted", () => {
     const { container } = render(
       <EmptyState title="No prompts" description="Create one." />,
     );
-    // The Icon span has inline background-image; no icon wrappers should be present
+    // No icon wrappers should be present
     const spans = container.querySelectorAll("span");
     expect(spans).toHaveLength(0);
   });

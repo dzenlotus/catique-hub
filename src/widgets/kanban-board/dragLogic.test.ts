@@ -4,6 +4,7 @@ import {
   computeNewPosition,
   computeNewPositionRelativeTo,
   isNoOpDrop,
+  placementFromRects,
   reorderColumnIds,
   type PositionedItem,
 } from "./dragLogic";
@@ -159,5 +160,42 @@ describe("dragLogic.reorderColumnIds", () => {
       "y",
       "x",
     ]);
+  });
+});
+
+describe("dragLogic.placementFromRects", () => {
+  it("returns 'before' when the dragged card's centre is above the target's", () => {
+    expect(
+      placementFromRects(
+        { top: 0, height: 60 },   // mid = 30
+        { top: 100, height: 60 }, // mid = 130
+      ),
+    ).toBe("before");
+  });
+
+  it("returns 'after' when the dragged card's centre is below the target's", () => {
+    expect(
+      placementFromRects(
+        { top: 200, height: 60 }, // mid = 230
+        { top: 100, height: 60 }, // mid = 130
+      ),
+    ).toBe("after");
+  });
+
+  it("falls back to 'before' when either rect is missing", () => {
+    expect(placementFromRects(null, { top: 0, height: 10 })).toBe("before");
+    expect(placementFromRects({ top: 0, height: 10 }, null)).toBe("before");
+    expect(placementFromRects(undefined, undefined)).toBe("before");
+  });
+
+  it("returns 'after' on exact equality (avoids jitter)", () => {
+    // active.mid === over.mid → the card hasn't moved past, so drop after
+    // (same-position edge — caller short-circuits via isNoOpDrop anyway).
+    expect(
+      placementFromRects(
+        { top: 100, height: 60 },
+        { top: 100, height: 60 },
+      ),
+    ).toBe("after");
   });
 });

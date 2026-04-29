@@ -9,7 +9,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
-import { Icon } from "@shared/ui";
+import { PixelCodingAppsWebsitesModule } from "@shared/ui/Icon";
 
 import {
   useColumns,
@@ -51,6 +51,7 @@ import {
   computeNewPosition,
   computeNewPositionRelativeTo,
   isNoOpDrop,
+  placementFromRects,
   reorderColumnIds,
 } from "./dragLogic";
 import { GroupingMenu } from "./KanbanBoard.parts";
@@ -353,9 +354,20 @@ export function KanbanBoard({
 
   const lastOverIdRef = useRef<string | null>(null);
 
-  // Custom collision detection — same shape as Promptery's, but
-  // localised here. Column drags only consider column droppables; task
-  // drags use pointerWithin → closestCenter against tasks-in-column.
+  // Custom collision detection.
+  //
+  // Column drags only consider column-as-sortable droppables.
+  //
+  // Task drags consider tasks AND column-body droppables
+  // (`${columnId}:body`). The column-as-sortable droppable is EXCLUDED
+  // for task drags so a card never reports the outer column rect as
+  // its over-target — that would defeat the refinement step and
+  // produce wobbly placement near column edges.
+  //
+  // The refinement step: when the first collision is a column-body
+  // and that column has tasks, re-run closestCenter against just that
+  // column's tasks so the card snaps to the nearest sibling — matches
+  // Trello/Linear "slot" feedback expectations.
   const collisionDetection: CollisionDetection = useCallback(
     (args) => {
       const activeType = (args.active.data.current as { type?: string })?.type;
@@ -369,20 +381,38 @@ export function KanbanBoard({
         });
       }
 
-      // Task drag.
-      const pointer = pointerWithin(args);
-      const intersections = pointer.length > 0 ? pointer : rectIntersection(args);
+      // Task drag — exclude column-as-sortable so a hover in a column
+      // doesn't beat its tasks for collision priority.
+      const taskCandidates = args.droppableContainers.filter((c) => {
+        const dataType = (c.data.current as { type?: string } | undefined)?.type;
+        return dataType !== "column";
+      });
+
+      const pointer = pointerWithin({
+        ...args,
+        droppableContainers: taskCandidates,
+      });
+      const intersections =
+        pointer.length > 0
+          ? pointer
+          : rectIntersection({ ...args, droppableContainers: taskCandidates });
       let overId = getFirstCollision(intersections, "id") as string | null;
 
       if (overId !== null) {
-        if (columnIdSet.has(overId)) {
-          // Hovering a column — refine to the nearest task within if any.
-          const tasksInCol = tasksByColumn[overId] ?? [];
+        // Column-body collision → refine to nearest task in that column
+        // when one exists. Body droppable carries
+        // `data: { type: "column-body", columnId }`.
+        const bodyCol = taskCandidates.find((c) => String(c.id) === overId);
+        const bodyData = bodyCol?.data.current as
+          | { type?: string; columnId?: string }
+          | undefined;
+        if (bodyData?.type === "column-body" && bodyData.columnId) {
+          const tasksInCol = tasksByColumn[bodyData.columnId] ?? [];
           if (tasksInCol.length > 0) {
             const taskIds = new Set(tasksInCol.map((t) => t.id));
             const refinement = closestCenter({
               ...args,
-              droppableContainers: args.droppableContainers.filter((c) =>
+              droppableContainers: taskCandidates.filter((c) =>
                 taskIds.has(String(c.id)),
               ),
             });
@@ -433,6 +463,8 @@ export function KanbanBoard({
     const activeType = (event.active.data.current as { type?: string })?.type;
     setActiveColumn(null);
     setActiveTask(null);
+    // Reset the over-id sticky cache so the next drag starts clean.
+    lastOverIdRef.current = null;
 
     const { active, over } = event;
     if (!over) return;
@@ -452,12 +484,23 @@ export function KanbanBoard({
     const activeTaskRow = tasks.find((t) => t.id === activeId);
     if (!activeTaskRow) return;
 
-    // Resolve the destination column: drop on a task → that task's
-    // column; drop on a column body → that column itself.
+    // Resolve the destination column. Three cases:
+    //   1. Over a task        — that task's columnId
+    //   2. Over a column body — `over.data.current.columnId` (suffix `:body`)
+    //   3. Over a column-as-sortable — `over.id` is the column id directly
+    //      (only reachable when no tasks/body match; defensive fallback).
     const overTask = tasks.find((t) => t.id === overId);
-    const overColumn = columns.find((c) => c.id === overId);
+    const overData = over.data.current as
+      | { type?: string; columnId?: string }
+      | undefined;
+    const overColumnFromBody =
+      overData?.type === "column-body" ? overData.columnId : undefined;
+    const overColumnDirect = columns.find((c) => c.id === overId);
     const targetColumnId =
-      overTask?.columnId ?? overColumn?.id ?? activeTaskRow.columnId;
+      overTask?.columnId ??
+      overColumnFromBody ??
+      overColumnDirect?.id ??
+      activeTaskRow.columnId;
 
     // Build the destination siblings list (excluding the dragged task).
     const siblings = (tasksByColumn[targetColumnId] ?? [])
@@ -466,8 +509,13 @@ export function KanbanBoard({
 
     let newPosition: number;
     if (overTask && overTask.id !== activeTaskRow.id) {
-      // Drop ON another task — insert before it.
-      const computed = computeNewPositionRelativeTo(siblings, overTask.id, "before");
+      // Drop ON another task — pick before/after by comparing rect
+      // midpoints. Always-before would mean dropping at the bottom of
+      // a column lands above the last card (Trello bug #1).
+      const activeRect = active.rect.current.translated;
+      const overRect = over.rect;
+      const placement = placementFromRects(activeRect, overRect);
+      const computed = computeNewPositionRelativeTo(siblings, overTask.id, placement);
       newPosition = computed ?? computeNewPosition(siblings, siblings.length);
     } else {
       // Drop on column body — append to end.
@@ -729,9 +777,9 @@ export function KanbanBoard({
         <div className={styles.boardHeadingGroup}>
           <div className={styles.boardHeadingRow}>
             {/* Engineering icon — custom sprite icon per DS v1 mockup */}
-            <Icon
-              name="engineering"
-              size={20}
+            <PixelCodingAppsWebsitesModule
+              width={20}
+              height={20}
               aria-hidden
               className={styles.boardIcon}
             />

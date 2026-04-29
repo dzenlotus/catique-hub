@@ -6,6 +6,7 @@ import { BoardCard, useBoards } from "@entities/board";
 import { PromptCard, usePrompts } from "@entities/prompt";
 import { useSpaces } from "@entities/space";
 import { Button, EmptyState } from "@shared/ui";
+import { PixelPetAnimalsCat, PixelCodingAppsWebsitesModule } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { BoardCreateDialog } from "@widgets/board-create-dialog";
@@ -131,7 +132,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
               <div className={styles.empty} data-testid="boards-list-empty">
                 {hasNoSpaces ? (
                   <EmptyState
-                    iconName="catique"
+                    icon={<PixelPetAnimalsCat width={64} height={64} />}
                     title="No spaces yet"
                     description="Create your first space to start organising boards."
                     action={
@@ -150,7 +151,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                   />
                 ) : (
                   <EmptyState
-                    iconName="boards"
+                    icon={<PixelCodingAppsWebsitesModule width={64} height={64} />}
                     title="No boards yet"
                     description="Create your first board to start organising tasks."
                     action={

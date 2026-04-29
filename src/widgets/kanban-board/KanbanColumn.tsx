@@ -87,9 +87,15 @@ export function KanbanColumn({
   // Droppable for the empty space beneath the last task — lets the
   // user drop a card into a (possibly empty) column without aiming
   // at a sibling card.
+  //
+  // ID note: must NOT collide with the column's own SortableContext id
+  // (`column.id`), otherwise dnd-kit's collision detection cannot
+  // distinguish "drop on column-as-droppable" from "drag column-as-
+  // sortable". We append a `:body` suffix and resolve the actual
+  // target column via `data.columnId` in the parent's drop handler.
   const droppable = useDroppable({
-    id: column.id,
-    data: { type: "column", columnId: column.id },
+    id: `${column.id}:body`,
+    data: { type: "column-body", columnId: column.id },
     disabled: dragOverlay,
   });
 
@@ -219,6 +225,13 @@ interface SortableTaskItemProps {
  * Internal: wraps a TaskCard with @dnd-kit's `useSortable`. Lives in
  * the widget, not the entity, because the entity must not know about
  * dnd-kit (FSD rule: entities have zero knowledge of widgets/UX state).
+ *
+ * Whole-card drag: the activator is the wrapper div (not a tiny
+ * handle button). MouseSensor's 5-px activation distance + the inner
+ * checkbox's `stopPropagation` keeps clicks routed to TaskCard's
+ * onClick (selection toggle), while a 5-px drag motion starts a
+ * proper kanban drag — same affordance as Trello / Linear / GitHub
+ * Projects.
  */
 function SortableTaskItem({
   task,
@@ -238,10 +251,21 @@ function SortableTaskItem({
     transition: sortable.transition,
     opacity: sortable.isDragging ? 0.4 : 1,
     position: "relative",
+    cursor: sortable.isDragging ? "grabbing" : "grab",
+    touchAction: "none",
   };
 
   return (
-    <div ref={sortable.setNodeRef} style={style}>
+    <div
+      ref={(node) => {
+        sortable.setNodeRef(node);
+        sortable.setActivatorNodeRef(node);
+      }}
+      style={style}
+      {...sortable.attributes}
+      {...sortable.listeners}
+      data-testid={`task-card-wrapper-${task.id}`}
+    >
       <TaskCard
         task={task}
         isDoneColumn={isDoneColumn}
@@ -250,17 +274,6 @@ function SortableTaskItem({
         {...(onSelect ? { onSelect } : {})}
         {...(onToggleSelection ? { onToggleSelection } : {})}
       />
-      <button
-        type="button"
-        ref={(node) => sortable.setActivatorNodeRef(node)}
-        {...sortable.attributes}
-        {...sortable.listeners}
-        className={styles.taskDragHandle}
-        aria-label={`Reorder task ${task.title}`}
-        data-testid={`task-drag-handle-${task.id}`}
-      >
-        <span aria-hidden="true">⋮⋮</span>
-      </button>
     </div>
   );
 }

@@ -2,7 +2,8 @@ import { useState, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 
 import { TagChip, useTags } from "@entities/tag";
-import { Button, Icon, EmptyState } from "@shared/ui";
+import { Button, EmptyState } from "@shared/ui";
+import { PixelBusinessProductPriceTag } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { TagEditor } from "@widgets/tag-editor";
 import { TagCreateDialog } from "@widgets/tag-create-dialog";
@@ -47,11 +48,11 @@ export function TagsList({
   const header = (
     <header className={styles.header}>
       <div className={styles.headingGroup}>
-        <Icon
-          name="tag"
-          size={20}
+        <PixelBusinessProductPriceTag
+          width={20}
+          height={20}
           className={styles.headingIcon}
-          aria-hidden="true"
+          aria-hidden={true}
         />
         <div className={styles.headingText}>
           <h2 id="tags-list-heading" className={styles.heading}>
@@ -125,7 +126,7 @@ export function TagsList({
       >
         {header}
         <EmptyState
-          iconName="tag"
+          icon={<PixelBusinessProductPriceTag width={64} height={64} />}
           title="No tags yet"
           description="Labels for organising prompts and tasks."
           action={

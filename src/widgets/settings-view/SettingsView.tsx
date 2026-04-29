@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { useState, useEffect } from "react";
-import { Button, Input, Icon } from "@shared/ui";
+import { Button, Input } from "@shared/ui";
+import { PixelInterfaceEssentialSettingCog } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { SettingsTokensView } from "@widgets/settings-tokens-view";
 import { ConnectedAgentsSection } from "@widgets/connected-agents-section";
@@ -144,11 +145,11 @@ export function SettingsView(): ReactElement {
   return (
     <div className={styles.root}>
       <header className={styles.pageHeader} aria-labelledby="settings-page-heading">
-        <Icon
-          name="settings"
-          size={20}
+        <PixelInterfaceEssentialSettingCog
+          width={20}
+          height={20}
           className={styles.pageHeaderIcon}
-          aria-hidden="true"
+          aria-hidden={true}
         />
         <div className={styles.pageHeaderText}>
           <h2 id="settings-page-heading" className={styles.pageTitle}>

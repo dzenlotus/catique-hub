@@ -2,7 +2,8 @@ import { useState, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 
 import { SkillCard, useSkills } from "@entities/skill";
-import { Button, Icon, EmptyState } from "@shared/ui";
+import { Button, EmptyState } from "@shared/ui";
+import { PixelDesignMagicWand } from "@shared/ui/Icon";
 import { SkillEditor } from "@widgets/skill-editor";
 import { SkillCreateDialog } from "@widgets/skill-create-dialog";
 
@@ -31,11 +32,11 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
     <section className={styles.root} aria-labelledby="skills-list-heading">
       <header className={styles.header}>
         <div className={styles.headingGroup}>
-          <Icon
-            name="skills"
-            size={20}
+          <PixelDesignMagicWand
+            width={20}
+            height={20}
             className={styles.headingIcon}
-            aria-hidden="true"
+            aria-hidden={true}
           />
           <div className={styles.headingText}>
             <h2 id="skills-list-heading" className={styles.heading}>
@@ -85,7 +86,7 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
       ) : skillsQuery.data.length === 0 ? (
         <div className={styles.empty} data-testid="skills-list-empty">
           <EmptyState
-            iconName="skills"
+            icon={<PixelDesignMagicWand width={64} height={64} />}
             title="No skills yet"
             description="Capabilities you grant to agents."
             action={

@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect, type ReactElement } from "react";
 import { Plus, Paperclip } from "lucide-react";
 
 import { PromptCard, usePrompts, usePromptTagsMap } from "@entities/prompt";
-import { Button, Icon, EmptyState } from "@shared/ui";
+import { Button, EmptyState } from "@shared/ui";
+import { PixelInterfaceEssentialMessage } from "@shared/ui/Icon";
 import { PromptEditor } from "@widgets/prompt-editor";
 import { PromptCreateDialog } from "@widgets/prompt-create-dialog";
 import { AttachPromptDialog } from "@widgets/attach-prompt-dialog";
@@ -82,11 +83,11 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
     <section className={styles.root} aria-labelledby="prompts-list-heading">
       <header className={styles.header}>
         <div className={styles.headingGroup}>
-          <Icon
-            name="prompts"
-            size={20}
+          <PixelInterfaceEssentialMessage
+            width={20}
+            height={20}
             className={styles.headingIcon}
-            aria-hidden="true"
+            aria-hidden={true}
           />
           <div className={styles.headingText}>
             <h2 id="prompts-list-heading" className={styles.heading}>
@@ -153,7 +154,7 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
       ) : isFilterEmpty ? (
         <div className={styles.empty} data-testid="prompts-list-filter-empty">
           <EmptyState
-            iconName="prompts"
+            icon={<PixelInterfaceEssentialMessage width={64} height={64} />}
             title="No prompts match the filter"
             description="Try a different tag or clear the filter."
             action={
@@ -170,7 +171,7 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
       ) : promptsQuery.data.length === 0 ? (
         <div className={styles.empty} data-testid="prompts-list-empty">
           <EmptyState
-            iconName="prompts"
+            icon={<PixelInterfaceEssentialMessage width={64} height={64} />}
             title="No prompts yet"
             description="Reusable agent prompts will appear here."
             action={

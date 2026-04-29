@@ -2,7 +2,8 @@ import { useState, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 
 import { PromptGroupCard, usePromptGroups } from "@entities/prompt-group";
-import { Button, Icon, EmptyState } from "@shared/ui";
+import { Button, EmptyState } from "@shared/ui";
+import { PixelInterfaceEssentialList } from "@shared/ui/Icon";
 import { PromptGroupEditor } from "@widgets/prompt-group-editor";
 import { PromptGroupCreateDialog } from "@widgets/prompt-group-create-dialog";
 
@@ -36,11 +37,11 @@ export function PromptGroupsList({
     >
       <header className={styles.header}>
         <div className={styles.headingGroup}>
-          <Icon
-            name="prompt-groups"
-            size={20}
+          <PixelInterfaceEssentialList
+            width={20}
+            height={20}
             className={styles.headingIcon}
-            aria-hidden="true"
+            aria-hidden={true}
           />
           <div className={styles.headingText}>
             <h2 id="prompt-groups-list-heading" className={styles.heading}>
@@ -90,7 +91,7 @@ export function PromptGroupsList({
       ) : groupsQuery.data.length === 0 ? (
         <div className={styles.empty} data-testid="prompt-groups-list-empty">
           <EmptyState
-            iconName="prompt-groups"
+            icon={<PixelInterfaceEssentialList width={64} height={64} />}
             title="No prompt groups yet"
             description="Bundle prompts into reusable groups."
             action={

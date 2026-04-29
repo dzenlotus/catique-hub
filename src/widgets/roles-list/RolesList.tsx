@@ -3,7 +3,8 @@ import { Plus, ChevronRight, ChevronLeft } from "lucide-react";
 
 import { RoleCard, useRoles } from "@entities/role";
 import { PromptCard, usePrompts } from "@entities/prompt";
-import { Button, Icon, EmptyState } from "@shared/ui";
+import { Button, EmptyState } from "@shared/ui";
+import { PixelBusinessProductsNetworkUser } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { RoleEditor } from "@widgets/role-editor";
 import { RoleCreateDialog } from "@widgets/role-create-dialog";
@@ -48,11 +49,11 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
     <section className={styles.root} aria-labelledby="roles-list-heading">
       <header className={styles.header}>
         <div className={styles.headingGroup}>
-          <Icon
-            name="agent-roles"
-            size={20}
+          <PixelBusinessProductsNetworkUser
+            width={20}
+            height={20}
             className={styles.headingIcon}
-            aria-hidden="true"
+            aria-hidden={true}
           />
           <div className={styles.headingText}>
             <h2 id="roles-list-heading" className={styles.heading}>
@@ -122,7 +123,7 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
             ) : rolesQuery.data.length === 0 ? (
               <div className={styles.empty} data-testid="roles-list-empty">
                 <EmptyState
-                  iconName="agent-roles"
+                  icon={<PixelBusinessProductsNetworkUser width={64} height={64} />}
                   title="No agent roles yet"
                   description="Personas your AI agents adopt for tasks."
                   action={

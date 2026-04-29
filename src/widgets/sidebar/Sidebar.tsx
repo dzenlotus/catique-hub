@@ -3,11 +3,22 @@ import {
   useCallback,
   useEffect,
   type ReactElement,
+  type ReactNode,
 } from "react";
 import { Sun, Moon, Search, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
 import { useLocation } from "wouter";
 import { cn } from "@shared/lib";
-import { Button, Icon } from "@shared/ui";
+import { Button } from "@shared/ui";
+import {
+  PixelPetAnimalsCat,
+  PixelCodingAppsWebsitesModule,
+  PixelBusinessProductsNetworkUser,
+  PixelInterfaceEssentialMessage,
+  PixelInterfaceEssentialList,
+  PixelDesignMagicWand,
+  PixelCodingAppsWebsitesDatabase,
+  PixelInterfaceEssentialSettingCog,
+} from "@shared/ui/Icon";
 import { useSpaces } from "@entities/space";
 import type { Space } from "@entities/space";
 import { useBoards } from "@entities/board";
@@ -46,20 +57,23 @@ export interface SidebarProps {
 interface WorkspaceItem {
   view: NavView;
   label: string;
-  iconName: import("@shared/ui").IconName;
+  /** SVG icon component reference. */
+  icon: ReactNode;
 }
 
 /**
  * WORKSPACE section — 7 core navigable views matching the pixel-art mockup.
+ * Icons inherit `color` from the parent nav item (`.navItem.active` sets
+ * `color: var(--color-cta-bg)` which flows through via `currentColor`).
  */
 const WORKSPACE_ITEMS: WorkspaceItem[] = [
-  { view: "boards",        label: "Boards",        iconName: "boards" },
-  { view: "agent-roles",   label: "Agent roles",   iconName: "agent-roles" },
-  { view: "prompts",       label: "Prompts",        iconName: "prompts" },
-  { view: "prompt-groups", label: "Prompt groups",  iconName: "prompt-groups" },
-  { view: "skills",        label: "Skills",         iconName: "skills" },
-  { view: "mcp-servers",   label: "MCP servers",    iconName: "mcp-servers" },
-  { view: "settings",      label: "Settings",       iconName: "settings" },
+  { view: "boards",        label: "Boards",        icon: <PixelCodingAppsWebsitesModule width={16} height={16} aria-hidden /> },
+  { view: "agent-roles",   label: "Agent roles",   icon: <PixelBusinessProductsNetworkUser width={16} height={16} aria-hidden /> },
+  { view: "prompts",       label: "Prompts",        icon: <PixelInterfaceEssentialMessage width={16} height={16} aria-hidden /> },
+  { view: "prompt-groups", label: "Prompt groups",  icon: <PixelInterfaceEssentialList width={16} height={16} aria-hidden /> },
+  { view: "skills",        label: "Skills",         icon: <PixelDesignMagicWand width={16} height={16} aria-hidden /> },
+  { view: "mcp-servers",   label: "MCP servers",    icon: <PixelCodingAppsWebsitesDatabase width={16} height={16} aria-hidden /> },
+  { view: "settings",      label: "Settings",       icon: <PixelInterfaceEssentialSettingCog width={16} height={16} aria-hidden /> },
 ];
 
 /** Maximum number of boards shown in RECENT BOARDS section. */
@@ -207,7 +221,7 @@ function SpaceRow({
           onClick={handleNameClick}
           aria-label={`${space.name}${isActiveSpace ? " (активное пространство)" : ""}`}
         >
-          <Icon name="catique" size={14} aria-hidden={true} />
+          <PixelPetAnimalsCat width={14} height={14} aria-hidden={true} />
           <span className={styles.spaceNameText}>{space.name}</span>
         </button>
 
@@ -238,7 +252,7 @@ function SpaceRow({
                 >
                   {/* Active strip for board row */}
                   {isActive && <span className={styles.boardActiveStrip} aria-hidden="true" />}
-                  <Icon name="engineering" size={14} aria-hidden={true} />
+                  <PixelCodingAppsWebsitesModule width={14} height={14} aria-hidden={true} />
                   <span className={styles.boardRowLabel}>{board.name}</span>
                 </button>
               </li>
@@ -423,7 +437,7 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
                 onClick={() => setLocation(boardPath(board.id))}
                 aria-current={isActive ? "page" : undefined}
               >
-                <Icon name="engineering" size={16} aria-hidden={true} />
+                <PixelCodingAppsWebsitesModule width={16} height={16} aria-hidden={true} />
                 <span className={styles.navLabel}>{board.name}</span>
               </NavRow>
             </li>
@@ -480,9 +494,8 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
           WORKSPACE
         </div>
         <ul className={styles.navList} role="list">
-          {WORKSPACE_ITEMS.map(({ view, label, iconName }) => {
+          {WORKSPACE_ITEMS.map(({ view, label, icon }) => {
             const isActive = view === activeView;
-            const isBoards = view === "boards";
             return (
               <li key={view}>
                 <NavRow
@@ -490,12 +503,7 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
                   onClick={() => onSelectView(view)}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  <Icon
-                    name={iconName}
-                    size={16}
-                    active={isActive && isBoards}
-                    aria-hidden={true}
-                  />
+                  {icon}
                   <span className={styles.navLabel}>{label}</span>
                 </NavRow>
               </li>
