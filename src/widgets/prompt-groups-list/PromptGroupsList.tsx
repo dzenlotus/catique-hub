@@ -2,7 +2,7 @@ import { useState, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 
 import { PromptGroupCard, usePromptGroups } from "@entities/prompt-group";
-import { Button } from "@shared/ui";
+import { Button, Icon } from "@shared/ui";
 import { PromptGroupEditor } from "@widgets/prompt-group-editor";
 import { PromptGroupCreateDialog } from "@widgets/prompt-group-create-dialog";
 
@@ -35,20 +35,35 @@ export function PromptGroupsList({
       aria-labelledby="prompt-groups-list-heading"
     >
       <header className={styles.header}>
-        <h2 id="prompt-groups-list-heading" className={styles.heading}>
-          Группы промптов
-        </h2>
-        <Button
-          variant="primary"
-          size="md"
-          onPress={() => setIsCreateOpen(true)}
-          data-testid="prompt-groups-list-create-button"
-        >
-          <span className={styles.btnLabel}>
-            <Plus size={14} aria-hidden="true" />
-            Создать группу
-          </span>
-        </Button>
+        <div className={styles.headingGroup}>
+          <Icon
+            name="prompt-groups"
+            size={20}
+            className={styles.headingIcon}
+            aria-hidden="true"
+          />
+          <div className={styles.headingText}>
+            <h2 id="prompt-groups-list-heading" className={styles.heading}>
+              Prompt groups
+            </h2>
+            <p className={styles.description}>
+              Bundles of prompts attached as a unit.
+            </p>
+          </div>
+        </div>
+        <div className={styles.headerActions}>
+          <Button
+            variant="primary"
+            size="md"
+            onPress={() => setIsCreateOpen(true)}
+            data-testid="prompt-groups-list-create-button"
+          >
+            <span className={styles.btnLabel}>
+              <Plus size={14} aria-hidden="true" />
+              + Create group
+            </span>
+          </Button>
+        </div>
       </header>
 
       {groupsQuery.status === "pending" ? (

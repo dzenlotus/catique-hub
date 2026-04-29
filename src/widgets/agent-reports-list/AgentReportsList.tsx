@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import { BarChart3 } from "lucide-react";
 
 import {
   AgentReportCard,
@@ -67,9 +68,22 @@ export function AgentReportsList({
       aria-labelledby="agent-reports-list-heading"
     >
       <header className={styles.header}>
-        <h2 id="agent-reports-list-heading" className={styles.heading}>
-          Agent Reports
-        </h2>
+        <div className={styles.headingGroup}>
+          <BarChart3
+            size={20}
+            className={styles.headingIcon}
+            aria-hidden="true"
+            style={{ color: "var(--color-text-default)" }}
+          />
+          <div className={styles.headingText}>
+            <h2 id="agent-reports-list-heading" className={styles.heading}>
+              Reports
+            </h2>
+            <p className={styles.description}>
+              Agent run reports filed against tasks.
+            </p>
+          </div>
+        </div>
       </header>
 
       {query.status === "pending" ? (

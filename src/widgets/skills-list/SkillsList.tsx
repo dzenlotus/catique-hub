@@ -2,7 +2,7 @@ import { useState, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 
 import { SkillCard, useSkills } from "@entities/skill";
-import { Button } from "@shared/ui";
+import { Button, Icon } from "@shared/ui";
 import { SkillEditor } from "@widgets/skill-editor";
 import { SkillCreateDialog } from "@widgets/skill-create-dialog";
 
@@ -30,20 +30,35 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
   return (
     <section className={styles.root} aria-labelledby="skills-list-heading">
       <header className={styles.header}>
-        <h2 id="skills-list-heading" className={styles.heading}>
-          Навыки
-        </h2>
-        <Button
-          variant="primary"
-          size="md"
-          onPress={() => setIsCreateOpen(true)}
-          data-testid="skills-list-create-button"
-        >
-          <span className={styles.btnLabel}>
-            <Plus size={14} aria-hidden="true" />
-            Создать навык
-          </span>
-        </Button>
+        <div className={styles.headingGroup}>
+          <Icon
+            name="skills"
+            size={20}
+            className={styles.headingIcon}
+            aria-hidden="true"
+          />
+          <div className={styles.headingText}>
+            <h2 id="skills-list-heading" className={styles.heading}>
+              Skills
+            </h2>
+            <p className={styles.description}>
+              Capabilities you grant to agents.
+            </p>
+          </div>
+        </div>
+        <div className={styles.headerActions}>
+          <Button
+            variant="primary"
+            size="md"
+            onPress={() => setIsCreateOpen(true)}
+            data-testid="skills-list-create-button"
+          >
+            <span className={styles.btnLabel}>
+              <Plus size={14} aria-hidden="true" />
+              + Create skill
+            </span>
+          </Button>
+        </div>
       </header>
 
       {skillsQuery.status === "pending" ? (

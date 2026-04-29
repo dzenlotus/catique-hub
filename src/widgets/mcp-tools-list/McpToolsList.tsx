@@ -2,7 +2,7 @@ import { useState, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 
 import { McpToolCard, useMcpTools } from "@entities/mcp-tool";
-import { Button } from "@shared/ui";
+import { Button, Icon } from "@shared/ui";
 import { McpToolEditor } from "@widgets/mcp-tool-editor";
 import { McpToolCreateDialog } from "@widgets/mcp-tool-create-dialog";
 
@@ -30,20 +30,35 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
   return (
     <section className={styles.root} aria-labelledby="mcp-tools-list-heading">
       <header className={styles.header}>
-        <h2 id="mcp-tools-list-heading" className={styles.heading}>
-          MCP-инструменты
-        </h2>
-        <Button
-          variant="primary"
-          size="md"
-          onPress={() => setIsCreateOpen(true)}
-          data-testid="mcp-tools-list-create-button"
-        >
-          <span className={styles.btnLabel}>
-            <Plus size={14} aria-hidden="true" />
-            Создать MCP-инструмент
-          </span>
-        </Button>
+        <div className={styles.headingGroup}>
+          <Icon
+            name="mcp-servers"
+            size={20}
+            className={styles.headingIcon}
+            aria-hidden="true"
+          />
+          <div className={styles.headingText}>
+            <h2 id="mcp-tools-list-heading" className={styles.heading}>
+              MCP servers
+            </h2>
+            <p className={styles.description}>
+              Model Context Protocol endpoints connected to the hub.
+            </p>
+          </div>
+        </div>
+        <div className={styles.headerActions}>
+          <Button
+            variant="primary"
+            size="md"
+            onPress={() => setIsCreateOpen(true)}
+            data-testid="mcp-tools-list-create-button"
+          >
+            <span className={styles.btnLabel}>
+              <Plus size={14} aria-hidden="true" />
+              + Create server
+            </span>
+          </Button>
+        </div>
       </header>
 
       {toolsQuery.status === "pending" ? (

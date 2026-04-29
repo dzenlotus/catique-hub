@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { useState, useEffect } from "react";
-import { Button, Input } from "@shared/ui";
+import { Button, Input, Icon } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { SettingsTokensView } from "@widgets/settings-tokens-view";
 import { ConnectedAgentsSection } from "@widgets/connected-agents-section";
@@ -143,7 +143,22 @@ export function SettingsView(): ReactElement {
 
   return (
     <div className={styles.root}>
-      <h2 className={styles.pageTitle}>Настройки</h2>
+      <header className={styles.pageHeader} aria-labelledby="settings-page-heading">
+        <Icon
+          name="settings"
+          size={20}
+          className={styles.pageHeaderIcon}
+          aria-hidden="true"
+        />
+        <div className={styles.pageHeaderText}>
+          <h2 id="settings-page-heading" className={styles.pageTitle}>
+            Settings
+          </h2>
+          <p className={styles.pageDescription}>
+            Application preferences.
+          </p>
+        </div>
+      </header>
 
       {/* ── Appearance ─────────────────────────────────────────────── */}
       <section className={styles.card} aria-labelledby="settings-appearance">

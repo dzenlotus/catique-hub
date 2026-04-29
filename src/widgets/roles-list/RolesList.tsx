@@ -3,7 +3,7 @@ import { Plus, ChevronRight, ChevronLeft } from "lucide-react";
 
 import { RoleCard, useRoles } from "@entities/role";
 import { PromptCard, usePrompts } from "@entities/prompt";
-import { Button } from "@shared/ui";
+import { Button, Icon } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { RoleEditor } from "@widgets/role-editor";
 import { RoleCreateDialog } from "@widgets/role-create-dialog";
@@ -47,9 +47,22 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
   return (
     <section className={styles.root} aria-labelledby="roles-list-heading">
       <header className={styles.header}>
-        <h2 id="roles-list-heading" className={styles.heading}>
-          Роли
-        </h2>
+        <div className={styles.headingGroup}>
+          <Icon
+            name="agent-roles"
+            size={20}
+            className={styles.headingIcon}
+            aria-hidden="true"
+          />
+          <div className={styles.headingText}>
+            <h2 id="roles-list-heading" className={styles.heading}>
+              Agent roles
+            </h2>
+            <p className={styles.description}>
+              Personas your AI agents adopt for a task.
+            </p>
+          </div>
+        </div>
         <div className={styles.headerActions}>
           <Button
             variant="ghost"
@@ -76,7 +89,7 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
           >
             <span className={styles.btnLabel}>
               <Plus size={14} aria-hidden="true" />
-              Создать роль
+              + Create role
             </span>
           </Button>
         </div>

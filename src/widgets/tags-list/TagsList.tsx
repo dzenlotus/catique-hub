@@ -2,7 +2,7 @@ import { useState, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 
 import { TagChip, useTags } from "@entities/tag";
-import { Button } from "@shared/ui";
+import { Button, Icon } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { TagEditor } from "@widgets/tag-editor";
 import { TagCreateDialog } from "@widgets/tag-create-dialog";
@@ -46,20 +46,35 @@ export function TagsList({
 
   const header = (
     <header className={styles.header}>
-      <h2 id="tags-list-heading" className={styles.heading}>
-        Теги
-      </h2>
-      <Button
-        variant="primary"
-        size="md"
-        onPress={() => setIsCreateOpen(true)}
-        data-testid="tags-list-create-button"
-      >
-        <span className={styles.btnLabel}>
-          <Plus size={14} aria-hidden="true" />
-          Создать тег
-        </span>
-      </Button>
+      <div className={styles.headingGroup}>
+        <Icon
+          name="prompts"
+          size={20}
+          className={styles.headingIcon}
+          aria-hidden="true"
+        />
+        <div className={styles.headingText}>
+          <h2 id="tags-list-heading" className={styles.heading}>
+            Tags
+          </h2>
+          <p className={styles.description}>
+            Labels for organising prompts and tasks.
+          </p>
+        </div>
+      </div>
+      <div className={styles.headerActions}>
+        <Button
+          variant="primary"
+          size="md"
+          onPress={() => setIsCreateOpen(true)}
+          data-testid="tags-list-create-button"
+        >
+          <span className={styles.btnLabel}>
+            <Plus size={14} aria-hidden="true" />
+            + Create tag
+          </span>
+        </Button>
+      </div>
     </header>
   );
 

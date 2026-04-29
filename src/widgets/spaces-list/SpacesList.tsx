@@ -12,7 +12,8 @@ import { useState, type ReactElement } from "react";
 
 import { SpaceCard, useSpaces } from "@entities/space";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
-import { Button } from "@shared/ui";
+import { Button, Icon } from "@shared/ui";
+import { Plus } from "lucide-react";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 
 import styles from "./SpacesList.module.css";
@@ -38,17 +39,35 @@ export function SpacesList({ onSelectView }: SpacesListProps): ReactElement {
       aria-labelledby="spaces-list-heading"
     >
       <header className={styles.header}>
-        <h2 id="spaces-list-heading" className={styles.heading}>
-          Пространства
-        </h2>
-        <Button
-          variant="primary"
-          size="sm"
-          onPress={() => setCreateDialogOpen(true)}
-          data-testid="spaces-list-create-button"
-        >
-          + Новое пространство
-        </Button>
+        <div className={styles.headingGroup}>
+          <Icon
+            name="catique"
+            size={20}
+            className={styles.headingIcon}
+            aria-hidden="true"
+          />
+          <div className={styles.headingText}>
+            <h2 id="spaces-list-heading" className={styles.heading}>
+              Spaces
+            </h2>
+            <p className={styles.description}>
+              Top-level workspaces. Each space has its own prefix and boards.
+            </p>
+          </div>
+        </div>
+        <div className={styles.headerActions}>
+          <Button
+            variant="primary"
+            size="md"
+            onPress={() => setCreateDialogOpen(true)}
+            data-testid="spaces-list-create-button"
+          >
+            <span className={styles.btnLabel}>
+              <Plus size={14} aria-hidden="true" />
+              + Create space
+            </span>
+          </Button>
+        </div>
       </header>
 
       {spacesQuery.status === "pending" ? (
