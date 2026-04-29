@@ -137,6 +137,7 @@ function CardBody({
           <span className={styles.topRowSpacer} />
           <Check
             size={16}
+            strokeWidth={2.5}
             aria-label="Выполнено"
             className={styles.doneCheck}
             data-testid="task-card-done-check"

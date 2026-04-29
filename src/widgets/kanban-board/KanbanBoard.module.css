@@ -36,17 +36,24 @@
   min-width: 0;
 }
 
-/* Row containing the board icon + name on the same baseline */
+/*
+ * Row containing the board icon + name + description on the same baseline.
+ * Per mockup: "Engineering" name and description are on the same line.
+ */
 .boardHeadingRow {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--space-8);
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* Engineering sprite icon in the board header */
 .boardIcon {
   flex: 0 0 auto;
   opacity: 0.75;
+  /* Align icon to cap-height of the heading */
+  align-self: center;
 }
 
 .boardHeading {
@@ -58,6 +65,7 @@
   color: var(--color-text-default);
   line-height: var(--line-height-tight);
   letter-spacing: -0.02em;
+  flex-shrink: 0;
 }
 
 .boardDescription {
@@ -68,6 +76,9 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Sits to the right of name on the same line — inline baseline alignment */
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .boardHeaderActions {
@@ -77,20 +88,20 @@
   flex-shrink: 0;
 }
 
-/* "Group by: Status" static dropdown button */
+/* "Group by: Status" pill button — navy text, subtle border, chevron per mockup */
 .groupByButton {
   display: inline-flex;
   align-items: center;
   gap: var(--space-4);
   height: 28px;
-  padding: 0 var(--space-8);
+  padding: 0 10px;
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   background: transparent;
   cursor: pointer;
   font-family: var(--font-sans);
   font-size: var(--font-size-body-sm);
-  color: var(--color-text-muted);
+  color: var(--color-text-default);
   transition: background-color var(--duration-instant) var(--easing-default),
     border-color var(--duration-instant) var(--easing-default);
 }
@@ -106,12 +117,13 @@
 }
 
 .groupByLabel {
-  color: var(--color-text-subtle);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
 }
 
 .groupByValue {
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
 }
 
 /* Kebab / more options button */
@@ -233,8 +245,8 @@
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  /* DS v1 layout.md: 24 px gap between columns */
-  gap: var(--space-24);
+  /* Mockup: ~28-32 px gap between columns */
+  gap: 28px;
   overflow-x: auto;
   overflow-y: hidden;
   /* DS v1 layout.md: 24 px horizontal + vertical top padding */

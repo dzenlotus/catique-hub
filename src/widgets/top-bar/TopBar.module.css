@@ -187,6 +187,8 @@
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
+  /* Red-tinted subtle shadow per mockup */
+  box-shadow: 0 1px 2px rgba(232, 65, 58, 0.25);
   transition: background-color var(--duration-instant) var(--easing-default);
 }
 
@@ -207,6 +209,15 @@
   .ctaButton {
     transition: none;
   }
+}
+
+/* ── Actions row — right-side icon buttons + avatar ─────────────────────── */
+
+.actionsRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-shrink: 0;
 }
 
 /* ── Ghost icon buttons ─────────────────────────────────────────────────── */
@@ -257,7 +268,8 @@
   width: 28px;
   height: 28px;
   flex-shrink: 0;
-  border-radius: var(--radius-full);
+  /* Squircle per mockup: 30% border-radius instead of 50% */
+  border-radius: 30%;
   background-color: var(--color-cream-100, #f0ece4);
   border: 1px solid var(--color-border-default);
   /* Navy text — use navy-900 directly since no semantic token for it */

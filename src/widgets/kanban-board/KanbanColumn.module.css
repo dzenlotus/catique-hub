@@ -8,10 +8,10 @@
 .column {
   display: flex;
   flex-direction: column;
-  /* DS v1 layout.md: min 280 px, max 320 px; brief says ~340 px max */
-  flex: 0 0 300px;
+  /* Mockup: columns ~360 px wide */
+  flex: 0 0 320px;
   min-width: 280px;
-  max-width: 340px;
+  max-width: 360px;
   background-color: var(--color-surface-column);
   border-radius: var(--radius-lg);
   height: 100%;

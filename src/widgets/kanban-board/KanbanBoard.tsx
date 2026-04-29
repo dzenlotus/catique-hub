@@ -393,7 +393,7 @@ export function KanbanBoard({
   return (
     <section className={styles.root} data-testid="kanban-board">
       <header className={styles.boardHeader}>
-        {/* Left: engineering icon + board name + description */}
+        {/* Left: engineering icon + board name + description (same line) */}
         <div className={styles.boardHeadingGroup}>
           <div className={styles.boardHeadingRow}>
             {/* Engineering icon — custom sprite icon per DS v1 mockup */}
@@ -404,12 +404,12 @@ export function KanbanBoard({
               className={styles.boardIcon}
             />
             <h2 className={styles.boardHeading}>{boardName}</h2>
+            {boardQuery.status === "success" && boardQuery.data.description ? (
+              <p className={styles.boardDescription}>
+                {boardQuery.data.description}
+              </p>
+            ) : null}
           </div>
-          {boardQuery.status === "success" && boardQuery.data.description ? (
-            <p className={styles.boardDescription}>
-              {boardQuery.data.description}
-            </p>
-          ) : null}
         </div>
 
         {/* Right: Group by dropdown + kebab + prompts toggle */}

@@ -18,6 +18,7 @@ import { GlobalSearch, useGlobalSearchKeybind } from "@widgets/global-search";
 import type { SearchResult } from "@bindings/SearchResult";
 import { taskPath, boardPath } from "@app/routes";
 import { Heart, AlertCircle } from "lucide-react";
+import mascotUrl from "./assets/mascot.png";
 import styles from "./Sidebar.module.css";
 
 // ---------------------------------------------------------------------------
@@ -524,10 +525,11 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
          * Tagline from the mockup spec (French/English bilingual).
          */}
         <div className={styles.mascotArea} aria-hidden="true">
-          <div
-            className={styles.mascotPlaceholder}
-            role="img"
-            aria-label="Кот-маскот (заглушка)"
+          <img
+            src={mascotUrl}
+            alt="Catique mascot — a cat in beret with espresso"
+            className={styles.mascot}
+            aria-hidden="true"
           />
           <p className={styles.mascotTagline}>
             Bonjour, développeur.{" "}

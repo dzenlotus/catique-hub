@@ -27,7 +27,8 @@
 
 .modal {
   width: 100%;
-  max-width: 560px;
+  /* Mockup: modal is ~640 px wide per image5.png */
+  max-width: 640px;
   /* DS v1: modal max height 80 vh — body scrolls, header/footer fixed */
   max-height: 80vh;
   display: flex;

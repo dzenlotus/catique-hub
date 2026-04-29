@@ -159,42 +159,45 @@ export function TopBar(): ReactElement {
         {/* ── Spacer ────────────────────────────────────────────────────── */}
         <div className={styles.spacer} aria-hidden="true" />
 
-        {/* ── «+ New task» CTA ──────────────────────────────────────────── */}
-        <button
-          type="button"
-          className={styles.ctaButton}
-          onClick={() => setIsCreateOpen(true)}
-          data-testid="top-bar-new-task"
-          aria-label="Новая задача"
-        >
-          <Plus size={14} aria-hidden="true" />
-          <span>New task</span>
-        </button>
+        {/* ── Right actions: CTA + icon buttons + avatar ───────────────── */}
+        <div className={styles.actionsRow}>
+          {/* ── «+ New task» CTA ──────────────────────────────────────────── */}
+          <button
+            type="button"
+            className={styles.ctaButton}
+            onClick={() => setIsCreateOpen(true)}
+            data-testid="top-bar-new-task"
+            aria-label="Новая задача"
+          >
+            <Plus size={14} aria-hidden="true" />
+            <span>New task</span>
+          </button>
 
-        {/* ── Settings (sliders) icon button ──────────────────────────── */}
-        <button
-          type="button"
-          className={styles.iconButton}
-          aria-label="Настройки"
-          data-testid="top-bar-settings"
-          onClick={() => setLocation("/settings")}
-        >
-          <SlidersHorizontal size={16} aria-hidden="true" />
-        </button>
+          {/* ── Settings (sliders) icon button ──────────────────────────── */}
+          <button
+            type="button"
+            className={styles.iconButton}
+            aria-label="Настройки"
+            data-testid="top-bar-settings"
+            onClick={() => setLocation("/settings")}
+          >
+            <SlidersHorizontal size={16} aria-hidden="true" />
+          </button>
 
-        {/* ── Activity / heartbeat icon button ─────────────────────────── */}
-        <button
-          type="button"
-          className={styles.iconButton}
-          aria-label="Уведомления"
-          data-testid="top-bar-bell"
-          // TODO v2: открыть панель уведомлений
-        >
-          <Activity size={16} aria-hidden="true" />
-        </button>
+          {/* ── Activity / heartbeat icon button ─────────────────────────── */}
+          <button
+            type="button"
+            className={styles.iconButton}
+            aria-label="Уведомления"
+            data-testid="top-bar-bell"
+            // TODO v2: открыть панель уведомлений
+          >
+            <Activity size={16} aria-hidden="true" />
+          </button>
 
-        {/* ── Avatar ───────────────────────────────────────────────────── */}
-        <Avatar />
+          {/* ── Avatar ───────────────────────────────────────────────────── */}
+          <Avatar />
+        </div>
       </header>
 
       {/* GlobalSearch palette — mounted here so it's not sidebar-dependent */}

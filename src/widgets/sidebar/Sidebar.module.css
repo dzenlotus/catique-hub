@@ -556,13 +556,14 @@
   gap: var(--space-8);
 }
 
-.mascotPlaceholder {
+.mascot {
   flex-shrink: 0;
-  width: 48px;
-  height: 48px;
+  width: 80px;
+  height: 80px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
   border-radius: var(--radius-sm);
-  border: 1.5px dashed var(--color-border-strong);
-  background-color: var(--color-overlay-hover);
+  object-fit: contain;
 }
 
 .mascotTagline {
