@@ -32,15 +32,25 @@ import styles from "./TaskCreateDialog.module.css";
 export interface TaskCreateDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Pre-select this board when the dialog opens. */
+  defaultBoardId?: string | null;
+  /** Pre-select this column when the dialog opens. Requires `defaultBoardId`. */
+  defaultColumnId?: string | null;
 }
 
 /**
  * `TaskCreateDialog` — outer shell: controls open state and mounts the
  * content lazily (avoids hooks running while the dialog is closed).
+ *
+ * `defaultBoardId` / `defaultColumnId` let callers (e.g. the kanban
+ * column "+ Add task" button) prefill the form with the user's
+ * implicit context, so they only have to fill in the title.
  */
 export function TaskCreateDialog({
   isOpen,
   onClose,
+  defaultBoardId,
+  defaultColumnId,
 }: TaskCreateDialogProps): ReactElement {
   return (
     <Dialog
@@ -54,7 +64,11 @@ export function TaskCreateDialog({
     >
       {() =>
         isOpen ? (
-          <TaskCreateDialogContent onClose={onClose} />
+          <TaskCreateDialogContent
+            onClose={onClose}
+            defaultBoardId={defaultBoardId ?? null}
+            defaultColumnId={defaultColumnId ?? null}
+          />
         ) : null
       }
     </Dialog>
@@ -65,10 +79,14 @@ export function TaskCreateDialog({
 
 interface TaskCreateDialogContentProps {
   onClose: () => void;
+  defaultBoardId: string | null;
+  defaultColumnId: string | null;
 }
 
 function TaskCreateDialogContent({
   onClose,
+  defaultBoardId,
+  defaultColumnId,
 }: TaskCreateDialogContentProps): ReactElement {
   const { activeSpaceId } = useActiveSpace();
   const { pushToast } = useToast();
@@ -78,8 +96,8 @@ function TaskCreateDialogContent({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [descriptionMode, setDescriptionMode] = useState<"edit" | "preview">("edit");
-  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
-  const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(defaultBoardId);
+  const [selectedColumnId, setSelectedColumnId] = useState<string | null>(defaultColumnId);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 

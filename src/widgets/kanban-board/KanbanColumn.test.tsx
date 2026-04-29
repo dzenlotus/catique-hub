@@ -87,7 +87,9 @@ describe("KanbanColumn", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens the add-task form on click and submits via onAddTask", async () => {
+  it("invokes onAddTask with the column id when '+ Add task' is clicked", async () => {
+    // Round 17: clicking "+ Add task" no longer reveals an inline form;
+    // it forwards the column id to the parent which opens TaskCreateDialog.
     const onAddTask = vi.fn();
     const user = userEvent.setup();
     renderInDnd(
@@ -98,30 +100,17 @@ describe("KanbanColumn", () => {
       />,
     );
     await user.click(screen.getByTestId("kanban-column-add-task-col-add"));
-    const input = await screen.findByLabelText(/task title/i);
-    await user.type(input, "Wire up DnD");
-    await user.click(screen.getByRole("button", { name: /^add$/i }));
-
     expect(onAddTask).toHaveBeenCalledTimes(1);
-    expect(onAddTask).toHaveBeenCalledWith("col-add", "Wire up DnD");
+    expect(onAddTask).toHaveBeenCalledWith("col-add");
   });
 
-  it("does not call onAddTask when the title is blank/whitespace", async () => {
-    const onAddTask = vi.fn();
-    const user = userEvent.setup();
+  it("hides the '+ Add task' affordance when no onAddTask handler is provided", () => {
     renderInDnd(
-      <KanbanColumn
-        column={makeColumn({ id: "col-blank" })}
-        tasks={[]}
-        onAddTask={onAddTask}
-      />,
+      <KanbanColumn column={makeColumn({ id: "col-noadd" })} tasks={[]} />,
     );
-    await user.click(screen.getByTestId("kanban-column-add-task-col-blank"));
-    const input = await screen.findByLabelText(/task title/i);
-    await user.type(input, "   ");
-    await user.click(screen.getByRole("button", { name: /^add$/i }));
-
-    expect(onAddTask).not.toHaveBeenCalled();
+    expect(
+      screen.queryByTestId("kanban-column-add-task-col-noadd"),
+    ).toBeNull();
   });
 
   it("hides the add-task footer when rendered as drag overlay", () => {

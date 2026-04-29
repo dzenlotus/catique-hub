@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -8,7 +8,7 @@ import { Settings } from "lucide-react";
 import type { Column } from "@entities/column";
 import { TaskCard } from "@entities/task";
 import type { Task } from "@entities/task";
-import { Button, Input } from "@shared/ui";
+import { Button } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { ColumnEditor } from "@widgets/column-editor";
 import { PromptDropZoneColumnHeader } from "@features/prompt-attachment";
@@ -19,10 +19,12 @@ export interface KanbanColumnProps {
   column: Column;
   tasks: Task[];
   /**
-   * Called when the user submits the add-task form. Parent computes
-   * the position via `dragLogic.computeNewPosition`.
+   * Called when the user clicks "+ Add task". Receives the column id —
+   * the parent kanban board opens a TaskCreateDialog prefilled with
+   * board + column context (per Round 17 UX: tasks are always created
+   * via the modal with full details, not inline).
    */
-  onAddTask?: (columnId: string, title: string) => void;
+  onAddTask?: (columnId: string) => void;
   /** Forwarded to ColumnHeader. */
   onRenameColumn?: (id: string, newName: string) => void;
   /** Forwarded to ColumnHeader. */
@@ -75,8 +77,6 @@ export function KanbanColumn({
   onToggleTaskSelection,
 }: KanbanColumnProps): ReactElement {
   const [settingsColumnId, setSettingsColumnId] = useState<string | null>(null);
-  // Ref-based signal: header "+" click triggers the ColumnFooter's add-task form.
-  const [headerAddTaskSignal, setHeaderAddTaskSignal] = useState(0);
 
   const sortable = useSortable({
     id: column.id,
@@ -147,7 +147,7 @@ export function KanbanColumn({
           {...(onRenameColumn ? { onRename: onRenameColumn } : {})}
           {...(onDeleteColumn ? { onDelete: onDeleteColumn } : {})}
           {...(!dragOverlay && onAddTask
-            ? { onAddTask: () => setHeaderAddTaskSignal((n) => n + 1) }
+            ? { onAddTask: () => onAddTask(column.id) }
             : {})}
         />
         {!dragOverlay ? (
@@ -201,12 +201,18 @@ export function KanbanColumn({
         </SortableContext>
       </div>
 
-      {!dragOverlay ? (
-        <ColumnFooter
-          columnId={column.id}
-          openSignal={headerAddTaskSignal}
-          {...(onAddTask ? { onAddTask } : {})}
-        />
+      {!dragOverlay && onAddTask ? (
+        <div className={styles.footer}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={styles.addButton}
+            onPress={() => onAddTask(column.id)}
+            data-testid={`kanban-column-add-task-${column.id}`}
+          >
+            + Добавить задачу
+          </Button>
+        </div>
       ) : null}
     </section>
   );
@@ -278,83 +284,5 @@ function SortableTaskItem({
   );
 }
 
-interface ColumnFooterProps {
-  columnId: string;
-  onAddTask?: (columnId: string, title: string) => void;
-  /** Incremented by the column header "+" button to open the add form. */
-  openSignal?: number;
-}
-
-function ColumnFooter({
-  columnId,
-  onAddTask,
-  openSignal = 0,
-}: ColumnFooterProps): ReactElement {
-  const [isAdding, setIsAdding] = useState(false);
-  const [title, setTitle] = useState("");
-
-  // When the header "+" button fires, open the inline add form.
-  useEffect(() => {
-    if (openSignal > 0) setIsAdding(true);
-  }, [openSignal]);
-
-  const submit = (): void => {
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    onAddTask?.(columnId, trimmed);
-    setTitle("");
-    setIsAdding(false);
-  };
-
-  if (!isAdding) {
-    return (
-      <div className={styles.footer}>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={styles.addButton}
-          onPress={() => setIsAdding(true)}
-          data-testid={`kanban-column-add-task-${columnId}`}
-        >
-          + Добавить задачу
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.footer}>
-      <form
-        className={styles.addForm}
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-      >
-        <Input
-          label="Task title"
-          value={title}
-          onChange={setTitle}
-          placeholder="What needs doing?"
-          autoFocus
-        />
-        <div className={styles.addFormActions}>
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            onPress={() => {
-              setTitle("");
-              setIsAdding(false);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button variant="primary" size="sm" type="submit">
-            Add
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
-}
+// `ColumnFooter` (inline add-task form) was removed in Round 17 in
+// favour of the modal `TaskCreateDialog` opened from KanbanBoard.

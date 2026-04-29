@@ -3,10 +3,12 @@ import type { ReactElement } from "react";
 import { useLocation } from "wouter";
 import {
   DragOverlay,
+  defaultDropAnimationSideEffects,
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type DropAnimation,
 } from "@dnd-kit/core";
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { PixelCodingAppsWebsitesModule } from "@shared/ui/Icon";
@@ -22,11 +24,12 @@ import {
 import { useBoard } from "@entities/board";
 import {
   useTasksByBoard,
-  useCreateTaskMutation,
   useMoveTaskMutation,
   useDeleteTaskMutation,
+  tasksKeys,
   type Task,
 } from "@entities/task";
+import { useQueryClient } from "@tanstack/react-query";
 import { TaskCard } from "@entities/task";
 import { PromptCard, usePrompts } from "@entities/prompt";
 import { useRoles, type Role } from "@entities/role";
@@ -38,6 +41,7 @@ import {
   PromptAttachmentBoundary,
   DraggablePromptRow,
 } from "@features/prompt-attachment";
+import { TaskCreateDialog } from "@widgets/task-create-dialog";
 
 import { KanbanColumn } from "./KanbanColumn";
 import {
@@ -62,6 +66,23 @@ import styles from "./KanbanBoard.module.css";
 
 /** The three available grouping modes for the board. */
 export type GroupingMode = "status" | "role" | "none";
+
+/**
+ * Drop animation config — the overlay tweens to the dragged item's
+ * resting rect over 200 ms instead of vanishing instantly. Combined
+ * with the optimistic onDragOver cache patch, the resting rect is
+ * already at the destination column, so the overlay slides smoothly
+ * into the target slot (no snap-back to source).
+ */
+const dropAnimationConfig: DropAnimation = {
+  duration: 200,
+  easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)",
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: {
+      active: { opacity: "0.4" },
+    },
+  }),
+};
 
 /** A synthetic column used in "Role" and "None" grouping modes. */
 interface SyntheticColumn {
@@ -136,9 +157,9 @@ export function KanbanBoard({
   const deleteColumn = useDeleteColumnMutation();
   const reorderColumns = useReorderColumnsMutation();
 
-  const createTask = useCreateTaskMutation();
   const moveTask = useMoveTaskMutation();
   const deleteTask = useDeleteTaskMutation();
+  const queryClient = useQueryClient();
 
   const { pushToast } = useToast();
 
@@ -174,6 +195,10 @@ export function KanbanBoard({
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  // Modal task-creation: column id whose "+ Add task" was clicked.
+  // null → dialog closed; string → open with that column prefilled.
+  const [createTaskFromColumnId, setCreateTaskFromColumnId] =
+    useState<string | null>(null);
 
   // Task-select handler: navigates to the task route (opens TaskDialog via
   // App-level route) and also forwards to the caller's onTaskSelect prop.
@@ -433,6 +458,13 @@ export function KanbanBoard({
 
   // ── Drag handlers ──────────────────────────────────────────────────
 
+  // Snapshot of the tasks-by-board cache taken on drag-start. Used to
+  // restore the cache when a drag is cancelled (Esc or drop-on-nowhere)
+  // because we mutate the cache during onDragOver to give continuous
+  // visual reflow. Refs (not state) so changes don't trigger renders.
+  const dragSnapshotRef = useRef<Task[] | null>(null);
+  const lastOptimisticOverRef = useRef<string | null>(null);
+
   const onDragStart = (event: DragStartEvent): void => {
     const type = (event.active.data.current as { type?: string })?.type;
     if (type === "column") {
@@ -443,20 +475,105 @@ export function KanbanBoard({
     if (type === "task") {
       const t = tasks.find((x) => x.id === String(event.active.id));
       if (t) setActiveTask(t);
+      // Snapshot the by-board cache so onDragCancel can restore it.
+      const key = tasksKeys.byBoard(boardId);
+      const current = queryClient.getQueryData<Task[]>(key);
+      dragSnapshotRef.current = current ? [...current] : null;
+      lastOptimisticOverRef.current = null;
     }
   };
 
-  // Mid-drag column inference: when the user hovers a different column
-  // from the source, we pre-emptively update `activeTask.columnId` in
-  // local state so the drop-end resolution computes positions against
-  // the correct target. We don't write to the cache here — that
-  // happens once on drop.
-  const onDragOver = (_event: DragOverEvent): void => {
-    // Intentionally no-op for E3.1 — the visual feedback comes from
-    // dnd-kit's transform on the active item + the column's
-    // `columnDropTarget` highlight via `useDroppable`. Cross-column
-    // mid-drag insertion preview is a polish task deferred to the
-    // post-launch UX pass (see kanban-structure.md §future).
+  // Optimistic mid-drag reflow.
+  //
+  // When the dragged task hovers a different column (or a different
+  // task within the source column), we patch the by-board cache so the
+  // ghost card visually flows into its destination slot. The mutation
+  // on drop produces the same optimistic patch via `useMoveTaskMutation`
+  // — that's idempotent here because the cache already matches.
+  //
+  // We bail out cheaply when the over-target hasn't changed since the
+  // last reflow, otherwise this fires on every pointer move.
+  const onDragOver = (event: DragOverEvent): void => {
+    const activeType = (event.active.data.current as { type?: string })?.type;
+    if (activeType !== "task") return;
+
+    const activeId = String(event.active.id);
+    const overId = event.over ? String(event.over.id) : null;
+    if (!overId) return;
+
+    // De-dup: only reflow when the over-target id actually changed.
+    if (lastOptimisticOverRef.current === overId) return;
+    lastOptimisticOverRef.current = overId;
+
+    const key = tasksKeys.byBoard(boardId);
+    const current = queryClient.getQueryData<Task[]>(key);
+    if (!current) return;
+    const activeTask = current.find((t) => t.id === activeId);
+    if (!activeTask) return;
+
+    // Resolve target column the same way onDragEnd does.
+    const overTask = current.find((t) => t.id === overId);
+    const overData = event.over?.data.current as
+      | { type?: string; columnId?: string }
+      | undefined;
+    const overColumnFromBody =
+      overData?.type === "column-body" ? overData.columnId : undefined;
+    const overColumnDirect = columns.find((c) => c.id === overId);
+    const targetColumnId =
+      overTask?.columnId ??
+      overColumnFromBody ??
+      overColumnDirect?.id ??
+      activeTask.columnId;
+
+    // Compute the optimistic position. Within the destination's
+    // siblings (excluding the dragged task), drop ON a task → before
+    // it; drop on column body → append.
+    const siblings = current
+      .filter((t) => t.columnId === targetColumnId && t.id !== activeId)
+      .sort((a, b) => a.position - b.position);
+
+    let newPosition: number;
+    if (overTask && overTask.id !== activeId) {
+      const idx = siblings.findIndex((s) => s.id === overTask.id);
+      if (idx === -1) {
+        newPosition = computeNewPosition(
+          siblings.map((s) => ({ id: s.id, position: s.position })),
+          siblings.length,
+        );
+      } else {
+        const placement = placementFromRects(
+          event.active.rect.current.translated ?? null,
+          event.over?.rect ?? null,
+        );
+        const insertAt = placement === "before" ? idx : idx + 1;
+        newPosition = computeNewPosition(
+          siblings.map((s) => ({ id: s.id, position: s.position })),
+          insertAt,
+        );
+      }
+    } else {
+      newPosition = computeNewPosition(
+        siblings.map((s) => ({ id: s.id, position: s.position })),
+        siblings.length,
+      );
+    }
+
+    // No-op early-out (cheap stable check).
+    if (
+      activeTask.columnId === targetColumnId &&
+      activeTask.position === newPosition
+    ) {
+      return;
+    }
+
+    queryClient.setQueryData<Task[]>(
+      key,
+      current.map((t) =>
+        t.id === activeId
+          ? { ...t, columnId: targetColumnId, position: newPosition }
+          : t,
+      ),
+    );
   };
 
   const onDragEnd = (event: DragEndEvent): void => {
@@ -465,6 +582,8 @@ export function KanbanBoard({
     setActiveTask(null);
     // Reset the over-id sticky cache so the next drag starts clean.
     lastOverIdRef.current = null;
+    lastOptimisticOverRef.current = null;
+    dragSnapshotRef.current = null;
 
     const { active, over } = event;
     if (!over) return;
@@ -543,6 +662,17 @@ export function KanbanBoard({
   const onDragCancel = (): void => {
     setActiveColumn(null);
     setActiveTask(null);
+    // Restore the by-board cache snapshot taken on dragStart so any
+    // optimistic onDragOver patches are undone.
+    if (dragSnapshotRef.current) {
+      queryClient.setQueryData<Task[]>(
+        tasksKeys.byBoard(boardId),
+        dragSnapshotRef.current,
+      );
+    }
+    dragSnapshotRef.current = null;
+    lastOptimisticOverRef.current = null;
+    lastOverIdRef.current = null;
   };
 
   // ── Render ─────────────────────────────────────────────────────────
@@ -633,14 +763,12 @@ export function KanbanBoard({
     );
   }
 
-  // Populated.
-  const handleAddTask = (columnId: string, title: string): void => {
-    const siblings = (tasksByColumn[columnId] ?? []).map((t) => ({
-      id: t.id,
-      position: t.position,
-    }));
-    const position = computeNewPosition(siblings, siblings.length);
-    createTask.mutate({ boardId, columnId, title, position });
+  // Populated. Round 17: clicking "+ Add task" on a column opens
+  // TaskCreateDialog prefilled with this column's context. The dialog
+  // owns the title/description/role inputs and the create-mutation
+  // call; KanbanBoard only tracks which column triggered it.
+  const handleAddTask = (columnId: string): void => {
+    setCreateTaskFromColumnId(columnId);
   };
 
   const handleSubmitNewColumn = (): void => {
@@ -739,7 +867,7 @@ export function KanbanBoard({
         </div>
       </div>
 
-      <DragOverlay>
+      <DragOverlay dropAnimation={dropAnimationConfig}>
         {activeColumn ? (
           <KanbanColumn
             column={activeColumn}
@@ -881,6 +1009,15 @@ export function KanbanBoard({
         onMoveTo={handleBulkMove}
         onDelete={handleBulkDelete}
         onClear={selection.clear}
+      />
+
+      {/* Modal task creation — opens when user clicks "+ Add task" on any
+          column. Prefilled with current board + the originating column. */}
+      <TaskCreateDialog
+        isOpen={createTaskFromColumnId !== null}
+        onClose={() => setCreateTaskFromColumnId(null)}
+        defaultBoardId={boardId}
+        defaultColumnId={createTaskFromColumnId}
       />
     </section>
   );

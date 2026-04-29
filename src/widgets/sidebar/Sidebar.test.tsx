@@ -120,9 +120,11 @@ describe("Sidebar — DS v1 wordmark and section labels", () => {
     invokeMock.mockImplementation(() => new Promise(() => {}));
   });
 
-  it("renders the wordmark 'Catique Hub'", () => {
+  it("renders the wordmark with 'Catique' and 'Hub' split by a heart", () => {
     setup();
-    expect(screen.getByText("Catique Hub")).toBeInTheDocument();
+    // Round 17: title is two spans separated by a pixel heart icon.
+    expect(screen.getByText("Catique")).toBeInTheDocument();
+    expect(screen.getByText("Hub")).toBeInTheDocument();
   });
 
   it("renders the SPACES section label", () => {
@@ -162,8 +164,13 @@ const STUB_BOARDS = [
   },
 ];
 
-describe("Sidebar — DS v1 RECENT BOARDS section", () => {
-  it("renders the RECENT BOARDS section label when boards are loaded", async () => {
+// RECENT BOARDS section was removed in Round 17 — boards are now
+// reachable only via the SPACES tree. No tests here.
+//
+// Sanity check: keep one assertion that boards appear in the SPACES
+// section so we don't accidentally regress the inline space tree.
+describe("Sidebar — boards inside SPACES tree", () => {
+  it("renders board names inside the expanded space tree", async () => {
     invokeMock.mockImplementation((cmd: unknown) => {
       if (cmd === "list_spaces") return Promise.resolve(STUB_SPACES);
       if (cmd === "list_boards") return Promise.resolve(STUB_BOARDS);
@@ -171,37 +178,9 @@ describe("Sidebar — DS v1 RECENT BOARDS section", () => {
     });
     setup();
     await waitFor(() => {
-      expect(screen.getByText(/^RECENT BOARDS$/)).toBeInTheDocument();
-    });
-  });
-
-  it("renders board names in the RECENT BOARDS section", async () => {
-    invokeMock.mockImplementation((cmd: unknown) => {
-      if (cmd === "list_spaces") return Promise.resolve(STUB_SPACES);
-      if (cmd === "list_boards") return Promise.resolve(STUB_BOARDS);
-      return Promise.resolve([]);
-    });
-    setup();
-    await waitFor(() => {
-      // Board names appear in SPACES section (inline) and RECENT BOARDS.
-      // At least one instance of "Engineering" should be present.
       expect(screen.getAllByText("Engineering").length).toBeGreaterThan(0);
     });
     expect(screen.getAllByText("Roadmap").length).toBeGreaterThan(0);
-  });
-
-  it("does not render RECENT BOARDS section when boards list is empty", async () => {
-    invokeMock.mockImplementation((cmd: unknown) => {
-      if (cmd === "list_spaces") return Promise.resolve(STUB_SPACES);
-      if (cmd === "list_boards") return Promise.resolve([]);
-      return Promise.resolve([]);
-    });
-    setup();
-    // Give the queries time to settle
-    await waitFor(() => {
-      expect(screen.getByText("Alpha")).toBeInTheDocument();
-    });
-    expect(screen.queryByText(/^RECENT BOARDS$/)).not.toBeInTheDocument();
   });
 });
 

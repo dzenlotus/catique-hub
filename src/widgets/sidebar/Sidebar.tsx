@@ -1,23 +1,22 @@
 import {
   useState,
-  useCallback,
   useEffect,
   type ReactElement,
   type ReactNode,
 } from "react";
-import { Sun, Moon, Search, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
+import { Sun, Moon, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
 import { useLocation } from "wouter";
 import { cn } from "@shared/lib";
 import { Button } from "@shared/ui";
 import {
   PixelPetAnimalsCat,
   PixelCodingAppsWebsitesModule,
-  PixelBusinessProductsNetworkUser,
   PixelInterfaceEssentialMessage,
   PixelInterfaceEssentialList,
   PixelDesignMagicWand,
   PixelCodingAppsWebsitesDatabase,
   PixelInterfaceEssentialSettingCog,
+  PixelInterfaceEssentialHeartFavorite,
 } from "@shared/ui/Icon";
 import { useSpaces } from "@entities/space";
 import type { Space } from "@entities/space";
@@ -25,12 +24,13 @@ import { useBoards } from "@entities/board";
 import type { Board } from "@entities/board";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
-import { GlobalSearch, useGlobalSearchKeybind } from "@widgets/global-search";
-import type { SearchResult } from "@bindings/SearchResult";
-import { taskPath, boardPath } from "@app/routes";
-import { Heart, AlertCircle } from "lucide-react";
+import { taskPath as _taskPath, boardPath } from "@app/routes";
+import { AlertCircle } from "lucide-react";
 import mascotUrl from "./assets/mascot.png";
 import styles from "./Sidebar.module.css";
+
+// Suppress unused-import warnings for routes helpers we may need later
+void _taskPath;
 
 // ---------------------------------------------------------------------------
 // NavView — the 7 navigable top-level views shown in WORKSPACE section.
@@ -68,16 +68,13 @@ interface WorkspaceItem {
  */
 const WORKSPACE_ITEMS: WorkspaceItem[] = [
   { view: "boards",        label: "Boards",        icon: <PixelCodingAppsWebsitesModule width={16} height={16} aria-hidden /> },
-  { view: "agent-roles",   label: "Agent roles",   icon: <PixelBusinessProductsNetworkUser width={16} height={16} aria-hidden /> },
+  { view: "agent-roles",   label: "Agent roles",   icon: <PixelPetAnimalsCat width={16} height={16} aria-hidden /> },
   { view: "prompts",       label: "Prompts",        icon: <PixelInterfaceEssentialMessage width={16} height={16} aria-hidden /> },
   { view: "prompt-groups", label: "Prompt groups",  icon: <PixelInterfaceEssentialList width={16} height={16} aria-hidden /> },
   { view: "skills",        label: "Skills",         icon: <PixelDesignMagicWand width={16} height={16} aria-hidden /> },
   { view: "mcp-servers",   label: "MCP servers",    icon: <PixelCodingAppsWebsitesDatabase width={16} height={16} aria-hidden /> },
   { view: "settings",      label: "Settings",       icon: <PixelInterfaceEssentialSettingCog width={16} height={16} aria-hidden /> },
 ];
-
-/** Maximum number of boards shown in RECENT BOARDS section. */
-const RECENT_BOARDS_LIMIT = 3;
 
 // ---------------------------------------------------------------------------
 // Persistence helpers
@@ -340,25 +337,12 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
   const boards = boardsQuery.data ?? [];
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-
-  // Cmd+K keybind — opens the palette from anywhere in the sidebar
-  useGlobalSearchKeybind(useCallback(() => setIsSearchOpen(true), []));
 
   // Derive the currently active board id from the URL
   const activeBoardId: string | null = (() => {
     const match = location.match(/^\/boards\/(.+)$/);
     return match ? match[1] : null;
   })();
-
-  function handleSearchResult(result: SearchResult): void {
-    setIsSearchOpen(false);
-    if (result.type === "agentReport") {
-      onSelectView("boards");
-    } else {
-      setLocation(taskPath(result.id));
-    }
-  }
 
   // ── SPACES section renderer ─────────────────────────────────────────────
 
@@ -415,68 +399,26 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
     );
   };
 
-  // ── RECENT BOARDS section renderer ─────────────────────────────────────
-
-  const renderRecentBoards = (): ReactElement => {
-    if (boardsQuery.status !== "success" || boards.length === 0) {
-      return <></>;
-    }
-
-    const recent = [...boards]
-      .sort((a, b) => Number(b.updatedAt - a.updatedAt))
-      .slice(0, RECENT_BOARDS_LIMIT);
-
-    return (
-      <ul className={styles.navList} role="list">
-        {recent.map((board) => {
-          const isActive = activeBoardId === board.id;
-          return (
-            <li key={board.id}>
-              <NavRow
-                isActive={isActive}
-                onClick={() => setLocation(boardPath(board.id))}
-                aria-current={isActive ? "page" : undefined}
-              >
-                <PixelCodingAppsWebsitesModule width={16} height={16} aria-hidden={true} />
-                <span className={styles.navLabel}>{board.name}</span>
-              </NavRow>
-            </li>
-          );
-        })}
-      </ul>
-    );
-  };
-
   return (
     <nav className={styles.sidebar} aria-label="Main navigation">
 
-      {/* ── Wordmark block ───────────────────────────────────────────────── */}
+      {/* ── Wordmark block ─────────────────────────────────────────────────
+          Per reference: "Catique ❤ Hub" — pixel-art heart sits between the
+          two halves of the wordmark. Tagline drops below. */}
       <div className={styles.wordmark}>
         <div className={styles.wordmarkText}>
-          <span className={styles.wordmarkTitle}>Catique Hub</span>
-          <Heart
-            size={12}
-            aria-hidden={true}
-            className={styles.wordmarkHeart}
-            fill="currentColor"
-          />
+          <div className={styles.wordmarkTitleRow}>
+            <span className={styles.wordmarkTitle}>Catique</span>
+            <PixelInterfaceEssentialHeartFavorite
+              width={20}
+              height={20}
+              className={styles.wordmarkHeart}
+              aria-hidden={true}
+            />
+            <span className={styles.wordmarkTitle}>Hub</span>
+          </div>
           <span className={styles.wordmarkSub}>Orchestrate. Build. Ship.</span>
         </div>
-      </div>
-
-      {/* ── Search button ─────────────────────────────────────────────────── */}
-      <div className={styles.searchButtonWrap}>
-        <button
-          type="button"
-          className={styles.searchButton}
-          aria-label="Открыть поиск (Cmd+K)"
-          onClick={() => setIsSearchOpen(true)}
-          data-testid="sidebar-search-button"
-        >
-          <Search size={14} aria-hidden="true" />
-          <span className={styles.searchButtonLabel}>Поиск</span>
-          <span className={styles.searchButtonKbd} aria-hidden="true">⌘K</span>
-        </button>
       </div>
 
       <div className={styles.sectionsWrap}>
@@ -511,27 +453,10 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
           })}
         </ul>
 
-        <div className={styles.divider} aria-hidden="true" />
-
-        {/* ── RECENT BOARDS ───────────────────────────────────────────────────── */}
-        {boardsQuery.status === "success" && boards.length > 0 && (
-          <>
-            <div className={styles.sectionLabel} aria-label="Недавние доски">
-              RECENT BOARDS
-            </div>
-            {renderRecentBoards()}
-          </>
-        )}
-
       </div>
 
       {/* ── Footer: Mascot + theme toggle ───────────────────────────────────── */}
       <div className={styles.sidebarFooter}>
-        {/*
-         * Mascot area — placeholder for the pixel-art beret-cat illustration.
-         * The actual beret-cat asset is a designer follow-up.
-         * Tagline from the mockup spec (French/English bilingual).
-         */}
         <div className={styles.mascotArea} aria-hidden="true">
           <img
             src={mascotUrl}
@@ -551,11 +476,6 @@ export function Sidebar({ activeView, onSelectView }: SidebarProps): ReactElemen
         isOpen={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}
         onCreated={(space) => setActiveSpaceId(space.id)}
-      />
-      <GlobalSearch
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        onSelectResult={handleSearchResult}
       />
     </nav>
   );
