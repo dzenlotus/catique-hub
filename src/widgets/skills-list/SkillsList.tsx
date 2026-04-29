@@ -2,7 +2,7 @@ import { useState, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 
 import { SkillCard, useSkills } from "@entities/skill";
-import { Button, Icon } from "@shared/ui";
+import { Button, Icon, EmptyState } from "@shared/ui";
 import { SkillEditor } from "@widgets/skill-editor";
 import { SkillCreateDialog } from "@widgets/skill-create-dialog";
 
@@ -84,10 +84,23 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
         </div>
       ) : skillsQuery.data.length === 0 ? (
         <div className={styles.empty} data-testid="skills-list-empty">
-          <p className={styles.emptyTitle}>Нет навыков</p>
-          <p className={styles.emptyHint}>
-            Создайте первый навык, чтобы описать компетенции команды.
-          </p>
+          <EmptyState
+            iconName="skills"
+            title="No skills yet"
+            description="Capabilities you grant to agents."
+            action={
+              <Button
+                variant="primary"
+                size="md"
+                onPress={() => setIsCreateOpen(true)}
+              >
+                <span className={styles.btnLabel}>
+                  <Plus size={14} aria-hidden="true" />
+                  + Create skill
+                </span>
+              </Button>
+            }
+          />
         </div>
       ) : (
         <div className={styles.grid} data-testid="skills-list-grid">

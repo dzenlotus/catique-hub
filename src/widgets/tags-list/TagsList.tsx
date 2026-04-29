@@ -2,7 +2,7 @@ import { useState, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 
 import { TagChip, useTags } from "@entities/tag";
-import { Button, Icon } from "@shared/ui";
+import { Button, Icon, EmptyState } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { TagEditor } from "@widgets/tag-editor";
 import { TagCreateDialog } from "@widgets/tag-create-dialog";
@@ -124,7 +124,23 @@ export function TagsList({
         data-testid="tags-list-empty"
       >
         {header}
-        <p className={styles.emptyHint}>Тегов ещё нет.</p>
+        <EmptyState
+          iconName="tag"
+          title="No tags yet"
+          description="Labels for organising prompts and tasks."
+          action={
+            <Button
+              variant="primary"
+              size="md"
+              onPress={() => setIsCreateOpen(true)}
+            >
+              <span className={styles.btnLabel}>
+                <Plus size={14} aria-hidden="true" />
+                + Create tag
+              </span>
+            </Button>
+          }
+        />
         <TagCreateDialog
           isOpen={isCreateOpen}
           onClose={() => setIsCreateOpen(false)}

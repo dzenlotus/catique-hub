@@ -75,7 +75,7 @@ describe("McpToolsList", () => {
     await waitFor(() => {
       expect(screen.getByTestId("mcp-tools-list-empty")).toBeInTheDocument();
     });
-    expect(screen.getByText(/нет mcp-инструментов/i)).toBeInTheDocument();
+    expect(screen.getByText(/no mcp servers yet/i)).toBeInTheDocument();
   });
 
   it("renders one McpToolCard per tool when populated", async () => {

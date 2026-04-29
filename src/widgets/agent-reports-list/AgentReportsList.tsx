@@ -6,7 +6,7 @@ import {
   useAgentReports,
   useAgentReportsByTask,
 } from "@entities/agent-report";
-import { Button } from "@shared/ui";
+import { Button, EmptyState } from "@shared/ui";
 
 import styles from "./AgentReportsList.module.css";
 
@@ -109,8 +109,10 @@ export function AgentReportsList({
         </div>
       ) : query.data.length === 0 ? (
         <div className={styles.empty} data-testid="agent-reports-list-empty">
-          <p className={styles.emptyTitle}>No reports yet</p>
-          <p className={styles.emptyHint}>{emptyHint}</p>
+          <EmptyState
+            title="No reports yet"
+            description={emptyHint}
+          />
         </div>
       ) : (
         <div className={styles.list} data-testid="agent-reports-list-grid">

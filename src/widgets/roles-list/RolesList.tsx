@@ -3,7 +3,7 @@ import { Plus, ChevronRight, ChevronLeft } from "lucide-react";
 
 import { RoleCard, useRoles } from "@entities/role";
 import { PromptCard, usePrompts } from "@entities/prompt";
-import { Button, Icon } from "@shared/ui";
+import { Button, Icon, EmptyState } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { RoleEditor } from "@widgets/role-editor";
 import { RoleCreateDialog } from "@widgets/role-create-dialog";
@@ -121,10 +121,23 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
               </div>
             ) : rolesQuery.data.length === 0 ? (
               <div className={styles.empty} data-testid="roles-list-empty">
-                <p className={styles.emptyTitle}>Нет ролей</p>
-                <p className={styles.emptyHint}>
-                  Создайте первую роль, чтобы определить ответственности команды.
-                </p>
+                <EmptyState
+                  iconName="agent-roles"
+                  title="No agent roles yet"
+                  description="Personas your AI agents adopt for tasks."
+                  action={
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onPress={() => setIsCreateOpen(true)}
+                    >
+                      <span className={styles.btnLabel}>
+                        <Plus size={14} aria-hidden="true" />
+                        + Create role
+                      </span>
+                    </Button>
+                  }
+                />
               </div>
             ) : (
               <div className={styles.grid} data-testid="roles-list-grid">

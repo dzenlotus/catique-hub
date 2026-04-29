@@ -5,7 +5,7 @@ import { Plus, Pencil, ChevronRight, ChevronLeft } from "lucide-react";
 import { BoardCard, useBoards } from "@entities/board";
 import { PromptCard, usePrompts } from "@entities/prompt";
 import { useSpaces } from "@entities/space";
-import { Button } from "@shared/ui";
+import { Button, EmptyState } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { BoardCreateDialog } from "@widgets/board-create-dialog";
@@ -130,57 +130,42 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
             ) : filteredBoards.length === 0 ? (
               <div className={styles.empty} data-testid="boards-list-empty">
                 {hasNoSpaces ? (
-                  <>
-                    <p className={styles.emptyTitle}>Добро пожаловать в Catique HUB</p>
-                    <p className={styles.emptyHint}>
-                      Создайте своё первое пространство, чтобы начать.
-                    </p>
-                    <Button
-                      variant="primary"
-                      size="md"
-                      onPress={() => setIsSpaceCreateOpen(true)}
-                      data-testid="boards-list-create-space-button"
-                    >
-                      <span className={styles.btnLabel}>
-                        <Plus size={16} aria-hidden="true" />
-                        Создать пространство
-                      </span>
-                    </Button>
-                  </>
-                ) : activeSpaceId !== null && boardsQuery.data.length > 0 ? (
-                  <>
-                    <p className={styles.emptyTitle}>В этом пространстве пока нет досок</p>
-                    <p className={styles.emptyHint}>
-                      Создайте первую доску в текущем пространстве.
-                    </p>
-                    <Button
-                      variant="primary"
-                      size="md"
-                      onPress={() => setIsCreateOpen(true)}
-                    >
-                      <span className={styles.btnLabel}>
-                        <Plus size={16} aria-hidden="true" />
-                        Создать первую доску
-                      </span>
-                    </Button>
-                  </>
+                  <EmptyState
+                    iconName="catique"
+                    title="No spaces yet"
+                    description="Create your first space to start organising boards."
+                    action={
+                      <Button
+                        variant="primary"
+                        size="md"
+                        onPress={() => setIsSpaceCreateOpen(true)}
+                        data-testid="boards-list-create-space-button"
+                      >
+                        <span className={styles.btnLabel}>
+                          <Plus size={16} aria-hidden="true" />
+                          + Create space
+                        </span>
+                      </Button>
+                    }
+                  />
                 ) : (
-                  <>
-                    <p className={styles.emptyTitle}>Нет досок</p>
-                    <p className={styles.emptyHint}>
-                      Создайте первую доску, чтобы начать организацию задач.
-                    </p>
-                    <Button
-                      variant="primary"
-                      size="md"
-                      onPress={() => setIsCreateOpen(true)}
-                    >
-                      <span className={styles.btnLabel}>
-                        <Plus size={16} aria-hidden="true" />
-                        Создать первую доску
-                      </span>
-                    </Button>
-                  </>
+                  <EmptyState
+                    iconName="boards"
+                    title="No boards yet"
+                    description="Create your first board to start organising tasks."
+                    action={
+                      <Button
+                        variant="primary"
+                        size="md"
+                        onPress={() => setIsCreateOpen(true)}
+                      >
+                        <span className={styles.btnLabel}>
+                          <Plus size={16} aria-hidden="true" />
+                          + Create board
+                        </span>
+                      </Button>
+                    }
+                  />
                 )}
               </div>
             ) : (

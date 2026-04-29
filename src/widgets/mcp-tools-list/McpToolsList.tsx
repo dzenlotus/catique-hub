@@ -2,7 +2,7 @@ import { useState, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 
 import { McpToolCard, useMcpTools } from "@entities/mcp-tool";
-import { Button, Icon } from "@shared/ui";
+import { Button, Icon, EmptyState } from "@shared/ui";
 import { McpToolEditor } from "@widgets/mcp-tool-editor";
 import { McpToolCreateDialog } from "@widgets/mcp-tool-create-dialog";
 
@@ -84,10 +84,23 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
         </div>
       ) : toolsQuery.data.length === 0 ? (
         <div className={styles.empty} data-testid="mcp-tools-list-empty">
-          <p className={styles.emptyTitle}>Нет MCP-инструментов</p>
-          <p className={styles.emptyHint}>
-            Создайте первый MCP-инструмент, чтобы определить доступные инструменты.
-          </p>
+          <EmptyState
+            iconName="mcp-servers"
+            title="No MCP servers yet"
+            description="Connect Model Context Protocol endpoints."
+            action={
+              <Button
+                variant="primary"
+                size="md"
+                onPress={() => setIsCreateOpen(true)}
+              >
+                <span className={styles.btnLabel}>
+                  <Plus size={14} aria-hidden="true" />
+                  + Create server
+                </span>
+              </Button>
+            }
+          />
         </div>
       ) : (
         <div className={styles.grid} data-testid="mcp-tools-list-grid">

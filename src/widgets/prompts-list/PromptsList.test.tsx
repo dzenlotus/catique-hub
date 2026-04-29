@@ -76,7 +76,7 @@ describe("PromptsList", () => {
     await waitFor(() => {
       expect(screen.getByTestId("prompts-list-empty")).toBeInTheDocument();
     });
-    expect(screen.getByText(/нет промптов/i)).toBeInTheDocument();
+    expect(screen.getByText(/no prompts yet/i)).toBeInTheDocument();
   });
 
   it("renders one PromptCard per prompt when populated", async () => {

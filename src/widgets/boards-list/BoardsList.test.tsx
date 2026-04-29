@@ -101,11 +101,8 @@ describe("BoardsList", () => {
     await waitFor(() => {
       expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
     });
-    expect(
-      screen.getByRole("button", { name: /создать первую доску/i }),
-    ).toBeInTheDocument();
     // Zero boards in DB — generic copy shown.
-    expect(screen.getByText("Нет досок")).toBeInTheDocument();
+    expect(screen.getByText("No boards yet")).toBeInTheDocument();
   });
 
   it("renders one BoardCard per board when populated", async () => {
@@ -172,10 +169,8 @@ describe("BoardsList", () => {
       expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
     });
 
-    // Open the dialog from the empty CTA.
-    await user.click(
-      screen.getByRole("button", { name: /создать первую доску/i }),
-    );
+    // Open the dialog from the empty CTA (header button).
+    await user.click(screen.getByTestId("boards-list-create-button"));
 
     // Dialog open — fill name and submit via the BoardCreateDialog.
     const nameInput = await screen.findByTestId("board-create-dialog-name-input");
@@ -275,7 +270,7 @@ describe("BoardsList", () => {
       expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
     });
     expect(
-      screen.getByText("Добро пожаловать в Catique HUB"),
+      screen.getByText("No spaces yet"),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId("boards-list-create-space-button"),
@@ -324,7 +319,7 @@ describe("BoardsList", () => {
       expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
     });
     expect(
-      screen.getByText("В этом пространстве пока нет досок"),
+      screen.getByText("No boards yet"),
     ).toBeInTheDocument();
   });
 });

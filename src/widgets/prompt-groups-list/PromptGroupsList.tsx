@@ -2,7 +2,7 @@ import { useState, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 
 import { PromptGroupCard, usePromptGroups } from "@entities/prompt-group";
-import { Button, Icon } from "@shared/ui";
+import { Button, Icon, EmptyState } from "@shared/ui";
 import { PromptGroupEditor } from "@widgets/prompt-group-editor";
 import { PromptGroupCreateDialog } from "@widgets/prompt-group-create-dialog";
 
@@ -89,10 +89,23 @@ export function PromptGroupsList({
         </div>
       ) : groupsQuery.data.length === 0 ? (
         <div className={styles.empty} data-testid="prompt-groups-list-empty">
-          <p className={styles.emptyTitle}>Нет групп промптов</p>
-          <p className={styles.emptyHint}>
-            Создайте первую группу, чтобы упорядочить промпты.
-          </p>
+          <EmptyState
+            iconName="prompt-groups"
+            title="No prompt groups yet"
+            description="Bundle prompts into reusable groups."
+            action={
+              <Button
+                variant="primary"
+                size="md"
+                onPress={() => setIsCreateOpen(true)}
+              >
+                <span className={styles.btnLabel}>
+                  <Plus size={14} aria-hidden="true" />
+                  + Create group
+                </span>
+              </Button>
+            }
+          />
         </div>
       ) : (
         <div className={styles.grid} data-testid="prompt-groups-list-grid">

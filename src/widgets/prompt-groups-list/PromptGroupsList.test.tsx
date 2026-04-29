@@ -84,7 +84,7 @@ describe("PromptGroupsList", () => {
         screen.getByTestId("prompt-groups-list-empty"),
       ).toBeInTheDocument();
     });
-    expect(screen.getByText(/нет групп промптов/i)).toBeInTheDocument();
+    expect(screen.getByText(/no prompt groups yet/i)).toBeInTheDocument();
   });
 
   it("renders one PromptGroupCard per group when populated", async () => {

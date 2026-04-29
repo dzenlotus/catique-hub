@@ -77,7 +77,7 @@ describe("TagsList", () => {
     await waitFor(() => {
       expect(screen.getByTestId("tags-list-empty")).toBeInTheDocument();
     });
-    expect(screen.getByText(/тегов ещё нет/i)).toBeInTheDocument();
+    expect(screen.getByText(/no tags yet/i)).toBeInTheDocument();
   });
 
   it("renders one TagChip per tag when populated", async () => {

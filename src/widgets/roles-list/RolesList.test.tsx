@@ -80,7 +80,7 @@ describe("RolesList", () => {
     await waitFor(() => {
       expect(screen.getByTestId("roles-list-empty")).toBeInTheDocument();
     });
-    expect(screen.getByText(/нет ролей/i)).toBeInTheDocument();
+    expect(screen.getByText(/no agent roles yet/i)).toBeInTheDocument();
   });
 
   it("renders one RoleCard per role when populated", async () => {

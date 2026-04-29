@@ -2,7 +2,7 @@ import { useState, type ReactElement } from "react";
 import { Plus, Paperclip } from "lucide-react";
 
 import { PromptCard, usePrompts } from "@entities/prompt";
-import { Button, Icon } from "@shared/ui";
+import { Button, Icon, EmptyState } from "@shared/ui";
 import { PromptEditor } from "@widgets/prompt-editor";
 import { PromptCreateDialog } from "@widgets/prompt-create-dialog";
 import { AttachPromptDialog } from "@widgets/attach-prompt-dialog";
@@ -97,10 +97,23 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
         </div>
       ) : promptsQuery.data.length === 0 ? (
         <div className={styles.empty} data-testid="prompts-list-empty">
-          <p className={styles.emptyTitle}>Нет промптов</p>
-          <p className={styles.emptyHint}>
-            Импортируйте снимок Promptery или создайте первый промпт.
-          </p>
+          <EmptyState
+            iconName="prompts"
+            title="No prompts yet"
+            description="Reusable agent prompts will appear here."
+            action={
+              <Button
+                variant="primary"
+                size="md"
+                onPress={() => setIsCreateOpen(true)}
+              >
+                <span className={styles.btnLabel}>
+                  <Plus size={14} aria-hidden="true" />
+                  + Create prompt
+                </span>
+              </Button>
+            }
+          />
         </div>
       ) : (
         <div className={styles.grid} data-testid="prompts-list-grid">

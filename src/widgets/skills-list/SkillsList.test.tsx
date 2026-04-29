@@ -77,7 +77,7 @@ describe("SkillsList", () => {
     await waitFor(() => {
       expect(screen.getByTestId("skills-list-empty")).toBeInTheDocument();
     });
-    expect(screen.getByText(/нет навыков/i)).toBeInTheDocument();
+    expect(screen.getByText(/no skills yet/i)).toBeInTheDocument();
   });
 
   it("renders one SkillCard per skill when populated", async () => {

@@ -12,7 +12,7 @@ import { useState, type ReactElement } from "react";
 
 import { SpaceCard, useSpaces } from "@entities/space";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
-import { Button, Icon } from "@shared/ui";
+import { Button, Icon, EmptyState } from "@shared/ui";
 import { Plus } from "lucide-react";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 
@@ -93,10 +93,23 @@ export function SpacesList({ onSelectView }: SpacesListProps): ReactElement {
         </div>
       ) : spacesQuery.data.length === 0 ? (
         <div className={styles.empty} data-testid="spaces-list-empty">
-          <p className={styles.emptyTitle}>Пространств пока нет</p>
-          <p className={styles.emptyHint}>
-            Создайте первое пространство, чтобы начать работу.
-          </p>
+          <EmptyState
+            iconName="catique"
+            title="No spaces yet"
+            description="Top-level workspaces for your boards."
+            action={
+              <Button
+                variant="primary"
+                size="md"
+                onPress={() => setCreateDialogOpen(true)}
+              >
+                <span className={styles.btnLabel}>
+                  <Plus size={14} aria-hidden="true" />
+                  + Create space
+                </span>
+              </Button>
+            }
+          />
         </div>
       ) : (
         <div className={styles.list} data-testid="spaces-list-grid">
