@@ -7,6 +7,56 @@ import type { Task } from "../../model/types";
 
 import styles from "./TaskCard.module.css";
 
+// ---------------------------------------------------------------------------
+// Relative-time helper (no date-fns dependency)
+// ---------------------------------------------------------------------------
+
+/**
+ * Format a Unix timestamp (seconds as bigint) as a human-readable relative
+ * string: "just now", "5m ago", "2h ago", "yesterday", or "Mon".
+ */
+function formatRelativeTime(createdAtSeconds: bigint): string {
+  const nowMs = Date.now();
+  const createdMs = Number(createdAtSeconds) * 1000;
+  const diffMs = nowMs - createdMs;
+
+  // Negative diff (clock skew) — just show "just now".
+  if (diffMs < 0) return "just now";
+
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return "just now";
+
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${String(diffMin)}m ago`;
+
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${String(diffHr)}h ago`;
+
+  const diffDays = Math.floor(diffHr / 24);
+  if (diffDays === 1) return "yesterday";
+
+  // More than 2 days ago — show weekday abbreviation.
+  const d = new Date(createdMs);
+  return d.toLocaleDateString("en-US", { weekday: "short" });
+}
+
+/**
+ * Format a Unix timestamp (seconds as bigint) as an absolute ISO-like string
+ * suitable for a tooltip title attribute.
+ */
+function formatAbsoluteDate(createdAtSeconds: bigint): string {
+  const d = new Date(Number(createdAtSeconds) * 1000);
+  return d.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// ---------------------------------------------------------------------------
+
 export interface TaskCardProps {
   /** Task to render. Omitted (or with `isPending`) renders a skeleton. */
   task?: Task;
@@ -37,6 +87,17 @@ export interface TaskCardProps {
    * (contains "done" / "готово").
    */
   isDoneColumn?: boolean;
+  /**
+   * Resolved role name to display on the badge instead of the raw roleId.
+   * Supplied by the parent widget after a `useRoles()` lookup. Falls back
+   * to `task.roleId` when omitted (loading) or when the role isn't found.
+   */
+  roleName?: string;
+  /**
+   * Role accent colour (CSS colour string or null). When provided, the
+   * role badge background is tinted with this colour at low opacity.
+   */
+  roleColor?: string | null;
   /** Optional class merged onto the root. */
   className?: string;
 }
@@ -60,6 +121,8 @@ export function TaskCard({
   isPending = false,
   dragOverlay = false,
   isDoneColumn = false,
+  roleName,
+  roleColor,
   className,
 }: TaskCardProps): ReactElement {
   if (isPending || !task) {
@@ -76,8 +139,10 @@ export function TaskCard({
     );
   }
 
+  const resolvedRoleName = roleName ?? task.roleId ?? undefined;
+
   const ariaLabel = task.roleId
-    ? `Task ${task.title}, role ${task.roleId}`
+    ? `Task ${task.title}, role ${resolvedRoleName ?? task.roleId}`
     : `Task ${task.title}`;
 
   // The drag-overlay variant is rendered atop the original card during
@@ -92,6 +157,8 @@ export function TaskCard({
           task={task}
           attachmentsCount={attachmentsCount}
           isDoneColumn={isDoneColumn}
+          resolvedRoleName={resolvedRoleName}
+          roleColor={roleColor}
         />
       </div>
     );
@@ -109,6 +176,8 @@ export function TaskCard({
         task={task}
         attachmentsCount={attachmentsCount}
         isDoneColumn={isDoneColumn}
+        resolvedRoleName={resolvedRoleName}
+        roleColor={roleColor}
       />
     </button>
   );
@@ -118,16 +187,35 @@ interface CardBodyProps {
   task: Task;
   attachmentsCount: number;
   isDoneColumn: boolean;
+  /** Resolved human-readable role name. Falls back to task.roleId when absent. */
+  resolvedRoleName?: string | undefined;
+  /** Role colour token (CSS colour string or null). */
+  roleColor?: string | null | undefined;
 }
 
 function CardBody({
   task,
   attachmentsCount,
   isDoneColumn,
+  resolvedRoleName,
+  roleColor,
 }: CardBodyProps): ReactElement {
   // Slug chip: format `ctq-NN` — use task.slug directly (it already
   // carries the generated slug from the backend).
   const slugLabel = task.slug;
+
+  // Role badge inline style — tint the background with the role colour when
+  // present (10 % opacity overlay on top of the default accent-soft token).
+  const roleBadgeStyle: React.CSSProperties | undefined =
+    roleColor
+      ? { backgroundColor: `${roleColor}22`, color: roleColor }
+      : undefined;
+
+  // Age indicator — relative time from createdAt (Unix seconds as bigint).
+  // Skip when createdAt is 0 (placeholder / test data).
+  const showAge = task.createdAt !== 0n;
+  const relativeTime = showAge ? formatRelativeTime(task.createdAt) : null;
+  const absoluteDate = showAge ? formatAbsoluteDate(task.createdAt) : null;
 
   return (
     <>
@@ -153,18 +241,34 @@ function CardBody({
         <span className={styles.description}>{task.description}</span>
       ) : null}
 
-      {/* Bottom meta row: role badge + attachments + slug chip at right */}
+      {/* Bottom meta row: age (left) + role badge + attachments + slug chip (right) */}
       <div className={styles.bottomRow}>
         <span className={styles.meta}>
+          {/* Age indicator — far-left of the meta row */}
+          {relativeTime !== null ? (
+            <time
+              className={styles.age}
+              title={absoluteDate ?? undefined}
+              dateTime={new Date(Number(task.createdAt) * 1000).toISOString()}
+              data-testid="task-card-age"
+            >
+              {relativeTime}
+            </time>
+          ) : null}
+
+          {/* Role badge: show resolved name, tinted by role colour when present */}
           {task.roleId ? (
             <span
               className={styles.roleBadge}
-              title={`Role: ${task.roleId}`}
+              title={`Role: ${resolvedRoleName ?? task.roleId}`}
+              style={roleBadgeStyle}
               data-testid="task-card-role-badge"
             >
-              {task.roleId}
+              {resolvedRoleName ?? task.roleId}
             </span>
           ) : null}
+
+          {/* Attachment count chip */}
           {attachmentsCount > 0 ? (
             <span
               className={styles.attachments}
@@ -185,6 +289,8 @@ function CardBody({
           {slugLabel}
         </span>
       </div>
+
+      {/* TODO: prompts-attached indicator — awaiting list_task_prompts IPC (E4d) */}
     </>
   );
 }
