@@ -65,7 +65,8 @@ export type IconName =
   | "skills"
   | "mcp-servers"
   | "settings"
-  | "mascot";
+  | "mascot"
+  | "tag";
 
 export interface IconProps {
   name: IconName;
@@ -115,6 +116,9 @@ const ICON_MAP: Record<IconName, [number, number]> = {
   "prompt-groups": [3, 7],    // GUESS: stacked layers in row 7
   skills: [8, 6],             // GUESS: sparkle-like icon in row 6
   mascot: [0, 0],             // Placeholder: reuses cat-face; beret-cat is a designer asset
+
+  // Confirmed from image3.png: label/tag shape with small hole, row 1 col 5
+  tag: [5, 1],
 };
 
 export function Icon({

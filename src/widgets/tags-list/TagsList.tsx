@@ -48,7 +48,7 @@ export function TagsList({
     <header className={styles.header}>
       <div className={styles.headingGroup}>
         <Icon
-          name="prompts"
+          name="tag"
           size={20}
           className={styles.headingIcon}
           aria-hidden="true"

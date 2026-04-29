@@ -17,6 +17,7 @@ const ALL_ICONS: IconName[] = [
   "mcp-servers",
   "settings",
   "mascot",
+  "tag",
 ];
 
 describe("Icon", () => {
@@ -76,5 +77,24 @@ describe("Icon", () => {
     // inline style dimensions from the sprite calculation should still be set.
     expect(span.style.backgroundSize).not.toBe("");
     expect(span.style.backgroundPosition).not.toBe("");
+  });
+
+  describe("tag icon (sprite col 5, row 1)", () => {
+    it("renders a span without crashing", () => {
+      const { container } = render(<Icon name="tag" aria-hidden={true} />);
+      expect(container.querySelector("span")).toBeInTheDocument();
+    });
+
+    it("uses the sprite background-position for cell (5,1)", () => {
+      const { container } = render(<Icon name="tag" size={16} aria-hidden={true} />);
+      const span = container.querySelector("span") as HTMLElement;
+      // At size=16: scale = 16/124.7, bgX = -(5 * 140.2 * scale) ≈ -89.9 px
+      // The exact value from the component calculation should be non-zero (negative offset).
+      const pos = span.style.backgroundPosition;
+      expect(pos).not.toBe("");
+      // x-offset for column 5 must be negative and nonzero
+      const xPx = parseFloat(pos.split(" ")[0]!);
+      expect(xPx).toBeLessThan(0);
+    });
   });
 });

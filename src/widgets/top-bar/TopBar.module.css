@@ -107,14 +107,14 @@
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  padding: 2px 4px;
+  padding: 2px 6px;
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-full);
   font-family: var(--font-mono, monospace);
   font-size: var(--font-size-caption);
   line-height: 1;
   color: var(--color-text-subtle);
-  background: transparent;
+  background-color: var(--color-surface-raised, #fff);
   user-select: none;
 }
 

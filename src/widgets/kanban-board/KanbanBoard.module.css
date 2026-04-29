@@ -52,8 +52,9 @@
 .boardIcon {
   flex: 0 0 auto;
   opacity: 0.75;
-  /* Align icon to cap-height of the heading */
+  /* Align icon inline with text baseline (shift down slightly for optical balance) */
   align-self: center;
+  margin-bottom: 2px;
 }
 
 .boardHeading {
