@@ -3,6 +3,7 @@ export {
   promptsKeys,
   usePrompts,
   usePrompt,
+  usePromptTagsMap,
   useCreatePromptMutation,
   useUpdatePromptMutation,
   useDeletePromptMutation,

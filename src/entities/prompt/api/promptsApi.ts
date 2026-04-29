@@ -17,6 +17,7 @@ import { invoke } from "@shared/api";
 import { AppErrorInstance } from "@entities/board";
 import type { AppError } from "@bindings/AppError";
 import type { Prompt } from "@bindings/Prompt";
+import type { PromptTagMapEntry } from "@bindings/PromptTagMapEntry";
 
 /** Same `AppError` discriminator guard as in `boardsApi` / `columnsApi`. */
 function isAppErrorShape(value: unknown): value is AppError {
@@ -112,6 +113,15 @@ export async function updatePrompt(args: UpdatePromptArgs): Promise<Prompt> {
 /** `delete_prompt` — permanently remove a prompt. */
 export async function deletePrompt(id: string): Promise<void> {
   return invokeWithAppError<void>("delete_prompt", { id });
+}
+
+/**
+ * `list_prompt_tags_map` — bulk fetch of every `(promptId, tagIds[])` entry
+ * from the `prompt_tags` join table.  One IPC call; the caller does the
+ * client-side filtering.
+ */
+export async function listPromptTagsMap(): Promise<PromptTagMapEntry[]> {
+  return invokeWithAppError<PromptTagMapEntry[]>("list_prompt_tags_map");
 }
 
 /**

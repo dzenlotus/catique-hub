@@ -2,7 +2,7 @@
 //!
 //! Wave-E2.4 (Olga). Tag autocomplete / search is deferred to E3.
 
-use catique_domain::Tag;
+use catique_domain::{PromptTagMapEntry, Tag};
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::tags::{self as repo, TagDraft, TagPatch, TagRow},
@@ -106,6 +106,32 @@ impl<'a> TagsUseCase<'a> {
         }
     }
 
+    /// Return a `Vec<PromptTagMapEntry>` grouping every `tag_id` by its
+    /// `prompt_id`. One bulk SELECT on `prompt_tags` — no N+1.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn list_tag_map(&self) -> Result<Vec<PromptTagMapEntry>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let pairs = repo::list_prompt_tags_pairs(&conn).map_err(map_db_err)?;
+
+        // Group by prompt_id, preserving insertion order (pairs come back
+        // sorted by prompt_id from the SQL layer).
+        let mut map: Vec<PromptTagMapEntry> = Vec::new();
+        for (prompt_id, tag_id) in pairs {
+            if let Some(entry) = map.iter_mut().find(|e| e.prompt_id == prompt_id) {
+                entry.tag_ids.push(tag_id);
+            } else {
+                map.push(PromptTagMapEntry {
+                    prompt_id,
+                    tag_ids: vec![tag_id],
+                });
+            }
+        }
+        Ok(map)
+    }
+
     /// Delete a tag.
     ///
     /// # Errors
@@ -187,5 +213,69 @@ mod tests {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "tag"),
             other => panic!("got {other:?}"),
         }
+    }
+
+    #[test]
+    fn list_tag_map_returns_empty_when_no_attachments() {
+        let pool = fresh_pool();
+        let uc = TagsUseCase::new(&pool);
+        let map = uc.list_tag_map().unwrap();
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn list_tag_map_groups_by_prompt_id() {
+        use catique_infrastructure::db::pool::acquire as acq;
+        use catique_infrastructure::db::repositories::prompts as prep;
+        use catique_infrastructure::db::repositories::tags as trepo;
+
+        let pool = fresh_pool();
+        let uc = TagsUseCase::new(&pool);
+        // Create two tags.
+        let t1 = uc.create("alpha".into(), None).unwrap();
+        let t2 = uc.create("beta".into(), None).unwrap();
+
+        // Insert prompts directly via infrastructure to avoid cross-crate coupling.
+        {
+            let conn = acq(&pool).unwrap();
+            prep::insert(
+                &conn,
+                &prep::PromptDraft {
+                    name: "P1".into(),
+                    content: String::new(),
+                    color: None,
+                    short_description: None,
+                    token_count: None,
+                },
+            )
+            .unwrap();
+            let p1 = prep::list_all(&conn).unwrap().into_iter().next().unwrap();
+            prep::insert(
+                &conn,
+                &prep::PromptDraft {
+                    name: "P2".into(),
+                    content: String::new(),
+                    color: None,
+                    short_description: None,
+                    token_count: None,
+                },
+            )
+            .unwrap();
+            let p2 = prep::list_all(&conn)
+                .unwrap()
+                .into_iter()
+                .find(|r| r.name == "P2")
+                .unwrap();
+            trepo::add_prompt_tag(&conn, &p1.id, &t1.id).unwrap();
+            trepo::add_prompt_tag(&conn, &p1.id, &t2.id).unwrap();
+            trepo::add_prompt_tag(&conn, &p2.id, &t2.id).unwrap();
+        }
+
+        let map = uc.list_tag_map().unwrap();
+        assert_eq!(map.len(), 2, "two prompts have tags");
+        let p1_entry = map.iter().find(|e| e.tag_ids.contains(&t1.id)).unwrap();
+        assert!(p1_entry.tag_ids.contains(&t2.id), "P1 has both tags");
+        let p2_entry = map.iter().find(|e| e.tag_ids == vec![t2.id.clone()]).unwrap();
+        assert_eq!(p2_entry.tag_ids.len(), 1, "P2 has only t2");
     }
 }

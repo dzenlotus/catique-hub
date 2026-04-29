@@ -138,6 +138,7 @@ pub fn run() {
             handlers::tags::create_tag,
             handlers::tags::delete_tag,
             handlers::tags::get_tag,
+            handlers::tags::list_prompt_tags_map,
             handlers::tags::list_tags,
             handlers::tags::remove_prompt_tag,
             handlers::tags::update_tag,

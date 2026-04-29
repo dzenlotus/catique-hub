@@ -169,6 +169,27 @@ pub fn remove_prompt_tag(
     Ok(n > 0)
 }
 
+/// Return every `(prompt_id, tag_id)` pair from `prompt_tags` as a flat
+/// `Vec` of `(String, String)` tuples so the caller can group them
+/// however it needs without an extra DB round-trip.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn list_prompt_tags_pairs(conn: &Connection) -> Result<Vec<(String, String)>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT prompt_id, tag_id FROM prompt_tags ORDER BY prompt_id ASC",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -244,6 +265,50 @@ mod tests {
         .unwrap();
         assert!(delete(&conn, &row.id).unwrap());
         assert!(!delete(&conn, &row.id).unwrap());
+    }
+
+    #[test]
+    fn list_prompt_tags_pairs_groups_correctly() {
+        let conn = fresh_db();
+        let tag1 = insert(
+            &conn,
+            &TagDraft {
+                name: "t1".into(),
+                color: None,
+            },
+        )
+        .unwrap();
+        let tag2 = insert(
+            &conn,
+            &TagDraft {
+                name: "t2".into(),
+                color: None,
+            },
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO prompts (id, name, content, created_at, updated_at) \
+             VALUES ('pa','Pa','',0,0),('pb','Pb','',0,0)",
+            [],
+        )
+        .unwrap();
+        add_prompt_tag(&conn, "pa", &tag1.id).unwrap();
+        add_prompt_tag(&conn, "pa", &tag2.id).unwrap();
+        add_prompt_tag(&conn, "pb", &tag2.id).unwrap();
+
+        let pairs = list_prompt_tags_pairs(&conn).unwrap();
+        // Three rows total.
+        assert_eq!(pairs.len(), 3);
+        // Both tags for "pa" are present.
+        let pa_tags: Vec<&str> = pairs
+            .iter()
+            .filter(|(p, _)| p == "pa")
+            .map(|(_, t)| t.as_str())
+            .collect();
+        assert!(pa_tags.contains(&tag1.id.as_str()));
+        assert!(pa_tags.contains(&tag2.id.as_str()));
+        // tag2 for "pb".
+        assert!(pairs.iter().any(|(p, t)| p == "pb" && t == &tag2.id));
     }
 
     #[test]

@@ -1,13 +1,24 @@
-import { useState, type ReactElement } from "react";
+import { useState, useMemo, useEffect, type ReactElement } from "react";
 import { Plus, Paperclip } from "lucide-react";
 
-import { PromptCard, usePrompts } from "@entities/prompt";
+import { PromptCard, usePrompts, usePromptTagsMap } from "@entities/prompt";
 import { Button, Icon, EmptyState } from "@shared/ui";
 import { PromptEditor } from "@widgets/prompt-editor";
 import { PromptCreateDialog } from "@widgets/prompt-create-dialog";
 import { AttachPromptDialog } from "@widgets/attach-prompt-dialog";
+import { PromptsTagFilter } from "@widgets/prompts-tag-filter";
 
 import styles from "./PromptsList.module.css";
+
+const ACTIVE_TAG_STORAGE_KEY = "catique:prompts:active-tag";
+
+function readStoredTagId(): string | null {
+  try {
+    return localStorage.getItem(ACTIVE_TAG_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
 
 export interface PromptsListProps {
   /** Called when the user activates a prompt card. */
@@ -22,12 +33,50 @@ export interface PromptsListProps {
  *   2. error   — inline error panel + retry.
  *   3. empty   — friendly headline + hint.
  *   4. populated — CSS-grid of `PromptCard`s.
+ *
+ * A `PromptsTagFilter` row between the header and the grid lets the user
+ * filter the list by attached tag (client-side, via `usePromptTagsMap`).
  */
 export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactElement {
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAttachOpen, setIsAttachOpen] = useState(false);
+  const [activeTagId, setActiveTagId] = useState<string | null>(readStoredTagId);
+
   const promptsQuery = usePrompts();
+  const tagMapQuery = usePromptTagsMap();
+
+  // Persist the active filter to localStorage whenever it changes.
+  useEffect(() => {
+    try {
+      if (activeTagId === null) {
+        localStorage.removeItem(ACTIVE_TAG_STORAGE_KEY);
+      } else {
+        localStorage.setItem(ACTIVE_TAG_STORAGE_KEY, activeTagId);
+      }
+    } catch {
+      // localStorage may be unavailable in certain environments — silently ignore.
+    }
+  }, [activeTagId]);
+
+  // Derive the filtered prompt list from the full list + tag-map.
+  const filteredPrompts = useMemo(() => {
+    const allPrompts = promptsQuery.data ?? [];
+    if (activeTagId === null) return allPrompts;
+    const tagMap = tagMapQuery.data ?? [];
+    const taggedPromptIds = new Set(
+      tagMap
+        .filter((entry) => entry.tagIds.includes(activeTagId))
+        .map((entry) => entry.promptId),
+    );
+    return allPrompts.filter((p) => taggedPromptIds.has(p.id));
+  }, [promptsQuery.data, tagMapQuery.data, activeTagId]);
+
+  // Whether the filter produced an empty result for a non-empty prompt list.
+  const isFilterEmpty =
+    activeTagId !== null &&
+    filteredPrompts.length === 0 &&
+    (promptsQuery.data?.length ?? 0) > 0;
 
   return (
     <section className={styles.root} aria-labelledby="prompts-list-heading">
@@ -74,6 +123,12 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
         </div>
       </header>
 
+      {/* Tag filter row — shown when tags are available or loading */}
+      <PromptsTagFilter
+        selectedTagId={activeTagId}
+        onChange={setActiveTagId}
+      />
+
       {promptsQuery.status === "pending" ? (
         <div className={styles.grid} data-testid="prompts-list-loading">
           <PromptCard isPending />
@@ -94,6 +149,23 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
           >
             Повторить
           </Button>
+        </div>
+      ) : isFilterEmpty ? (
+        <div className={styles.empty} data-testid="prompts-list-filter-empty">
+          <EmptyState
+            iconName="prompts"
+            title="No prompts match the filter"
+            description="Try a different tag or clear the filter."
+            action={
+              <Button
+                variant="secondary"
+                size="md"
+                onPress={() => setActiveTagId(null)}
+              >
+                Clear filter
+              </Button>
+            }
+          />
         </div>
       ) : promptsQuery.data.length === 0 ? (
         <div className={styles.empty} data-testid="prompts-list-empty">
@@ -117,7 +189,7 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
         </div>
       ) : (
         <div className={styles.grid} data-testid="prompts-list-grid">
-          {promptsQuery.data.map((prompt) => (
+          {filteredPrompts.map((prompt) => (
             <PromptCard
               key={prompt.id}
               prompt={prompt}

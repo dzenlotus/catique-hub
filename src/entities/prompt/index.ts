@@ -13,6 +13,7 @@ export {
   createPrompt,
   updatePrompt,
   deletePrompt,
+  listPromptTagsMap,
   recomputePromptTokenCount,
 } from "./api";
 export type { CreatePromptArgs, UpdatePromptArgs } from "./api";
@@ -22,6 +23,7 @@ export {
   promptsKeys,
   usePrompts,
   usePrompt,
+  usePromptTagsMap,
   useCreatePromptMutation,
   useUpdatePromptMutation,
   useDeletePromptMutation,

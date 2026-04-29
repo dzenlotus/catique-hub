@@ -1,9 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Prompt } from "@entities/prompt";
+import type { Tag } from "@entities/tag";
+import type { PromptTagMapEntry } from "@bindings/PromptTagMapEntry";
 import { ToastProvider } from "@app/providers/ToastProvider";
 
 // Mock the Tauri invoke wrapper at the shared/api boundary so all four
@@ -48,8 +51,37 @@ function makePrompt(overrides: Partial<Prompt> = {}): Prompt {
   };
 }
 
+/**
+ * Set up invoke so `list_prompts` returns `prompts`, `list_tags` returns
+ * `tags`, and `list_prompt_tags_map` returns `tagMap`.  All other calls
+ * hang forever (safe default — avoids masking unintended IPC calls).
+ */
+function mockInvoke({
+  prompts,
+  tags = [],
+  tagMap = [],
+}: {
+  prompts: Prompt[] | "hang" | "error";
+  tags?: Tag[];
+  tagMap?: PromptTagMapEntry[];
+}): void {
+  invokeMock.mockImplementation((command: string) => {
+    if (command === "list_prompts") {
+      if (prompts === "hang") return new Promise(() => {});
+      if (prompts === "error") return Promise.reject(new Error("db offline"));
+      return Promise.resolve(prompts);
+    }
+    if (command === "list_tags") return Promise.resolve(tags);
+    if (command === "list_prompt_tags_map") return Promise.resolve(tagMap);
+    // All other commands (PromptEditor etc.) hang silently.
+    return new Promise(() => {});
+  });
+}
+
 beforeEach(() => {
   invokeMock.mockReset();
+  // Clear any persisted filter between tests.
+  localStorage.removeItem("catique:prompts:active-tag");
 });
 
 afterEach(() => {
@@ -58,20 +90,20 @@ afterEach(() => {
 
 describe("PromptsList", () => {
   it("renders 3 skeleton cards while loading", () => {
-    invokeMock.mockImplementation(() => new Promise(() => {})); // never resolves
+    mockInvoke({ prompts: "hang" });
     renderWithClient(<PromptsList />);
     const skeletons = screen.getAllByTestId("prompt-card-skeleton");
     expect(skeletons).toHaveLength(3);
   });
 
   it("shows the create header button always (loading state)", () => {
-    invokeMock.mockImplementation(() => new Promise(() => {}));
+    mockInvoke({ prompts: "hang" });
     renderWithClient(<PromptsList />);
     expect(screen.getByTestId("prompts-list-create-button")).toBeInTheDocument();
   });
 
   it("shows the empty state when the list is empty", async () => {
-    invokeMock.mockResolvedValue([] satisfies Prompt[]);
+    mockInvoke({ prompts: [] });
     renderWithClient(<PromptsList />);
     await waitFor(() => {
       expect(screen.getByTestId("prompts-list-empty")).toBeInTheDocument();
@@ -80,11 +112,13 @@ describe("PromptsList", () => {
   });
 
   it("renders one PromptCard per prompt when populated", async () => {
-    invokeMock.mockResolvedValue([
-      makePrompt({ id: "prm-1", name: "Summariser" }),
-      makePrompt({ id: "prm-2", name: "Code Reviewer" }),
-      makePrompt({ id: "prm-3", name: "Translator" }),
-    ] satisfies Prompt[]);
+    mockInvoke({
+      prompts: [
+        makePrompt({ id: "prm-1", name: "Summariser" }),
+        makePrompt({ id: "prm-2", name: "Code Reviewer" }),
+        makePrompt({ id: "prm-3", name: "Translator" }),
+      ],
+    });
     renderWithClient(<PromptsList />);
     await waitFor(() => {
       expect(screen.getByTestId("prompts-list-grid")).toBeInTheDocument();
@@ -95,7 +129,7 @@ describe("PromptsList", () => {
   });
 
   it("shows an inline error with retry when the query fails", async () => {
-    invokeMock.mockRejectedValue(new Error("db offline"));
+    mockInvoke({ prompts: "error" });
     renderWithClient(<PromptsList />);
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
@@ -105,9 +139,9 @@ describe("PromptsList", () => {
   });
 
   it("calls onSelectPrompt with the prompt id when a card is activated", async () => {
-    invokeMock.mockResolvedValue([
-      makePrompt({ id: "prm-pick", name: "Pick me" }),
-    ] satisfies Prompt[]);
+    mockInvoke({
+      prompts: [makePrompt({ id: "prm-pick", name: "Pick me" })],
+    });
     const onSelectPrompt = vi.fn();
     renderWithClient(<PromptsList onSelectPrompt={onSelectPrompt} />);
     await waitFor(() => {
@@ -115,5 +149,63 @@ describe("PromptsList", () => {
     });
     screen.getByText("Pick me").click();
     expect(onSelectPrompt).toHaveBeenCalledWith("prm-pick");
+  });
+
+  // ---- Tag filter integration ----------------------------------------
+
+  it("shows prompts-tag-filter above the grid", async () => {
+    mockInvoke({ prompts: [] });
+    renderWithClient(<PromptsList />);
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompts-tag-filter"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("filters the grid to prompts that have the selected tag", async () => {
+    mockInvoke({
+      prompts: [
+        makePrompt({ id: "prm-a", name: "Alpha" }),
+        makePrompt({ id: "prm-b", name: "Beta" }),
+      ],
+      tags: [{ id: "t1", name: "rust", color: null, createdAt: 0n, updatedAt: 0n }],
+      tagMap: [{ promptId: "prm-a", tagIds: ["t1"] }],
+    });
+    const user = userEvent.setup();
+    renderWithClient(<PromptsList />);
+    await waitFor(() => {
+      expect(screen.getByTestId("prompts-list-grid")).toBeInTheDocument();
+    });
+    // Click the "rust" tag chip.
+    await user.click(screen.getByTestId("prompts-tag-filter-chip-t1"));
+    // Only Alpha (prm-a) should be visible; Beta has no t1 tag.
+    await waitFor(() => {
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Beta")).not.toBeInTheDocument();
+  });
+
+  it('shows filter-empty state with "Clear filter" CTA when filter yields no results', async () => {
+    mockInvoke({
+      prompts: [makePrompt({ id: "prm-a", name: "Alpha" })],
+      tags: [{ id: "t1", name: "rust", color: null, createdAt: 0n, updatedAt: 0n }],
+      tagMap: [], // no prompt has this tag
+    });
+    const user = userEvent.setup();
+    renderWithClient(<PromptsList />);
+    await waitFor(() => {
+      expect(screen.getByTestId("prompts-list-grid")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("prompts-tag-filter-chip-t1"));
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompts-list-filter-empty"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText(/no prompts match the filter/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /clear filter/i }),
+    ).toBeInTheDocument();
   });
 });

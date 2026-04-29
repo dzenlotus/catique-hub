@@ -19,18 +19,21 @@ import {
   deletePrompt,
   getPrompt,
   listPrompts,
+  listPromptTagsMap,
   updatePrompt,
   recomputePromptTokenCount,
   type CreatePromptArgs,
   type UpdatePromptArgs,
 } from "../api";
 import type { Prompt } from "./types";
+import type { PromptTagMapEntry } from "@bindings/PromptTagMapEntry";
 
 /** Query-key factory. Centralised so invalidation stays consistent. */
 export const promptsKeys = {
   all: ["prompts"] as const,
   list: () => [...promptsKeys.all] as const,
   detail: (id: string) => [...promptsKeys.all, id] as const,
+  tagMap: () => [...promptsKeys.all, "tagMap"] as const,
 };
 
 /** `usePrompts` — list every prompt. */
@@ -38,6 +41,21 @@ export function usePrompts(): UseQueryResult<Prompt[], Error> {
   return useQuery({
     queryKey: promptsKeys.list(),
     queryFn: listPrompts,
+  });
+}
+
+/**
+ * `usePromptTagsMap` — bulk fetch of every `(promptId, tagIds[])` entry.
+ *
+ * Stale-time is generous (30 s) because tag attachments change infrequently;
+ * `add_prompt_tag` / `remove_prompt_tag` handlers should invalidate
+ * `["prompts","tagMap"]` when wired to mutations (future work).
+ */
+export function usePromptTagsMap(): UseQueryResult<PromptTagMapEntry[], Error> {
+  return useQuery({
+    queryKey: promptsKeys.tagMap(),
+    queryFn: listPromptTagsMap,
+    staleTime: 30_000,
   });
 }
 

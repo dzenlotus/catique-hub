@@ -1,0 +1,80 @@
+/*
+ * PromptsTagFilter — horizontal chip row above PromptsList.
+ *
+ * Reads only semantic design tokens. The "All" chip and each TagChip
+ * have a `.selected` modifier that adds the accent ring.
+ */
+
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+/* ---------- "All" chip and per-tag chip base ---------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-12);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border-card);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+  cursor: pointer;
+  appearance: none;
+  text-align: left;
+  transition:
+    border-color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
+.chip:hover {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-overlay-hover);
+}
+
+.chip:active {
+  background-color: var(--color-overlay-active);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ---------- Selected state — accent soft background + ring ---------- */
+
+.chipSelected {
+  border-color: var(--color-accent-border, var(--color-border-focus));
+  background-color: var(--color-accent-soft, var(--color-overlay-hover));
+  color: var(--color-text-default);
+}
+
+.chipSelected:hover {
+  border-color: var(--color-accent-border, var(--color-border-focus));
+  background-color: var(--color-accent-soft, var(--color-overlay-hover));
+}
+
+/* ---------- Colour swatch (passed through from TagChip internals) ---------- */
+
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip {
+    transition: none;
+  }
+}

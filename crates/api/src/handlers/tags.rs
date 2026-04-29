@@ -4,7 +4,7 @@
 //! join-table helpers (`add_prompt_tag` / `remove_prompt_tag`).
 
 use catique_application::{tags::TagsUseCase, AppError};
-use catique_domain::Tag;
+use catique_domain::{PromptTagMapEntry, Tag};
 use catique_infrastructure::db::{pool::acquire, repositories::tags as repo};
 use serde_json::json;
 use tauri::State;
@@ -78,6 +78,21 @@ pub async fn delete_tag(state: State<'_, AppState>, id: String) -> Result<(), Ap
     TagsUseCase::new(&state.pool).delete(&id)?;
     events::emit(&state, events::TAG_DELETED, json!({ "id": id }));
     Ok(())
+}
+
+/// IPC: return all `(prompt_id, [tag_ids])` entries in a single call.
+///
+/// Used by `PromptsTagFilter` on the FE to do client-side filtering
+/// without N+1 IPC calls.
+///
+/// # Errors
+///
+/// Forwards every error from `TagsUseCase::list_tag_map`.
+#[tauri::command]
+pub async fn list_prompt_tags_map(
+    state: State<'_, AppState>,
+) -> Result<Vec<PromptTagMapEntry>, AppError> {
+    TagsUseCase::new(&state.pool).list_tag_map()
 }
 
 // ---------------------------------------------------------------------
