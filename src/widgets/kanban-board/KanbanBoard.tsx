@@ -8,7 +8,7 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { Icon } from "@shared/ui";
 
 import {
@@ -28,6 +28,7 @@ import {
 } from "@entities/task";
 import { TaskCard } from "@entities/task";
 import { PromptCard, usePrompts } from "@entities/prompt";
+import { useRoles, type Role } from "@entities/role";
 import { Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { taskPath } from "@app/routes";
@@ -50,8 +51,41 @@ import {
   isNoOpDrop,
   reorderColumnIds,
 } from "./dragLogic";
+import { GroupingMenu } from "./KanbanBoard.parts";
 
 import styles from "./KanbanBoard.module.css";
+
+/** The three available grouping modes for the board. */
+export type GroupingMode = "status" | "role" | "none";
+
+/** A synthetic column used in "Role" and "None" grouping modes. */
+interface SyntheticColumn {
+  id: string;
+  name: string;
+  tasks: Task[];
+}
+
+function getStorageKey(boardId: string): string {
+  return `catique:kanban:grouping:${boardId}`;
+}
+
+function readStoredGrouping(boardId: string): GroupingMode {
+  try {
+    const raw = localStorage.getItem(getStorageKey(boardId));
+    if (raw === "status" || raw === "role" || raw === "none") return raw;
+  } catch {
+    // localStorage unavailable (SSR, security policy, etc.) — use default.
+  }
+  return "status";
+}
+
+function writeStoredGrouping(boardId: string, mode: GroupingMode): void {
+  try {
+    localStorage.setItem(getStorageKey(boardId), mode);
+  } catch {
+    // Ignore write failures.
+  }
+}
 
 export interface KanbanBoardProps {
   /** Board id whose columns + tasks are rendered. */
@@ -68,6 +102,8 @@ export interface KanbanBoardProps {
  *   - DnD context: column reorder + task move (within / across columns).
  *   - Optimistic mutations via `useReorderColumnsMutation` /
  *     `useMoveTaskMutation`. On error we restore the cache snapshot.
+ *   - Grouping mode: "status" (real columns), "role" (synthetic per roleId),
+ *     or "none" (single "All tasks" column). Persisted in localStorage.
  *
  * The four canonical async-UI states (loading, error, empty, populated)
  * mirror the convention from `widgets/boards-list`. An empty column
@@ -81,6 +117,7 @@ export function KanbanBoard({
   const boardQuery = useBoard(boardId);
   const columnsQuery = useColumns(boardId);
   const tasksQuery = useTasksByBoard(boardId);
+  const rolesQuery = useRoles();
 
   const boardName =
     boardQuery.status === "success"
@@ -99,9 +136,20 @@ export function KanbanBoard({
 
   const columns: Column[] = columnsQuery.data ?? [];
   const tasks: Task[] = tasksQuery.data ?? [];
+  const roles: Role[] = rolesQuery.data ?? [];
 
   const promptsQuery = usePrompts();
   const prompts = promptsQuery.data ?? [];
+
+  // Grouping mode — default is "status", restored from localStorage.
+  const [groupingMode, setGroupingMode] = useState<GroupingMode>(() =>
+    readStoredGrouping(boardId),
+  );
+
+  const handleGroupingChange = (mode: GroupingMode): void => {
+    setGroupingMode(mode);
+    writeStoredGrouping(boardId, mode);
+  };
 
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -130,6 +178,41 @@ export function KanbanBoard({
     }
     return grouped;
   }, [columns, tasks]);
+
+  // ── Synthetic column derivation for "role" / "none" grouping ──────────
+
+  /** Synthetic columns derived for "Role" grouping mode. */
+  const roleColumns = useMemo((): SyntheticColumn[] => {
+    const roleMap = new Map<string, Role>(roles.map((r) => [r.id, r]));
+    const grouped = new Map<string | null, Task[]>();
+
+    for (const t of [...tasks].sort((a, b) => a.position - b.position)) {
+      const key = t.roleId ?? null;
+      (grouped.get(key) ?? (() => {
+        const arr: Task[] = [];
+        grouped.set(key, arr);
+        return arr;
+      })()).push(t);
+    }
+
+    const cols: SyntheticColumn[] = [];
+    // Named role columns first (in whatever order they appear in tasks).
+    for (const [roleId, roleTasks] of grouped.entries()) {
+      if (roleId === null) continue;
+      const roleName = roleMap.get(roleId)?.name ?? roleId;
+      cols.push({ id: `role:${roleId}`, name: roleName, tasks: roleTasks });
+    }
+    // "(no role)" column last.
+    const noRoleTasks = grouped.get(null) ?? [];
+    cols.push({ id: "role:null", name: "(no role)", tasks: noRoleTasks });
+    return cols;
+  }, [tasks, roles]);
+
+  /** Synthetic single column for "None" grouping mode. */
+  const noneColumns = useMemo((): SyntheticColumn[] => {
+    const sorted = [...tasks].sort((a, b) => a.position - b.position);
+    return [{ id: "all", name: "All tasks", tasks: sorted }];
+  }, [tasks]);
 
   const lastOverIdRef = useRef<string | null>(null);
 
@@ -304,7 +387,7 @@ export function KanbanBoard({
       <section className={styles.root}>
         <div className={styles.error} role="alert">
           <p className={styles.errorMessage}>
-            Couldn’t load board: {columnsQuery.error.message}
+            Couldn't load board: {columnsQuery.error.message}
           </p>
           <Button
             variant="secondary"
@@ -325,7 +408,7 @@ export function KanbanBoard({
       <section className={styles.root}>
         <div className={styles.error} role="alert">
           <p className={styles.errorMessage}>
-            Couldn’t load tasks: {tasksQuery.error.message}
+            Couldn't load tasks: {tasksQuery.error.message}
           </p>
           <Button
             variant="secondary"
@@ -390,6 +473,112 @@ export function KanbanBoard({
     setIsAddingColumn(false);
   };
 
+  // Whether DnD and column-add controls should be active.
+  const isDndEnabled = groupingMode === "status";
+
+  // ── Render helpers ─────────────────────────────────────────────────
+
+  const renderStatusColumns = (): ReactElement => (
+    <DnDProvider
+      columnIds={columnIds}
+      collisionDetection={collisionDetection}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}
+    >
+      <div className={styles.scroller} data-testid="kanban-dnd-provider">
+        {columns.map((column) => (
+          <KanbanColumn
+            key={column.id}
+            column={column}
+            tasks={tasksByColumn[column.id] ?? []}
+            onAddTask={handleAddTask}
+            onRenameColumn={(id, name) =>
+              updateColumn.mutate({ id, boardId, name })
+            }
+            onDeleteColumn={(id) =>
+              deleteColumn.mutate({ id, boardId })
+            }
+            onTaskSelect={handleTaskSelect}
+          />
+        ))}
+
+        <div className={styles.addColumnContainer}>
+          {isAddingColumn ? (
+            <form
+              className={styles.addColumnForm}
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSubmitNewColumn();
+              }}
+            >
+              <Input
+                label="Column name"
+                value={newColumnName}
+                onChange={setNewColumnName}
+                placeholder="e.g. In review"
+                autoFocus
+              />
+              <div className={styles.addColumnFormActions}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  onPress={() => {
+                    setNewColumnName("");
+                    setIsAddingColumn(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button variant="primary" size="sm" type="submit">
+                  Add
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <Button
+              variant="ghost"
+              size="md"
+              className={cn(styles.addColumnButton)}
+              onPress={() => setIsAddingColumn(true)}
+              data-testid="kanban-board-add-column"
+            >
+              + Add column
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <DragOverlay>
+        {activeColumn ? (
+          <KanbanColumn
+            column={activeColumn}
+            tasks={tasksByColumn[activeColumn.id] ?? []}
+            dragOverlay
+          />
+        ) : activeTask ? (
+          <TaskCard task={activeTask} dragOverlay />
+        ) : null}
+      </DragOverlay>
+    </DnDProvider>
+  );
+
+  const renderSyntheticColumns = (syntheticCols: SyntheticColumn[]): ReactElement => (
+    <div className={styles.scroller}>
+      {syntheticCols.map((sc) => (
+        <SyntheticKanbanColumn
+          key={sc.id}
+          id={sc.id}
+          name={sc.name}
+          tasks={sc.tasks}
+          onTaskSelect={handleTaskSelect}
+        />
+      ))}
+    </div>
+  );
+
   return (
     <section className={styles.root} data-testid="kanban-board">
       <header className={styles.boardHeader}>
@@ -414,16 +603,8 @@ export function KanbanBoard({
 
         {/* Right: Group by dropdown + kebab + prompts toggle */}
         <div className={styles.boardHeaderActions}>
-          {/* "Group by: Status" — static visual, no functional grouping yet */}
-          <button
-            type="button"
-            className={styles.groupByButton}
-            aria-label="Group by"
-          >
-            <span className={styles.groupByLabel}>Group by:</span>
-            <span className={styles.groupByValue}>Status</span>
-            <ChevronDown size={12} aria-hidden="true" />
-          </button>
+          {/* "Group by:" functional dropdown */}
+          <GroupingMenu value={groupingMode} onChange={handleGroupingChange} />
 
           {/* Kebab menu */}
           <button
@@ -458,90 +639,11 @@ export function KanbanBoard({
       <PromptAttachmentBoundary>
         <div className={cn(styles.layout, isPanelOpen && styles.layoutWithPanel)}>
           <div className={styles.kanbanArea}>
-            <DnDProvider
-              columnIds={columnIds}
-              collisionDetection={collisionDetection}
-              onDragStart={onDragStart}
-              onDragOver={onDragOver}
-              onDragEnd={onDragEnd}
-              onDragCancel={onDragCancel}
-            >
-              <div className={styles.scroller}>
-                {columns.map((column) => (
-                  <KanbanColumn
-                    key={column.id}
-                    column={column}
-                    tasks={tasksByColumn[column.id] ?? []}
-                    onAddTask={handleAddTask}
-                    onRenameColumn={(id, name) =>
-                      updateColumn.mutate({ id, boardId, name })
-                    }
-                    onDeleteColumn={(id) =>
-                      deleteColumn.mutate({ id, boardId })
-                    }
-                    onTaskSelect={handleTaskSelect}
-                  />
-                ))}
-
-                <div className={styles.addColumnContainer}>
-                  {isAddingColumn ? (
-                    <form
-                      className={styles.addColumnForm}
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        handleSubmitNewColumn();
-                      }}
-                    >
-                      <Input
-                        label="Column name"
-                        value={newColumnName}
-                        onChange={setNewColumnName}
-                        placeholder="e.g. In review"
-                        autoFocus
-                      />
-                      <div className={styles.addColumnFormActions}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          type="button"
-                          onPress={() => {
-                            setNewColumnName("");
-                            setIsAddingColumn(false);
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                        <Button variant="primary" size="sm" type="submit">
-                          Add
-                        </Button>
-                      </div>
-                    </form>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="md"
-                      className={cn(styles.addColumnButton)}
-                      onPress={() => setIsAddingColumn(true)}
-                      data-testid="kanban-board-add-column"
-                    >
-                      + Add column
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <DragOverlay>
-                {activeColumn ? (
-                  <KanbanColumn
-                    column={activeColumn}
-                    tasks={tasksByColumn[activeColumn.id] ?? []}
-                    dragOverlay
-                  />
-                ) : activeTask ? (
-                  <TaskCard task={activeTask} dragOverlay />
-                ) : null}
-              </DragOverlay>
-            </DnDProvider>
+            {isDndEnabled
+              ? renderStatusColumns()
+              : groupingMode === "role"
+                ? renderSyntheticColumns(roleColumns)
+                : renderSyntheticColumns(noneColumns)}
           </div>
 
           {isPanelOpen && (
@@ -584,6 +686,53 @@ export function KanbanBoard({
     </section>
   );
 }
+
+// ── SyntheticKanbanColumn ──────────────────────────────────────────────────
+
+interface SyntheticKanbanColumnProps {
+  id: string;
+  name: string;
+  tasks: Task[];
+  onTaskSelect?: (taskId: string) => void;
+}
+
+/**
+ * Read-only column used in "Role" and "None" grouping modes.
+ * No DnD, no add-task affordance, no rename/delete. Minimal chrome.
+ */
+function SyntheticKanbanColumn({
+  id,
+  name,
+  tasks,
+  onTaskSelect,
+}: SyntheticKanbanColumnProps): ReactElement {
+  return (
+    <section
+      className={styles.syntheticColumn}
+      aria-label={`Column ${name}`}
+      data-testid={`kanban-synthetic-column-${id}`}
+    >
+      <header className={styles.syntheticColumnHeader}>
+        <h3 className={styles.syntheticColumnName}>{name}</h3>
+      </header>
+      <div className={styles.syntheticColumnBody}>
+        {tasks.length === 0 ? (
+          <p className={styles.syntheticColumnEmpty}>No tasks</p>
+        ) : (
+          tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              {...(onTaskSelect ? { onSelect: onTaskSelect } : {})}
+            />
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ── CreateFirstColumn ──────────────────────────────────────────────────────
 
 interface CreateFirstColumnProps {
   onCreate: (name: string) => void;

@@ -280,6 +280,50 @@
   justify-content: flex-end;
 }
 
+/* ---------- Synthetic columns (Role / None grouping modes) ---------- */
+
+.syntheticColumn {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-surface-column, var(--color-surface-canvas));
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  min-height: 80px;
+}
+
+.syntheticColumnHeader {
+  display: flex;
+  align-items: center;
+  padding: var(--space-12) var(--space-12) var(--space-8);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.syntheticColumnName {
+  margin: 0;
+  font-size: var(--font-size-headline-sm, var(--font-size-body));
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-default);
+}
+
+.syntheticColumnBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.syntheticColumnEmpty {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--space-16) 0;
+}
+
 /* ---------- Loading skeleton ---------- */
 
 .loadingScroller {

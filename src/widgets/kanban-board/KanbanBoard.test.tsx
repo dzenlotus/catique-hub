@@ -9,6 +9,7 @@ import { memoryLocation } from "wouter/memory-location";
 import type { Column } from "@entities/column";
 import type { Task } from "@entities/task";
 import type { Prompt } from "@entities/prompt";
+import type { Role } from "@entities/role";
 
 vi.mock("@shared/api", () => ({
   invoke: vi.fn(),
@@ -78,12 +79,26 @@ function makePrompt(overrides: Partial<Prompt> = {}): Prompt {
   };
 }
 
+function makeRole(overrides: Partial<Role> = {}): Role {
+  return {
+    id: "role-1",
+    name: "Frontend",
+    content: "",
+    color: null,
+    createdAt: 0n,
+    updatedAt: 0n,
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   invokeMock.mockReset();
+  localStorage.clear();
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
+  localStorage.clear();
 });
 
 describe("KanbanBoard", () => {
@@ -97,6 +112,7 @@ describe("KanbanBoard", () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_columns") return [] satisfies Column[];
       if (cmd === "list_tasks") return [] satisfies Task[];
+      if (cmd === "list_roles") return [] satisfies Role[];
       throw new Error(`unexpected: ${cmd}`);
     });
     renderWithClient(<KanbanBoard boardId="brd-1" />);
@@ -112,6 +128,7 @@ describe("KanbanBoard", () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_columns") throw new Error("transport down");
       if (cmd === "list_tasks") return [] satisfies Task[];
+      if (cmd === "list_roles") return [] satisfies Role[];
       throw new Error(`unexpected: ${cmd}`);
     });
     renderWithClient(<KanbanBoard boardId="brd-1" />);
@@ -137,6 +154,7 @@ describe("KanbanBoard", () => {
           makeTask({ id: "t3", columnId: "col-2", title: "Third" }),
         ] satisfies Task[];
       }
+      if (cmd === "list_roles") return [] satisfies Role[];
       throw new Error(`unexpected: ${cmd}`);
     });
     renderWithClient(<KanbanBoard boardId="brd-1" />);
@@ -173,6 +191,7 @@ describe("KanbanBoard", () => {
           }),
         ] satisfies Task[];
       }
+      if (cmd === "list_roles") return [] satisfies Role[];
       throw new Error(`unexpected: ${cmd}`);
     });
     renderWithClient(<KanbanBoard boardId="brd-1" />);
@@ -191,6 +210,7 @@ describe("KanbanBoard", () => {
       if (cmd === "list_tasks") {
         return [makeTask({ id: "tsk-click", columnId: "col-1", title: "Click Me" })] satisfies Task[];
       }
+      if (cmd === "list_roles") return [] satisfies Role[];
       throw new Error(`unexpected: ${cmd}`);
     });
 
@@ -215,6 +235,7 @@ describe("KanbanBoard", () => {
         ] satisfies Column[];
       }
       if (cmd === "list_tasks") return [] satisfies Task[];
+      if (cmd === "list_roles") return [] satisfies Role[];
       if (cmd === "create_column") {
         return makeColumn({ id: "col-new", name: "Inbox" });
       }
@@ -253,6 +274,7 @@ describe("KanbanBoard", () => {
       if (cmd === "list_columns") return [makeColumn()] satisfies Column[];
       if (cmd === "list_tasks") return [] satisfies Task[];
       if (cmd === "list_prompts") return [] satisfies Prompt[];
+      if (cmd === "list_roles") return [] satisfies Role[];
       throw new Error(`unexpected: ${cmd}`);
     });
     renderWithClient(<KanbanBoard boardId="brd-1" />);
@@ -272,6 +294,7 @@ describe("KanbanBoard", () => {
       if (cmd === "list_columns") return [makeColumn()] satisfies Column[];
       if (cmd === "list_tasks") return [] satisfies Task[];
       if (cmd === "list_prompts") return [] satisfies Prompt[];
+      if (cmd === "list_roles") return [] satisfies Role[];
       throw new Error(`unexpected: ${cmd}`);
     });
     const { user } = renderWithClient(<KanbanBoard boardId="brd-1" />);
@@ -298,6 +321,7 @@ describe("KanbanBoard", () => {
       if (cmd === "list_columns") return [makeColumn()] satisfies Column[];
       if (cmd === "list_tasks") return [] satisfies Task[];
       if (cmd === "list_prompts") return prompts satisfies Prompt[];
+      if (cmd === "list_roles") return [] satisfies Role[];
       throw new Error(`unexpected: ${cmd}`);
     });
     const { user } = renderWithClient(<KanbanBoard boardId="brd-1" />);
@@ -314,5 +338,197 @@ describe("KanbanBoard", () => {
     });
     expect(screen.getByText("Системный промпт")).toBeInTheDocument();
     expect(screen.getByText("Ролевой промпт")).toBeInTheDocument();
+  });
+
+  // ── Grouping mode tests ────────────────────────────────────────────────
+
+  describe("grouping mode", () => {
+    it("default grouping is 'status' — DnDProvider is mounted", async () => {
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "list_columns") return [makeColumn()] satisfies Column[];
+        if (cmd === "list_tasks") return [] satisfies Task[];
+        if (cmd === "list_roles") return [] satisfies Role[];
+        throw new Error(`unexpected: ${cmd}`);
+      });
+      renderWithClient(<KanbanBoard boardId="brd-1" />);
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
+      });
+      // In status mode the DnD wrapper is rendered (data-testid on the scroller inside it)
+      expect(screen.getByTestId("kanban-dnd-provider")).toBeInTheDocument();
+      // Group by pill shows "Status"
+      expect(screen.getByTestId("kanban-grouping-trigger")).toHaveTextContent("Status");
+    });
+
+    it("switching to 'Role' renders synthetic columns based on task roleId", async () => {
+      const roles: Role[] = [
+        makeRole({ id: "role-fe", name: "Frontend" }),
+        makeRole({ id: "role-be", name: "Backend" }),
+      ];
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "list_columns") {
+          return [makeColumn({ id: "col-1" })] satisfies Column[];
+        }
+        if (cmd === "list_tasks") {
+          return [
+            makeTask({ id: "t1", columnId: "col-1", title: "FE Task", roleId: "role-fe" }),
+            makeTask({ id: "t2", columnId: "col-1", title: "BE Task", roleId: "role-be" }),
+            makeTask({ id: "t3", columnId: "col-1", title: "No Role Task", roleId: null }),
+          ] satisfies Task[];
+        }
+        if (cmd === "list_roles") return roles satisfies Role[];
+        throw new Error(`unexpected: ${cmd}`);
+      });
+
+      const { user } = renderWithClient(<KanbanBoard boardId="brd-1" />);
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
+      });
+
+      // Open grouping menu and select "Role"
+      await user.click(screen.getByTestId("kanban-grouping-trigger"));
+      await user.click(screen.getByTestId("kanban-grouping-option-role"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-grouping-trigger")).toHaveTextContent("Role");
+      });
+
+      // Synthetic columns rendered for each unique roleId + one (no role)
+      expect(screen.getByTestId("kanban-synthetic-column-role:role-fe")).toBeInTheDocument();
+      expect(screen.getByTestId("kanban-synthetic-column-role:role-be")).toBeInTheDocument();
+      expect(screen.getByTestId("kanban-synthetic-column-role:null")).toBeInTheDocument();
+
+      // Column names use resolved role names
+      expect(screen.getByText("Frontend")).toBeInTheDocument();
+      expect(screen.getByText("Backend")).toBeInTheDocument();
+      expect(screen.getByText("(no role)")).toBeInTheDocument();
+
+      // Tasks appear in the correct synthetic column
+      expect(screen.getByText("FE Task")).toBeInTheDocument();
+      expect(screen.getByText("BE Task")).toBeInTheDocument();
+      expect(screen.getByText("No Role Task")).toBeInTheDocument();
+
+      // DnD provider is NOT rendered in role mode
+      expect(screen.queryByTestId("kanban-dnd-provider")).toBeNull();
+    });
+
+    it("switching to 'None' renders a single 'All tasks' column with every task", async () => {
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "list_columns") {
+          return [
+            makeColumn({ id: "col-1", name: "Todo" }),
+            makeColumn({ id: "col-2", name: "Done" }),
+          ] satisfies Column[];
+        }
+        if (cmd === "list_tasks") {
+          return [
+            makeTask({ id: "t1", columnId: "col-1", title: "Alpha" }),
+            makeTask({ id: "t2", columnId: "col-2", title: "Beta" }),
+          ] satisfies Task[];
+        }
+        if (cmd === "list_roles") return [] satisfies Role[];
+        throw new Error(`unexpected: ${cmd}`);
+      });
+
+      const { user } = renderWithClient(<KanbanBoard boardId="brd-1" />);
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
+      });
+
+      // Open grouping menu and select "None"
+      await user.click(screen.getByTestId("kanban-grouping-trigger"));
+      await user.click(screen.getByTestId("kanban-grouping-option-none"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-grouping-trigger")).toHaveTextContent("None");
+      });
+
+      // Single synthetic "All tasks" column
+      expect(screen.getByTestId("kanban-synthetic-column-all")).toBeInTheDocument();
+      expect(screen.getByText("All tasks")).toBeInTheDocument();
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+      expect(screen.getByText("Beta")).toBeInTheDocument();
+
+      // DnD provider is NOT rendered in none mode
+      expect(screen.queryByTestId("kanban-dnd-provider")).toBeNull();
+
+      // "+ Add column" is suppressed
+      expect(screen.queryByTestId("kanban-board-add-column")).toBeNull();
+    });
+
+    it("DnD provider is NOT rendered when grouping is 'role'", async () => {
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "list_columns") return [makeColumn()] satisfies Column[];
+        if (cmd === "list_tasks") return [makeTask({ roleId: "role-fe" })] satisfies Task[];
+        if (cmd === "list_roles") {
+          return [makeRole({ id: "role-fe", name: "Frontend" })] satisfies Role[];
+        }
+        throw new Error(`unexpected: ${cmd}`);
+      });
+
+      const { user } = renderWithClient(<KanbanBoard boardId="brd-1" />);
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId("kanban-grouping-trigger"));
+      await user.click(screen.getByTestId("kanban-grouping-option-role"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-grouping-trigger")).toHaveTextContent("Role");
+      });
+
+      expect(screen.queryByTestId("kanban-dnd-provider")).toBeNull();
+    });
+
+    it("localStorage persistence: grouping choice is stored and read on init", async () => {
+      // Pre-seed localStorage — simulates a prior session
+      localStorage.setItem("catique:kanban:grouping:brd-persist", "role");
+
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "list_columns") {
+          return [makeColumn({ id: "col-p", boardId: "brd-persist" })] satisfies Column[];
+        }
+        if (cmd === "list_tasks") return [] satisfies Task[];
+        if (cmd === "list_roles") return [] satisfies Role[];
+        throw new Error(`unexpected: ${cmd}`);
+      });
+
+      renderWithClient(<KanbanBoard boardId="brd-persist" />);
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
+      });
+
+      // Grouping trigger should reflect the stored "role" value without any interaction
+      expect(screen.getByTestId("kanban-grouping-trigger")).toHaveTextContent("Role");
+    });
+
+    it("localStorage persistence: switching grouping writes to localStorage", async () => {
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "list_columns") {
+          return [makeColumn({ id: "col-w", boardId: "brd-write" })] satisfies Column[];
+        }
+        if (cmd === "list_tasks") return [] satisfies Task[];
+        if (cmd === "list_roles") return [] satisfies Role[];
+        throw new Error(`unexpected: ${cmd}`);
+      });
+
+      const { user } = renderWithClient(<KanbanBoard boardId="brd-write" />);
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
+      });
+
+      // Default should be "status" (nothing in localStorage yet)
+      expect(localStorage.getItem("catique:kanban:grouping:brd-write")).toBeNull();
+
+      // Switch to "None"
+      await user.click(screen.getByTestId("kanban-grouping-trigger"));
+      await user.click(screen.getByTestId("kanban-grouping-option-none"));
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-grouping-trigger")).toHaveTextContent("None");
+      });
+
+      expect(localStorage.getItem("catique:kanban:grouping:brd-write")).toBe("none");
+    });
   });
 });
