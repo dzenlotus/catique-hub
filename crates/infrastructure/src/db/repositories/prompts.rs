@@ -41,6 +41,16 @@ impl PromptRow {
             updated_at: row.get("updated_at")?,
         })
     }
+
+    /// Public row-mapping function for use by sibling repositories that JOIN
+    /// onto the `prompts` table (e.g. `tasks::list_task_prompts`).
+    ///
+    /// # Errors
+    ///
+    /// Returns rusqlite column-access errors if the row shape doesn't match.
+    pub fn from_row_pub(row: &Row<'_>) -> rusqlite::Result<Self> {
+        Self::from_row(row)
+    }
 }
 
 /// Draft for inserting a new prompt.

@@ -55,6 +55,18 @@ vi.mock("@widgets/global-search", () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Mock useNewTaskKeybind (defined in the same widget directory)
+// ---------------------------------------------------------------------------
+
+vi.mock("./useNewTaskKeybind", () => ({
+  useNewTaskKeybind: (onActivate: () => void) => {
+    // Expose the activator on window so tests can trigger it
+    (window as unknown as Record<string, unknown>)["__newTaskActivate__"] =
+      onActivate;
+  },
+}));
+
+// ---------------------------------------------------------------------------
 // Mock TaskCreateDialog
 // ---------------------------------------------------------------------------
 
@@ -121,6 +133,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   delete (window as unknown as Record<string, unknown>)["__searchActivate__"];
+  delete (window as unknown as Record<string, unknown>)["__newTaskActivate__"];
 });
 
 // ---------------------------------------------------------------------------
@@ -219,6 +232,23 @@ describe("TopBar", () => {
     expect(screen.queryByTestId("task-create-dialog-mock")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("top-bar-new-task"));
+
+    expect(screen.getByTestId("task-create-dialog-mock")).toBeInTheDocument();
+  });
+
+  it("хук ⌘N при вызове открывает TaskCreateDialog", () => {
+    renderAt();
+
+    expect(screen.queryByTestId("task-create-dialog-mock")).not.toBeInTheDocument();
+
+    const activate = (window as unknown as Record<string, unknown>)[
+      "__newTaskActivate__"
+    ] as (() => void) | undefined;
+    expect(activate).toBeDefined();
+
+    act(() => {
+      activate!();
+    });
 
     expect(screen.getByTestId("task-create-dialog-mock")).toBeInTheDocument();
   });

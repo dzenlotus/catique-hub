@@ -27,10 +27,12 @@ import {
   listTasksByColumn,
   updateTask,
   addTaskPrompt,
+  listTaskPrompts,
   type CreateTaskArgs,
   type UpdateTaskArgs,
   type AddTaskPromptArgs,
 } from "../api";
+import type { Prompt } from "@bindings/Prompt";
 import type { Task } from "./types";
 
 export const tasksKeys = {
@@ -40,6 +42,8 @@ export const tasksKeys = {
   byColumn: (columnId: string) =>
     [...tasksKeys.all, "byColumn", columnId] as const,
   detail: (id: string) => [...tasksKeys.all, "detail", id] as const,
+  prompts: (taskId: string) =>
+    [...tasksKeys.all, "prompts", taskId] as const,
 };
 
 /** `useTasksByBoard` — every task on a board. The kanban widget's hook. */
@@ -66,6 +70,18 @@ export function useTask(id: string): UseQueryResult<Task, Error> {
     queryKey: tasksKeys.detail(id),
     queryFn: () => getTask(id),
     enabled: id.length > 0,
+  });
+}
+
+/**
+ * `useTaskPrompts` — prompts attached to a task, ordered by position.
+ * Disabled when `taskId` is empty to avoid spurious requests.
+ */
+export function useTaskPrompts(taskId: string): UseQueryResult<Prompt[], Error> {
+  return useQuery({
+    queryKey: tasksKeys.prompts(taskId),
+    queryFn: () => listTaskPrompts(taskId),
+    enabled: taskId.length > 0,
   });
 }
 

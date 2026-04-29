@@ -6,7 +6,7 @@
 //! `<prefix>-<6char>` rationale.
 
 use catique_application::{tasks::TasksUseCase, AppError};
-use catique_domain::Task;
+use catique_domain::{Prompt, Task};
 use serde_json::json;
 use tauri::State;
 
@@ -141,6 +141,19 @@ pub async fn delete_task(state: State<'_, AppState>, id: String) -> Result<(), A
 // Join-table helpers — task_prompts (direct attachment) +
 // task_prompt_overrides (per-task suppress).
 // ---------------------------------------------------------------------
+
+/// IPC: list all prompts attached to a task, ordered by position.
+///
+/// # Errors
+///
+/// Forwards every error from `TasksUseCase::list_task_prompts`.
+#[tauri::command]
+pub async fn list_task_prompts(
+    state: State<'_, AppState>,
+    task_id: String,
+) -> Result<Vec<Prompt>, AppError> {
+    TasksUseCase::new(&state.pool).list_task_prompts(&task_id)
+}
 
 /// Attach a prompt directly to a task.
 ///

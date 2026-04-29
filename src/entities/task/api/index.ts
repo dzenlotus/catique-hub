@@ -6,6 +6,7 @@ export {
   updateTask,
   deleteTask,
   addTaskPrompt,
+  listTaskPrompts,
 } from "./tasksApi";
 export type {
   CreateTaskArgs,

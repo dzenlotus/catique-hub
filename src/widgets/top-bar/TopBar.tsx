@@ -26,6 +26,7 @@ import { TaskCreateDialog } from "@widgets/task-create-dialog";
 import { cn } from "@shared/lib";
 
 import { NAV_LABELS } from "./labels";
+import { useNewTaskKeybind } from "./useNewTaskKeybind";
 import styles from "./TopBar.module.css";
 
 // ---------------------------------------------------------------------------
@@ -117,6 +118,9 @@ export function TopBar(): ReactElement {
 
   // Bind ⌘K / Ctrl+K globally.
   useGlobalSearchKeybind(openSearch);
+
+  // Bind ⌘N / Ctrl+N globally.
+  useNewTaskKeybind(useCallback(() => setIsCreateOpen(true), []));
 
   // Breadcrumb — only on board/task detail routes.
   let breadcrumb: ReactElement | null = null;

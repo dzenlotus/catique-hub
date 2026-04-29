@@ -308,6 +308,33 @@ pub fn clear_task_prompt_override(
     Ok(n > 0)
 }
 
+/// List all prompts attached to a task, joined from `prompts`, ordered by
+/// the join-table `position` column (ascending). Returns the full `PromptRow`
+/// shape so callers can display the prompt name and colour.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn list_task_prompts(
+    conn: &Connection,
+    task_id: &str,
+) -> Result<Vec<super::prompts::PromptRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT p.id, p.name, p.content, p.color, p.short_description, p.token_count, \
+                p.created_at, p.updated_at \
+         FROM task_prompts tp \
+         JOIN prompts p ON p.id = tp.prompt_id \
+         WHERE tp.task_id = ?1 \
+         ORDER BY tp.position ASC",
+    )?;
+    let rows = stmt.query_map(params![task_id], super::prompts::PromptRow::from_row_pub)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
 /// 6-character nanoid for slug suffixes. URL-safe alphabet, lowercase
 /// letters + digits only (mirrors Promptery's slug-format expectations).
 fn short_id() -> String {
@@ -460,6 +487,33 @@ mod tests {
         assert_eq!(row.role_id.as_deref(), Some("rl-x"));
         let got = get_by_id(&conn, &row.id).unwrap().unwrap();
         assert_eq!(got.role_id.as_deref(), Some("rl-x"));
+    }
+
+    #[test]
+    fn list_task_prompts_returns_in_position_order() {
+        let (conn, bd, col) = fresh_db_with_board();
+        let task = insert(&conn, &draft(&bd, &col)).unwrap();
+
+        // Insert two prompts.
+        conn.execute_batch(
+            "INSERT INTO prompts (id, name, content, color, created_at, updated_at) \
+                 VALUES ('p1','Alpha','',null,0,0), \
+                        ('p2','Beta','','#ff0',0,0);",
+        )
+        .unwrap();
+
+        // Attach in reverse position order (p2 at 0, p1 at 1) to verify
+        // the ORDER BY tp.position clause.
+        add_task_prompt(&conn, &task.id, "p2", 0.0).unwrap();
+        add_task_prompt(&conn, &task.id, "p1", 1.0).unwrap();
+
+        let prompts = list_task_prompts(&conn, &task.id).unwrap();
+        assert_eq!(prompts.len(), 2);
+        assert_eq!(prompts[0].id, "p2", "lower position should come first");
+        assert_eq!(prompts[1].id, "p1");
+        // Colour round-trips correctly.
+        assert_eq!(prompts[1].color, None);
+        assert_eq!(prompts[0].color, Some("#ff0".to_owned()));
     }
 
     #[test]

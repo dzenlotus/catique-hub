@@ -4,6 +4,7 @@ export {
   useTasksByBoard,
   useTasks,
   useTask,
+  useTaskPrompts,
   useCreateTaskMutation,
   useMoveTaskMutation,
   useUpdateTaskMutation,

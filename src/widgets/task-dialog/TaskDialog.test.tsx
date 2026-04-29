@@ -108,6 +108,7 @@ function defaultInvokeHandler(
     if (cmd === "get_task") return task;
     if (cmd === "list_attachments") return [];
     if (cmd === "list_agent_reports") return [];
+    if (cmd === "list_task_prompts") return [];
     if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
     // list_columns returns ALL columns (client filters by boardId in columnsApi)
     if (cmd === "list_columns") return [
@@ -198,7 +199,7 @@ describe("TaskDialog", () => {
     expect(screen.getByTestId("task-dialog-role-select")).toBeInTheDocument();
 
     // 7. Attached prompts section
-    expect(screen.getByTestId("task-dialog-placeholder-prompts")).toBeInTheDocument();
+    expect(screen.getByTestId("task-dialog-prompts-section")).toBeInTheDocument();
   });
 
   it("board select is populated with boards from active space", async () => {
@@ -259,6 +260,7 @@ describe("TaskDialog", () => {
       if (cmd === "get_task") return task;
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
       if (cmd === "list_boards") return [
         makeBoard("brd-1", "Board 1"),
         makeBoard("brd-2", "Board 2"),
@@ -304,6 +306,7 @@ describe("TaskDialog", () => {
       if (cmd === "list_tasks") return [task];
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
       if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
       if (cmd === "list_columns") return [
         makeColumn("col-1", "Todo", "brd-1"),
@@ -357,6 +360,7 @@ describe("TaskDialog", () => {
       if (cmd === "list_tasks") return [task];
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
       if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
       if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
       if (cmd === "list_roles") return [];
@@ -425,6 +429,7 @@ describe("TaskDialog", () => {
       if (cmd === "list_tasks") return [];
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
       if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
       if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
       if (cmd === "list_roles") return [];
@@ -483,6 +488,7 @@ describe("TaskDialog", () => {
       if (cmd === "list_tasks") return [task];
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
       if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
       if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
       if (cmd === "list_roles") return [];
@@ -517,6 +523,7 @@ describe("TaskDialog", () => {
       if (cmd === "list_tasks") return [task];
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
       if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
       if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
       if (cmd === "list_roles") return [];
@@ -555,27 +562,24 @@ describe("TaskDialog", () => {
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("task-dialog-placeholder-prompts")).toBeInTheDocument();
+      expect(screen.getByTestId("task-dialog-prompts-section")).toBeInTheDocument();
     });
     expect(screen.getByTestId("task-dialog-placeholder-attachments")).toBeInTheDocument();
     expect(screen.getByTestId("task-dialog-placeholder-agent-reports")).toBeInTheDocument();
 
-    expect(screen.getByText("Прикреплённые промпты")).toBeInTheDocument();
+    expect(screen.getByText("Attached prompts")).toBeInTheDocument();
     expect(screen.getByText("Вложения")).toBeInTheDocument();
     expect(screen.getByText("Отчёты агента")).toBeInTheDocument();
   });
 
-  it("prompts section shows empty-state hint with coming-soon note", async () => {
+  it("prompts section shows empty-state hint when no prompts attached", async () => {
     invokeMock.mockImplementation(defaultInvokeHandler(makeTask()));
     const onClose = vi.fn();
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Промпты не прикреплены")).toBeInTheDocument();
+      expect(screen.getByText("No prompts attached")).toBeInTheDocument();
     });
-    expect(
-      screen.getByText(/появится с вслайсом прикрепления промптов E4/i),
-    ).toBeInTheDocument();
   });
 
   it("attachments section shows empty state with enabled upload button when no attachments", async () => {
@@ -608,6 +612,7 @@ describe("TaskDialog", () => {
       if (cmd === "get_task") return task;
       if (cmd === "list_attachments") return [attachment];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
       if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
       if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
       if (cmd === "list_roles") return [];
@@ -639,6 +644,7 @@ describe("TaskDialog", () => {
       if (cmd === "get_task") return task;
       if (cmd === "list_attachments") return [attachment];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
       if (cmd === "delete_attachment") return undefined;
       if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
       if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
@@ -667,6 +673,7 @@ describe("TaskDialog", () => {
       if (cmd === "get_task") return makeTask();
       if (cmd === "list_attachments") throw new Error("attachments down");
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
       if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
       if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
       if (cmd === "list_roles") return [];
@@ -727,6 +734,7 @@ describe("TaskDialog", () => {
       if (cmd === "update_task") throw new Error("db locked");
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
       if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
       if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
       if (cmd === "list_roles") return [];
@@ -765,6 +773,7 @@ describe("TaskDialog", () => {
       if (cmd === "get_task") return task;
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
       if (cmd === "upload_attachment") return newAttachment;
       if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
       if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
@@ -819,6 +828,7 @@ describe("TaskDialog", () => {
       if (cmd === "get_task") return task;
       if (cmd === "list_attachments") return [];
       if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
       if (cmd === "upload_attachment") throw new Error("disk full");
       if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
       if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];

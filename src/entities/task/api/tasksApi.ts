@@ -18,6 +18,7 @@
 import { invoke } from "@shared/api";
 import { AppErrorInstance } from "@entities/board";
 import type { AppError } from "@bindings/AppError";
+import type { Prompt } from "@bindings/Prompt";
 import type { Task } from "@bindings/Task";
 
 function isAppErrorShape(value: unknown): value is AppError {
@@ -133,6 +134,11 @@ export async function updateTask(args: UpdateTaskArgs): Promise<Task> {
 /** `delete_task` — remove. */
 export async function deleteTask(id: string): Promise<void> {
   return invokeWithAppError<void>("delete_task", { id });
+}
+
+/** `list_task_prompts` — all prompts attached to a task, ordered by position. */
+export async function listTaskPrompts(taskId: string): Promise<Prompt[]> {
+  return invokeWithAppError<Prompt[]>("list_task_prompts", { taskId });
 }
 
 export interface AddTaskPromptArgs {

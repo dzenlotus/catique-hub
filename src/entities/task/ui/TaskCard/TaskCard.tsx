@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { Paperclip, Check } from "lucide-react";
+import { MessageSquare, Paperclip, Check } from "lucide-react";
 
 import { cn } from "@shared/lib";
 
@@ -71,6 +71,15 @@ export interface TaskCardProps {
    */
   attachmentsCount?: number;
   /**
+   * Number of prompts attached to this task. When defined and > 0, a
+   * MessageSquare chip renders in the meta row. The value comes from
+   * `useTaskPrompts` inside TaskDialog (fetched per-task on open) rather
+   * than from the kanban grid, to avoid an N+1 query per visible card.
+   * Pass `undefined` (or omit) to suppress the chip while the source has
+   * not yet loaded — the chip is intentionally hidden in that case.
+   */
+  promptsCount?: number;
+  /**
    * Loading-state variant. Renders a skeleton with no interactivity.
    * Useful when the parent column is paginating tasks.
    */
@@ -118,6 +127,7 @@ export function TaskCard({
   onSelect,
   onEdit: _onEdit,
   attachmentsCount = 0,
+  promptsCount,
   isPending = false,
   dragOverlay = false,
   isDoneColumn = false,
@@ -156,6 +166,7 @@ export function TaskCard({
         <CardBody
           task={task}
           attachmentsCount={attachmentsCount}
+          promptsCount={promptsCount}
           isDoneColumn={isDoneColumn}
           resolvedRoleName={resolvedRoleName}
           roleColor={roleColor}
@@ -175,6 +186,7 @@ export function TaskCard({
       <CardBody
         task={task}
         attachmentsCount={attachmentsCount}
+        promptsCount={promptsCount}
         isDoneColumn={isDoneColumn}
         resolvedRoleName={resolvedRoleName}
         roleColor={roleColor}
@@ -186,6 +198,8 @@ export function TaskCard({
 interface CardBodyProps {
   task: Task;
   attachmentsCount: number;
+  /** See `TaskCardProps.promptsCount` for suppression semantics. */
+  promptsCount?: number | undefined;
   isDoneColumn: boolean;
   /** Resolved human-readable role name. Falls back to task.roleId when absent. */
   resolvedRoleName?: string | undefined;
@@ -196,6 +210,7 @@ interface CardBodyProps {
 function CardBody({
   task,
   attachmentsCount,
+  promptsCount,
   isDoneColumn,
   resolvedRoleName,
   roleColor,
@@ -279,6 +294,19 @@ function CardBody({
               {attachmentsCount}
             </span>
           ) : null}
+
+          {/* Prompt count chip — suppressed when promptsCount is undefined
+              (source not yet loaded, e.g. outside TaskDialog context). */}
+          {promptsCount !== undefined && promptsCount > 0 ? (
+            <span
+              className={styles.attachments}
+              aria-label={`${promptsCount} prompts attached`}
+              data-testid="task-card-prompts-count"
+            >
+              <MessageSquare size={12} aria-hidden={true} />
+              {promptsCount}
+            </span>
+          ) : null}
         </span>
         {/* Slug chip — bottom-right per DS v1 mockup */}
         <span
@@ -290,7 +318,6 @@ function CardBody({
         </span>
       </div>
 
-      {/* TODO: prompts-attached indicator — awaiting list_task_prompts IPC (E4d) */}
     </>
   );
 }

@@ -14,6 +14,7 @@ export {
   updateTask,
   deleteTask,
   addTaskPrompt,
+  listTaskPrompts,
 } from "./api";
 export type {
   CreateTaskArgs,
@@ -27,6 +28,7 @@ export {
   useTasksByBoard,
   useTasks,
   useTask,
+  useTaskPrompts,
   useCreateTaskMutation,
   useMoveTaskMutation,
   useUpdateTaskMutation,

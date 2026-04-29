@@ -106,6 +106,7 @@ export function EventsProvider({
           queryKey: tasksKeys.byColumn(column_id),
         });
         void qc.invalidateQueries({ queryKey: tasksKeys.detail(id) });
+        void qc.invalidateQueries({ queryKey: tasksKeys.prompts(id) });
       }),
     );
     sub(
@@ -153,16 +154,21 @@ export function EventsProvider({
     sub(
       on("prompt:created", () => {
         void qc.invalidateQueries({ queryKey: ["prompts"] });
+        // Any task could potentially now display a new prompt — broad
+        // invalidation is simple and correct for v1 (N is small on desktop).
+        void qc.invalidateQueries({ queryKey: tasksKeys.all });
       }),
     );
     sub(
       on("prompt:updated", () => {
         void qc.invalidateQueries({ queryKey: ["prompts"] });
+        void qc.invalidateQueries({ queryKey: tasksKeys.all });
       }),
     );
     sub(
       on("prompt:deleted", () => {
         void qc.invalidateQueries({ queryKey: ["prompts"] });
+        void qc.invalidateQueries({ queryKey: tasksKeys.all });
       }),
     );
     sub(

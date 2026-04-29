@@ -93,6 +93,7 @@ pub fn run() {
             handlers::tasks::create_task,
             handlers::tasks::delete_task,
             handlers::tasks::get_task,
+            handlers::tasks::list_task_prompts,
             handlers::tasks::list_tasks,
             handlers::tasks::remove_task_prompt,
             handlers::tasks::set_task_prompt_override,

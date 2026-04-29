@@ -19,9 +19,11 @@ import React, { useEffect, useState, type ReactElement } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   useTask,
+  useTaskPrompts,
   useUpdateTaskMutation,
   useDeleteTaskMutation,
 } from "@entities/task";
+import type { Prompt } from "@bindings/Prompt";
 import {
   useAttachmentsByTask,
   useDeleteAttachmentMutation,
@@ -69,6 +71,71 @@ export function TaskDialog({ taskId, onClose }: TaskDialogProps): ReactElement {
         ) : null
       }
     </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PromptsSectionProps {
+  taskId: string;
+}
+
+function PromptsSection({ taskId }: PromptsSectionProps): ReactElement {
+  const query = useTaskPrompts(taskId);
+
+  if (query.status === "pending") {
+    return (
+      <div className={styles.attachmentSkeletonStack} aria-busy="true">
+        <div className={styles.attachmentSkeletonRow} />
+      </div>
+    );
+  }
+
+  if (query.status === "error") {
+    return (
+      <div className={styles.attachmentErrorBanner} role="alert">
+        <p className={styles.attachmentErrorMessage}>
+          Failed to load prompts: {query.error.message}
+        </p>
+        <Button
+          variant="secondary"
+          size="sm"
+          onPress={() => void query.refetch()}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const prompts: Prompt[] = query.data;
+
+  if (prompts.length === 0) {
+    return (
+      <div className={styles.sectionEmptyState}>
+        <p className={styles.sectionEmptyHint}>No prompts attached</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.promptChipWrap}>
+      {prompts.map((p) => (
+        <span
+          key={p.id}
+          className={styles.promptChip}
+          style={
+            p.color
+              ? { backgroundColor: `${p.color}22`, borderColor: `${p.color}66`, color: p.color }
+              : undefined
+          }
+          title={p.shortDescription ?? p.name}
+          data-testid={`task-dialog-prompt-chip-${p.id}`}
+        >
+          {p.name}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -597,18 +664,13 @@ function TaskDialogContent({
         </FieldSelect>
       </div>
 
-      {/* Attached prompts — empty state placeholder */}
+      {/* Attached prompts */}
       <div
         className={styles.sectionBlock}
-        data-testid="task-dialog-placeholder-prompts"
+        data-testid="task-dialog-prompts-section"
       >
-        <h3 className={styles.sectionHeading}>Прикреплённые промпты</h3>
-        <div className={styles.sectionEmptyState}>
-          <p className={styles.sectionEmptyHint}>Промпты не прикреплены</p>
-          <p className={styles.sectionComingHint}>
-            (появится с вслайсом прикрепления промптов E4)
-          </p>
-        </div>
+        <h3 className={styles.sectionHeading}>Attached prompts</h3>
+        <PromptsSection taskId={task.id} />
       </div>
 
       {/* Attachments */}

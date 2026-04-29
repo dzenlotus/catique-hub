@@ -5,9 +5,10 @@
 //! use case validates inputs and pre-checks parent existence so
 //! `NotFound` is typed.
 
-use catique_domain::Task;
+use catique_domain::{Prompt, Task};
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
+    repositories::prompts::PromptRow,
     repositories::tasks::{self as repo, TaskDraft, TaskPatch, TaskRow},
 };
 use rusqlite::params;
@@ -162,6 +163,17 @@ impl<'a> TasksUseCase<'a> {
         }
     }
 
+    /// List the prompts attached to a task, ordered by join-table `position`.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn list_task_prompts(&self, task_id: &str) -> Result<Vec<Prompt>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let rows = repo::list_task_prompts(&conn, task_id).map_err(map_db_err)?;
+        Ok(rows.into_iter().map(prompt_row_to_prompt).collect())
+    }
+
     /// Delete a task.
     ///
     /// # Errors
@@ -178,6 +190,19 @@ impl<'a> TasksUseCase<'a> {
                 id: id.to_owned(),
             })
         }
+    }
+}
+
+fn prompt_row_to_prompt(row: PromptRow) -> Prompt {
+    Prompt {
+        id: row.id,
+        name: row.name,
+        content: row.content,
+        color: row.color,
+        short_description: row.short_description,
+        token_count: row.token_count,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
     }
 }
 
@@ -281,6 +306,40 @@ mod tests {
             .unwrap();
         assert_eq!(updated.title, "New");
         assert!((updated.position - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn list_task_prompts_returns_prompts_in_position_order() {
+        let pool = fresh_pool();
+        // Insert prompts + join rows directly.
+        {
+            let conn = pool.get().unwrap();
+            conn.execute_batch(
+                "INSERT INTO prompts (id, name, content, created_at, updated_at) \
+                     VALUES ('px','X','',0,0), ('py','Y','',0,0);",
+            )
+            .unwrap();
+        }
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .unwrap();
+        // Attach px at position 5, py at position 1 — py should come first.
+        {
+            let conn = pool.get().unwrap();
+            catique_infrastructure::db::repositories::tasks::add_task_prompt(
+                &conn, &task.id, "px", 5.0,
+            )
+            .unwrap();
+            catique_infrastructure::db::repositories::tasks::add_task_prompt(
+                &conn, &task.id, "py", 1.0,
+            )
+            .unwrap();
+        }
+        let prompts = uc.list_task_prompts(&task.id).unwrap();
+        assert_eq!(prompts.len(), 2);
+        assert_eq!(prompts[0].id, "py");
+        assert_eq!(prompts[1].id, "px");
     }
 
     #[test]

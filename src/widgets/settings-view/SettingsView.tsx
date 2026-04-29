@@ -251,10 +251,8 @@ export function SettingsView(): ReactElement {
             <kbd className={styles.kbd}>⌘K</kbd>
             <span className={styles.shortcutDesc}>Open global search</span>
 
-            <kbd className={cn(styles.kbd, styles.kbdDisabled)}>⌘N</kbd>
-            <span className={cn(styles.shortcutDesc, styles.shortcutDescDisabled)}>
-              New task <span className={styles.comingSoon}>(coming soon)</span>
-            </span>
+            <kbd className={styles.kbd}>⌘N</kbd>
+            <span className={styles.shortcutDesc}>New task</span>
 
             <kbd className={styles.kbd}>Esc</kbd>
             <span className={styles.shortcutDesc}>Close dialog / palette</span>
