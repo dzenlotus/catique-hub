@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <!--
+    Catique HUB — dark variant.
+    For use on dark backgrounds (#17140f, #1a1714, #1f1c17, black).
+    Mark: gold-500 (#cd9b58) on warm-dark rounded square (#1a1714).
+    Wordmark: warm-100 (#ece8e2) primary, warm-400 (#7a746a) secondary.
+    Artboard background: transparent.
+  -->
+
+  <!-- === MARK === -->
+  <g transform="translate(372, 88)">
+    <rect width="280" height="280" rx="44" ry="44" fill="#1a1714"/>
+    <rect x="63" y="91"  width="66"  height="20" rx="10" ry="10" fill="#cd9b58"/>
+    <rect x="63" y="130" width="110" height="20" rx="10" ry="10" fill="#cd9b58"/>
+    <rect x="63" y="169" width="154" height="20" rx="10" ry="10" fill="#cd9b58"/>
+  </g>
+
+  <!-- === WORDMARK === -->
+  <text
+    x="512"
+    y="472"
+    font-family="'Playfair Display Variable', 'Playfair Display', 'Iowan Old Style', Charter, Georgia, 'Times New Roman', serif"
+    font-size="128"
+    font-weight="600"
+    letter-spacing="-4"
+    text-anchor="middle"
+    dominant-baseline="auto"
+    fill="#ece8e2"
+  >catique</text>
+
+  <text
+    x="512"
+    y="590"
+    font-family="'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+    font-size="52"
+    font-weight="400"
+    letter-spacing="16"
+    text-anchor="middle"
+    dominant-baseline="auto"
+    fill="#7a746a"
+  >HUB</text>
+</svg>

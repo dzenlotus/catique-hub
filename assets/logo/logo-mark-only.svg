@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <!--
+    Catique HUB — context-structure mark.
+    Three left-aligned horizontal bars of descending length inside a
+    rounded square, representing layered context / prompt hierarchy.
+
+    Safe-area grid: 1024×1024, content in 820×820 centred (102 px margin).
+    Bar group occupies 560×360 within the safe area, centred in the icon.
+    Bar heights: 72 px. Gaps: 72 px. Radii: 36 px (pill ends).
+    Widths: 560 px (bottom), 400 px (middle), 240 px (top).
+    Left-aligned to x=232 (icon centre minus 280).
+
+    Background rounded-square: rx=160 (≈15.6% of 1024, close to Apple squircle).
+    App icon version uses transparent bg — OS applies squircle mask.
+  -->
+
+  <!-- Background rounded square -->
+  <rect width="1024" height="1024" rx="160" ry="160" fill="#1a1714"/>
+
+  <!-- Bar group, vertically centred: top of group = 332, bottom = 692 -->
+  <!-- Bar 1 (top) — shortest: width 240, x=232, y=332 -->
+  <rect x="232" y="332" width="240" height="72" rx="36" ry="36" fill="#cd9b58"/>
+
+  <!-- Bar 2 (middle): width 400, x=232, y=476 -->
+  <rect x="232" y="476" width="400" height="72" rx="36" ry="36" fill="#cd9b58"/>
+
+  <!-- Bar 3 (bottom) — longest: width 560, x=232, y=620 -->
+  <rect x="232" y="620" width="560" height="72" rx="36" ry="36" fill="#cd9b58"/>
+</svg>

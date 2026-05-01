@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <!--
+    Catique HUB — wordmark only (no symbol mark).
+    "catique hub" in Playfair Display style — rendered as paths for
+    portability. Since path-level font rendering requires a live font,
+    this file uses a <text> element with the brand font stack; when
+    opened in a browser or Figma with the font installed it renders
+    correctly. For production export, outline the text in Figma.
+
+    Viewport: 1024×1024 (square, matching other logo files).
+    Text is centred both horizontally and vertically.
+    Two lines: "catique" large, "hub" smaller, subtler.
+  -->
+
+  <!-- "catique" — primary wordmark -->
+  <text
+    x="512"
+    y="460"
+    font-family="'Playfair Display Variable', 'Playfair Display', 'Iowan Old Style', Charter, Georgia, 'Times New Roman', serif"
+    font-size="192"
+    font-weight="600"
+    letter-spacing="-6"
+    text-anchor="middle"
+    dominant-baseline="auto"
+    fill="#ece8e2"
+  >catique</text>
+
+  <!-- "hub" — secondary wordmark, muted -->
+  <text
+    x="512"
+    y="596"
+    font-family="'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+    font-size="80"
+    font-weight="400"
+    letter-spacing="24"
+    text-anchor="middle"
+    dominant-baseline="auto"
+    fill="#7a746a"
+  >HUB</text>
+</svg>

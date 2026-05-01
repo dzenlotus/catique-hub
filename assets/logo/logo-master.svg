@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <!--
+    Catique HUB — master logo lockup (dark variant, mark + wordmark).
+    Single artboard 1024×1024. Use this file as the canonical source.
+    For dark-background use: logo-dark.svg (identical to this file).
+    For light-background use: logo-light.svg.
+
+    Layout:
+      Mark:     280×280, positioned top-centre at x=372, y=88
+      "catique": centred below mark, y=472
+      "hub":     mono caption below, y=590
+
+    The mark is the three-bar context glyph on a warm-dark rounded square.
+    Background of this artboard is transparent — use as overlay.
+  -->
+
+  <!-- === MARK (280×280, top-centred) === -->
+  <g transform="translate(372, 88)">
+    <!-- Rounded-square backing -->
+    <rect width="280" height="280" rx="44" ry="44" fill="#1a1714"/>
+    <!-- Bar 1 (top, shortest): width 66 of 154 total span -->
+    <rect x="63" y="91"  width="66"  height="20" rx="10" ry="10" fill="#cd9b58"/>
+    <!-- Bar 2 (middle): width 110 -->
+    <rect x="63" y="130" width="110" height="20" rx="10" ry="10" fill="#cd9b58"/>
+    <!-- Bar 3 (bottom, longest): width 154 -->
+    <rect x="63" y="169" width="154" height="20" rx="10" ry="10" fill="#cd9b58"/>
+  </g>
+
+  <!-- === WORDMARK === -->
+  <!-- "catique" -->
+  <text
+    x="512"
+    y="472"
+    font-family="'Playfair Display Variable', 'Playfair Display', 'Iowan Old Style', Charter, Georgia, 'Times New Roman', serif"
+    font-size="128"
+    font-weight="600"
+    letter-spacing="-4"
+    text-anchor="middle"
+    dominant-baseline="auto"
+    fill="#ece8e2"
+  >catique</text>
+
+  <!-- "hub" — mono, muted, tight tracking -->
+  <text
+    x="512"
+    y="590"
+    font-family="'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+    font-size="52"
+    font-weight="400"
+    letter-spacing="16"
+    text-anchor="middle"
+    dominant-baseline="auto"
+    fill="#7a746a"
+  >HUB</text>
+</svg>

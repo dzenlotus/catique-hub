@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <!--
+    Catique HUB — light variant.
+    For use on light backgrounds (#faf8f5, #f4f1ec, white).
+    Mark: gold-800 (#6f4d24) on cream-100 rounded square (#f0ece4).
+    Contrast gold-800 on cream-50: ~6.9:1 (WCAG AA+).
+    Wordmark: navy-900 (#1a1d2e) primary, navy-400 (#6e7388) secondary.
+    Artboard background: transparent.
+  -->
+
+  <!-- === MARK === -->
+  <g transform="translate(372, 88)">
+    <!-- Light backing: cream-100 -->
+    <rect width="280" height="280" rx="44" ry="44" fill="#f0ece4"/>
+    <!-- Bars: gold-800 for sufficient contrast on light bg -->
+    <rect x="63" y="91"  width="66"  height="20" rx="10" ry="10" fill="#6f4d24"/>
+    <rect x="63" y="130" width="110" height="20" rx="10" ry="10" fill="#6f4d24"/>
+    <rect x="63" y="169" width="154" height="20" rx="10" ry="10" fill="#6f4d24"/>
+  </g>
+
+  <!-- === WORDMARK === -->
+  <text
+    x="512"
+    y="472"
+    font-family="'Playfair Display Variable', 'Playfair Display', 'Iowan Old Style', Charter, Georgia, 'Times New Roman', serif"
+    font-size="128"
+    font-weight="600"
+    letter-spacing="-4"
+    text-anchor="middle"
+    dominant-baseline="auto"
+    fill="#1a1d2e"
+  >catique</text>
+
+  <text
+    x="512"
+    y="590"
+    font-family="'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+    font-size="52"
+    font-weight="400"
+    letter-spacing="16"
+    text-anchor="middle"
+    dominant-baseline="auto"
+    fill="#6e7388"
+  >HUB</text>
+</svg>

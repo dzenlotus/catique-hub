@@ -52,7 +52,7 @@ Sidebar (220 px)
 │   └── NavRow "Settings"
 ├── RECENT BOARDS label
 │   └── BoardRow × N
-└── Mascot (кот с эспрессо, bottom)
+└── Mascot host: Catique (кот в берете, bottom — см. §10 Mascot system)
 ```
 
 ### SpaceRow / BoardRow / NavRow
@@ -457,32 +457,163 @@ Modal (max-width: 560px, max-height: 80vh)
 
 ---
 
-## 10. Mascot
+## 10. Mascot system
 
-### Описание
+> **Voice & speech catalogues live in `docs/lore/lore-bible.md`** (ctq-72). This section owns geometry, tokens, and component contracts; the lore bible owns character profiles, tone calibration, quote pools, scheduling, and settings.
 
-Кот с эспрессо в нижней части сайдбара. Пиксельный арт (32 × 32 px или 48 × 48 px).
+Catique HUB — это **галерея персонажей**, не один маскот. У продукта есть постоянный «host» (Catique) + page-specific персонажи на ключевых разделах. Каждый персонаж — embodied philosophy этого раздела; навигация превращается в discoverable experience.
 
-### Структура
+### 10.1 Принципы
 
+1. **Catique — константа.** Всегда в sidebar (bottom). Он brand anchor, не исчезает при переходе между страницами.
+2. **Page mascots живут в main content area**, не в sidebar. Никогда не дублируем Catique и page-mascot в одной зоне.
+3. **Единый визуальный стиль.** Все персонажи — pixel art, общая палитра (см. §10.6 Tokens). Должны читаться как одна семья.
+4. **У каждого — signature quote** (одна фраза) или малая ротация (2–4 фразы). Никаких длинных монологов.
+5. **Mascot — не на каждой странице.** Утверждённый список — §10.3 Roster. Premature mascot = mascot, который не подходит к финальной странице.
+6. **Только на pages.** Не размещаем маскотов в dialogs / modals / toasts / tooltips.
+
+### 10.2 Кто host
+
+**Catique** — серый кот в берете, пиксельный арт. Tagline: «Bonjour, développeur. Stay curious. Ship lovely things.»
+
+- Asset: `public/assets/mascot.png` (1024 × 1024, pixel art)
+- Размещение: bottom of left sidebar column (см. §2 Sidebar)
+- Размер: `width: 100%` сайдбара (220 px), `height: auto`, `image-rendering: pixelated`
+- Позиция: `align-self: end` в grid sidebar (`grid-template-rows: auto auto 1fr`), визуально прижат к низу
+- Граница сверху: нет (без `border-top` — мягкий переход)
+- Интерактивность v1: декоративный, `pointer-events: none`, `user-select: none`
+- Future v2: клик → user settings popover (username + handle/email строки появятся как часть user-block, обернувшего mascot)
+
+### 10.3 Roster (утверждённый final list)
+
+Final approved roster — **1 host + 6 page mascots = 7 персонажей**. Дальнейшие добавления — отдельные design+art задачи (см. §10.7 Process).
+
+| Зона | Персонаж | Концепт | Status | Speech (sample) |
+|---|---|---|---|---|
+| Sidebar (host, all pages) | **Catique** | Серый кот в берете | ✅ ready | "Bonjour, développeur. Stay curious." |
+| Page: **Roles** | **Frauge** (HR-frog) | Зелёная жаба в очках, brown bob, кремовый blazer, жемчужное ожерелье. За wooden desk с табличкой "HR". Brass plaque "MARKET DOWN. STAND UP." | ⏳ asset & integration pending Roles-page implementation | "Frauge speaking. Make it brief." |
+| Page: **Prompts** | **Librarian-owl** | Сова в круглых очках, кардиган, держит свиток / индекс-карты | 📝 concept (next mascot task) | "Words inherit; meaning compounds." |
+| Page: **MCP servers** | **Engineer-raccoon** | Енот в спецовке, гаечный ключ, утилитарный пояс | 📝 concept | "All ports green. Bridge is live." |
+| Page: **Skills** | **Cat-sensei** | Старый кот в кимоно, посох, чайник на фоне | 📝 concept | "Practice the small move precisely." |
+| Page: **Settings** | **Watchmaker-cat** | Кот с моноклем, шестерёнки, пинцет | 📝 concept | "Tune once. Trust afterwards." |
+| Page: **Backups / Database** | **Mole-archivist** | Крот в очках с лампой-каской, картотека | 📝 concept | "Yesterday is shelved. Today is logged." |
+
+> **Ratio rationale.** 6 page mascots — это ровно по одному на каждый ключевой top-level раздел приложения (Boards использует Catique-host без отдельного page-mascot, чтобы не конкурировать с brand anchor). Меньше 5 — невыразительная галерея, больше 7 — cluttered.
+
+> **Voice pairing — Catique ↔ Frauge.** Catique (French, café, warm) и Frauge (German, bureaucratic, deadpan) — два европейских archetype, держат тоновый контраст бренда. Frauge — это HR-frog (см. ctq-74 для рационала имени); её voice **dry, ironic, deadpan, никогда не enthusiastic**. Полный quote rotation для Frauge живёт в lore bible (ctq-72), не дублируется здесь. Sample taglines: «Frauge speaking. Make it brief.» / «I am Frauge. The handbook is in the drawer.» / «Frauge. Personalabteilung. State your business.»
+
+### 10.4 Sub-components
+
+#### 10.4.a Sidebar host slot
+
+Постоянный, всегда виден на >= 900 px ширины окна. На compact mode сайдбара (см. `layout.md` §narrow) — скрывается (`overflow: hidden`).
+
+- Container: `<div data-testid="main-sidebar-mascot">`
+- Asset: `<img src="/assets/mascot.png" alt="Catique mascot" />`
+- CSS: `width: 100%; height: auto; display: block; pointer-events: none; user-select: none; image-rendering: pixelated; align-self: end;`
+
+#### 10.4.b Page mascot slot
+
+Conditional, появляется только если страница в Roster и asset доступен. Слот — часть layout-каркаса page-template, не отдельный widget.
+
+- Container: `<aside data-testid="page-mascot" data-mascot="<id>">`
+- Asset: pixel-art SVG/PNG, `aria-hidden="true"` (декоративный)
+- Размер и позиция — зависят от **state**:
+
+##### Sizing breakpoints
+
+| State | Размер | Позиция |
+|---|---|---|
+| **Empty state** (page без данных, e.g. zero roles) | 240 × 240 px (квадрат) | по центру горизонтально, ~48% от верха content area |
+| **Hero state** (заголовок + первая загрузка) | 160 × 160 px | top-right content area, `--space-24` от краёв |
+| **Corner mode** (page с данными) | 96 × 96 px | bottom-right content area, `--space-24` от обоих краёв, `position: sticky; bottom: --space-24` |
+| **Hidden** (page-template без mascot, не в Roster) | — | not rendered |
+
+При ширине окна < 1100 px page mascot переходит в **corner mode** независимо от state, чтобы не отъедать у контента. При ширине < 900 px — `display: none` (мобиль-нерелевантно, но safety).
+
+##### Position rules
+
+- Page mascot **никогда** не перекрывает интерактивные элементы. Z-index: `--z-mascot` (новый токен, ниже modal/popover/toast, выше content).
+- Empty-state mascot центрируется относительно content area (не viewport — sidebar его не сдвигает).
+- Corner-mode mascot — `position: sticky` относительно ближайшего scroll-контейнера content area.
+
+#### 10.4.c Speech bubble (опционально)
+
+Speech bubble — отдельный sub-component, показывается только в `empty state` и `hero state`. В `corner mode` появляется только on `:hover` mascot-контейнера (с задержкой 300ms, `prefers-reduced-motion: reduce` → instant).
+
+- Tail: треугольник 8 × 8 px, направлен в сторону mascot
+- Background: `--color-surface-card`
+- Border: `1px solid var(--color-border-default)`
+- Radius: `--radius-md`
+- Padding: `--space-12` horizontal, `--space-8` vertical
+- Font: `--font-display`, `--font-size-body-sm` (14 px), `--font-weight-medium`, `--color-text-default`
+- Max-width: 280 px (text wraps)
+- Shadow: `--shadow-low`
+
+### 10.5 Animation guidelines
+
+Анимации **subtle**, не отвлекают.
+
+| Trigger | Эффект | Длительность | Easing |
+|---|---|---|---|
+| Idle (passive) | 2-frame blink sprite, раз в 4–7 s | 100 ms (transition between frames) | linear |
+| Hover на mascot (corner mode) | `translateY: -2px` + bubble fade-in | 200 ms | `--easing-default` |
+| Page enter (mount mascot) | Fade-in + `translateY: 4px → 0` | 300 ms | `--easing-out` |
+| Mascot exit (page navigate) | Fade-out (без translate) | 100 ms | linear |
+
+**Обязательно** проверять `prefers-reduced-motion: reduce` — все анимации заменяются на instant (`opacity` без transform), idle blink выключается полностью (статический кадр).
+
+### 10.6 Tokens (новые)
+
+Добавить в `design-tokens/tokens.json` (затем `pnpm tokens:build`):
+
+```json
+{
+  "color": {
+    "surface": {
+      "mascot-bubble-bg": "{color.surface.card}"
+    },
+    "text": {
+      "mascot-quote": "{color.text.default}"
+    }
+  },
+  "z": {
+    "mascot": 5
+  }
+}
 ```
-[Mascot image 48×48]
-[Username text line]
-[email / handle text line]
-```
 
-- Позиция: `position: sticky; bottom: 0` в сайдбаре
-- Фон: `--color-surface-sidebar` (совпадает с фоном сайдбара)
-- Граница сверху: `1px solid var(--color-border-subtle)`
-- Паддинг: `--space-12` horizontal, `--space-8` vertical
-- Username: `--font-size-body-sm` (12 px), `--font-weight-semibold`, `--color-text-default`
-- Handle/email: `--font-size-caption` (11 px), `--color-text-subtle`
-- Иконка кота: берётся из пиксельного арт-сета (image3.png, позиция [0,0])
+CSS variables (генерятся):
+- `--color-surface-mascot-bubble-bg`
+- `--color-text-mascot-quote`
+- `--z-mascot`
 
-### Поведение
+### 10.7 Process — добавление нового персонажа
 
-- Не интерактивна в v1 (нет меню пользователя)
-- В будущем: клик → user settings popover
+Каждый новый mascot — **отдельная задача в Promptery**. Один character per task. Не batching.
+
+**Definition of done** для одной mascot-task:
+
+1. Asset: pixel-art PNG в `public/assets/mascots/<id>.png` (минимум 256 × 256, transparent bg, `image-rendering: pixelated`-ready).
+2. Опционально: SVG-версия в `assets/mascots/<id>.svg` (если возможен векторный source).
+3. Signature quote (одна фраза) или ротация 2–4 фраз — в `src/shared/mascots/quotes.ts`.
+4. Регистрация в `src/shared/mascots/registry.ts`: `{ id, name, asset, quote, page }`.
+5. Запись в этой таблице (§10.3 Roster) — статус `📝 concept` → `✅ ready`.
+6. Дизайн-ревью (визуальная гармония с существующими персонажами семьи).
+
+**Запрещено**:
+- Делать сразу несколько mascot-ов в одной задаче (batch).
+- Использовать AI-сгенерированные mascot-ы без manual cleanup в pixel-art стиле.
+- Ставить mascot-а на page, которая ещё не стабилизирована в продукте (риск: персонаж не подойдёт к финальной форме страницы).
+
+### 10.8 Anti-patterns
+
+- ❌ Mascot в dialog / modal / toast / tooltip.
+- ❌ Mascot, перекрывающий interactive controls.
+- ❌ Анимации длиннее 300 ms или с большой амплитудой.
+- ❌ Mascot без quote (для page-mascot quote обязателен; host Catique — quote в tagline сайдбара, не на самом маскоте).
+- ❌ Изменение размера host-mascot пользователем (статичен).
+- ❌ Несколько page-mascot-ов на одной странице (один page = один mascot).
 
 ---
 
