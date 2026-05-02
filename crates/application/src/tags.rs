@@ -275,7 +275,10 @@ mod tests {
         assert_eq!(map.len(), 2, "two prompts have tags");
         let p1_entry = map.iter().find(|e| e.tag_ids.contains(&t1.id)).unwrap();
         assert!(p1_entry.tag_ids.contains(&t2.id), "P1 has both tags");
-        let p2_entry = map.iter().find(|e| e.tag_ids == vec![t2.id.clone()]).unwrap();
+        let p2_entry = map
+            .iter()
+            .find(|e| e.tag_ids == vec![t2.id.clone()])
+            .unwrap();
         assert_eq!(p2_entry.tag_ids.len(), 1, "P2 has only t2");
     }
 }

@@ -279,7 +279,10 @@ mod tests {
 
     #[test]
     fn sanitize_removes_forbidden_chars() {
-        assert_eq!(sanitize_filename("a/b\\c:d*e?f\"g<h>i|j"), "a_b_c_d_e_f_g_h_i_j");
+        assert_eq!(
+            sanitize_filename("a/b\\c:d*e?f\"g<h>i|j"),
+            "a_b_c_d_e_f_g_h_i_j"
+        );
         assert_eq!(sanitize_filename("normal_file.txt"), "normal_file.txt");
         assert_eq!(sanitize_filename("foto.png"), "foto.png");
     }

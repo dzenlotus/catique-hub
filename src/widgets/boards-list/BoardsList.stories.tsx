@@ -16,6 +16,7 @@ function stubBoard(overrides?: Partial<Board>): Board {
     roleId: null,
     position: 1,
     description: null,
+    ownerRoleId: "maintainer-system",
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,

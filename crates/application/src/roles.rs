@@ -142,6 +142,7 @@ fn row_to_role(row: RoleRow) -> Role {
         color: row.color,
         created_at: row.created_at,
         updated_at: row.updated_at,
+        is_system: row.is_system,
     }
 }
 
@@ -193,7 +194,13 @@ mod tests {
         uc.create("R".into(), String::new(), Some("#abcdef".into()))
             .unwrap();
         let list = uc.list().unwrap();
-        assert_eq!(list.len(), 1);
+        // Migration `004_cat_as_agent_phase1.sql` seeds `Maintainer`
+        // + `Dirizher` system rows. The user-created `R` row is the
+        // only non-system entry; assert on that subset rather than
+        // the global count so future system rows don't bend the test.
+        let user_rows: Vec<_> = list.iter().filter(|r| !r.is_system).collect();
+        assert_eq!(user_rows.len(), 1);
+        assert_eq!(user_rows[0].name, "R");
     }
 
     #[test]

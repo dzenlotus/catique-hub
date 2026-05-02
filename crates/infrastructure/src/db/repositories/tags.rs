@@ -177,9 +177,8 @@ pub fn remove_prompt_tag(
 ///
 /// Surfaces rusqlite errors.
 pub fn list_prompt_tags_pairs(conn: &Connection) -> Result<Vec<(String, String)>, DbError> {
-    let mut stmt = conn.prepare(
-        "SELECT prompt_id, tag_id FROM prompt_tags ORDER BY prompt_id ASC",
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT prompt_id, tag_id FROM prompt_tags ORDER BY prompt_id ASC")?;
     let rows = stmt.query_map([], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
     })?;

@@ -22,9 +22,7 @@ use crate::state::AppState;
 /// None in practice — reading status is infallible. The `Result` wrapper
 /// is required by the Tauri command infrastructure.
 #[tauri::command]
-pub async fn sidecar_status(
-    state: State<'_, AppState>,
-) -> Result<SidecarStatus, AppError> {
+pub async fn sidecar_status(state: State<'_, AppState>) -> Result<SidecarStatus, AppError> {
     let mgr = state.sidecar.clone();
     Ok(mgr.status().await)
 }
@@ -57,8 +55,11 @@ pub async fn sidecar_ping(state: State<'_, AppState>) -> Result<u64, AppError> {
 pub async fn sidecar_restart(state: State<'_, AppState>) -> Result<(), AppError> {
     let mgr: SidecarManager = state.sidecar.clone();
     let dir = state.sidecar_dir.clone();
-    mgr.restart(&dir).await.map(|_| ()).map_err(|e| AppError::Validation {
-        field: "sidecar_restart".into(),
-        reason: e.to_string(),
-    })
+    mgr.restart(&dir)
+        .await
+        .map(|_| ())
+        .map_err(|e| AppError::Validation {
+            field: "sidecar_restart".into(),
+            reason: e.to_string(),
+        })
 }

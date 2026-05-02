@@ -33,6 +33,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     description: "Описание задачи",
     position: 1,
     roleId: null,
+    stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,
@@ -46,6 +47,7 @@ const makeBoard = (id: string, name: string, spaceId = "spc-1") => ({
   roleId: null,
   position: 1,
   description: null,
+  ownerRoleId: "maintainer-system",
   createdAt: 0n,
   updatedAt: 0n,
 });
@@ -64,6 +66,7 @@ const makeRole = (id: string, name: string) => ({
   name,
   content: "",
   color: null,
+  isSystem: false,
   createdAt: 0n,
   updatedAt: 0n,
 });

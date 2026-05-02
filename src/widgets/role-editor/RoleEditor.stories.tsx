@@ -21,6 +21,7 @@ function stubRole(overrides?: Partial<Role>): Role {
     name: "Архитектор системы",
     content: "Ты — опытный системный архитектор. Проектируй масштабируемые и надёжные системы, следуя принципам DDD и чистой архитектуры.",
     color: "#7c3aed",
+    isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,

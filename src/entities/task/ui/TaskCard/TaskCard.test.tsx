@@ -15,6 +15,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     description: null,
     position: 1.0,
     roleId: null,
+    stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,
@@ -75,21 +76,31 @@ describe("TaskCard", () => {
     expect(screen.queryByTestId("task-card-done-check")).toBeNull();
   });
 
-  it("fires onSelect on click and on Enter activation", async () => {
+  it("does NOT fire onSelect on single click (Round 19b — dbl-click only)", async () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();
     render(
       <TaskCard task={makeTask({ id: "tsk-clk" })} onSelect={onSelect} />,
     );
-    // The card body is the button with the task aria-label (drag handle is aria-label="Перетащить задачу").
     const btn = screen.getByRole("button", { name: /Task Ship kanban widget/i });
     await user.click(btn);
-    expect(onSelect).toHaveBeenCalledWith("tsk-clk");
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("fires onSelect on double-click and on Enter activation", async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <TaskCard task={makeTask({ id: "tsk-dbl" })} onSelect={onSelect} />,
+    );
+    const btn = screen.getByRole("button", { name: /Task Ship kanban widget/i });
+    await user.dblClick(btn);
+    expect(onSelect).toHaveBeenCalledWith("tsk-dbl");
 
     onSelect.mockClear();
     btn.focus();
     await user.keyboard("{Enter}");
-    expect(onSelect).toHaveBeenCalledWith("tsk-clk");
+    expect(onSelect).toHaveBeenCalledWith("tsk-dbl");
   });
 
   it("renders attachments badge when count > 0", () => {
@@ -201,7 +212,7 @@ describe("TaskCard", () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it("body click calls onSelect when selectionActive is false", async () => {
+  it("body single-click is a no-op when selectionActive is false (Round 19b)", async () => {
     const onSelect = vi.fn();
     const onToggleSelection = vi.fn();
     const user = userEvent.setup();
@@ -215,7 +226,26 @@ describe("TaskCard", () => {
     );
     const btn = screen.getByRole("button", { name: /Task Ship kanban widget/i });
     await user.click(btn);
-    expect(onSelect).toHaveBeenCalledWith("tsk-body2");
+    // Round 19b: single click no longer opens the dialog when selection
+    // mode is inactive. Double-click does (covered above).
+    expect(onSelect).not.toHaveBeenCalled();
     expect(onToggleSelection).not.toHaveBeenCalled();
+  });
+
+  it("body double-click ignores selectionActive (always opens via onSelect)", async () => {
+    const onSelect = vi.fn();
+    const onToggleSelection = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <TaskCard
+        task={makeTask({ id: "tsk-dbl-sel" })}
+        onSelect={onSelect}
+        selectionActive
+        onToggleSelection={onToggleSelection}
+      />,
+    );
+    const btn = screen.getByRole("button", { name: /Task Ship kanban widget/i });
+    await user.dblClick(btn);
+    expect(onSelect).toHaveBeenCalledWith("tsk-dbl-sel");
   });
 });

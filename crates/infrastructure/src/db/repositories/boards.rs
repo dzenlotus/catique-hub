@@ -26,6 +26,12 @@ pub struct BoardRow {
     pub description: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Owning cat. NOT NULL at the schema level — see migration
+    /// `004_cat_as_agent_phase1.sql`. Inserts that omit this fall back
+    /// to the deterministic `maintainer-system` row in the use-case
+    /// layer (`BoardsUseCase::create`); the repository requires the
+    /// caller to supply a value via [`BoardDraft::owner_role_id`].
+    pub owner_role_id: String,
 }
 
 impl BoardRow {
@@ -39,6 +45,7 @@ impl BoardRow {
             description: row.get("description")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
+            owner_role_id: row.get("owner_role_id")?,
         })
     }
 }
@@ -54,6 +61,13 @@ pub struct BoardDraft {
     pub role_id: Option<String>,
     pub position: Option<f64>,
     pub description: Option<String>,
+    /// Owning cat — required by the schema (Cat-as-Agent Phase 1,
+    /// ctq-73). `None` resolves to the deterministic
+    /// `"maintainer-system"` row that migration
+    /// `004_cat_as_agent_phase1.sql` seeds; this matches memo Q1 option
+    /// (c) — auto-assign at the data layer, surface a review modal at
+    /// the UI layer.
+    pub owner_role_id: Option<String>,
 }
 
 /// `SELECT id, name, space_id, role_id, position, description, created_at, updated_at
@@ -64,7 +78,7 @@ pub struct BoardDraft {
 /// Surfaces any rusqlite error from `prepare` / `query_map`.
 pub fn list_all(conn: &Connection) -> Result<Vec<BoardRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, space_id, role_id, position, description, created_at, updated_at \
+        "SELECT id, name, space_id, role_id, position, description, created_at, updated_at, owner_role_id \
          FROM boards \
          ORDER BY position ASC, name ASC",
     )?;
@@ -83,7 +97,7 @@ pub fn list_all(conn: &Connection) -> Result<Vec<BoardRow>, DbError> {
 /// Surfaces any non-`QueryReturnedNoRows` rusqlite error.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<BoardRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, space_id, role_id, position, description, created_at, updated_at \
+        "SELECT id, name, space_id, role_id, position, description, created_at, updated_at, owner_role_id \
          FROM boards \
          WHERE id = ?1",
     )?;
@@ -136,10 +150,7 @@ pub fn update(
     }
     set_parts.push("updated_at = ?5");
 
-    let sql = format!(
-        "UPDATE boards SET {} WHERE id = ?6",
-        set_parts.join(", ")
-    );
+    let sql = format!("UPDATE boards SET {} WHERE id = ?6", set_parts.join(", "));
 
     let role_val: Option<&str> = patch.role_id.as_ref().and_then(|o| o.as_deref());
     let desc_val: Option<&str> = patch.description.as_ref().and_then(|o| o.as_deref());
@@ -183,11 +194,25 @@ pub fn insert(conn: &Connection, draft: &BoardDraft) -> Result<BoardRow, DbError
     let now = now_millis();
     let position = draft.position.unwrap_or(0.0);
 
+    let owner = draft
+        .owner_role_id
+        .clone()
+        .unwrap_or_else(|| MAINTAINER_SYSTEM_ID.to_owned());
+
     conn.execute(
         "INSERT INTO boards \
-            (id, name, space_id, role_id, position, description, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
-        params![id, draft.name, draft.space_id, draft.role_id, position, draft.description, now],
+            (id, name, space_id, role_id, position, description, created_at, updated_at, owner_role_id) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8)",
+        params![
+            id,
+            draft.name,
+            draft.space_id,
+            draft.role_id,
+            position,
+            draft.description,
+            now,
+            owner,
+        ],
     )?;
 
     Ok(BoardRow {
@@ -199,7 +224,42 @@ pub fn insert(conn: &Connection, draft: &BoardDraft) -> Result<BoardRow, DbError
         description: draft.description.clone(),
         created_at: now,
         updated_at: now,
+        owner_role_id: owner,
     })
+}
+
+/// Deterministic id of the system Maintainer row seeded by migration
+/// `004_cat_as_agent_phase1.sql`. Used as the default `owner_role_id`
+/// when callers don't specify one — see memo Q1 option (c).
+pub const MAINTAINER_SYSTEM_ID: &str = "maintainer-system";
+
+/// Deterministic id of the system Dirizher row seeded by migration
+/// `004_cat_as_agent_phase1.sql`. Phase 2 wiring will reference this
+/// when routing tasks to the coordinator cat (memo Q3).
+pub const DIRIZHER_SYSTEM_ID: &str = "dirizher-system";
+
+/// Reassign a board's owning cat. The `role_id` must reference an
+/// existing row in `roles`; the FK constraint enforces this at the
+/// schema level, so a missing role surfaces as
+/// [`DbError::Sqlite`] with `ConstraintViolation`. Bumps `updated_at`.
+///
+/// Returns `Ok(false)` if the board id does not exist; otherwise
+/// `Ok(true)`. Idempotent on the same `(board_id, role_id)` pair —
+/// re-assigning to the same owner just refreshes `updated_at`.
+///
+/// Cat-as-Agent Phase 1 (ctq-73): the column is non-nullable, so this
+/// helper never clears the owner — there is always exactly one.
+///
+/// # Errors
+///
+/// FK violation on a missing `role_id` surfaces as [`DbError::Sqlite`].
+pub fn set_owner(conn: &Connection, board_id: &str, role_id: &str) -> Result<bool, DbError> {
+    let now = now_millis();
+    let updated = conn.execute(
+        "UPDATE boards SET owner_role_id = ?1, updated_at = ?2 WHERE id = ?3",
+        params![role_id, now, board_id],
+    )?;
+    Ok(updated > 0)
 }
 
 /// Returns `true` if a row exists in `spaces` with the given id. Used
@@ -259,6 +319,7 @@ mod tests {
                 role_id: None,
                 position: Some(1.0),
                 description: None,
+                owner_role_id: None,
             },
         )
         .expect("insert");
@@ -284,6 +345,7 @@ mod tests {
                 role_id: None,
                 position: Some(2.0),
                 description: None,
+                owner_role_id: None,
             },
         )
         .unwrap();
@@ -295,6 +357,7 @@ mod tests {
                 role_id: None,
                 position: Some(2.0),
                 description: None,
+                owner_role_id: None,
             },
         )
         .unwrap();
@@ -306,6 +369,7 @@ mod tests {
                 role_id: None,
                 position: Some(1.0),
                 description: None,
+                owner_role_id: None,
             },
         )
         .unwrap();
@@ -333,6 +397,7 @@ mod tests {
                 role_id: None,
                 position: None,
                 description: None,
+                owner_role_id: None,
             },
         )
         .unwrap();
@@ -353,6 +418,7 @@ mod tests {
                 role_id: None,
                 position: None,
                 description: None,
+                owner_role_id: None,
             },
         )
         .expect_err("FK violation expected");
@@ -384,12 +450,76 @@ mod tests {
                 role_id: None,
                 position: None,
                 description: Some("A test description.".into()),
+                owner_role_id: None,
             },
         )
         .expect("insert");
         assert_eq!(row.description, Some("A test description.".to_owned()));
         let fetched = get_by_id(&conn, &row.id).unwrap().expect("exists");
         assert_eq!(fetched.description, Some("A test description.".to_owned()));
+    }
+
+    #[test]
+    fn set_owner_reassigns_between_two_roles() {
+        let conn = fresh_db();
+        seed_space(&conn, "sp1", "abc");
+        // Two user roles to swap between.
+        conn.execute_batch(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) \
+                 VALUES ('rA','RA','',0,0), ('rB','RB','',0,0);",
+        )
+        .unwrap();
+        let row = insert(
+            &conn,
+            &BoardDraft {
+                name: "Board".into(),
+                space_id: "sp1".into(),
+                role_id: None,
+                position: None,
+                description: None,
+                owner_role_id: Some("rA".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(row.owner_role_id, "rA");
+
+        // Reassign to rB.
+        assert!(set_owner(&conn, &row.id, "rB").unwrap());
+        let after = get_by_id(&conn, &row.id).unwrap().unwrap();
+        assert_eq!(after.owner_role_id, "rB");
+
+        // Reassign back to rA — idempotent on the (board, role) pair.
+        assert!(set_owner(&conn, &row.id, "rA").unwrap());
+        let final_row = get_by_id(&conn, &row.id).unwrap().unwrap();
+        assert_eq!(final_row.owner_role_id, "rA");
+
+        // Missing board returns Ok(false).
+        assert!(!set_owner(&conn, "ghost", "rA").unwrap());
+    }
+
+    #[test]
+    fn set_owner_rejects_unknown_role_via_fk() {
+        let conn = fresh_db();
+        seed_space(&conn, "sp1", "abc");
+        let row = insert(
+            &conn,
+            &BoardDraft {
+                name: "B".into(),
+                space_id: "sp1".into(),
+                role_id: None,
+                position: None,
+                description: None,
+                owner_role_id: None,
+            },
+        )
+        .unwrap();
+        let err = set_owner(&conn, &row.id, "ghost-role").expect_err("FK");
+        match err {
+            DbError::Sqlite(rusqlite::Error::SqliteFailure(code, _)) => {
+                assert_eq!(code.code, rusqlite::ErrorCode::ConstraintViolation);
+            }
+            other => panic!("expected ConstraintViolation, got {other:?}"),
+        }
     }
 
     #[test]
@@ -404,6 +534,7 @@ mod tests {
                 role_id: None,
                 position: None,
                 description: None,
+                owner_role_id: None,
             },
         )
         .unwrap();

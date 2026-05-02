@@ -29,7 +29,7 @@ import { AttachPromptDialog } from "./AttachPromptDialog";
 // ── Stub factories ────────────────────────────────────────────────────────────
 
 function stubBoard(id: string, name: string, spaceId = "spc-1"): Board {
-  return { id, name, spaceId, roleId: null, position: 1, description: null, createdAt: 0n, updatedAt: 0n };
+  return { id, name, spaceId, roleId: null, position: 1, description: null, ownerRoleId: "maintainer-system", createdAt: 0n, updatedAt: 0n };
 }
 
 function stubColumn(id: string, name: string, boardId: string): Column {
@@ -44,13 +44,14 @@ function stubTask(id: string, title: string, boardId: string, columnId: string):
     description: null,
     position: 1,
     roleId: null,
+    stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,
   };
 }
 
 function stubRole(id: string, name: string): Role {
-  return { id, name, content: "", color: null, createdAt: 0n, updatedAt: 0n };
+  return { id, name, content: "", color: null, isSystem: false, createdAt: 0n, updatedAt: 0n };
 }
 
 function stubPrompt(id: string, name: string): Prompt {

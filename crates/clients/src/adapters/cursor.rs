@@ -101,10 +101,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let dir = config_dir_for(tmp.path());
         let expected = dir.join("rules.mdc");
-        assert_eq!(
-            expected.file_name().unwrap().to_str().unwrap(),
-            "rules.mdc"
-        );
+        assert_eq!(expected.file_name().unwrap().to_str().unwrap(), "rules.mdc");
     }
 
     #[test]

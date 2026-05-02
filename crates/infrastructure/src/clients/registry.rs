@@ -60,8 +60,7 @@ pub fn load() -> Result<Vec<ConnectedClient>, RegistryError> {
         return Ok(Vec::new());
     }
     let raw = std::fs::read_to_string(&path).map_err(RegistryError::Io)?;
-    let clients: Vec<ConnectedClient> =
-        serde_json::from_str(&raw).map_err(RegistryError::Json)?;
+    let clients: Vec<ConnectedClient> = serde_json::from_str(&raw).map_err(RegistryError::Json)?;
     Ok(clients)
 }
 
@@ -120,8 +119,7 @@ pub fn rescan(
         existing.iter().map(|c| (c.id.as_str(), c)).collect();
 
     // Track which ids we processed so we can detect newly-added adapters.
-    let mut processed_ids: std::collections::HashSet<&str> =
-        std::collections::HashSet::new();
+    let mut processed_ids: std::collections::HashSet<&str> = std::collections::HashSet::new();
 
     let mut result: Vec<ConnectedClient> = adapters
         .iter()
@@ -143,9 +141,7 @@ pub fn rescan(
 
             // Preserve the user's `enabled` toggle if the client was
             // already known; otherwise default to `installed`.
-            let enabled = existing_map
-                .get(id)
-                .map_or(installed, |prev| prev.enabled);
+            let enabled = existing_map.get(id).map_or(installed, |prev| prev.enabled);
 
             ConnectedClient {
                 id: id.to_owned(),
@@ -182,9 +178,7 @@ fn now_unix_millis() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| {
-            i64::try_from(d.as_millis()).unwrap_or(i64::MAX)
-        })
+        .map(|d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
         .unwrap_or(0)
 }
 
@@ -215,10 +209,16 @@ mod tests {
             Ok(PathBuf::from(format!("/home/test/.{}", self.id)))
         }
         fn signature_file(&self) -> Result<PathBuf, AdapterError> {
-            Ok(PathBuf::from(format!("/home/test/.{}/settings.json", self.id)))
+            Ok(PathBuf::from(format!(
+                "/home/test/.{}/settings.json",
+                self.id
+            )))
         }
         fn instructions_file(&self) -> Result<PathBuf, AdapterError> {
-            Ok(PathBuf::from(format!("/home/test/.{}/INSTRUCTIONS.md", self.id)))
+            Ok(PathBuf::from(format!(
+                "/home/test/.{}/INSTRUCTIONS.md",
+                self.id
+            )))
         }
         fn detect(&self) -> Result<bool, AdapterError> {
             Ok(self.detected)
@@ -305,7 +305,10 @@ mod tests {
         // Both entries should be present.
         assert_eq!(result.len(), 2);
         let legacy = result.iter().find(|c| c.id == "legacy").unwrap();
-        assert!(!legacy.installed, "orphaned client should be marked not installed");
+        assert!(
+            !legacy.installed,
+            "orphaned client should be marked not installed"
+        );
         assert!(legacy.enabled, "user choice preserved");
     }
 

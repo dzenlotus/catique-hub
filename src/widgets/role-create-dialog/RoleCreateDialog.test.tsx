@@ -35,6 +35,7 @@ function makeRole(overrides: Partial<Role> = {}): Role {
     name: "Старший инженер",
     content: "",
     color: null,
+    isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,

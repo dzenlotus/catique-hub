@@ -29,6 +29,7 @@ function stubTask(overrides?: Partial<Task>): Task {
     description: "Создать компонентную библиотеку на основе CSS Modules.",
     position: 1,
     roleId: null,
+    stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,

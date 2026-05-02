@@ -14,6 +14,7 @@ function stubRole(overrides?: Partial<Role>): Role {
     name: "Разработчик",
     content: "Пишет и ревьюит код, участвует в планировании спринта.",
     color: null,
+    isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,

@@ -392,8 +392,7 @@ async fn supervisor_task(inner: Arc<Mutex<Inner>>) {
                     }
                     Err(e) => {
                         eprintln!("[catique-sidecar] auto-restart spawn failed: {e}");
-                        inner.lock().await.status =
-                            SidecarStatus::Crashed { exit_code: None };
+                        inner.lock().await.status = SidecarStatus::Crashed { exit_code: None };
                         break;
                     }
                 }

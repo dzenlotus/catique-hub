@@ -67,4 +67,3 @@ fn export_attachment() {
 fn export_prompt_group() {
     PromptGroup::export().expect("PromptGroup TS bindings should export cleanly");
 }
-

@@ -128,10 +128,7 @@ mod tests {
         // On any platform, the call should succeed (or fail only when
         // home dir is unavailable). We are interested in the filename.
         if let Ok(path) = a.instructions_file() {
-            assert_eq!(
-                path.file_name().unwrap().to_str().unwrap(),
-                "CLAUDE.md"
-            );
+            assert_eq!(path.file_name().unwrap().to_str().unwrap(), "CLAUDE.md");
         }
     }
 

@@ -88,6 +88,9 @@ impl<'a> BoardsUseCase<'a> {
                 role_id: None,
                 position: None,
                 description,
+                // owner defaults to the seeded `maintainer-system`
+                // row (Cat-as-Agent Phase 1 / memo Q1).
+                owner_role_id: None,
             },
         )
         .map_err(map_db_err)?;
@@ -159,6 +162,7 @@ fn row_to_board(row: BoardRow) -> Board {
         description: row.description,
         created_at: row.created_at,
         updated_at: row.updated_at,
+        owner_role_id: row.owner_role_id,
     }
 }
 
@@ -299,7 +303,13 @@ mod tests {
         assert_eq!(board.description, None);
 
         let set = uc
-            .update(board.id.clone(), None, None, None, Some(Some("desc".into())))
+            .update(
+                board.id.clone(),
+                None,
+                None,
+                None,
+                Some(Some("desc".into())),
+            )
             .unwrap();
         assert_eq!(set.description, Some("desc".to_owned()));
 

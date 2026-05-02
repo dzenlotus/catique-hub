@@ -102,10 +102,7 @@ mod tests {
         {
             let a = ClaudeDesktopAdapter;
             let path = a.instructions_file().unwrap();
-            assert_eq!(
-                path.file_name().unwrap().to_str().unwrap(),
-                "CLAUDE.md"
-            );
+            assert_eq!(path.file_name().unwrap().to_str().unwrap(), "CLAUDE.md");
             let display = path.to_string_lossy();
             assert!(
                 display.contains("Library/Application Support/Claude"),

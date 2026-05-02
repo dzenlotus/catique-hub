@@ -30,7 +30,11 @@ pub async fn discover_clients(
     state: State<'_, AppState>,
 ) -> Result<Vec<ConnectedClient>, AppError> {
     let clients = ClientsUseCase::new().discover()?;
-    events::emit(&state, events::CLIENT_DISCOVERED, json!({ "clients": clients }));
+    events::emit(
+        &state,
+        events::CLIENT_DISCOVERED,
+        json!({ "clients": clients }),
+    );
     Ok(clients)
 }
 
@@ -102,8 +106,7 @@ pub async fn write_client_instructions(
     client_id: String,
     content: String,
 ) -> Result<ClientInstructions, AppError> {
-    let instructions =
-        ClientsUseCase::new().write_instructions(&client_id, &content)?;
+    let instructions = ClientsUseCase::new().write_instructions(&client_id, &content)?;
     events::emit(
         &state,
         events::CLIENT_INSTRUCTIONS_CHANGED,
@@ -152,10 +155,6 @@ pub async fn sync_roles_to_client(
     let report = ClientsUseCase::new()
         .with_pool(state.pool.clone())
         .sync_roles_to_client(client_id)?;
-    events::emit(
-        &state,
-        events::CLIENT_ROLES_SYNCED,
-        json!(report),
-    );
+    events::emit(&state, events::CLIENT_ROLES_SYNCED, json!(report));
     Ok(report)
 }

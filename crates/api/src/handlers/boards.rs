@@ -66,8 +66,7 @@ pub async fn update_board(
     role_id: Option<Option<String>>,
     description: Option<Option<String>>,
 ) -> Result<Board, AppError> {
-    let board =
-        BoardsUseCase::new(&state.pool).update(id, name, position, role_id, description)?;
+    let board = BoardsUseCase::new(&state.pool).update(id, name, position, role_id, description)?;
     events::emit(&state, events::BOARD_UPDATED, json!({ "id": board.id }));
     Ok(board)
 }

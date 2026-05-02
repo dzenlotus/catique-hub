@@ -204,7 +204,9 @@ impl ClientsUseCase {
         let adapter = self.adapter_by_id(client_id)?;
         let path = adapter
             .instructions_file()
-            .map_err(|e| AppError::TransactionRolledBack { reason: e.to_string() })?;
+            .map_err(|e| AppError::TransactionRolledBack {
+                reason: e.to_string(),
+            })?;
 
         if !path.exists() {
             return Ok(ClientInstructions {
@@ -216,11 +218,10 @@ impl ClientsUseCase {
             });
         }
 
-        let content = std::fs::read_to_string(&path).map_err(|e| {
-            AppError::TransactionRolledBack {
+        let content =
+            std::fs::read_to_string(&path).map_err(|e| AppError::TransactionRolledBack {
                 reason: format!("read {}: {e}", path.display()),
-            }
-        })?;
+            })?;
 
         let modified_at: i64 = path
             .metadata()
@@ -259,15 +260,15 @@ impl ClientsUseCase {
         let adapter = self.adapter_by_id(client_id)?;
         let path = adapter
             .instructions_file()
-            .map_err(|e| AppError::TransactionRolledBack { reason: e.to_string() })?;
+            .map_err(|e| AppError::TransactionRolledBack {
+                reason: e.to_string(),
+            })?;
 
         // Ensure parent directory exists (it may not if the client was
         // never launched on this machine).
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                AppError::TransactionRolledBack {
-                    reason: format!("create dirs {}: {e}", parent.display()),
-                }
+            std::fs::create_dir_all(parent).map_err(|e| AppError::TransactionRolledBack {
+                reason: format!("create dirs {}: {e}", parent.display()),
             })?;
         }
 
@@ -308,17 +309,18 @@ impl ClientsUseCase {
         }
         let agents_dir = adapter
             .agents_dir()
-            .map_err(|e| AppError::TransactionRolledBack { reason: e.to_string() })?;
+            .map_err(|e| AppError::TransactionRolledBack {
+                reason: e.to_string(),
+            })?;
 
         if !agents_dir.exists() {
             return Ok(Vec::new());
         }
 
-        let entries = std::fs::read_dir(&agents_dir).map_err(|e| {
-            AppError::TransactionRolledBack {
+        let entries =
+            std::fs::read_dir(&agents_dir).map_err(|e| AppError::TransactionRolledBack {
                 reason: format!("read dir {}: {e}", agents_dir.display()),
-            }
-        })?;
+            })?;
 
         let mut result = Vec::new();
         for entry in entries.flatten() {
@@ -393,28 +395,25 @@ impl ClientsUseCase {
 
         let agents_dir = adapter
             .agents_dir()
-            .map_err(|e| AppError::TransactionRolledBack { reason: e.to_string() })?;
+            .map_err(|e| AppError::TransactionRolledBack {
+                reason: e.to_string(),
+            })?;
 
-        std::fs::create_dir_all(&agents_dir).map_err(|e| {
-            AppError::TransactionRolledBack {
-                reason: format!("create dir {}: {e}", agents_dir.display()),
-            }
+        std::fs::create_dir_all(&agents_dir).map_err(|e| AppError::TransactionRolledBack {
+            reason: format!("create dir {}: {e}", agents_dir.display()),
         })?;
 
         let conn = acquire(pool).map_err(|e| AppError::TransactionRolledBack {
             reason: e.to_string(),
         })?;
-        let roles = fetch_roles_with_prompts(&conn).map_err(|e| {
-            AppError::TransactionRolledBack {
+        let roles =
+            fetch_roles_with_prompts(&conn).map_err(|e| AppError::TransactionRolledBack {
                 reason: format!("fetch roles: {e}"),
-            }
-        })?;
+            })?;
 
         let ext = file_ext_for_adapter(adapter);
-        let (on_disk_managed, skipped) =
-            scan_agents_dir(&agents_dir).map_err(|e| AppError::TransactionRolledBack {
-                reason: e,
-            })?;
+        let (on_disk_managed, skipped) = scan_agents_dir(&agents_dir)
+            .map_err(|e| AppError::TransactionRolledBack { reason: e })?;
 
         let now_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -423,8 +422,7 @@ impl ClientsUseCase {
 
         let mut created: Vec<String> = Vec::new();
         let mut updated: Vec<String> = Vec::new();
-        let mut written_ids: std::collections::HashSet<String> =
-            std::collections::HashSet::new();
+        let mut written_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
 
         for role_entry in &roles {
             let filename = adapter.agent_filename(&role_entry.role_id);
@@ -434,10 +432,8 @@ impl ClientsUseCase {
             std::fs::write(&tmp, &body).map_err(|e| AppError::TransactionRolledBack {
                 reason: format!("write tmp {}: {e}", tmp.display()),
             })?;
-            std::fs::rename(&tmp, &target).map_err(|e| {
-                AppError::TransactionRolledBack {
-                    reason: format!("rename {} → {}: {e}", tmp.display(), target.display()),
-                }
+            std::fs::rename(&tmp, &target).map_err(|e| AppError::TransactionRolledBack {
+                reason: format!("rename {} → {}: {e}", tmp.display(), target.display()),
             })?;
             if on_disk_managed.contains_key(&role_entry.role_id) {
                 updated.push(role_entry.role_id.clone());
@@ -449,7 +445,13 @@ impl ClientsUseCase {
 
         let deleted = delete_stale_managed_files(&on_disk_managed, &written_ids);
 
-        Ok(RoleSyncReport { client_id, created, updated, deleted, skipped })
+        Ok(RoleSyncReport {
+            client_id,
+            created,
+            updated,
+            deleted,
+            skipped,
+        })
     }
 }
 
@@ -493,7 +495,11 @@ fn parse_frontmatter(content: &str) -> Option<FrontmatterFields> {
         }
     }
 
-    Some(FrontmatterFields { managed_by, role_id, synced_at })
+    Some(FrontmatterFields {
+        managed_by,
+        role_id,
+        synced_at,
+    })
 }
 
 /// One role with its attached prompts fetched from the DB.
@@ -515,9 +521,7 @@ fn fetch_roles_with_prompts(
     conn: &rusqlite::Connection,
 ) -> Result<Vec<RoleEntry>, rusqlite::Error> {
     // Load roles first.
-    let mut stmt = conn.prepare(
-        "SELECT id, name, content, color FROM roles ORDER BY name ASC",
-    )?;
+    let mut stmt = conn.prepare("SELECT id, name, content, color FROM roles ORDER BY name ASC")?;
     let role_rows: Vec<(String, String, String, Option<String>)> = stmt
         .query_map([], |row| {
             Ok((
@@ -758,10 +762,7 @@ mod tests {
 
     /// Build a stub with a real filesystem-backed config dir (for
     /// instructions read/write tests).
-    fn stub_with_dir(
-        id: &'static str,
-        config_dir: PathBuf,
-    ) -> Box<dyn ClientAdapter> {
+    fn stub_with_dir(id: &'static str, config_dir: PathBuf) -> Box<dyn ClientAdapter> {
         Box::new(StubAdapter {
             id,
             detected: false,
@@ -771,10 +772,7 @@ mod tests {
 
     /// Returns a `ClientsUseCase` wired to a temp registry file.
     /// The `TempDir` must be kept alive for the duration of the test.
-    fn fresh_use_case(
-        tmp: &TempDir,
-        adapters: Vec<Box<dyn ClientAdapter>>,
-    ) -> ClientsUseCase {
+    fn fresh_use_case(tmp: &TempDir, adapters: Vec<Box<dyn ClientAdapter>>) -> ClientsUseCase {
         let path = tmp.path().join("connected-clients.json");
         ClientsUseCase::with_adapters(adapters).with_registry_path(path)
     }
@@ -837,12 +835,14 @@ mod tests {
     #[test]
     fn discover_defaults_enabled_to_installed() {
         let tmp = TempDir::new().unwrap();
-        let uc =
-            fresh_use_case(&tmp, vec![stub("installed", true), stub("missing", false)]);
+        let uc = fresh_use_case(&tmp, vec![stub("installed", true), stub("missing", false)]);
         let clients = uc.discover().expect("discover");
         let installed = clients.iter().find(|c| c.id == "installed").unwrap();
         let missing = clients.iter().find(|c| c.id == "missing").unwrap();
-        assert!(installed.enabled, "installed client should default to enabled");
+        assert!(
+            installed.enabled,
+            "installed client should default to enabled"
+        );
         assert!(!missing.enabled, "absent client should default to disabled");
     }
 
@@ -866,7 +866,9 @@ mod tests {
         let cfg_tmp = TempDir::new().unwrap();
         // config dir exists but INSTRUCTIONS.md does not
         let uc = instructions_use_case(&reg_tmp, "myagent", cfg_tmp.path().to_path_buf());
-        let result = uc.read_instructions("myagent").expect("read should succeed");
+        let result = uc
+            .read_instructions("myagent")
+            .expect("read should succeed");
         assert_eq!(result.client_id, "myagent");
         assert_eq!(result.content, "");
         assert!(!result.exists);
@@ -905,7 +907,9 @@ mod tests {
         assert!(written.modified_at > 0);
 
         // Independent read also returns the same content.
-        let read = uc.read_instructions("myagent").expect("read should succeed");
+        let read = uc
+            .read_instructions("myagent")
+            .expect("read should succeed");
         assert_eq!(read.content, content);
         assert!(read.exists);
     }
@@ -933,11 +937,8 @@ mod tests {
         let config_dir = cfg_tmp.path().to_path_buf();
         let uc = instructions_use_case(&reg_tmp, "myagent", config_dir.clone());
 
-        uc.write_instructions("myagent", "first")
-            .unwrap();
-        let second = uc
-            .write_instructions("myagent", "second")
-            .unwrap();
+        uc.write_instructions("myagent", "first").unwrap();
+        let second = uc.write_instructions("myagent", "second").unwrap();
 
         assert_eq!(second.content, "second");
         let file = config_dir.join("INSTRUCTIONS.md");
@@ -1048,7 +1049,16 @@ mod tests {
             .expect("sync should succeed");
 
         assert_eq!(report.client_id, "test-client");
-        assert_eq!(report.created, vec!["role-1"]);
+        // Migration 004 seeds Maintainer + Dirizher system rows; sync
+        // touches every role row so they appear here too. Assert that
+        // the user-created `role-1` was created and that `updated` /
+        // `deleted` are empty (sync writes are all "create" on a fresh
+        // agents dir).
+        assert!(
+            report.created.contains(&"role-1".to_owned()),
+            "user role must be in `created`, got {:?}",
+            report.created,
+        );
         assert!(report.updated.is_empty());
         assert!(report.deleted.is_empty());
 
@@ -1143,7 +1153,10 @@ mod tests {
 
         // Both files must survive.
         assert!(user_file.exists(), "user-authored file must not be deleted");
-        assert!(handmade.exists(), "catique-prefixed without managed marker must survive");
+        assert!(
+            handmade.exists(),
+            "catique-prefixed without managed marker must survive"
+        );
 
         // Both must appear in skipped.
         assert!(
@@ -1225,8 +1238,13 @@ mod tests {
         uc.sync_roles_to_client("test-client".into()).unwrap();
 
         let listed = uc.list_synced_roles("test-client").unwrap();
-        assert_eq!(listed.len(), 1);
-        assert_eq!(listed[0].role_id, "r-roundtrip");
-        assert_eq!(listed[0].client_id, "test-client");
+        // System roles seeded by migration 004 round-trip too; assert
+        // on the user role's presence rather than an exact count.
+        let user_entry = listed
+            .iter()
+            .find(|f| f.role_id == "r-roundtrip")
+            .expect("user role file must round-trip");
+        assert_eq!(user_entry.role_id, "r-roundtrip");
+        assert_eq!(user_entry.client_id, "test-client");
     }
 }

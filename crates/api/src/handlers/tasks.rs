@@ -51,8 +51,14 @@ pub async fn create_task(
     position: f64,
     role_id: Option<String>,
 ) -> Result<Task, AppError> {
-    let task = TasksUseCase::new(&state.pool)
-        .create(board_id, column_id, title, description, position, role_id)?;
+    let task = TasksUseCase::new(&state.pool).create(
+        board_id,
+        column_id,
+        title,
+        description,
+        position,
+        role_id,
+    )?;
     events::emit(
         &state,
         events::TASK_CREATED,

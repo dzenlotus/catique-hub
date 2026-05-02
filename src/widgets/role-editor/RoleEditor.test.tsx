@@ -22,6 +22,7 @@ function makeRole(overrides: Partial<Role> = {}): Role {
     name: "Тестовая роль",
     content: "Содержимое роли",
     color: "#ff0000",
+    isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,

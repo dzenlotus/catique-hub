@@ -41,6 +41,7 @@ pub mod skill;
 pub mod space;
 pub mod tag;
 pub mod task;
+pub mod task_rating;
 
 pub use agent_report::AgentReport;
 pub use attachment::Attachment;
@@ -59,3 +60,4 @@ pub use skill::Skill;
 pub use space::Space;
 pub use tag::Tag;
 pub use task::Task;
+pub use task_rating::TaskRating;

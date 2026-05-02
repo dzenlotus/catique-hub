@@ -268,9 +268,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = PromptsUseCase::new(&pool);
         // "Hello" = 5 chars → (5 + 3) / 4 = 2 tokens.
-        let p = uc
-            .create("TC".into(), "Hello".into(), None, None)
-            .unwrap();
+        let p = uc.create("TC".into(), "Hello".into(), None, None).unwrap();
         let updated = uc.recompute_token_count(p.id.clone()).unwrap();
         assert_eq!(updated.token_count, Some(2));
         assert_eq!(updated.id, p.id);

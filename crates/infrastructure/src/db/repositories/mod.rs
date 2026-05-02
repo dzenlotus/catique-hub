@@ -23,6 +23,7 @@ pub mod search;
 pub mod skills;
 pub mod spaces;
 pub mod tags;
+pub mod task_ratings;
 pub mod tasks;
 
 mod util;

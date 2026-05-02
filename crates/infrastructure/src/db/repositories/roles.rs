@@ -26,10 +26,15 @@ pub struct RoleRow {
     pub color: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// `true` for app-owned rows (Maintainer, Dirizher) seeded by
+    /// migration `004_cat_as_agent_phase1.sql`. The schema column is
+    /// `INTEGER NOT NULL DEFAULT 0`; `from_row` reads it as `0|1`.
+    pub is_system: bool,
 }
 
 impl RoleRow {
     fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+        let is_system_int: i64 = row.get("is_system")?;
         Ok(Self {
             id: row.get("id")?,
             name: row.get("name")?,
@@ -37,6 +42,7 @@ impl RoleRow {
             color: row.get("color")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
+            is_system: is_system_int != 0,
         })
     }
 }
@@ -64,7 +70,7 @@ pub struct RolePatch {
 /// Surfaces rusqlite errors.
 pub fn list_all(conn: &Connection) -> Result<Vec<RoleRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, content, color, created_at, updated_at \
+        "SELECT id, name, content, color, created_at, updated_at, is_system \
          FROM roles ORDER BY name ASC",
     )?;
     let rows = stmt.query_map([], RoleRow::from_row)?;
@@ -82,10 +88,31 @@ pub fn list_all(conn: &Connection) -> Result<Vec<RoleRow>, DbError> {
 /// Surfaces rusqlite errors.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<RoleRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, content, color, created_at, updated_at \
+        "SELECT id, name, content, color, created_at, updated_at, is_system \
          FROM roles WHERE id = ?1",
     )?;
     Ok(stmt.query_row(params![id], RoleRow::from_row).optional()?)
+}
+
+/// `SELECT … FROM roles WHERE is_system = 1 ORDER BY name ASC`.
+/// Convenience for diagnostics and the Phase 1 review modal that needs
+/// to enumerate the seeded `maintainer-system` / `dirizher-system`
+/// rows without scanning the full table.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn list_system_roles(conn: &Connection) -> Result<Vec<RoleRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, content, color, created_at, updated_at, is_system \
+         FROM roles WHERE is_system = 1 ORDER BY name ASC",
+    )?;
+    let rows = stmt.query_map([], RoleRow::from_row)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
 }
 
 /// Insert one role. Generates id, stamps timestamps.
@@ -108,6 +135,10 @@ pub fn insert(conn: &Connection, draft: &RoleDraft) -> Result<RoleRow, DbError> 
         color: draft.color.clone(),
         created_at: now,
         updated_at: now,
+        // User-created roles are never system rows. The seeded
+        // `maintainer-system` / `dirizher-system` rows arrive via
+        // migration 004's INSERT OR IGNORE, not through this path.
+        is_system: false,
     })
 }
 
@@ -382,6 +413,36 @@ mod tests {
         assert_eq!(count, 1);
         assert!(remove_role_prompt(&conn, &role.id, "p1").unwrap());
         assert!(!remove_role_prompt(&conn, &role.id, "p1").unwrap());
+    }
+
+    #[test]
+    fn list_system_roles_returns_seeded_rows() {
+        // Migration 004 seeds Maintainer + Dirizher; a freshly-applied
+        // schema should expose both via list_system_roles.
+        let conn = fresh_db();
+        let system = list_system_roles(&conn).unwrap();
+        let ids: Vec<String> = system.iter().map(|r| r.id.clone()).collect();
+        assert!(ids.contains(&"maintainer-system".to_owned()));
+        assert!(ids.contains(&"dirizher-system".to_owned()));
+        // Sanity: every returned row has is_system set.
+        assert!(system.iter().all(|r| r.is_system));
+    }
+
+    #[test]
+    fn user_inserted_role_is_not_system() {
+        let conn = fresh_db();
+        let row = insert(
+            &conn,
+            &RoleDraft {
+                name: "Plain".into(),
+                content: String::new(),
+                color: None,
+            },
+        )
+        .unwrap();
+        assert!(!row.is_system);
+        let from_db = get_by_id(&conn, &row.id).unwrap().unwrap();
+        assert!(!from_db.is_system);
     }
 
     #[test]

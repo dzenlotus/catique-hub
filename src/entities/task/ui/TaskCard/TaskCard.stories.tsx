@@ -12,6 +12,7 @@ const baseTask: Task = {
   description: null,
   position: 1.0,
   roleId: null,
+  stepLog: "",
   createdAt: 0n,
   updatedAt: 0n,
 };
