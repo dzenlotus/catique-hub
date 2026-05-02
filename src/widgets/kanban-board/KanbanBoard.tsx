@@ -25,7 +25,7 @@ import { useMoveTaskMutation, useTasksByBoard } from "@entities/task";
 import { Button, Input } from "@shared/ui";
 import {
   PixelCodingAppsWebsitesModule,
-  PixelInterfaceEssentialNavigationMenu1,
+  PixelInterfaceEssentialSettingCog,
 } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { TaskCreateDialog } from "@widgets/task-create-dialog";
@@ -415,7 +415,7 @@ export function KanbanBoard({
           ) : null}
         </div>
         <button type="button" className={styles.iconButton} aria-label="Board options">
-          <PixelInterfaceEssentialNavigationMenu1
+          <PixelInterfaceEssentialSettingCog
             width={16}
             height={16}
             aria-hidden="true"
