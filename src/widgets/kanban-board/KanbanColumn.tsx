@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { memo, type ReactElement } from "react";
 import { useSortable } from "@dnd-kit/react/sortable";
 
 import type { Column } from "@entities/column";
@@ -57,7 +57,13 @@ export interface KanbanColumnProps {
   onDeleteColumn: (columnId: string) => void;
 }
 
-export function KanbanColumn({
+/**
+ * F-07: wrapped in `memo` so unrelated state changes in `KanbanBoard`
+ * (typing in the column-create input, opening the task dialog, etc.)
+ * don't re-render every column. The parent stabilises every callback
+ * via `useCallback`, which is required for the memo to actually skip.
+ */
+function KanbanColumnImpl({
   column,
   index,
   tasks,
@@ -147,3 +153,5 @@ export function KanbanColumn({
     </section>
   );
 }
+
+export const KanbanColumn = memo(KanbanColumnImpl);

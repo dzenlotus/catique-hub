@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { DragDropProvider } from "@dnd-kit/react";
 import type {
@@ -281,14 +281,33 @@ export function KanbanBoard({
   // when two clients race, so we don't need to be exact.
   const nextColumnPosition = Number(columns.at(-1)?.position ?? 0n) + 1;
 
-  const handleTaskSelect = (taskId: string): void => {
-    if (onTaskSelect) {
-      onTaskSelect(taskId);
-      return;
-    }
+  // F-07: stabilise the per-column callback identities via useCallback so
+  // the memoised `KanbanColumn` (below) can skip re-renders when only
+  // unrelated state in this widget changes.
+  const handleTaskSelect = useCallback(
+    (taskId: string): void => {
+      if (onTaskSelect) {
+        onTaskSelect(taskId);
+        return;
+      }
+      setLocation(taskPath(taskId));
+    },
+    [onTaskSelect, setLocation],
+  );
 
-    setLocation(taskPath(taskId));
-  };
+  const handleRenameColumn = useCallback(
+    (id: string, name: string): void => {
+      updateColumn.mutate({ id, boardId, name });
+    },
+    [updateColumn, boardId],
+  );
+
+  const handleDeleteColumn = useCallback(
+    (id: string): void => {
+      deleteColumn.mutate({ id, boardId });
+    },
+    [deleteColumn, boardId],
+  );
 
   if (columnsQuery.status === "pending" || tasksQuery.status === "pending") {
     return (
@@ -401,10 +420,8 @@ export function KanbanBoard({
               tasks={items[column.id] ?? []}
               onTaskSelect={handleTaskSelect}
               onAddTask={setTaskColumnId}
-              onRenameColumn={(id, name) =>
-                updateColumn.mutate({ id, boardId, name })
-              }
-              onDeleteColumn={(id) => deleteColumn.mutate({ id, boardId })}
+              onRenameColumn={handleRenameColumn}
+              onDeleteColumn={handleDeleteColumn}
             />
           ))}
 
