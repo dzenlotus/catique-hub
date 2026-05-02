@@ -146,11 +146,20 @@ export function KanbanBoard({
     [columnById, orderedIds],
   );
 
+  // F-04: gate the server-state overwrite on both `draggingRef` (the
+  // user is currently dragging) AND any in-flight optimistic mutation
+  // (the user just dropped, the mutation hasn't settled yet). Without
+  // the mutation gate, a WS event arriving during drag would overwrite
+  // the user's drop the instant `dragEnd` runs, before our optimistic
+  // `moveTask.mutate` had a chance to round-trip.
+  const isMutating = moveTask.isPending || reorderColumns.isPending;
+
   useEffect(() => {
     if (draggingRef.current) return;
+    if (isMutating) return;
     setItems(serverItems);
     itemsRef.current = serverItems;
-  }, [serverItems]);
+  }, [serverItems, isMutating]);
 
   // Persist this board as the last-opened for its space, so that on next
   // launch / when navigating to "/" we can redirect back to it. The store
@@ -163,10 +172,11 @@ export function KanbanBoard({
 
   useEffect(() => {
     if (draggingRef.current) return;
+    if (isMutating) return;
     const next = columnIds(columns);
     setOrderedIds(next);
     orderedIdsRef.current = next;
-  }, [columns]);
+  }, [columns, isMutating]);
 
   const setSyncedItems = (updater: (current: TaskBuckets) => TaskBuckets): void => {
     setItems((current) => {
