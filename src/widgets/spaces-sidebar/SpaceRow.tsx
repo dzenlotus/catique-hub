@@ -1,14 +1,16 @@
-import { type MouseEvent, type ReactElement } from "react";
+import { useState, type MouseEvent, type ReactElement } from "react";
 import { useLocation } from "wouter";
 
 import { cn } from "@shared/lib";
-import { Button } from "@shared/ui";
+import { Button, Menu, MenuItem, MenuTrigger } from "@shared/ui";
 import { booleanCodec, useLocalStorage } from "@shared/storage";
 import type { Space } from "@entities/space";
 import type { Board } from "@entities/board";
 import { spaceSettingsPath } from "@app/routes";
+import { BoardEditor } from "@widgets/board-editor";
 
 import { ChevronIcon } from "./ChevronIcon";
+import { KebabIcon } from "./KebabIcon";
 import { BoardIcon, SpaceIcon } from "./icons";
 import styles from "./SpacesSidebar.module.css";
 
@@ -47,6 +49,10 @@ export function SpaceRow({
     booleanCodec,
     isDefaultExpanded,
   );
+  // ctq-76 item 3 — open BoardEditor when the user picks "Settings" from
+  // the per-board kebab. Delete is intentionally not wired yet (no
+  // `delete_board` IPC command on the backend; tracked separately).
+  const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
 
   const spaceBoards = boards.filter((b) => b.spaceId === space.id);
 
@@ -100,7 +106,7 @@ export function SpaceRow({
           {spaceBoards.map((board) => {
             const isActive = activeBoardId === board.id;
             return (
-              <li key={board.id}>
+              <li key={board.id} className={styles.boardItem}>
                 <button
                   type="button"
                   className={cn(styles.boardRow, isActive && styles.boardRowActive)}
@@ -113,11 +119,36 @@ export function SpaceRow({
                   <BoardIcon name={board.name} />
                   <span className={styles.boardRowLabel}>{board.name}</span>
                 </button>
+
+                {/* Per-board kebab menu — Settings opens BoardEditor.
+                 *  Delete is omitted until the `delete_board` IPC lands. */}
+                <MenuTrigger>
+                  <Button
+                    variant="ghost"
+                    className={styles.boardKebabBtn}
+                    aria-label={`Actions for board ${board.name}`}
+                    data-testid={`spaces-sidebar-board-kebab-${board.id}`}
+                  >
+                    <KebabIcon />
+                  </Button>
+                  <Menu
+                    onAction={(key) => {
+                      if (key === "settings") setEditingBoardId(board.id);
+                    }}
+                  >
+                    <MenuItem id="settings">Settings</MenuItem>
+                  </Menu>
+                </MenuTrigger>
               </li>
             );
           })}
         </ul>
       )}
+
+      <BoardEditor
+        boardId={editingBoardId}
+        onClose={() => setEditingBoardId(null)}
+      />
     </li>
   );
 }

@@ -192,6 +192,43 @@
   gap: var(--space-4);
 }
 
+/* `.boardItem` wraps the board button + the kebab menu trigger so they
+ * share a hover row. The kebab is hidden until the row is hovered or
+ * the menu trigger is focused (revealed via `:hover` / `:focus-within`
+ * below). */
+.boardItem {
+  position: relative;
+}
+
+.boardKebabBtn {
+  position: absolute;
+  top: 50%;
+  right: var(--space-8);
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  min-width: 0;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-subtle);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+  z-index: 2;
+}
+
+.boardItem:hover .boardKebabBtn,
+.boardItem:focus-within .boardKebabBtn,
+.boardKebabBtn[aria-expanded="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.boardKebabBtn:hover {
+  background-color: var(--color-overlay-active);
+  color: var(--color-text-default);
+}
+
 .boardRow {
   position: relative;
   display: flex;
