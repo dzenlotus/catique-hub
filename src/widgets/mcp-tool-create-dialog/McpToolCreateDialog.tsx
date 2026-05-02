@@ -45,14 +45,12 @@ export function McpToolCreateDialog({
       className={styles.dialogBody}
       data-testid="mcp-tool-create-dialog"
     >
-      {() =>
-        isOpen ? (
-          <McpToolCreateDialogContent
-            onClose={onClose}
-            {...(onCreated !== undefined ? { onCreated } : {})}
-          />
-        ) : null
-      }
+      {() => (
+        <McpToolCreateDialogContent
+          onClose={onClose}
+          {...(onCreated !== undefined ? { onCreated } : {})}
+        />
+      )}
     </Dialog>
   );
 }

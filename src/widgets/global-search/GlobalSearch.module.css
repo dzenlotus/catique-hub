@@ -15,16 +15,27 @@
   align-items: flex-start;
   justify-content: center;
   padding-top: min(15vh, 120px);
+  isolation: isolate;
+  background: transparent;
+}
+
+.overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
   background-color: var(--color-overlay-scrim);
-  animation: gs-fade-in 160ms ease-out;
 }
 
 .overlay[data-exiting] {
-  animation: gs-fade-out 120ms ease-in;
+  animation: gs-overlay-exit-hold 160ms linear;
 }
 
 /* Centering wrapper (RAC Modal) */
 .modal {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: min(640px, calc(100vw - var(--space-32)));
   outline: none;
@@ -35,14 +46,9 @@
   animation: gs-zoom-out 160ms ease-in;
 }
 
-@keyframes gs-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-@keyframes gs-fade-out {
+@keyframes gs-overlay-exit-hold {
   from { opacity: 1; }
-  to   { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @keyframes gs-zoom-in {

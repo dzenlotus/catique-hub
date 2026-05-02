@@ -40,3 +40,6 @@ coverage/
 
 # Storybook
 storybook-static/
+
+# Local Claude Code state (per-project, not for repo)
+.claude/

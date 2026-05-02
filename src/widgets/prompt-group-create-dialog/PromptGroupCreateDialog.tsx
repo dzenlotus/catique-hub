@@ -42,14 +42,12 @@ export function PromptGroupCreateDialog({
       className={styles.dialogBody}
       data-testid="prompt-group-create-dialog"
     >
-      {() =>
-        isOpen ? (
-          <PromptGroupCreateDialogContent
-            onClose={onClose}
-            {...(onCreated !== undefined ? { onCreated } : {})}
-          />
-        ) : null
-      }
+      {() => (
+        <PromptGroupCreateDialogContent
+          onClose={onClose}
+          {...(onCreated !== undefined ? { onCreated } : {})}
+        />
+      )}
     </Dialog>
   );
 }

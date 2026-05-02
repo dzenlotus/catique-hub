@@ -44,6 +44,57 @@ body {
 button {
   font: inherit;
   color: inherit;
+  cursor: pointer;
+}
+
+/* the-new-css-reset wipes inline semantic emphasis via `all: unset`. Restore
+ * the bare-minimum so MarkdownPreview and any rendered rich text still look
+ * right. Keep this list tight — anything with its own component should style
+ * itself via CSS-module. */
+strong,
+b {
+  font-weight: var(--font-weight-bold, 700);
+}
+
+em,
+i,
+cite,
+dfn,
+var {
+  font-style: italic;
+}
+
+u,
+ins {
+  text-decoration: underline;
+}
+
+s,
+strike,
+del {
+  text-decoration: line-through;
+}
+
+small {
+  font-size: 0.875em;
+}
+
+sub,
+sup {
+  font-size: 0.75em;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+}
+
+sub { bottom: -0.25em; }
+sup { top: -0.4em; }
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono, ui-monospace, monospace);
 }
 
 /* Focus outline — RAC manages its own focus ring via data attributes,

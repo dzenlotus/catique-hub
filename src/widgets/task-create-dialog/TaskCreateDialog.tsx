@@ -62,15 +62,13 @@ export function TaskCreateDialog({
       isDismissable
       data-testid="task-create-dialog"
     >
-      {() =>
-        isOpen ? (
-          <TaskCreateDialogContent
-            onClose={onClose}
-            defaultBoardId={defaultBoardId ?? null}
-            defaultColumnId={defaultColumnId ?? null}
-          />
-        ) : null
-      }
+      {() => (
+        <TaskCreateDialogContent
+          onClose={onClose}
+          defaultBoardId={defaultBoardId ?? null}
+          defaultColumnId={defaultColumnId ?? null}
+        />
+      )}
     </Dialog>
   );
 }

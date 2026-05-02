@@ -43,14 +43,12 @@ export function SkillCreateDialog({
       className={styles.dialogBody}
       data-testid="skill-create-dialog"
     >
-      {() =>
-        isOpen ? (
-          <SkillCreateDialogContent
-            onClose={onClose}
-            {...(onCreated !== undefined ? { onCreated } : {})}
-          />
-        ) : null
-      }
+      {() => (
+        <SkillCreateDialogContent
+          onClose={onClose}
+          {...(onCreated !== undefined ? { onCreated } : {})}
+        />
+      )}
     </Dialog>
   );
 }

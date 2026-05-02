@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from "react";
+import { useRef, type ReactElement, type ReactNode } from "react";
 import {
   Dialog as AriaDialog,
   DialogTrigger as AriaDialogTrigger,
@@ -94,9 +94,7 @@ export function Dialog({
                 <p className={styles.description}>{description}</p>
               ) : null}
               <div className={styles.body}>
-                {typeof children === "function"
-                  ? (children as DialogChildrenRenderProp)(close)
-                  : children}
+                <DialogBodyContent close={close}>{children}</DialogBodyContent>
               </div>
             </>
           )}
@@ -104,6 +102,28 @@ export function Dialog({
       </Modal>
     </ModalOverlay>
   );
+}
+
+interface DialogBodyContentProps {
+  close: () => void;
+  children: ReactNode | DialogChildrenRenderProp;
+}
+
+function DialogBodyContent({
+  close,
+  children,
+}: DialogBodyContentProps): ReactElement {
+  const lastContentRef = useRef<ReactNode>(null);
+  const content =
+    typeof children === "function"
+      ? (children as DialogChildrenRenderProp)(close)
+      : children;
+
+  if (content !== null && content !== undefined && content !== false) {
+    lastContentRef.current = content;
+  }
+
+  return <>{content ?? lastContentRef.current}</>;
 }
 
 /**

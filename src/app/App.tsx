@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { ReactElement } from "react";
 import { Switch, Route, useLocation } from "wouter";
 
-import { BoardsList } from "@widgets/boards-list";
+import { BoardHome } from "@widgets/board-home";
 import { KanbanBoard } from "@widgets/kanban-board";
 import { PromptsList } from "@widgets/prompts-list";
 import { PromptGroupsList } from "@widgets/prompt-groups-list";
@@ -13,31 +13,35 @@ import { SkillsList } from "@widgets/skills-list";
 import { McpToolsList } from "@widgets/mcp-tools-list";
 import { SettingsView } from "@widgets/settings-view";
 import { SpacesList } from "@widgets/spaces-list";
-import { Sidebar } from "@widgets/sidebar";
-import type { NavView } from "@widgets/sidebar";
+import { SpaceSettings } from "@widgets/space-settings";
+import { MainSidebar } from "@widgets/main-sidebar";
+import type { NavView } from "@widgets/main-sidebar";
+import { SpacesSidebar } from "@widgets/spaces-sidebar";
 import { TopBar } from "@widgets/top-bar";
 import { Toaster } from "@widgets/toaster";
 import { TaskDialog } from "@widgets/task-dialog";
 
-import { routes, pathForView, viewForPath, boardPath } from "./routes";
+import { routes, pathForView, viewForPath } from "./routes";
 import styles from "./App.module.css";
 
 /**
  * Root layout shell.
  *
- * Layout: a full-viewport flex row — `<Sidebar>` on the left
- * (~210 px fixed rail) and `<main>` taking the remaining width.
- * The app heading lives inside the sidebar header area so the rail
- * stays anchored while the main pane scrolls independently.
+ * Round 20: three-column grid — `<MainSidebar>` (wordmark + workspace
+ * nav) | `<SpacesSidebar>` (SPACES tree) | `<main>` (route content).
+ * Both sidebars render on every route, sharing the cream surface and a
+ * 1 px right border between columns.
  *
  * Navigation is driven by `wouter` (hash-less client-side router, ~2 KB).
- * URL paths map to views via `routes.ts`. The Sidebar's `onSelectView` prop
- * API is preserved — internally it calls `setLocation(pathForView(view))`.
+ * URL paths map to views via `routes.ts`. The MainSidebar's `onSelectView`
+ * prop API is preserved — internally it calls `setLocation(pathForView(view))`.
  *
  * E3.1 (Anna): introduced `selectedBoardId` for in-memory board detail.
  * E4.x (Anna): sidebar shell replaces top-tab navigation.
  * E4.x (router): replaced `useState`-based nav with `wouter` routes.
  *                `selectedBoardId` local state removed; boardId lives in URL.
+ * Round 20: split single Sidebar into MainSidebar + SpacesSidebar; the
+ *           "WORKSPACE" section header was removed.
  */
 export default function App(): ReactElement {
   const [location, setLocation] = useLocation();
@@ -49,24 +53,40 @@ export default function App(): ReactElement {
     setLocation(pathForView(view));
   }
 
+  // SpacesSidebar is only relevant for board-centric views (BoardHome, the
+  // kanban detail, and the task deep-link that renders BoardHome behind it).
+  // viewForPath() maps `/`, `/boards/:id`, and `/tasks/:id` all to "boards".
+  const showSpacesSidebar = activeView === "boards";
+
   return (
-    <div className={styles.shell}>
-      <div className={styles.sidebarSlot}>
-        {/* Wordmark + nav sections live inside <Sidebar> per DS v1 components spec. */}
-        <Sidebar activeView={activeView} onSelectView={handleSelectView} />
+    <div
+      className={styles.shell}
+      data-spaces-sidebar={showSpacesSidebar ? "true" : "false"}
+    >
+      {/* Round 20c: TopBar spans the full window width above all sidebars
+          and the content column, so the search/CTA bar sits at the very top. */}
+      <div className={styles.topBarSlot}>
+        <TopBar />
       </div>
 
+      <div className={styles.mainSidebarSlot}>
+        <MainSidebar activeView={activeView} onSelectView={handleSelectView} />
+      </div>
+
+      {showSpacesSidebar && (
+        <div className={styles.spacesSidebarSlot}>
+          <SpacesSidebar />
+        </div>
+      )}
+
       <main className={styles.mainPane}>
-        <TopBar />
         <Switch>
-          {/* Task deep-link — renders BoardsList beneath the dialog so the
-              user has context; dialog closes back to /boards. */}
+          {/* Task deep-link — BoardHome behind the dialog handles redirect to
+              the last-opened board; dialog closes back to /. */}
           <Route path={routes.task}>
             {(params) => (
               <>
-                <BoardsList
-                  onSelectBoard={(id) => setLocation(boardPath(id))}
-                />
+                <BoardHome />
                 <TaskDialog
                   taskId={params.taskId}
                   onClose={() => setLocation(routes.boards)}
@@ -82,9 +102,7 @@ export default function App(): ReactElement {
 
           {/* All other top-level views */}
           <Route path={routes.boards}>
-            <BoardsList
-              onSelectBoard={(id) => setLocation(boardPath(id))}
-            />
+            <BoardHome />
           </Route>
           <Route path={routes.prompts}>
             <PromptsList />
@@ -107,6 +125,9 @@ export default function App(): ReactElement {
           <Route path={routes.mcpTools}>
             <McpToolsList />
           </Route>
+          <Route path={routes.spaceSettings}>
+            <SpaceSettings />
+          </Route>
           <Route path={routes.spaces}>
             <SpacesList onSelectView={handleSelectView} />
           </Route>
@@ -114,11 +135,9 @@ export default function App(): ReactElement {
             <SettingsView />
           </Route>
 
-          {/* Fallback — unknown paths land on the boards list */}
+          {/* Fallback — unknown paths land on the home redirect */}
           <Route>
-            <BoardsList
-              onSelectBoard={(id) => setLocation(boardPath(id))}
-            />
+            <BoardHome />
           </Route>
         </Switch>
       </main>

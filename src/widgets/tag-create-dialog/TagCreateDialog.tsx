@@ -42,14 +42,12 @@ export function TagCreateDialog({
       className={styles.dialogBody}
       data-testid="tag-create-dialog"
     >
-      {() =>
-        isOpen ? (
-          <TagCreateDialogContent
-            onClose={onClose}
-            {...(onCreated !== undefined ? { onCreated } : {})}
-          />
-        ) : null
-      }
+      {() => (
+        <TagCreateDialogContent
+          onClose={onClose}
+          {...(onCreated !== undefined ? { onCreated } : {})}
+        />
+      )}
     </Dialog>
   );
 }

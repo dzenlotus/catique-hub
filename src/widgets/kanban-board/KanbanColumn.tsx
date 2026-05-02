@@ -143,16 +143,6 @@ export function KanbanColumn({
         )}
       </div>
 
-      <div className={styles.footer}>
-        <button
-          type="button"
-          className={styles.addTaskButton}
-          onClick={() => onAddTask(column.id)}
-        >
-          <span aria-hidden="true">+</span>
-          Add task
-        </button>
-      </div>
     </section>
   );
 }

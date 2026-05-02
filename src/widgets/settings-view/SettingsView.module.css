@@ -12,6 +12,20 @@
   max-width: 680px;
 }
 
+/*
+ * App.module.css applies `overflow: hidden` to every direct child of
+ * `.mainPane`. Kanban manages its own scroll, but Settings is a vertical
+ * stack of cards that grows beyond viewport — without an opt-in, content
+ * gets clipped at the bottom.
+ *
+ * Doubled `.root.root` lifts specificity above `.mainPane > *` (0,1,1)
+ * to 0,2,0 so the override sticks.
+ */
+.root.root {
+  overflow-y: auto;
+  height: 100%;
+}
+
 /* ── Page header (DS v1) ─────────────────────────────────────────── */
 
 .pageHeader {

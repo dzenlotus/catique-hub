@@ -1,0 +1,290 @@
+/*
+ * SpacesSidebar — DS v1 (three-column shell, Round 20)
+ *
+ * Middle rail. Hosts the SPACES section header and the collapsible
+ * space tree (with board children inline). Width is set on the grid
+ * track in `App.module.css` — this widget fills its column.
+ */
+
+/* ============================================================
+ * Shell
+ * ============================================================ */
+
+.sidebar {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-rows: 1fr;
+  background-color: var(--color-surface-sidebar);
+  border-right: 1px solid var(--color-border-default);
+  overflow: hidden;
+}
+
+/* ============================================================
+ * Sections wrapper — scrollable area
+ * ============================================================ */
+
+.sectionsWrap {
+  height: 100%;
+  display: block;
+  /* Top padding aligns the SPACES label vertically with the topbar
+     of the content column. */
+  padding: 24px 20px 28px;
+}
+
+/* ============================================================
+ * Section label — "SPACES"
+ * ============================================================ */
+
+.sectionLabel {
+  padding: 0 var(--space-4) var(--space-12);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+ * SPACES list — collapsible space rows
+ * ============================================================ */
+
+.spaceList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  flex-shrink: 0;
+}
+
+.spaceItem {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Space header row (chevron + name + kebab) */
+.spaceRow {
+  display: grid;
+  grid-template-columns: 28px 1fr 28px;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  min-height: 40px;
+  margin-left: -4px;
+}
+
+.spaceRowActive {
+  /* No special highlight on the space header itself — active board row
+     carries it. */
+}
+
+/* Chevron toggle button */
+.spaceChevronBtn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border-radius: var(--radius-xs);
+  color: var(--color-text-default);
+}
+
+.spaceChevronBtn[data-hovered],
+.spaceChevronBtn[data-pressed] {
+  color: var(--color-cta-bg);
+}
+
+/* Space name button (icon + name) — Round 20b: font-size matches MainSidebar
+ * `.navItem` (`--font-size-body`). Weight stays semibold so the parent space
+ * still reads heavier than its child board rows. */
+.spaceNameBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  border: none;
+  background: transparent;
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  padding: var(--space-2) 0;
+  min-width: 0;
+}
+
+.spaceNameBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+  border-radius: var(--radius-xs);
+}
+
+.spaceNameText {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Kebab button */
+.spaceKebabBtn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border-radius: var(--radius-xs);
+  color: var(--color-text-default);
+}
+
+.spaceKebabBtn[data-hovered],
+.spaceKebabBtn[data-pressed] {
+  color: var(--color-cta-bg);
+}
+
+/* Board rows inside expanded space */
+.boardList {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2) 0 var(--space-8) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.boardRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  width: 100%;
+  padding: 10px var(--space-12) 10px 24px;
+  border-radius: var(--radius-md);
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  /* Round 20b: match MainSidebar `.navItem` font-size. */
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  min-height: 38px;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.boardRow:hover:not(.boardRowActive) {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.boardRow:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.boardRowActive {
+  background-color: transparent;
+  font-weight: var(--font-weight-semibold);
+}
+
+.boardRowActive::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 16px;
+  right: 0;
+  background-color: var(--color-accent-soft);
+  border-radius: var(--radius-sm);
+  z-index: 0;
+}
+
+.boardRow > * {
+  position: relative;
+  z-index: 1;
+}
+
+.boardActiveStrip {
+  position: absolute;
+  left: 7px;
+  top: 4px;
+  bottom: 4px;
+  width: 5px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-cta-bg);
+  z-index: 2;
+}
+
+.boardRowLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boardRow {
+    transition: none;
+  }
+}
+
+/* ============================================================
+ * Spaces query state helpers (skeleton / error / empty)
+ * ============================================================ */
+
+.spaceSwitcher {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-8) var(--space-4);
+  flex-shrink: 0;
+}
+
+.spaceSwitcherSkeleton {
+  height: 28px;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-overlay-hover);
+  animation: spaces-sidebar-pulse 1400ms ease-in-out infinite;
+}
+
+@keyframes spaces-sidebar-pulse {
+  0%,
+  100% { opacity: 0.45; }
+  50%  { opacity: 0.85; }
+}
+
+.spaceErrorIcon {
+  color: var(--color-status-danger);
+  flex-shrink: 0;
+}
+
+.spaceErrorText {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  margin-left: var(--space-4);
+}
+
+.sectionEmpty {
+  padding: var(--space-4) var(--space-12);
+}
+
+.sectionEmptyText {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spaceSwitcherSkeleton {
+    animation: none;
+  }
+}

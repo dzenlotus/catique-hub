@@ -43,14 +43,12 @@ export function PromptCreateDialog({
       className={styles.dialogBody}
       data-testid="prompt-create-dialog"
     >
-      {() =>
-        isOpen ? (
-          <PromptCreateDialogContent
-            onClose={onClose}
-            {...(onCreated !== undefined ? { onCreated } : {})}
-          />
-        ) : null
-      }
+      {() => (
+        <PromptCreateDialogContent
+          onClose={onClose}
+          {...(onCreated !== undefined ? { onCreated } : {})}
+        />
+      )}
     </Dialog>
   );
 }

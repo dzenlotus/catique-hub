@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 
 import type { Space } from "@entities/space";
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
+import { LocalStorageStore, stringCodec } from "@shared/storage";
 
 vi.mock("@shared/api", () => ({
   invoke: vi.fn(),
@@ -13,6 +14,11 @@ vi.mock("@shared/api", () => ({
 
 import { invoke } from "@shared/api";
 import { SpaceCreateDialog } from "./SpaceCreateDialog";
+
+const activeSpaceStore = new LocalStorageStore<string>({
+  key: "catique:activeSpaceId",
+  codec: stringCodec,
+});
 
 const invokeMock = vi.mocked(invoke);
 
@@ -57,12 +63,12 @@ beforeEach(() => {
     if (cmd === "list_spaces") return new Promise(() => {});
     return Promise.resolve(undefined);
   });
-  localStorage.removeItem("catique:activeSpaceId");
+  activeSpaceStore.remove();
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
-  localStorage.removeItem("catique:activeSpaceId");
+  activeSpaceStore.remove();
 });
 
 describe("SpaceCreateDialog", () => {
@@ -209,7 +215,7 @@ describe("SpaceCreateDialog", () => {
     await user.click(screen.getByTestId("space-create-dialog-save"));
 
     await waitFor(() => {
-      expect(localStorage.getItem("catique:activeSpaceId")).toBe("spc-created");
+      expect(activeSpaceStore.get()).toBe("spc-created");
     });
   });
 

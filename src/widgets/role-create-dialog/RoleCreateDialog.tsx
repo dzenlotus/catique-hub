@@ -43,14 +43,12 @@ export function RoleCreateDialog({
       className={styles.dialogBody}
       data-testid="role-create-dialog"
     >
-      {() =>
-        isOpen ? (
-          <RoleCreateDialogContent
-            onClose={onClose}
-            {...(onCreated !== undefined ? { onCreated } : {})}
-          />
-        ) : null
-      }
+      {() => (
+        <RoleCreateDialogContent
+          onClose={onClose}
+          {...(onCreated !== undefined ? { onCreated } : {})}
+        />
+      )}
     </Dialog>
   );
 }

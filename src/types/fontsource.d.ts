@@ -5,6 +5,6 @@
 // Keeping these declarations in a dedicated file (rather than alongside
 // `vite-env.d.ts`) so the typing intent is obvious to future readers.
 
-declare module "@fontsource-variable/nunito";
+declare module "@fontsource-variable/jetbrains-mono";
 declare module "@fontsource-variable/playfair-display";
 declare module "@fontsource-variable/inter";

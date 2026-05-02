@@ -57,15 +57,13 @@ export function BoardCreateDialog({
       isDismissable
       data-testid="board-create-dialog"
     >
-      {() =>
-        isOpen ? (
-          <BoardCreateDialogContent
-            onClose={onClose}
-            activeSpaceId={activeSpaceId}
-            {...(onCreated !== undefined ? { onCreated } : {})}
-          />
-        ) : null
-      }
+      {() => (
+        <BoardCreateDialogContent
+          onClose={onClose}
+          activeSpaceId={activeSpaceId}
+          {...(onCreated !== undefined ? { onCreated } : {})}
+        />
+      )}
     </Dialog>
   );
 }

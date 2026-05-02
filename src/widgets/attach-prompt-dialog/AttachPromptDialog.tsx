@@ -62,7 +62,8 @@ const TARGET_KINDS: { value: TargetKind; label: string }[] = [
 
 /**
  * `AttachPromptDialog` — controlled Dialog shell.
- * Mounts content lazily so hook state resets on close.
+ * RAC unmounts content after the close animation, so hook state resets once
+ * the dialog is fully closed without collapsing the panel during exit.
  */
 export function AttachPromptDialog({
   isOpen,
@@ -80,14 +81,12 @@ export function AttachPromptDialog({
       className={styles.dialogBody}
       data-testid="attach-prompt-dialog"
     >
-      {() =>
-        isOpen ? (
-          <AttachPromptDialogContent
-            onClose={onClose}
-            {...(onAttached !== undefined ? { onAttached } : {})}
-          />
-        ) : null
-      }
+      {() => (
+        <AttachPromptDialogContent
+          onClose={onClose}
+          {...(onAttached !== undefined ? { onAttached } : {})}
+        />
+      )}
     </Dialog>
   );
 }

@@ -11,7 +11,7 @@
  *          are no longer sidebar nav items but routes remain for deep-links.
  */
 
-import type { NavView } from "@widgets/sidebar";
+import type { NavView } from "@widgets/main-sidebar";
 
 // ---------------------------------------------------------------------------
 // Route constants
@@ -33,6 +33,8 @@ export const routes = {
   /** /mcp-tools — maps to "mcp-servers" NavView */
   mcpTools: "/mcp-tools",
   spaces: "/spaces",
+  /** Per-space settings page — editable name/description form. */
+  spaceSettings: "/spaces/:spaceId/settings",
   settings: "/settings",
 } as const;
 
@@ -48,6 +50,11 @@ export function boardPath(id: string): string {
 /** Build the concrete URL path for a specific task detail dialog. */
 export function taskPath(id: string): string {
   return `/tasks/${id}`;
+}
+
+/** Build the concrete URL path for the per-space settings page. */
+export function spaceSettingsPath(id: string): string {
+  return `/spaces/${id}/settings`;
 }
 
 /**
@@ -89,6 +96,10 @@ export function viewForPath(path: string): NavView {
   if (path === routes.skills) return "skills";
   if (path === routes.mcpTools) return "mcp-servers";
   if (path === routes.spaces) return "spaces";
+  // /spaces/:id/settings — per-space settings is reached from the SpacesSidebar
+  // and renders inside the content pane, so it belongs to the "boards"
+  // context (keeps SpacesSidebar visible alongside the settings form).
+  if (/^\/spaces\/[^/]+\/settings$/.test(path)) return "boards";
   if (path === routes.settings) return "settings";
   // Board detail: /boards/<id>
   if (path.startsWith("/boards/")) return "boards";

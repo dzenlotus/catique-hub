@@ -20,6 +20,7 @@
   font-family: var(--font-sans);
   text-align: left;
   cursor: default;
+  box-shadow: 0px 1px var(--color-border-strong);
   /*
    * IMPORTANT: do NOT transition `transform`. The card sits inside a
    * dnd-kit sortable wrapper that drives its own `transform` via

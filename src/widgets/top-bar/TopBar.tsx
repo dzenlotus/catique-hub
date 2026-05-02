@@ -32,7 +32,11 @@ export function TopBar(): ReactElement {
 
   return (
     <>
-      <header className={styles.topBar} data-testid="top-bar">
+      <header
+        className={styles.topBar}
+        data-testid="top-bar"
+        data-tauri-drag-region="deep"
+      >
         <div className={styles.searchRow}>
           <button
             type="button"

@@ -1,10 +1,10 @@
 /**
  * ActiveSpaceProvider — global context for the currently selected space.
  *
- * Persists selection to `localStorage` under `"catique:activeSpaceId"`.
- * On mount, restores from localStorage; if nothing is stored (or the stored
- * id is no longer present in the list), falls back to the default space or
- * the first space in the list.
+ * Persists selection to `localStorage` (via `@shared/storage`) under
+ * `"catique:activeSpaceId"`. On mount, restores from storage; if nothing
+ * is stored (or the stored id is no longer present in the list), falls
+ * back to the default space or the first space in the list.
  *
  * Consumers read/write via `useActiveSpace()`.
  */
@@ -20,30 +20,11 @@ import {
 
 import { useSpaces } from "@entities/space";
 import type { Space } from "@entities/space";
+import { useLocalStorage, stringCodec } from "@shared/storage";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LS_KEY = "catique:activeSpaceId";
-
-function readFromStorage(): string | null {
-  try {
-    return localStorage.getItem(LS_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeToStorage(id: string | null): void {
-  try {
-    if (id === null) {
-      localStorage.removeItem(LS_KEY);
-    } else {
-      localStorage.setItem(LS_KEY, id);
-    }
-  } catch {
-    // Private mode or restricted environment — silently ignore.
-  }
-}
 
 /**
  * Resolves the best default space id from a list.
@@ -89,8 +70,12 @@ export function useActiveSpace(): ActiveSpaceContextValue {
  * the Sidebar and entity-list widgets can read/write the selection.
  */
 export function ActiveSpaceProvider({ children }: PropsWithChildren): ReactElement {
+  const [storedActiveSpaceId, setStoredActiveSpaceId, clearStoredActiveSpaceId] =
+    useLocalStorage(LS_KEY, stringCodec);
+  // Local mirror so updates from auto-selection re-render synchronously
+  // alongside the storage write.
   const [activeSpaceId, setActiveSpaceIdState] = useState<string | null>(
-    () => readFromStorage(),
+    () => storedActiveSpaceId,
   );
 
   const spacesQuery = useSpaces();
@@ -102,7 +87,11 @@ export function ActiveSpaceProvider({ children }: PropsWithChildren): ReactEleme
     const resolved = resolveActiveId(spacesQuery.data, activeSpaceId);
     if (resolved !== activeSpaceId) {
       setActiveSpaceIdState(resolved);
-      writeToStorage(resolved);
+      if (resolved === null) {
+        clearStoredActiveSpaceId();
+      } else {
+        setStoredActiveSpaceId(resolved);
+      }
     }
     // Only run when the spaces list itself changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,7 +99,11 @@ export function ActiveSpaceProvider({ children }: PropsWithChildren): ReactEleme
 
   const setActiveSpaceId = (id: string | null): void => {
     setActiveSpaceIdState(id);
-    writeToStorage(id);
+    if (id === null) {
+      clearStoredActiveSpaceId();
+    } else {
+      setStoredActiveSpaceId(id);
+    }
   };
 
   return (

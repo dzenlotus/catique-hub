@@ -1,9 +1,10 @@
-import { useState, useMemo, useEffect, type ReactElement } from "react";
+import { useState, useMemo, type ReactElement } from "react";
 import { PixelInterfaceEssentialClip1 } from "@shared/ui/Icon";
 
 import { PromptCard, usePrompts, usePromptTagsMap } from "@entities/prompt";
 import { Button, EmptyState } from "@shared/ui";
 import { PixelInterfaceEssentialMessage } from "@shared/ui/Icon";
+import { stringCodec, useLocalStorage } from "@shared/storage";
 import { PromptEditor } from "@widgets/prompt-editor";
 import { PromptCreateDialog } from "@widgets/prompt-create-dialog";
 import { AttachPromptDialog } from "@widgets/attach-prompt-dialog";
@@ -12,14 +13,6 @@ import { PromptsTagFilter } from "@widgets/prompts-tag-filter";
 import styles from "./PromptsList.module.css";
 
 const ACTIVE_TAG_STORAGE_KEY = "catique:prompts:active-tag";
-
-function readStoredTagId(): string | null {
-  try {
-    return localStorage.getItem(ACTIVE_TAG_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
 
 export interface PromptsListProps {
   /** Called when the user activates a prompt card. */
@@ -42,23 +35,23 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAttachOpen, setIsAttachOpen] = useState(false);
-  const [activeTagId, setActiveTagId] = useState<string | null>(readStoredTagId);
+  // Persisted via @shared/storage — the hook handles restricted-environment
+  // fallback and cross-tab sync.
+  const [activeTagId, setActiveTagIdRaw, clearActiveTagId] = useLocalStorage(
+    ACTIVE_TAG_STORAGE_KEY,
+    stringCodec,
+  );
+
+  const setActiveTagId = (next: string | null): void => {
+    if (next === null) {
+      clearActiveTagId();
+    } else {
+      setActiveTagIdRaw(next);
+    }
+  };
 
   const promptsQuery = usePrompts();
   const tagMapQuery = usePromptTagsMap();
-
-  // Persist the active filter to localStorage whenever it changes.
-  useEffect(() => {
-    try {
-      if (activeTagId === null) {
-        localStorage.removeItem(ACTIVE_TAG_STORAGE_KEY);
-      } else {
-        localStorage.setItem(ACTIVE_TAG_STORAGE_KEY, activeTagId);
-      }
-    } catch {
-      // localStorage may be unavailable in certain environments — silently ignore.
-    }
-  }, [activeTagId]);
 
   // Derive the filtered prompt list from the full list + tag-map.
   const filteredPrompts = useMemo(() => {

@@ -8,6 +8,12 @@ import type { Prompt } from "@entities/prompt";
 import type { Tag } from "@entities/tag";
 import type { PromptTagMapEntry } from "@bindings/PromptTagMapEntry";
 import { ToastProvider } from "@app/providers/ToastProvider";
+import { LocalStorageStore, stringCodec } from "@shared/storage";
+
+const activeTagStore = new LocalStorageStore<string>({
+  key: "catique:prompts:active-tag",
+  codec: stringCodec,
+});
 
 // Mock the Tauri invoke wrapper at the shared/api boundary so all four
 // async-UI states can be driven without a real IPC channel.
@@ -81,7 +87,7 @@ function mockInvoke({
 beforeEach(() => {
   invokeMock.mockReset();
   // Clear any persisted filter between tests.
-  localStorage.removeItem("catique:prompts:active-tag");
+  activeTagStore.remove();
 });
 
 afterEach(() => {

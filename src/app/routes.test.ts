@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { routes, boardPath, taskPath, pathForView, viewForPath } from "./routes";
-import type { NavView } from "@widgets/sidebar";
+import type { NavView } from "@widgets/main-sidebar";
 
 // ---------------------------------------------------------------------------
 // All nav views for round-trip coverage

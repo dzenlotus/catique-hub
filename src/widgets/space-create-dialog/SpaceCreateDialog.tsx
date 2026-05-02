@@ -48,14 +48,12 @@ export function SpaceCreateDialog({
       className={styles.dialogBody}
       data-testid="space-create-dialog"
     >
-      {() =>
-        isOpen ? (
-          <SpaceCreateDialogContent
-            onClose={onClose}
-            {...(onCreated !== undefined ? { onCreated } : {})}
-          />
-        ) : null
-      }
+      {() => (
+        <SpaceCreateDialogContent
+          onClose={onClose}
+          {...(onCreated !== undefined ? { onCreated } : {})}
+        />
+      )}
     </Dialog>
   );
 }
