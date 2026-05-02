@@ -3,6 +3,34 @@
 **Date:** 2026-05-01
 **Auditor:** main agent (frontend-engineer delegation stalled at 600s; audit completed directly)
 **Scope commit:** `32397a2`
+
+## Status update (2026-05-02, round 19c)
+
+Of the 13 findings below, **10 are closed**:
+
+| Finding | Severity | Closed in |
+|---|---|---|
+| F-01 keyboard reachability | P0 | `ef68aaa` |
+| F-02 missing kanban tests | P0 | `60a22e2` |
+| F-03 mutation rollback | P1 | `ef68aaa` |
+| F-04 mid-drag WS race | P1 | `7d26f78` |
+| F-05 mixed RU/EN | P1 | `c7b9ad2` (ctq-76 i18n pass) |
+| F-07 KanbanColumn memo | P2 | `0aeddc0` |
+| F-08 type cast on `move()` | P2 | `38b8a5c` |
+| F-10 retry both queries | P2 | `ef68aaa` |
+| F-11 empty-state aria-label | P2 | `38b8a5c` |
+| F-12 lastBoardStore relocation | P3 | `7c4c992` |
+
+**Deferred** (dependencies on larger work):
+
+- F-06 [P1] is-done-column heuristic — waits for ctq-73 Phase 2 schema (`Column.kind` field).
+- F-09 [P2] god-component split — folded into ctq-73 Phase 2 UI rework.
+- F-13 [P3] EventsProvider snake_case — needs Rust event-payload `#[serde(rename_all = "camelCase")]`.
+
+Full backlog of original findings preserved below for traceability.
+
+---
+
 **Promptery task:** ctq-75
 **Files audited:**
 
