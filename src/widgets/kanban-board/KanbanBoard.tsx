@@ -199,11 +199,14 @@ export function KanbanBoard({
 
   const handleDragOver = (event: DragOverEvent): void => {
     if (sourceType(event) === "column") {
-      setSyncedColumnIds((current) => move(current, event) as string[]);
+      // F-08: `move<T>()` from @dnd-kit/helpers preserves the input shape
+      // in its return type, so the inferred result is already `string[]`
+      // / `TaskBuckets` — drop the redundant `as` cast.
+      setSyncedColumnIds((current) => move(current, event));
       return;
     }
 
-    setSyncedItems((current) => move(current, event) as TaskBuckets);
+    setSyncedItems((current) => move(current, event));
   };
 
   const handleDragEnd = (event: DragEndEvent): void => {

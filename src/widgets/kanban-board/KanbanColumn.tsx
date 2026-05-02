@@ -125,6 +125,7 @@ export function KanbanColumn({
             type="button"
             className={styles.empty}
             onClick={() => onAddTask(column.id)}
+            aria-label={`Add task to ${column.name}`}
             data-testid={`kanban-column-empty-${column.id}`}
           >
             No tasks yet
