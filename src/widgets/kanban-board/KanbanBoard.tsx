@@ -10,6 +10,7 @@ import { move } from "@dnd-kit/helpers";
 import { useLocation } from "wouter";
 
 import { taskPath } from "@app/routes";
+import { useToast } from "@app/providers/ToastProvider";
 import { useBoard } from "@entities/board";
 import type { Column } from "@entities/column";
 import {
@@ -28,6 +29,7 @@ import {
 } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { TaskCreateDialog } from "@widgets/task-create-dialog";
+import { lastBoardStore } from "@widgets/board-home";
 
 import { KanbanColumn } from "./KanbanColumn";
 import styles from "./KanbanBoard.module.css";
@@ -112,6 +114,8 @@ export function KanbanBoard({
   const reorderColumns = useReorderColumnsMutation();
   const moveTask = useMoveTaskMutation();
 
+  const { pushToast } = useToast();
+
   const [items, setItems] = useState<TaskBuckets>({});
   const itemsRef = useRef<TaskBuckets>({});
   const [orderedIds, setOrderedIds] = useState<string[]>([]);
@@ -146,6 +150,15 @@ export function KanbanBoard({
     setItems(serverItems);
     itemsRef.current = serverItems;
   }, [serverItems]);
+
+  // Persist this board as the last-opened for its space, so that on next
+  // launch / when navigating to "/" we can redirect back to it. The store
+  // internally swallows errors from restricted environments.
+  useEffect(() => {
+    const spaceId = boardQuery.data?.spaceId;
+    if (!spaceId) return;
+    lastBoardStore(spaceId).set(boardId);
+  }, [boardId, boardQuery.data?.spaceId]);
 
   useEffect(() => {
     if (draggingRef.current) return;
@@ -201,7 +214,20 @@ export function KanbanBoard({
     }
 
     if (sourceType(event) === "column") {
-      reorderColumns.mutate({ boardId, orderedIds: orderedIdsRef.current });
+      reorderColumns.mutate(
+        { boardId, orderedIds: orderedIdsRef.current },
+        {
+          onError: (err) => {
+            // Server rejected the reorder — drop the optimistic state and
+            // show the user why. F-03 of docs/audit/kanban-frontend-audit.md.
+            void columnsQuery.refetch();
+            pushToast(
+              "error",
+              `Не удалось переупорядочить колонки: ${err.message}`,
+            );
+          },
+        },
+      );
       return;
     }
 
@@ -226,12 +252,23 @@ export function KanbanBoard({
       return;
     }
 
-    moveTask.mutate({
-      boardId,
-      id: taskId,
-      columnId: destination.columnId,
-      position,
-    });
+    moveTask.mutate(
+      {
+        boardId,
+        id: taskId,
+        columnId: destination.columnId,
+        position,
+      },
+      {
+        onError: (err) => {
+          // Roll back the optimistic move — the WS layer won't fire a
+          // `task.moved` for a failed mutation, so we have to refetch
+          // explicitly. F-03 of docs/audit/kanban-frontend-audit.md.
+          void tasksQuery.refetch();
+          pushToast("error", `Не удалось переместить задачу: ${err.message}`);
+        },
+      },
+    );
   };
 
   const handleCreateColumn = (): void => {
@@ -280,8 +317,10 @@ export function KanbanBoard({
   }
 
   if (columnsQuery.status === "error" || tasksQuery.status === "error") {
-    const failedQuery =
-      columnsQuery.status === "error" ? columnsQuery : tasksQuery;
+    // Both queries are part of the kanban view; if either failed, show one
+    // banner and refetch *both* on retry — otherwise a stuck second query
+    // leaves the UI broken even after the user clicks Retry.
+    // F-10 of docs/audit/kanban-frontend-audit.md.
     const message =
       columnsQuery.status === "error"
         ? columnsQuery.error.message
@@ -294,7 +333,10 @@ export function KanbanBoard({
           <Button
             variant="secondary"
             size="sm"
-            onPress={() => void failedQuery.refetch()}
+            onPress={() => {
+              void columnsQuery.refetch();
+              void tasksQuery.refetch();
+            }}
           >
             Retry
           </Button>

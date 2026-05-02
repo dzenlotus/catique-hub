@@ -218,12 +218,27 @@ export function TaskCard({
     );
   }
 
+  // Round 19b: single click no longer opens the dialog. When selection
+  // mode is active it toggles the bulk-selection (unchanged behaviour);
+  // otherwise it is a no-op so users can move focus / drag the card
+  // without inadvertently opening it. Double-click opens the dialog.
   const handleBodyClick = (e: React.MouseEvent): void => {
     if (selectionActive) {
       onToggleSelection?.(task.id, e);
-    } else {
-      onSelect?.(task.id);
     }
+  };
+
+  const handleBodyDoubleClick = (): void => {
+    onSelect?.(task.id);
+  };
+
+  // Keyboard activation (Enter / Space) is the canonical way for
+  // assistive-tech users to open the card; treat it like double-click.
+  const handleBodyKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    if (selectionActive) return;
+    e.preventDefault();
+    onSelect?.(task.id);
   };
 
   const handleCheckboxClick = (e: React.MouseEvent<HTMLInputElement>): void => {
@@ -257,7 +272,6 @@ export function TaskCard({
         className={styles.dragHandle}
         aria-label="Перетащить задачу"
         data-testid={`task-card-drag-handle-${task.id}`}
-        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <span aria-hidden="true" style={{ letterSpacing: "-2px" }}>⋮⋮</span>
@@ -279,15 +293,17 @@ export function TaskCard({
           onChange={handleCheckboxChange}
           onClick={handleCheckboxClick}
           aria-label={`Select task ${task.title}`}
-          tabIndex={-1}
         />
       </span>
 
-      {/* Card body — click navigates or toggles selection */}
+      {/* Card body — single-click toggles bulk selection (only when
+          selection mode is active); double-click opens the task dialog. */}
       <button
         type="button"
         className={styles.cardBody}
         onClick={handleBodyClick}
+        onDoubleClick={handleBodyDoubleClick}
+        onKeyDown={handleBodyKeyDown}
         aria-label={ariaLabel}
         aria-pressed={selectionActive ? selected : undefined}
       >
@@ -324,8 +340,10 @@ function CardBody({
   resolvedRoleName,
   roleColor,
 }: CardBodyProps): ReactElement {
-  // Slug chip: format `ctq-NN` — use task.slug directly (it already
-  // carries the generated slug from the backend).
+  // Slug chip: format `<spacePrefix>-<n>` (e.g. `cot-1`) — use
+  // task.slug directly. Slug generation lives in the Rust backend
+  // (crates/infrastructure/src/db/repositories/tasks.rs::insert), the
+  // frontend never composes or rewrites the value.
   const slugLabel = task.slug;
 
   // Role badge inline style — tint the background with the role colour when

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { ReactElement } from "react";
 import { useSortable } from "@dnd-kit/react/sortable";
 
@@ -6,7 +5,6 @@ import type { Column } from "@entities/column";
 import { ColumnHeader } from "@entities/column";
 import type { Task } from "@entities/task";
 import { TaskCard } from "@entities/task";
-import { ColumnEditor } from "@widgets/column-editor";
 import { cn } from "@shared/lib";
 
 import styles from "./KanbanColumn.module.css";
@@ -68,8 +66,6 @@ export function KanbanColumn({
   onRenameColumn,
   onDeleteColumn,
 }: KanbanColumnProps): ReactElement {
-  const [editorOpen, setEditorOpen] = useState(false);
-
   const {
     ref: sortableRef,
     handleRef: sortableHandleRef,
@@ -97,7 +93,6 @@ export function KanbanColumn({
       ref={sortableHandleRef as React.Ref<HTMLButtonElement>}
       className={styles.columnDragHandle}
       aria-label="Перетащить колонку"
-      tabIndex={-1}
     >
       <span aria-hidden="true">⋮⋮</span>
     </button>
@@ -157,20 +152,7 @@ export function KanbanColumn({
           <span aria-hidden="true">+</span>
           Add task
         </button>
-        <button
-          type="button"
-          className={styles.settingsButton}
-          aria-label={`Settings for column ${column.name}`}
-          onClick={() => setEditorOpen(true)}
-        >
-          ⋯
-        </button>
       </div>
-
-      <ColumnEditor
-        columnId={editorOpen ? column.id : null}
-        onClose={() => setEditorOpen(false)}
-      />
     </section>
   );
 }
