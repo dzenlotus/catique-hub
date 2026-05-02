@@ -104,7 +104,9 @@ describe("PromptEditor", () => {
     await screen.findByTestId("prompt-editor-name-input");
     expect(screen.getByTestId("prompt-editor-name-input")).toHaveValue("Тестовый промпт");
     expect(screen.getByTestId("prompt-editor-shortdesc-input")).toHaveValue("Краткое описание");
-    expect(screen.getByTestId("prompt-editor-content-textarea")).toHaveValue("Содержимое промпта");
+    // Round-19c: content is rendered through MarkdownField in view mode
+    // by default — assert the visible text instead of a textarea `value`.
+    expect(screen.getByTestId("prompt-editor-content-textarea")).toHaveTextContent("Содержимое промпта");
   });
 
   it("name input is editable", async () => {

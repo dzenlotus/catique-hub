@@ -189,8 +189,9 @@ describe("TaskDialog", () => {
     // 2. Slug chip
     expect(screen.getByTestId("task-dialog-slug-chip")).toHaveTextContent("tsk-abc");
 
-    // 3. Description textarea
-    expect(screen.getByTestId("task-dialog-description-textarea")).toHaveValue("Описание задачи");
+    // 3. Description — round-19c MarkdownField defaults to view mode,
+    // so the testid points to the preview button. Assert visible text.
+    expect(screen.getByTestId("task-dialog-description-textarea")).toHaveTextContent("Описание задачи");
 
     // 4. Board select
     expect(screen.getByTestId("task-dialog-board-select")).toBeInTheDocument();
@@ -467,8 +468,9 @@ describe("TaskDialog", () => {
     const titleInput = screen.getByTestId("task-dialog-title-input");
     expect(titleInput).toHaveValue("Тестовая задача");
 
-    const descriptionTextarea = screen.getByTestId("task-dialog-description-textarea");
-    expect(descriptionTextarea).toHaveValue("Описание задачи");
+    // Round-19c: description renders via MarkdownField in view mode by
+    // default — assert visible text instead of textarea `value`.
+    expect(screen.getByTestId("task-dialog-description-textarea")).toHaveTextContent("Описание задачи");
   });
 
   it("title input is editable", async () => {

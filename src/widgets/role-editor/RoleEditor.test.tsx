@@ -100,7 +100,10 @@ describe("RoleEditor", () => {
 
     await screen.findByTestId("role-editor-name-input");
     expect(screen.getByTestId("role-editor-name-input")).toHaveValue("Тестовая роль");
-    expect(screen.getByTestId("role-editor-content-textarea")).toHaveValue("Содержимое роли");
+    // Round-19c: content is rendered through MarkdownField in view mode
+    // by default — the testid points to the preview button. Assert the
+    // visible text instead of a textarea `value`.
+    expect(screen.getByTestId("role-editor-content-textarea")).toHaveTextContent("Содержимое роли");
     expect((screen.getByTestId("role-editor-color-input") as HTMLInputElement).value).toBe("#ff0000");
   });
 

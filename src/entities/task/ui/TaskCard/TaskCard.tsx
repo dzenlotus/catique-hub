@@ -231,17 +231,23 @@ export function TaskCard({
   const DBL_CLICK_WINDOW_MS = 350;
 
   const handleBodyClick = (e: React.MouseEvent): void => {
-    if (selectionActive) {
-      onToggleSelection?.(task.id, e);
-      return;
-    }
     const now = Date.now();
-    if (now - lastClickAtRef.current < DBL_CLICK_WINDOW_MS) {
-      lastClickAtRef.current = 0;
+    const isDblClick = now - lastClickAtRef.current < DBL_CLICK_WINDOW_MS;
+    lastClickAtRef.current = isDblClick ? 0 : now;
+
+    if (isDblClick) {
+      // Second click within the window → open the dialog. This always
+      // wins over selection-toggle so a quick double-click opens the
+      // task even while bulk-selection mode is active.
       onSelect?.(task.id);
       return;
     }
-    lastClickAtRef.current = now;
+    // First click → in selection mode, toggle bulk-selection. Outside
+    // selection mode the first click is just the start of a potential
+    // double-click (no immediate side-effect).
+    if (selectionActive) {
+      onToggleSelection?.(task.id, e);
+    }
   };
 
   // Keyboard activation (Enter / Space) is the canonical way for
