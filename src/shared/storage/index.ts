@@ -16,3 +16,5 @@ export type { Codec } from "./codecs";
 
 export { useLocalStorage } from "./useLocalStorage";
 export type { SetStorageValue } from "./useLocalStorage";
+
+export { lastBoardKey, lastBoardStore } from "./lastBoardStore";

@@ -5,30 +5,9 @@ import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { useBoards } from "@entities/board";
 import { boardPath } from "@app/routes";
 import { PixelPetAnimalsCat } from "@shared/ui/Icon";
-import { LocalStorageStore, stringCodec } from "@shared/storage";
+import { lastBoardStore } from "@shared/storage";
 
 import styles from "./BoardHome.module.css";
-
-/**
- * Last-opened-board key per space — read by BoardHome on mount and written
- * by KanbanBoard once a board renders.
- */
-export function lastBoardKey(spaceId: string): string {
-  return `catique:lastBoardId:${spaceId}`;
-}
-
-/**
- * Shared store factory for the per-space "last opened board" pointer.
- * `BoardHome` reads it once on mount and `KanbanBoard` writes to it.
- * Lives in the board-home barrel so both call-sites import the same
- * function (single source of truth for the key + codec).
- */
-export function lastBoardStore(spaceId: string): LocalStorageStore<string> {
-  return new LocalStorageStore<string>({
-    key: lastBoardKey(spaceId),
-    codec: stringCodec,
-  });
-}
 
 function readLastBoardId(spaceId: string | null): string | null {
   if (spaceId === null) return null;

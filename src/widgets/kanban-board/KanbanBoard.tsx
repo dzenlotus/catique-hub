@@ -30,7 +30,7 @@ import {
 import { cn } from "@shared/lib";
 import { TaskCreateDialog } from "@widgets/task-create-dialog";
 import { ColumnCreateDialog } from "@widgets/column-create-dialog";
-import { lastBoardStore } from "@widgets/board-home";
+import { lastBoardStore } from "@shared/storage";
 
 import { KanbanColumn } from "./KanbanColumn";
 import styles from "./KanbanBoard.module.css";
