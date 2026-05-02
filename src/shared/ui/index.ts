@@ -42,6 +42,9 @@ export type { TooltipProps, TooltipTriggerProps } from "./Tooltip";
 export { MarkdownPreview } from "./MarkdownPreview";
 export type { MarkdownPreviewProps } from "./MarkdownPreview";
 
+export { MarkdownField } from "./MarkdownField";
+export type { MarkdownFieldProps, MarkdownFieldMode } from "./MarkdownField";
+
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateProps } from "./EmptyState";
 

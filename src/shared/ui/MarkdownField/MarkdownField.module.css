@@ -1,0 +1,81 @@
+/*
+ * MarkdownField — view ⇄ edit toggle for Markdown content fields.
+ *
+ * View surface is rendered as a `<button>` so keyboard activation +
+ * focus visibility come for free; styled to look like a passive
+ * preview region until interacted with.
+ */
+
+.textarea {
+  width: 100%;
+  min-height: 160px;
+  padding: var(--space-12);
+  background-color: var(--color-surface-canvas);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-body-sm);
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+  transition:
+    border-color 80ms ease-out,
+    box-shadow 80ms ease-out;
+}
+
+.textarea:focus-visible {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+.textarea::placeholder {
+  color: var(--color-text-subtle);
+}
+
+/* View surface — clickable preview region. Looks like a quiet card
+ * with a subtle hover hint that it's interactive. */
+.viewSurface {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  padding: var(--space-12);
+  background-color: var(--color-surface-canvas);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  line-height: 1.55;
+  text-align: left;
+  cursor: text;
+  outline: none;
+  transition:
+    border-color 80ms ease-out,
+    background-color 80ms ease-out;
+}
+
+.viewSurface:hover {
+  border-color: var(--color-border-default);
+  background-color: var(--color-overlay-hover);
+}
+
+.viewSurface:focus-visible {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+.viewSurfaceEmpty {
+  color: var(--color-text-subtle);
+}
+
+.placeholder {
+  display: block;
+  font-style: italic;
+}
+
+.preview {
+  /* MarkdownPreview brings its own typography — no overrides here so
+   * the field's content matches non-editable previews elsewhere in
+   * the app. */
+}
