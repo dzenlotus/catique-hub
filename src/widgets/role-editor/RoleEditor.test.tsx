@@ -210,13 +210,15 @@ describe("RoleEditor", () => {
 
     await screen.findByTestId("role-editor-name-input");
 
-    expect(screen.getByTestId("role-editor-content-mode-toggle")).toBeInTheDocument();
+    // Round-19c: explicit "Edit / Preview" toggle replaced by `MarkdownField`
+    // (ctq-76 #11). Default mode is the preview surface — clicking it
+    // flips into a textarea. The data-testid forwards to the active
+    // sub-element so a single id covers both modes.
+    expect(screen.queryByTestId("role-editor-content-mode-toggle")).not.toBeInTheDocument();
     expect(screen.getByTestId("role-editor-content-textarea")).toBeInTheDocument();
-    expect(screen.getByTestId("role-editor-content-mode-edit")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("role-editor-content-mode-preview")).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("switches to preview mode and renders markdown heading from role content", async () => {
+  it("renders markdown heading by default and flips to textarea on click", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_role") return makeRole({ content: "# Роль агента" });
       throw new Error(`unexpected: ${cmd}`);
@@ -226,10 +228,18 @@ describe("RoleEditor", () => {
 
     await screen.findByTestId("role-editor-name-input");
 
-    await user.click(screen.getByTestId("role-editor-content-mode-preview"));
+    // Default mode is "view" — heading is rendered through MarkdownPreview.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Роль агента" }),
+    ).toBeInTheDocument();
 
-    expect(screen.queryByTestId("role-editor-content-textarea")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Роль агента" })).toBeInTheDocument();
+    // Click the view surface to enter edit mode.
+    await user.click(screen.getByTestId("role-editor-content-textarea"));
+
+    // The same testid now points to a textarea with the role's content.
+    const textarea = screen.getByTestId("role-editor-content-textarea");
+    expect(textarea.tagName).toBe("TEXTAREA");
+    expect(textarea).toHaveValue("# Роль агента");
   });
 
   it("shows inline save-error message when mutation fails", async () => {
