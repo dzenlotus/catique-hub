@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { useClientInstructions, useWriteClientInstructionsMutation } from "@entities/connected-client";
-import { Dialog, Button, MarkdownPreview } from "@shared/ui";
+import { Dialog, Button, MarkdownField } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -82,7 +82,6 @@ function ClientInstructionsEditorContent({
 
   // Local editable content.
   const [localContent, setLocalContent] = useState("");
-  const [mode, setMode] = useState<"edit" | "preview">("edit");
   // Track modifiedAt at mount time to detect external changes.
   const mountedModifiedAt = useRef<bigint | null>(null);
   // Show "изменено извне" warning when modifiedAt drifts.
@@ -252,50 +251,14 @@ function ClientInstructionsEditorContent({
         </div>
       )}
 
-      {/* Edit / Preview toggle */}
-      <div
-        role="group"
-        aria-label="Режим редактора инструкций"
-        className={styles.modeToggle}
-      >
-        <Button
-          variant="ghost"
-          size="sm"
-          className={styles.modeToggleBtn}
-          aria-pressed={mode === "edit"}
-          onPress={() => setMode("edit")}
-          data-testid="client-instructions-editor-mode-edit"
-        >
-          Редактировать
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={styles.modeToggleBtn}
-          aria-pressed={mode === "preview"}
-          onPress={() => setMode("preview")}
-          data-testid="client-instructions-editor-mode-preview"
-        >
-          Превью
-        </Button>
-      </div>
-
-      {/* Editor body */}
-      {mode === "edit" ? (
-        <textarea
-          className={styles.textarea}
-          value={localContent}
-          onChange={(e) => setLocalContent(e.target.value)}
-          placeholder="Глобальные инструкции (Markdown)..."
-          aria-label="Содержимое инструкций"
-          data-testid="client-instructions-editor-textarea"
-        />
-      ) : (
-        <MarkdownPreview
-          source={localContent}
-          className={styles.preview}
-        />
-      )}
+      {/* Editor body — implicit view ⇄ edit toggle (ctq-76 #11). */}
+      <MarkdownField
+        value={localContent}
+        onChange={setLocalContent}
+        placeholder="Глобальные инструкции (Markdown)..."
+        ariaLabel="Содержимое инструкций"
+        data-testid="client-instructions-editor-textarea"
+      />
 
       {/* Footer */}
       <div className={styles.footer}>

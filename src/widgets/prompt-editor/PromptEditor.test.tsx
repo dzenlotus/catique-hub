@@ -322,9 +322,9 @@ describe("PromptEditor", () => {
     });
   });
 
-  // ── Edit / Preview toggle ────────────────────────────────────────
+  // ── Implicit view ⇄ edit (MarkdownField, ctq-76 #11) ───────────────
 
-  it("shows the mode toggle and defaults to 'edit' mode (textarea visible)", async () => {
+  it("does NOT render an explicit mode toggle (round-19c MarkdownField)", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_prompt") return makePrompt();
       throw new Error(`unexpected: ${cmd}`);
@@ -334,14 +334,14 @@ describe("PromptEditor", () => {
 
     await screen.findByTestId("prompt-editor-name-input");
 
-    expect(screen.getByTestId("prompt-editor-content-mode-toggle")).toBeInTheDocument();
+    // The explicit Edit / Preview toggle group is gone. The single
+    // MarkdownField forwards its testid to whichever sub-element is
+    // active — preview by default.
+    expect(screen.queryByTestId("prompt-editor-content-mode-toggle")).not.toBeInTheDocument();
     expect(screen.getByTestId("prompt-editor-content-textarea")).toBeInTheDocument();
-    expect(screen.queryByRole("article")).not.toBeInTheDocument(); // preview pane not present
-    expect(screen.getByTestId("prompt-editor-content-mode-edit")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("prompt-editor-content-mode-preview")).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("switches to preview mode and renders MarkdownPreview with the content", async () => {
+  it("renders MarkdownPreview content by default and flips to textarea on click", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_prompt") return makePrompt({ content: "## Заголовок\n\nАбзац" });
       throw new Error(`unexpected: ${cmd}`);
@@ -351,30 +351,16 @@ describe("PromptEditor", () => {
 
     await screen.findByTestId("prompt-editor-name-input");
 
-    const previewBtn = screen.getByTestId("prompt-editor-content-mode-preview");
-    await user.click(previewBtn);
+    // Default mode is "view" — heading rendered through MarkdownPreview.
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Заголовок" }),
+    ).toBeInTheDocument();
 
-    // Textarea must be gone; preview markup must appear.
-    expect(screen.queryByTestId("prompt-editor-content-textarea")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Заголовок" })).toBeInTheDocument();
-    expect(previewBtn).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("switches back from preview to edit and textarea reappears", async () => {
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_prompt") return makePrompt();
-      throw new Error(`unexpected: ${cmd}`);
-    });
-    const onClose = vi.fn();
-    const { user } = renderWithClient(<PromptEditor promptId="prm-1" onClose={onClose} />);
-
-    await screen.findByTestId("prompt-editor-name-input");
-
-    await user.click(screen.getByTestId("prompt-editor-content-mode-preview"));
-    expect(screen.queryByTestId("prompt-editor-content-textarea")).not.toBeInTheDocument();
-
-    await user.click(screen.getByTestId("prompt-editor-content-mode-edit"));
-    expect(screen.getByTestId("prompt-editor-content-textarea")).toBeInTheDocument();
+    // Click the view surface; the same testid now points to a textarea.
+    await user.click(screen.getByTestId("prompt-editor-content-textarea"));
+    const textarea = screen.getByTestId("prompt-editor-content-textarea");
+    expect(textarea.tagName).toBe("TEXTAREA");
+    expect(textarea).toHaveValue("## Заголовок\n\nАбзац");
   });
 
   it("token read-out updates after a successful recount", async () => {

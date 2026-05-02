@@ -88,33 +88,50 @@ describe("ClientInstructionsEditor", () => {
     const instructions = makeInstructions();
     invokeMock.mockResolvedValue(instructions);
     const onClose = vi.fn();
-    renderWithClient(
+    const { user } = renderWithClient(
       <ClientInstructionsEditor
         clientId="claude-code"
         displayName="Claude Code"
         onClose={onClose}
       />,
     );
+    // Round-19c: MarkdownField defaults to view mode — the testid
+    // forwards to the preview button. Click to enter edit mode and
+    // confirm the textarea hydrates with the loaded content.
+    const surface = await screen.findByTestId(
+      "client-instructions-editor-textarea",
+    );
+    await user.click(surface);
     const textarea = await screen.findByTestId(
       "client-instructions-editor-textarea",
     );
+    expect(textarea.tagName).toBe("TEXTAREA");
     expect(textarea).toHaveValue(instructions.content);
   });
 
-  it("renders empty textarea for absent file (exists = false)", async () => {
+  it("renders empty content surface for absent file (exists = false)", async () => {
     const instructions = makeInstructions({ content: "", exists: false });
     invokeMock.mockResolvedValue(instructions);
     const onClose = vi.fn();
-    renderWithClient(
+    const { user } = renderWithClient(
       <ClientInstructionsEditor
         clientId="claude-code"
         displayName="Claude Code"
         onClose={onClose}
       />,
     );
+    // The testid is on the preview button while content is empty —
+    // it does not have a `value` attribute, so we assert the element
+    // exists and that clicking it surfaces an empty textarea.
+    const surface = await screen.findByTestId(
+      "client-instructions-editor-textarea",
+    );
+    expect(surface).toBeInTheDocument();
+    await user.click(surface);
     const textarea = await screen.findByTestId(
       "client-instructions-editor-textarea",
     );
+    expect(textarea.tagName).toBe("TEXTAREA");
     expect(textarea).toHaveValue("");
   });
 
@@ -147,6 +164,11 @@ describe("ClientInstructionsEditor", () => {
         onClose={onClose}
       />,
     );
+    // Click the view-mode preview surface to flip into edit mode,
+    // then interact with the textarea that replaces it.
+    await user.click(
+      await screen.findByTestId("client-instructions-editor-textarea"),
+    );
     const textarea = await screen.findByTestId(
       "client-instructions-editor-textarea",
     );
@@ -175,6 +197,9 @@ describe("ClientInstructionsEditor", () => {
         displayName="Claude Code"
         onClose={onClose}
       />,
+    );
+    await user.click(
+      await screen.findByTestId("client-instructions-editor-textarea"),
     );
     const textarea = await screen.findByTestId(
       "client-instructions-editor-textarea",
@@ -206,11 +231,11 @@ describe("ClientInstructionsEditor", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("switches to preview mode on toggle click", async () => {
+  it("does NOT render an explicit Edit / Preview toggle (round-19c MarkdownField)", async () => {
     const instructions = makeInstructions();
     invokeMock.mockResolvedValue(instructions);
     const onClose = vi.fn();
-    const { user } = renderWithClient(
+    renderWithClient(
       <ClientInstructionsEditor
         clientId="claude-code"
         displayName="Claude Code"
@@ -218,11 +243,13 @@ describe("ClientInstructionsEditor", () => {
       />,
     );
     await screen.findByTestId("client-instructions-editor-textarea");
-    await user.click(
-      screen.getByTestId("client-instructions-editor-mode-preview"),
-    );
+    // The two-button toggle group is gone — view ⇄ edit is implicit
+    // through `MarkdownField` (click / focus / blur).
     expect(
-      screen.queryByTestId("client-instructions-editor-textarea"),
+      screen.queryByTestId("client-instructions-editor-mode-edit"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("client-instructions-editor-mode-preview"),
     ).not.toBeInTheDocument();
   });
 });
