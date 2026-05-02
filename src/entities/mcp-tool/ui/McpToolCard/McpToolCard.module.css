@@ -6,24 +6,24 @@
  * middle, meta row (tool badge + optional color swatch + JSON hint) at the bottom.
  */
 
+/* ctq-76 #5: aligned to the kanban TaskCard reference (see RoleCard.module.css). */
 .card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--space-6);
   align-items: flex-start;
   padding: var(--space-16);
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-border-card);
+  border: 1px solid var(--color-border-strong);
   background-color: var(--color-surface-raised);
   color: var(--color-text-default);
   font-family: var(--font-sans);
   text-align: left;
   cursor: default;
-  min-height: 96px;
+  box-shadow: 0px 1px var(--color-border-strong);
   transition:
     border-color 120ms ease-out,
-    background-color 120ms ease-out,
-    transform 120ms ease-out;
+    background-color 120ms ease-out;
 }
 
 .interactive {
