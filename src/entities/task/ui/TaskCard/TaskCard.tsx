@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useRef, type ReactElement } from "react";
 import {
   PixelInterfaceEssentialMessage,
   PixelInterfaceEssentialClip1,
@@ -218,18 +218,30 @@ export function TaskCard({
     );
   }
 
-  // Round 19b: single click no longer opens the dialog. When selection
-  // mode is active it toggles the bulk-selection (unchanged behaviour);
-  // otherwise it is a no-op so users can move focus / drag the card
-  // without inadvertently opening it. Double-click opens the dialog.
+  // Round 19c: instead of relying on the browser's `dblclick` event —
+  // which is unreliable inside the dnd-kit pointer-event wrapper — we
+  // detect double-click ourselves via a 350-ms time-since-last-click
+  // window. The threshold matches the platform default for `dblclick`.
+  //
+  // Single click still toggles bulk-selection when selection mode is
+  // active (unchanged behaviour); otherwise it's a no-op until the
+  // second click within the window arrives, at which point we open
+  // the task dialog through the parent's `onSelect` handler.
+  const lastClickAtRef = useRef<number>(0);
+  const DBL_CLICK_WINDOW_MS = 350;
+
   const handleBodyClick = (e: React.MouseEvent): void => {
     if (selectionActive) {
       onToggleSelection?.(task.id, e);
+      return;
     }
-  };
-
-  const handleBodyDoubleClick = (): void => {
-    onSelect?.(task.id);
+    const now = Date.now();
+    if (now - lastClickAtRef.current < DBL_CLICK_WINDOW_MS) {
+      lastClickAtRef.current = 0;
+      onSelect?.(task.id);
+      return;
+    }
+    lastClickAtRef.current = now;
   };
 
   // Keyboard activation (Enter / Space) is the canonical way for
@@ -296,13 +308,16 @@ export function TaskCard({
         />
       </span>
 
-      {/* Card body — single-click toggles bulk selection (only when
-          selection mode is active); double-click opens the task dialog. */}
+      {/* Card body — single click toggles bulk selection (only in
+          selection mode); two clicks within DBL_CLICK_WINDOW_MS open
+          the task dialog. We DON'T use the native `onDoubleClick`
+          because dnd-kit's pointer wrapper around the article can
+          swallow the second activation; the manual click-window is
+          deterministic. */}
       <button
         type="button"
         className={styles.cardBody}
         onClick={handleBodyClick}
-        onDoubleClick={handleBodyDoubleClick}
         onKeyDown={handleBodyKeyDown}
         aria-label={ariaLabel}
         aria-pressed={selectionActive ? selected : undefined}
