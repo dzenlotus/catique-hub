@@ -92,7 +92,7 @@ export function KanbanColumn({
       type="button"
       ref={sortableHandleRef as React.Ref<HTMLButtonElement>}
       className={styles.columnDragHandle}
-      aria-label="Перетащить колонку"
+      aria-label="Drag column"
     >
       <span aria-hidden="true">⋮⋮</span>
     </button>
@@ -127,7 +127,7 @@ export function KanbanColumn({
             onClick={() => onAddTask(column.id)}
             data-testid={`kanban-column-empty-${column.id}`}
           >
-            Задачи отсутствуют
+            No tasks yet
           </button>
         ) : (
           tasks.map((task, taskIndex) => (

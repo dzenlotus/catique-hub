@@ -1,5 +1,5 @@
 /**
- * TopBar — верхняя панель главного pane.
+ * TopBar — top panel of the main pane.
  *
  * Layout (Image #30):
  *   ┌────────────────────────────────────────────────────────┐
@@ -35,14 +35,14 @@ export function TopBar(): ReactElement {
       <header
         className={styles.topBar}
         data-testid="top-bar"
-        data-tauri-drag-region="deep"
+        data-tauri-drag-region="true"
       >
-        <div className={styles.searchRow}>
+        <div className={styles.searchRow} data-tauri-drag-region="true">
           <button
             type="button"
             className={styles.searchTrigger}
             onClick={openSearch}
-            aria-label="Открыть глобальный поиск"
+            aria-label="Open global search"
             data-testid="top-bar-search-trigger"
           >
             <PixelInterfaceEssentialSearch1
@@ -54,24 +54,23 @@ export function TopBar(): ReactElement {
             <span className={styles.searchPlaceholder}>
               Search tasks, boards, agents...
             </span>
-            <kbd className={styles.kbdHint} aria-label="Горячая клавиша ⌘K">
+            <kbd className={styles.kbdHint} aria-label="Keyboard shortcut Cmd+K">
               ⌘K
             </kbd>
           </button>
 
-          <button
-            type="button"
-            className={styles.ctaButton}
-            onClick={() => setIsCreateOpen(true)}
-            data-testid="top-bar-new-task"
-            aria-label="Новая задача"
-          >
-            <span aria-hidden="true">+</span>
-            <span>New task</span>
-          </button>
+          {/*
+           * The "+ New task" button was removed by user request — task
+           * creation is reachable via the Cmd+N global keybind below
+           * and through column / board surface affordances.
+           */}
         </div>
 
-        <div className={styles.divider} role="presentation" />
+        <div
+          className={styles.divider}
+          role="presentation"
+          data-tauri-drag-region="true"
+        />
       </header>
 
       <GlobalSearch isOpen={isSearchOpen} onClose={closeSearch} />

@@ -1,5 +1,8 @@
 import { useState, useMemo, type ReactElement } from "react";
-import { PixelInterfaceEssentialClip1 } from "@shared/ui/Icon";
+import {
+  PixelInterfaceEssentialClip1,
+  PixelInterfaceEssentialPlus,
+} from "@shared/ui/Icon";
 
 import { PromptCard, usePrompts, usePromptTagsMap } from "@entities/prompt";
 import { Button, EmptyState } from "@shared/ui";
@@ -100,7 +103,7 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
           >
             <span className={styles.btnLabel}>
               <PixelInterfaceEssentialClip1 width={14} height={14} aria-hidden="true" />
-              Прикрепить промпт
+              Attach prompt
             </span>
           </Button>
           <Button
@@ -110,8 +113,8 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
             data-testid="prompts-list-create-button"
           >
             <span className={styles.btnLabel}>
-              <span aria-hidden="true">+</span>
-              Создать промпт
+              <PixelInterfaceEssentialPlus width={12} height={12} aria-hidden="true" />
+              Create prompt
             </span>
           </Button>
         </div>
@@ -132,7 +135,7 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
       ) : promptsQuery.status === "error" ? (
         <div className={styles.error} role="alert">
           <p className={styles.errorMessage}>
-            Не удалось загрузить промпты: {promptsQuery.error.message}
+            Failed to load prompts: {promptsQuery.error.message}
           </p>
           <Button
             variant="secondary"
@@ -141,7 +144,7 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
               void promptsQuery.refetch();
             }}
           >
-            Повторить
+            Retry
           </Button>
         </div>
       ) : isFilterEmpty ? (
@@ -173,9 +176,14 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
                 size="md"
                 onPress={() => setIsCreateOpen(true)}
               >
+                {/*
+                 * Ctq-76 item 8: drop the duplicate "+ +" prefix and use
+                 * the pixel "+" icon instead of two stacked text
+                 * markers. One icon, one label.
+                 */}
                 <span className={styles.btnLabel}>
-                  <span aria-hidden="true">+</span>
-                  + Create prompt
+                  <PixelInterfaceEssentialPlus width={12} height={12} aria-hidden="true" />
+                  Create prompt
                 </span>
               </Button>
             }

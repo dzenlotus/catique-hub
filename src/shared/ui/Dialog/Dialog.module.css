@@ -68,8 +68,14 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
-  /* Allow the dialog content to scroll when body overflows */
-  overflow: hidden;
+  /*
+   * Ctq-76 item 9: do NOT clip the dialog panel itself. The outer
+   * `.modal` already centres + animates this surface; clipping here
+   * was eating the 3 px `:focus-visible` box-shadow on inputs that sit
+   * flush against the dialog's inner padding. Rounded corners survive
+   * because every child of `.dialog` keeps inside `padding: var(--space-24)`.
+   */
+  overflow: visible;
   max-height: 80vh;
 }
 
@@ -98,10 +104,27 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
-  /* Scroll is owned by <Scrollable> placed inside each dialog's content */
-  overflow: hidden;
+  /*
+   * Ctq-76 item 9 + item 12: body owns vertical scrolling for tall
+   * forms. Footer slots inside the form set `position: sticky;
+   * bottom: calc(-1 * var(--space-24))` to pin against the dialog's
+   * own bottom padding. We keep horizontal overflow visible so focus
+   * rings on inputs along the side edges are not clipped.
+   */
+  overflow-x: visible;
+  overflow-y: auto;
   flex: 1 1 auto;
   min-height: 0;
+  /*
+   * Negative-margin / positive-padding pair: lets descendants render
+   * 4 px outside the natural body width (e.g. focus-ring spillover)
+   * without changing the layout. The dialog panel still clips at
+   * `.dialog`'s padding boundary because `.body` is positioned
+   * inside that padding, but the extra horizontal slack means a
+   * focus ring on an input at body edge is visible.
+   */
+  margin: 0 calc(-1 * var(--space-4));
+  padding: 0 var(--space-4);
 }
 
 @media (prefers-reduced-motion: no-preference) {

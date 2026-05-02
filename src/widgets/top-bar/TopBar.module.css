@@ -7,8 +7,9 @@
  *
  * Toplevel uses macOS frameless overlay (titleBarStyle: "Overlay") so
  * the bar must reserve 80 px on the left for traffic-light buttons.
- * Window dragging uses Tauri's data-tauri-drag-region="deep" attribute
- * on the <header> — interactive children (buttons) auto-block drag.
+ * Window dragging uses Tauri's data-tauri-drag-region attribute on the
+ * concrete non-interactive rows. Tauri 2.10 only checks the clicked
+ * element itself, so the row must be marked in addition to the <header>.
  */
 
 .topBar {
@@ -153,42 +154,5 @@
   user-select: none;
 }
 
-/* ── CTA «+ Новая задача» ─────────────────────────────────────────────── */
+/* ── CTA «+ New task» ─────────────────────────────────────────────────── */
 
-.ctaButton {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-6);
-  height: 36px;
-  padding: 0 var(--space-16);
-  background-color: var(--color-cta-bg);
-  color: var(--color-cta-fg);
-  border-radius: var(--radius-md);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  border: 1px solid var(--color-cta-bg);
-  transition: background-color var(--duration-instant) var(--easing-default);
-}
-
-.ctaButton:hover {
-  background-color: var(--color-cta-hover);
-}
-
-.ctaButton:active {
-  background-color: var(--color-cta-active);
-}
-
-.ctaButton:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ctaButton {
-    transition: none;
-  }
-}

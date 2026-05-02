@@ -2,7 +2,10 @@ import { useState, type ReactElement } from "react";
 import { useLocation } from "wouter";
 
 import { Scrollable } from "@shared/ui";
-import { PixelInterfaceEssentialAlertCircle1 } from "@shared/ui/Icon";
+import {
+  PixelInterfaceEssentialAlertCircle1,
+  PixelInterfaceEssentialPlus,
+} from "@shared/ui/Icon";
 import { useSpaces } from "@entities/space";
 import { useBoards } from "@entities/board";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
@@ -72,7 +75,7 @@ export function SpacesSidebar(): ReactElement {
     if (spaces.length === 0 || activeSpaceId === null) {
       return (
         <div className={styles.sectionEmpty}>
-          <span className={styles.sectionEmptyText}>Нет пространств</span>
+          <span className={styles.sectionEmptyText}>No spaces yet</span>
         </div>
       );
     }
@@ -102,10 +105,35 @@ export function SpacesSidebar(): ReactElement {
       data-testid="spaces-sidebar-root"
     >
       <Scrollable axis="y" className={styles.sectionsWrap}>
-        <div className={styles.sectionLabel} aria-label="Пространства">
+        <div className={styles.sectionLabel} aria-label="Spaces">
           SPACES
         </div>
         {renderBody()}
+
+        {/*
+         * Ctq-76 item 1: "+ Add space" trigger replaces the per-space kebab.
+         * Sits at the bottom of the spaces tree so creation is always one
+         * click away regardless of how many spaces are loaded. Hidden while
+         * the spaces query is pending or errored — both branches return
+         * earlier in `renderBody()`.
+         */}
+        {spacesQuery.status === "success" ? (
+          <button
+            type="button"
+            className={styles.addSpaceRow}
+            onClick={() => setCreateDialogOpen(true)}
+            aria-label="Add space"
+            data-testid="spaces-sidebar-add-space"
+          >
+            <PixelInterfaceEssentialPlus
+              width={14}
+              height={14}
+              aria-hidden={true}
+              className={styles.addSpaceIcon}
+            />
+            <span>Add space</span>
+          </button>
+        ) : null}
       </Scrollable>
 
       <SpaceCreateDialog

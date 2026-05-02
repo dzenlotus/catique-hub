@@ -270,7 +270,7 @@ export function TaskCard({
         type="button"
         ref={handleRef}
         className={styles.dragHandle}
-        aria-label="Перетащить задачу"
+        aria-label="Drag task"
         data-testid={`task-card-drag-handle-${task.id}`}
         onClick={(e) => e.stopPropagation()}
       >

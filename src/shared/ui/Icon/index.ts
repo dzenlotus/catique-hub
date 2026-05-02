@@ -401,6 +401,7 @@ export { default as PixelInterfaceEssentialPencilEdit2 } from "./svg/PixelInterf
 export { default as PixelInterfaceEssentialPieChartPollReport1 } from "./svg/PixelInterfaceEssentialPieChartPollReport1.svg?react";
 export { default as PixelInterfaceEssentialPieChartPollReport2 } from "./svg/PixelInterfaceEssentialPieChartPollReport2.svg?react";
 export { default as PixelInterfaceEssentialPin } from "./svg/PixelInterfaceEssentialPin.svg?react";
+export { default as PixelInterfaceEssentialPlus } from "./svg/PixelInterfaceEssentialPlus.svg?react";
 export { default as PixelInterfaceEssentialPoll } from "./svg/PixelInterfaceEssentialPoll.svg?react";
 export { default as PixelInterfaceEssentialPrint } from "./svg/PixelInterfaceEssentialPrint.svg?react";
 export { default as PixelInterfaceEssentialProfileFemale } from "./svg/PixelInterfaceEssentialProfileFemale.svg?react";

@@ -181,7 +181,33 @@ describe("SpacesSidebar — SPACES tree (inline collapsible)", () => {
     invokeMock.mockResolvedValue([]);
     setup();
     await waitFor(() => {
-      expect(screen.getByText(/нет пространств/i)).toBeInTheDocument();
+      expect(screen.getByText(/no spaces yet/i)).toBeInTheDocument();
+    });
+  });
+
+  it("renders a global '+ Add space' button at the bottom", async () => {
+    invokeMock.mockResolvedValue(STUB_SPACES);
+    setup();
+    await waitFor(() => {
+      expect(screen.getByTestId("spaces-sidebar-add-space")).toBeInTheDocument();
+    });
+  });
+
+  it("clicking '+ Add space' opens the space-create dialog", async () => {
+    invokeMock.mockImplementation((cmd: unknown) => {
+      if (cmd === "list_spaces") return Promise.resolve(STUB_SPACES);
+      if (cmd === "list_boards") return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+    const { user } = setup();
+    await waitFor(() => {
+      expect(screen.getByTestId("spaces-sidebar-add-space")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("spaces-sidebar-add-space"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("space-create-dialog")).toBeInTheDocument();
     });
   });
 
@@ -204,7 +230,7 @@ describe("SpacesSidebar — SPACES tree (inline collapsible)", () => {
     await waitFor(() => {
       expect(screen.getByText("Alpha")).toBeInTheDocument();
     });
-    const chevrons = screen.getAllByRole("button", { name: /развернуть|свернуть/i });
+    const chevrons = screen.getAllByRole("button", { name: /expand|collapse/i });
     expect(chevrons.length).toBeGreaterThan(0);
     const first = chevrons[0];
     expect(first).toHaveAttribute("aria-expanded");
@@ -221,7 +247,7 @@ describe("SpacesSidebar — SPACES tree (inline collapsible)", () => {
       expect(screen.getByText("Alpha")).toBeInTheDocument();
     });
 
-    const chevrons = screen.getAllByRole("button", { name: /развернуть|свернуть/i });
+    const chevrons = screen.getAllByRole("button", { name: /expand|collapse/i });
     const alphaChevron = chevrons[0];
     const initialExpanded = alphaChevron.getAttribute("aria-expanded");
 
@@ -231,6 +257,17 @@ describe("SpacesSidebar — SPACES tree (inline collapsible)", () => {
       const newExpanded = alphaChevron.getAttribute("aria-expanded");
       expect(newExpanded).not.toBe(initialExpanded);
     });
+  });
+
+  it("does NOT render a per-space kebab button (ctq-76 item 1)", async () => {
+    invokeMock.mockResolvedValue(STUB_SPACES);
+    setup();
+    await waitFor(() => {
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("spaces-sidebar-space-kebab-spc-1"),
+    ).not.toBeInTheDocument();
   });
 });
 

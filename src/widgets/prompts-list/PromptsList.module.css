@@ -67,35 +67,13 @@
   flex-shrink: 0;
 }
 
-/* CTA pill — red, matches TopBar "+ New task" */
-.ctaButton {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-8) var(--space-16);
-  border-radius: var(--radius-md);
-  background-color: var(--color-cta-bg);
-  color: var(--color-cta-fg, #fff);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-semibold);
-  border: none;
-  cursor: pointer;
-  font-family: var(--font-sans);
-  transition: background-color 120ms ease-out;
-}
-
-.ctaButton:hover {
-  background-color: var(--color-cta-hover);
-}
-
-.ctaButton:active {
-  background-color: var(--color-cta-active);
-}
-
-.ctaButton:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
+/*
+ * Ctq-76 item 6: removed the orphan `.ctaButton` class — the actual
+ * "Создать промпт" CTA in `PromptsList.tsx` already uses the shared
+ * `Button` primitive (variant="primary"). The hard-coded `--color-cta-fg`
+ * fallback also slipped past the no-hex rule, so dropping it removes a
+ * latent token-discipline gap.
+ */
 
 .btnLabel {
   display: inline-flex;

@@ -1,7 +1,8 @@
 /*
- * SpaceCreateDialog — create-space modal.
+ * ColumnCreateDialog — create-column modal.
  *
- * Mirrors PromptCreateDialog.module.css for visual consistency.
+ * Mirrors SpaceCreateDialog.module.css for visual consistency across the
+ * create-dialog family.
  */
 
 .dialogBody {
@@ -28,14 +29,6 @@
   width: 100%;
 }
 
-/* ── Prefix inline validation hint ──────────────────────────────── */
-
-.fieldError {
-  margin: 0;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-status-danger);
-}
-
 /* ── Footer ──────────────────────────────────────────────────────── */
 
 .footer {
@@ -44,13 +37,7 @@
   align-items: center;
   gap: var(--space-8);
   padding-top: var(--space-16);
-  /*
-   * Ctq-76 item 12: pin actions to the dialog bottom while the form
-   * body scrolls. Negative margin / matching padding compensates for
-   * the focus-ring slack the Dialog body adds (Dialog.module.css), so
-   * the sticky surface still spans edge-to-edge. The negative bottom
-   * offset pulls the footer flush against the dialog's inner padding.
-   */
+  /* Ctq-76 item 12: pin actions to dialog bottom. */
   position: sticky;
   bottom: calc(-1 * var(--space-24));
   background-color: var(--color-surface-overlay);

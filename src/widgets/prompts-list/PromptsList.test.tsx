@@ -141,7 +141,7 @@ describe("PromptsList", () => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
     expect(screen.getByText(/db offline/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 
   it("calls onSelectPrompt with the prompt id when a card is activated", async () => {

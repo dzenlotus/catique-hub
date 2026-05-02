@@ -154,6 +154,19 @@ describe("TopBar", () => {
     expect(screen.getByText("⌘K")).toBeInTheDocument();
   });
 
+  it("размечает пустые области шапки как drag-region для Tauri 2.10", () => {
+    renderAt();
+
+    const topBar = screen.getByTestId("top-bar");
+    expect(topBar).toHaveAttribute("data-tauri-drag-region", "true");
+    expect(
+      topBar.querySelectorAll('[data-tauri-drag-region="true"]'),
+    ).toHaveLength(2);
+    expect(screen.getByTestId("top-bar-search-trigger")).not.toHaveAttribute(
+      "data-tauri-drag-region",
+    );
+  });
+
   it("клик по полю поиска открывает GlobalSearch (isOpen=true)", () => {
     renderAt();
 
@@ -184,35 +197,16 @@ describe("TopBar", () => {
     expect(capturedIsOpen).toBe(true);
   });
 
-  it('рендерит кнопку «+ New task» с иконкой Plus и лейблом', () => {
+  it("does NOT render a «+ New task» CTA in the top-bar (round-19c removal)", () => {
+    // The CTA was removed by user request — task creation reaches via
+    // Cmd+N global keybind and through column / board affordances.
     renderAt();
-
-    const btn = screen.getByTestId("top-bar-new-task");
-    expect(btn).toBeInTheDocument();
-    // Label is English per mockup
-    expect(btn).toHaveTextContent("New task");
-    // "+" glyph rendered as an aria-hidden span (pixel icon replacement)
-    const plusSpan = btn.querySelector('span[aria-hidden="true"]');
-    expect(plusSpan).toBeInTheDocument();
+    expect(screen.queryByTestId("top-bar-new-task")).not.toBeInTheDocument();
   });
-
-  // Round 18 removed the settings, notifications and avatar icons from
-  // the TopBar — only Search + «+ New task» remain. Tests for the
-  // removed elements have been deleted.
 
   it("хлебная крошка не отображается на маршруте /", () => {
     renderAt("/");
     expect(screen.queryByLabelText("Навигационная цепочка")).not.toBeInTheDocument();
-  });
-
-  it("клик по «+ New task» открывает TaskCreateDialog", () => {
-    renderAt();
-
-    expect(screen.queryByTestId("task-create-dialog-mock")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("top-bar-new-task"));
-
-    expect(screen.getByTestId("task-create-dialog-mock")).toBeInTheDocument();
   });
 
   it("хук ⌘N при вызове открывает TaskCreateDialog", () => {

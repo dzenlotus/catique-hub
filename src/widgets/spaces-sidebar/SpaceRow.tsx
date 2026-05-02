@@ -1,16 +1,14 @@
-import { useState, type Key, type MouseEvent, type ReactElement } from "react";
+import { type MouseEvent, type ReactElement } from "react";
 import { useLocation } from "wouter";
 
 import { cn } from "@shared/lib";
-import { Button, Menu, MenuItem, MenuTrigger } from "@shared/ui";
+import { Button } from "@shared/ui";
 import { booleanCodec, useLocalStorage } from "@shared/storage";
 import type { Space } from "@entities/space";
 import type { Board } from "@entities/board";
 import { spaceSettingsPath } from "@app/routes";
-import { BoardCreateDialog } from "@widgets/board-create-dialog";
 
 import { ChevronIcon } from "./ChevronIcon";
-import { KebabIcon } from "./KebabIcon";
 import { BoardIcon, SpaceIcon } from "./icons";
 import styles from "./SpacesSidebar.module.css";
 
@@ -49,7 +47,6 @@ export function SpaceRow({
     booleanCodec,
     isDefaultExpanded,
   );
-  const [boardDialogOpen, setBoardDialogOpen] = useState(false);
 
   const spaceBoards = boards.filter((b) => b.spaceId === space.id);
 
@@ -66,19 +63,6 @@ export function SpaceRow({
     setIsExpanded((prev) => !prev);
   }
 
-  function handleMenuAction(key: Key): void {
-    if (key === "settings") {
-      onSelectSpace(space.id);
-      setLocation(spaceSettingsPath(space.id));
-      return;
-    }
-    if (key === "create-board") {
-      onSelectSpace(space.id);
-      setBoardDialogOpen(true);
-      return;
-    }
-  }
-
   return (
     <li className={styles.spaceItem}>
       {/* Space header row */}
@@ -91,7 +75,7 @@ export function SpaceRow({
           variant="ghost"
           className={styles.spaceChevronBtn}
           onClick={handleChevronClick}
-          aria-label={isExpanded ? `Свернуть ${space.name}` : `Развернуть ${space.name}`}
+          aria-label={isExpanded ? `Collapse ${space.name}` : `Expand ${space.name}`}
           aria-expanded={isExpanded}
         >
           <ChevronIcon open={isExpanded} />
@@ -102,28 +86,12 @@ export function SpaceRow({
           type="button"
           className={styles.spaceNameBtn}
           onClick={handleNameClick}
-          aria-label={`${space.name}${isActiveSpace ? " (активное пространство)" : ""}`}
+          aria-label={`${space.name}${isActiveSpace ? " (active space)" : ""}`}
           data-testid={`spaces-sidebar-space-name-${space.id}`}
         >
           <SpaceIcon name={space.name} />
           <span className={styles.spaceNameText}>{space.name}</span>
         </button>
-
-        {/* Kebab — opens a context menu anchored to the button. */}
-        <MenuTrigger>
-          <Button
-            variant="ghost"
-            className={styles.spaceKebabBtn}
-            aria-label={`Действия для ${space.name}`}
-            data-testid={`spaces-sidebar-space-kebab-${space.id}`}
-          >
-            <KebabIcon />
-          </Button>
-          <Menu onAction={handleMenuAction} placement="bottom end">
-            <MenuItem id="settings">Настройки пространства</MenuItem>
-            <MenuItem id="create-board">Создать доску</MenuItem>
-          </Menu>
-        </MenuTrigger>
       </div>
 
       {/* Board rows inside expanded space */}
@@ -150,11 +118,6 @@ export function SpaceRow({
           })}
         </ul>
       )}
-
-      <BoardCreateDialog
-        isOpen={boardDialogOpen}
-        onClose={() => setBoardDialogOpen(false)}
-      />
     </li>
   );
 }

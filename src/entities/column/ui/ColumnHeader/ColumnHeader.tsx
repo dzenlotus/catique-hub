@@ -4,6 +4,7 @@ import {
   PixelInterfaceEssentialRefresh,
   PixelBusinessProductCheck,
   PixelDesignLayer,
+  PixelInterfaceEssentialPlus,
 } from "@shared/ui/Icon";
 
 import { Button, Dialog, Input, Menu, MenuItem, MenuTrigger } from "@shared/ui";
@@ -164,7 +165,7 @@ export function ColumnHeader({
           onClick={() => onAddTask(id)}
           data-testid={`column-header-add-task-${id}`}
         >
-          <span aria-hidden="true">+</span>
+          <PixelInterfaceEssentialPlus width={12} height={12} aria-hidden="true" />
         </button>
       ) : null}
 

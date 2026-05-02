@@ -15,20 +15,21 @@ import { useBoard } from "@entities/board";
 import type { Column } from "@entities/column";
 import {
   useColumns,
-  useCreateColumnMutation,
   useDeleteColumnMutation,
   useReorderColumnsMutation,
   useUpdateColumnMutation,
 } from "@entities/column";
 import type { Task } from "@entities/task";
 import { useMoveTaskMutation, useTasksByBoard } from "@entities/task";
-import { Button, Input } from "@shared/ui";
+import { Button } from "@shared/ui";
 import {
   PixelCodingAppsWebsitesModule,
   PixelInterfaceEssentialSettingCog,
+  PixelInterfaceEssentialPlus,
 } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { TaskCreateDialog } from "@widgets/task-create-dialog";
+import { ColumnCreateDialog } from "@widgets/column-create-dialog";
 import { lastBoardStore } from "@widgets/board-home";
 
 import { KanbanColumn } from "./KanbanColumn";
@@ -108,7 +109,6 @@ export function KanbanBoard({
   const columnsQuery = useColumns(boardId);
   const tasksQuery = useTasksByBoard(boardId);
 
-  const createColumn = useCreateColumnMutation();
   const updateColumn = useUpdateColumnMutation();
   const deleteColumn = useDeleteColumnMutation();
   const reorderColumns = useReorderColumnsMutation();
@@ -122,8 +122,9 @@ export function KanbanBoard({
   const orderedIdsRef = useRef<string[]>([]);
   const draggingRef = useRef(false);
 
-  const [newColumnName, setNewColumnName] = useState("");
-  const [isAddingColumn, setIsAddingColumn] = useState(false);
+  // Ctq-76 item 4: column creation now lives in `ColumnCreateDialog`,
+  // not in an inline form. We track only the dialog visibility here.
+  const [isColumnDialogOpen, setIsColumnDialogOpen] = useState(false);
   const [taskColumnId, setTaskColumnId] = useState<string | null>(null);
 
   const columns = columnsQuery.data ?? [];
@@ -271,24 +272,11 @@ export function KanbanBoard({
     );
   };
 
-  const handleCreateColumn = (): void => {
-    const name = newColumnName.trim();
-    if (!name) return;
-
-    createColumn.mutate(
-      {
-        boardId,
-        name,
-        position: Number(columns.at(-1)?.position ?? 0n) + 1,
-      },
-      {
-        onSuccess: () => {
-          setNewColumnName("");
-          setIsAddingColumn(false);
-        },
-      },
-    );
-  };
+  // Position assigned to a freshly-created column. Derived from the last
+  // column's position because columns are positioned monotonically by
+  // `useReorderColumnsMutation`. The mutation owns conflict-resolution
+  // when two clients race, so we don't need to be exact.
+  const nextColumnPosition = Number(columns.at(-1)?.position ?? 0n) + 1;
 
   const handleTaskSelect = (taskId: string): void => {
     if (onTaskSelect) {
@@ -351,46 +339,19 @@ export function KanbanBoard({
         <div className={styles.empty}>
           <p className={styles.emptyTitle}>No columns yet</p>
           <p className={styles.emptyHint}>Add a column to start organizing tasks.</p>
-          {isAddingColumn ? (
-            <form
-              className={styles.addColumnForm}
-              onSubmit={(event) => {
-                event.preventDefault();
-                handleCreateColumn();
-              }}
-            >
-              <Input
-                label="Column name"
-                value={newColumnName}
-                onChange={setNewColumnName}
-                autoFocus
-              />
-              <div className={styles.addColumnFormActions}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onPress={() => setIsAddingColumn(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  isDisabled={!newColumnName.trim()}
-                  isPending={createColumn.status === "pending"}
-                >
-                  Add
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <Button variant="primary" onPress={() => setIsAddingColumn(true)}>
-              Create column
-            </Button>
-          )}
+          <Button variant="primary" onPress={() => setIsColumnDialogOpen(true)}>
+            Create column
+          </Button>
         </div>
+
+        {/* Modal lives in the empty-state branch too so users hitting an
+            empty board can immediately add a column. */}
+        <ColumnCreateDialog
+          isOpen={isColumnDialogOpen}
+          onClose={() => setIsColumnDialogOpen(false)}
+          boardId={boardId}
+          nextPosition={nextColumnPosition}
+        />
       </div>
     );
   }
@@ -445,50 +406,21 @@ export function KanbanBoard({
           ))}
 
           <div className={styles.addColumnContainer}>
-            {isAddingColumn ? (
-              <form
-                className={styles.addColumnForm}
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  handleCreateColumn();
-                }}
-              >
-                <Input
-                  label="Column name"
-                  value={newColumnName}
-                  onChange={setNewColumnName}
-                  autoFocus
+            <Button
+              variant="ghost"
+              className={styles.addColumnButton}
+              onPress={() => setIsColumnDialogOpen(true)}
+              data-testid="kanban-board-add-column"
+            >
+              <span className={styles.addColumnLabel}>
+                <PixelInterfaceEssentialPlus
+                  width={12}
+                  height={12}
+                  aria-hidden="true"
                 />
-                <div className={styles.addColumnFormActions}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onPress={() => setIsAddingColumn(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                    isDisabled={!newColumnName.trim()}
-                    isPending={createColumn.status === "pending"}
-                  >
-                    Add
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              <Button
-                variant="ghost"
-                className={styles.addColumnButton}
-                onPress={() => setIsAddingColumn(true)}
-              >
-                <span aria-hidden="true">+</span>
                 Add column
-              </Button>
-            )}
+              </span>
+            </Button>
           </div>
         </div>
       </DragDropProvider>
@@ -498,6 +430,13 @@ export function KanbanBoard({
         onClose={() => setTaskColumnId(null)}
         defaultBoardId={boardId}
         defaultColumnId={taskColumnId}
+      />
+
+      <ColumnCreateDialog
+        isOpen={isColumnDialogOpen}
+        onClose={() => setIsColumnDialogOpen(false)}
+        boardId={boardId}
+        nextPosition={nextColumnPosition}
       />
     </div>
   );

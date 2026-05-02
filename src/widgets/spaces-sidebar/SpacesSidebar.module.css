@@ -68,10 +68,11 @@
   flex-direction: column;
 }
 
-/* Space header row (chevron + name + kebab) */
+/* Space header row (chevron + name).
+ * Ctq-76 item 1: kebab column removed; the trailing 28-px track is gone. */
 .spaceRow {
   display: grid;
-  grid-template-columns: 28px 1fr 28px;
+  grid-template-columns: 28px 1fr;
   align-items: center;
   border-radius: var(--radius-sm);
   min-height: 40px;
@@ -131,19 +132,54 @@
   white-space: nowrap;
 }
 
-/* Kebab button */
-.spaceKebabBtn {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  padding: 0;
-  border-radius: var(--radius-xs);
+/* Ctq-76 item 1: "+ Add space" trigger sits at the bottom of the
+ * spaces list. Mirrors the `.spaceNameBtn` typography so it reads as
+ * a peer of the existing space items, not as a CTA pill. */
+.addSpaceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  width: 100%;
+  margin: var(--space-8) 0 0 -4px;
+  padding: var(--space-8) var(--space-2);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background-color 80ms ease-out, color 80ms ease-out;
+}
+
+.addSpaceRow:hover {
+  background-color: var(--color-overlay-hover);
   color: var(--color-text-default);
 }
 
-.spaceKebabBtn[data-hovered],
-.spaceKebabBtn[data-pressed] {
-  color: var(--color-cta-bg);
+.addSpaceRow:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.addSpaceIcon {
+  flex: 0 0 auto;
+  /*
+   * Visually align the pixel "+" inside the same 28-px gutter the
+   * chevron lives in, so the label starts at the same column as a
+   * space name does. The chevron column is 28 px wide and centres a
+   * 14-px icon — replicate that geometry here.
+   */
+  margin-left: 7px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .addSpaceRow {
+    transition: none;
+  }
 }
 
 /* Board rows inside expanded space */

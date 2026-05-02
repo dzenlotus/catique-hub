@@ -103,17 +103,13 @@
   justify-content: center;
 }
 
-.addColumnForm {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-  width: 100%;
-}
-
-.addColumnFormActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-8);
+/* Ctq-76 item 8: pairs the pixel "+" icon with the "Add column" label
+ * inside the ghost button. The Button primitive gives us paddings, this
+ * helper lays the icon + text on a single inline-flex line. */
+.addColumnLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
 }
 
 .loadingScroller {
