@@ -702,32 +702,36 @@ describe("TaskDialog", () => {
     });
   });
 
-  // ── Edit / Preview toggle ────────────────────────────────────────
+  // ── Implicit view ⇄ edit (MarkdownField, ctq-76 #11) ───────────────
 
-  it("shows the description mode toggle defaulting to 'edit' mode", async () => {
+  it("does NOT render an explicit description mode toggle (round-19c MarkdownField)", async () => {
     invokeMock.mockImplementation(defaultInvokeHandler(makeTask()));
     const onClose = vi.fn();
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
     await screen.findByTestId("task-dialog-title-input");
 
-    expect(screen.getByTestId("task-dialog-description-mode-toggle")).toBeInTheDocument();
+    // The two-button Edit / Preview toggle is gone — view ⇄ edit
+    // is implicit via `MarkdownField` (click / focus / blur).
+    expect(screen.queryByTestId("task-dialog-description-mode-toggle")).not.toBeInTheDocument();
     expect(screen.getByTestId("task-dialog-description-textarea")).toBeInTheDocument();
-    expect(screen.getByTestId("task-dialog-description-mode-edit")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("task-dialog-description-mode-preview")).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("switches to description preview mode and renders markdown content", async () => {
+  it("renders markdown description by default and flips to textarea on click", async () => {
     invokeMock.mockImplementation(defaultInvokeHandler(makeTask({ description: "**Жирный** текст" })));
     const onClose = vi.fn();
     const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
     await screen.findByTestId("task-dialog-title-input");
 
-    await user.click(screen.getByTestId("task-dialog-description-mode-preview"));
-
-    expect(screen.queryByTestId("task-dialog-description-textarea")).not.toBeInTheDocument();
+    // Default mode is "view" — bold text is rendered through MarkdownPreview.
     expect(screen.getByText("Жирный").tagName).toBe("STRONG");
+
+    // Click the view surface; the same testid now points to a textarea.
+    await user.click(screen.getByTestId("task-dialog-description-textarea"));
+    const textarea = screen.getByTestId("task-dialog-description-textarea");
+    expect(textarea.tagName).toBe("TEXTAREA");
+    expect(textarea).toHaveValue("**Жирный** текст");
   });
 
   it("shows inline error when save fails", async () => {

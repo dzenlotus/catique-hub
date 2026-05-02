@@ -34,7 +34,7 @@ import { useBoards } from "@entities/board";
 import { useColumns } from "@entities/column";
 import { useRoles } from "@entities/role";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
-import { Dialog, Button, Input, MarkdownPreview, Scrollable } from "@shared/ui";
+import { Dialog, Button, Input, MarkdownField, Scrollable } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
 import { useToast } from "@app/providers/ToastProvider";
@@ -323,7 +323,6 @@ function TaskDialogContent({
   const [localColumnId, setLocalColumnId] = useState("");
   const [localRoleId, setLocalRoleId] = useState<string>(""); // "" = null (no role)
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [descViewMode, setDescViewMode] = useState<"edit" | "preview">("edit");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Remote data for dropdowns.
@@ -562,51 +561,16 @@ function TaskDialogContent({
         />
       </div>
 
-      {/* Description */}
+      {/* Description — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Описание</p>
-        <div
-          role="group"
-          aria-label="Режим редактора описания"
-          className={styles.modeToggle}
-          data-testid="task-dialog-description-mode-toggle"
-        >
-          <Button
-            variant="ghost"
-            size="sm"
-            className={styles.modeToggleBtn}
-            aria-pressed={descViewMode === "edit"}
-            onPress={() => setDescViewMode("edit")}
-            data-testid="task-dialog-description-mode-edit"
-          >
-            Редактировать
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={styles.modeToggleBtn}
-            aria-pressed={descViewMode === "preview"}
-            onPress={() => setDescViewMode("preview")}
-            data-testid="task-dialog-description-mode-preview"
-          >
-            Превью
-          </Button>
-        </div>
-        {descViewMode === "edit" ? (
-          <textarea
-            className={styles.descriptionTextarea}
-            value={localDescription}
-            onChange={(e) => setLocalDescription(e.target.value)}
-            placeholder="Добавьте описание..."
-            data-testid="task-dialog-description-textarea"
-            aria-label="Описание"
-          />
-        ) : (
-          <MarkdownPreview
-            source={localDescription}
-            className={styles.descriptionPreview}
-          />
-        )}
+        <MarkdownField
+          value={localDescription}
+          onChange={setLocalDescription}
+          placeholder="Добавьте описание..."
+          ariaLabel="Описание"
+          data-testid="task-dialog-description-textarea"
+        />
       </div>
 
       {/* Board + Column row */}
