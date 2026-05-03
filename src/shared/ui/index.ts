@@ -50,3 +50,14 @@ export type { EmptyStateProps } from "./EmptyState";
 
 export { Scrollable } from "./Scrollable";
 export type { ScrollableProps } from "./Scrollable";
+
+export { PortalProvider, PORTAL_ROOT_ID } from "./PortalProvider";
+export type { PortalProviderProps } from "./PortalProvider";
+
+export { Select, SelectItem, SelectSection } from "./Select";
+export type {
+  SelectProps,
+  SelectItemProps,
+  SelectSectionProps,
+  SelectOption,
+} from "./Select";

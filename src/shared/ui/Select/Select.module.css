@@ -1,0 +1,244 @@
+/*
+ * Select — RAC <Select> + <SelectValue> + <Popover> + <ListBox>.
+ *
+ * The trigger mirrors the visual contract of `<Input>` so a row of
+ * mixed Inputs / Selects / Buttons sits flush:
+ *   - height: 32 px (matches Input)
+ *   - radius: var(--radius-sm)
+ *   - border: 1 px var(--color-border-strong)
+ *   - focus: 3 px ring of var(--color-accent-ring)
+ */
+
+.select {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-family: var(--font-sans);
+  color: var(--color-text-default);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+  cursor: default;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  width: 100%;
+  height: 32px;
+  /* `box-sizing: border-box` so the 1 px border counts inside the height
+   * — this keeps the trigger flush with sibling Inputs (also 32 px). */
+  box-sizing: border-box;
+  padding: 0 var(--space-12);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.trigger[data-hovered]:not([data-disabled]) {
+  border-color: var(--color-border-focus);
+}
+
+.trigger[data-focused],
+.trigger[data-pressed]:not([data-disabled]),
+.trigger[data-open] {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+.trigger[data-invalid] {
+  border-color: var(--color-status-danger);
+}
+
+.trigger[data-disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Placeholder rendering — matches Input's placeholder colour. */
+.value[data-placeholder] {
+  color: var(--color-text-subtle);
+}
+
+.chevron {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  transition: transform 120ms ease-out;
+}
+
+.trigger[data-open] .chevron {
+  transform: rotate(180deg);
+}
+
+/* ── Popover + ListBox ───────────────────────────────────────────── */
+
+.popover {
+  outline: none;
+  /* Match the trigger width so the dropdown lines up exactly under the
+   * trigger button. RAC sets `--trigger-width` automatically on the
+   * popover element. */
+  min-width: var(--trigger-width);
+  animation: select-fade-in 100ms ease-out;
+}
+
+.popover[data-exiting] {
+  animation: select-fade-out 100ms ease-in;
+}
+
+.listbox {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-4);
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-med);
+  outline: none;
+  max-height: 280px;
+  overflow-y: auto;
+  /* When the popover should match the trigger width, pin the listbox to
+   * that width. RAC's `--trigger-width` is set on the `.popover`. */
+  min-width: 100%;
+}
+
+.listbox[data-match-trigger-width="true"] {
+  width: 100%;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-12);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-body);
+  color: var(--color-text-default);
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  transition: background-color 80ms ease-out;
+}
+
+.item[data-hovered]:not([data-disabled]),
+.item[data-focused]:not([data-disabled]) {
+  background-color: var(--color-overlay-hover);
+}
+
+.item[data-pressed]:not([data-disabled]) {
+  background-color: var(--color-overlay-active);
+}
+
+.item[data-selected] {
+  background-color: var(--color-accent-soft);
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-medium);
+}
+
+.item[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+}
+
+.item[data-disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.itemLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemDetail {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-caption);
+  flex-shrink: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sectionHeader {
+  padding: var(--space-6) var(--space-12) var(--space-2);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.empty {
+  padding: var(--space-8) var(--space-12);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+@keyframes select-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes select-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger {
+    transition: none;
+  }
+  .chevron {
+    transition: none;
+  }
+  .popover {
+    animation: none;
+  }
+  .item {
+    transition: none;
+  }
+}

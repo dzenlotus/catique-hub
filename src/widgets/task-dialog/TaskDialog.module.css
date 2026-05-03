@@ -228,16 +228,23 @@
   min-width: 0;
 }
 
-/* ── Field group (label + native select) ─────────────────────────── */
+/* ── Field group (label + custom Select) ─────────────────────────── */
 
+/*
+ * `.fieldGroup` is forwarded to the shared `<Select>` wrapper. The
+ * inner `<Label>` rendered by the Select primitive picks up the
+ * uppercase small-caps treatment of TaskDialog form labels via this
+ * descendant selector — keeps the Select primitive a vanilla DS
+ * component while letting this widget tune typography locally.
+ */
 .fieldGroup {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  min-width: 0;
 }
 
-/* Mockup: small-caps, uppercase field labels */
-.fieldLabel {
+.fieldGroup > label {
   font-size: 11px;
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-muted);
@@ -245,35 +252,15 @@
   letter-spacing: 0.05em;
 }
 
-.fieldSelect {
-  height: 36px;
-  width: 100%;
-  padding: 0 var(--space-8);
-  background-color: var(--color-surface-raised);
-  color: var(--color-text-default);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body);
-  outline: none;
-  cursor: pointer;
-  box-sizing: border-box;
-  /* Custom chevron via background-image */
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%237a746a' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right var(--space-8) center;
-  padding-right: var(--space-24);
-}
-
-.fieldSelect:focus {
-  border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 2px var(--color-accent-ring);
-}
-
-.fieldSelect:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+/*
+ * Trigger styling override — the shared Select already mirrors `<Input>`
+ * (32 px height, var(--radius-sm) corners, accent-ring focus). We only
+ * adjust the radius to `--radius-md` here to match TaskDialog's earlier
+ * native-select look + feel.
+ */
+.fieldTrigger {
+  border-radius: var(--radius-md) !important;
+  height: 36px !important;
 }
 
 /* ── Footer ──────────────────────────────────────────────────────── */

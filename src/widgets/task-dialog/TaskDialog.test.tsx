@@ -210,16 +210,18 @@ describe("TaskDialog", () => {
     const task = makeTask();
     invokeMock.mockImplementation(defaultInvokeHandler(task));
     const onClose = vi.fn();
-    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+    const { user } = renderWithClient(
+      <TaskDialog taskId="tsk-1" onClose={onClose} />,
+    );
 
     await screen.findByTestId("task-dialog-title-input");
 
-    const boardSelect = screen.getByTestId("task-dialog-board-select") as HTMLSelectElement;
-    // Board option visible
+    // Round-19c: native <select> replaced by shared RAC <Select>.
+    // Assert options by opening the popover and reading role="option".
+    const boardTrigger = screen.getByTestId("task-dialog-board-select");
+    await user.click(boardTrigger);
     await waitFor(() => {
-      expect(boardSelect.options.length).toBeGreaterThan(0);
-      const optionTexts = Array.from(boardSelect.options).map((o) => o.text);
-      expect(optionTexts).toContain("Sprint Board");
+      expect(screen.getByRole("option", { name: "Sprint Board" })).toBeInTheDocument();
     });
   });
 
@@ -227,15 +229,19 @@ describe("TaskDialog", () => {
     const task = makeTask();
     invokeMock.mockImplementation(defaultInvokeHandler(task));
     const onClose = vi.fn();
-    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+    const { user } = renderWithClient(
+      <TaskDialog taskId="tsk-1" onClose={onClose} />,
+    );
 
     await screen.findByTestId("task-dialog-title-input");
 
-    const columnSelect = screen.getByTestId("task-dialog-column-select") as HTMLSelectElement;
+    const columnTrigger = screen.getByTestId("task-dialog-column-select");
+    await user.click(columnTrigger);
     await waitFor(() => {
-      const optionTexts = Array.from(columnSelect.options).map((o) => o.text);
-      expect(optionTexts).toContain("Todo");
-      expect(optionTexts).toContain("In Progress");
+      expect(screen.getByRole("option", { name: "Todo" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "In Progress" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -243,15 +249,19 @@ describe("TaskDialog", () => {
     const task = makeTask();
     invokeMock.mockImplementation(defaultInvokeHandler(task));
     const onClose = vi.fn();
-    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+    const { user } = renderWithClient(
+      <TaskDialog taskId="tsk-1" onClose={onClose} />,
+    );
 
     await screen.findByTestId("task-dialog-title-input");
 
-    const roleSelect = screen.getByTestId("task-dialog-role-select") as HTMLSelectElement;
+    const roleTrigger = screen.getByTestId("task-dialog-role-select");
+    await user.click(roleTrigger);
     await waitFor(() => {
-      const optionTexts = Array.from(roleSelect.options).map((o) => o.text);
-      expect(optionTexts[0]).toBe("(нет роли)");
-      expect(optionTexts).toContain("Dev Agent");
+      const options = screen.getAllByRole("option");
+      const texts = options.map((o) => o.textContent ?? "");
+      expect(texts[0]).toBe("(нет роли)");
+      expect(texts).toContain("Dev Agent");
     });
   });
 
@@ -282,21 +292,24 @@ describe("TaskDialog", () => {
 
     await screen.findByTestId("task-dialog-title-input");
 
-    const boardSelect = screen.getByTestId("task-dialog-board-select") as HTMLSelectElement;
-    const columnSelect = screen.getByTestId("task-dialog-column-select") as HTMLSelectElement;
+    const boardTrigger = screen.getByTestId("task-dialog-board-select");
+    const columnTrigger = screen.getByTestId("task-dialog-column-select");
 
-    // Change board to brd-2
-    await user.selectOptions(boardSelect, "brd-2");
+    // Change board to brd-2 by clicking trigger then Board 2 option
+    await user.click(boardTrigger);
+    await user.click(await screen.findByRole("option", { name: "Board 2" }));
 
-    // Column selection should reset (value becomes "")
+    // Column selection resets to placeholder ("— выберите —")
     await waitFor(() => {
-      expect(columnSelect.value).toBe("");
+      expect(columnTrigger).toHaveTextContent("— выберите —");
     });
 
-    // After cascade, brd-2 columns load
+    // After cascade, brd-2 columns load — verify by opening column popover
+    await user.click(columnTrigger);
     await waitFor(() => {
-      const optionTexts = Array.from(columnSelect.options).map((o) => o.text);
-      expect(optionTexts).toContain("New Column");
+      expect(
+        screen.getByRole("option", { name: "New Column" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -327,19 +340,17 @@ describe("TaskDialog", () => {
     await user.clear(titleInput);
     await user.type(titleInput, "Обновлённое название");
 
-    // Change column
-    const columnSelect = screen.getByTestId("task-dialog-column-select") as HTMLSelectElement;
-    await waitFor(() => {
-      expect(Array.from(columnSelect.options).map((o) => o.value)).toContain("col-2");
-    });
-    await user.selectOptions(columnSelect, "col-2");
+    // Change column — open trigger, click "In Progress" option
+    const columnTrigger = screen.getByTestId("task-dialog-column-select");
+    await user.click(columnTrigger);
+    await user.click(
+      await screen.findByRole("option", { name: "In Progress" }),
+    );
 
-    // Set role
-    const roleSelect = screen.getByTestId("task-dialog-role-select") as HTMLSelectElement;
-    await waitFor(() => {
-      expect(Array.from(roleSelect.options).map((o) => o.value)).toContain("role-1");
-    });
-    await user.selectOptions(roleSelect, "role-1");
+    // Set role — open trigger, click "Dev Agent" option
+    const roleTrigger = screen.getByTestId("task-dialog-role-select");
+    await user.click(roleTrigger);
+    await user.click(await screen.findByRole("option", { name: "Dev Agent" }));
 
     const saveButton = screen.getByTestId("task-dialog-save");
     await user.click(saveButton);

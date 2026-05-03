@@ -22,19 +22,31 @@
 
 import type { PropsWithChildren, ReactElement } from "react";
 
+import { PortalProvider } from "@shared/ui";
+
 import { ActiveSpaceProvider } from "./ActiveSpaceProvider";
 import { EventsProvider } from "./EventsProvider";
 import { QueryProvider } from "./QueryProvider";
 import { ToastProvider } from "./ToastProvider";
 
+/**
+ * `PortalProvider` is the outermost layer so every RAC overlay rendered
+ * anywhere in the tree (modals, popovers, tooltips, menus, selects)
+ * portals into a single `<div id="catique-portal-root">` mounted as a
+ * sibling of `#root`. This keeps DevTools tidy, gives one anchor point
+ * for theming/Tauri-window-chrome insets, and contains all overlay DOM
+ * outside the App's CSS-Module-scoped subtree.
+ */
 export function AppProviders({ children }: PropsWithChildren): ReactElement {
   return (
-    <QueryProvider>
-      <EventsProvider>
-        <ActiveSpaceProvider>
-          <ToastProvider>{children}</ToastProvider>
-        </ActiveSpaceProvider>
-      </EventsProvider>
-    </QueryProvider>
+    <PortalProvider>
+      <QueryProvider>
+        <EventsProvider>
+          <ActiveSpaceProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </ActiveSpaceProvider>
+        </EventsProvider>
+      </QueryProvider>
+    </PortalProvider>
   );
 }

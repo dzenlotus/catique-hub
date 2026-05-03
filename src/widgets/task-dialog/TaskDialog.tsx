@@ -15,7 +15,7 @@
  * Footer: trash-icon delete button (left) + Cancel + Save (right).
  */
 
-import React, { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   useTask,
@@ -34,7 +34,15 @@ import { useBoards } from "@entities/board";
 import { useColumns } from "@entities/column";
 import { useRoles } from "@entities/role";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
-import { Dialog, Button, Input, MarkdownField, Scrollable } from "@shared/ui";
+import {
+  Dialog,
+  Button,
+  Input,
+  MarkdownField,
+  Scrollable,
+  Select,
+  SelectItem,
+} from "@shared/ui";
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
 import { useToast } from "@app/providers/ToastProvider";
@@ -267,35 +275,66 @@ function SlugChip({ slug }: { slug: string }): ReactElement {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Inline native-select field with DS v1 styling. */
+/**
+ * Local option-row shape for `FieldSelect`. Empty-string ids are
+ * supported to encode "no selection" / "no value" choices (e.g. role).
+ */
+interface FieldSelectOption {
+  id: string;
+  label: string;
+}
+
+/**
+ * Custom Select field — wraps the shared `<Select>` primitive so the
+ * trigger lines up with sibling `<Input>`s in TaskDialog. Empty-string
+ * `value` is treated as "no selection"; `onChange("")` fires when the
+ * user picks an item with an empty id (e.g. the "(no role)" option).
+ *
+ * RAC's `selectedKey` API uses `Key | null` — we round-trip empty
+ * strings to/from `null` only at the placeholder boundary so existing
+ * call-sites can stay string-based.
+ */
 function FieldSelect({
   label,
   value,
   onChange,
+  options,
+  placeholder,
   disabled,
   testId,
-  children,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  options: FieldSelectOption[];
+  /** Rendered as the empty-state placeholder when `value` is "". */
+  placeholder?: string;
   disabled?: boolean;
   testId?: string;
-  children: React.ReactNode;
 }): ReactElement {
+  // RAC's `selectedKey={null}` triggers the placeholder; map "" → null.
+  const selectedKey = value === "" ? null : value;
+
   return (
-    <div className={styles.fieldGroup}>
-      <label className={styles.fieldLabel}>{label}</label>
-      <select
-        className={styles.fieldSelect}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        data-testid={testId}
-      >
-        {children}
-      </select>
-    </div>
+    <Select
+      label={label}
+      selectedKey={selectedKey}
+      onSelectionChange={(key) => {
+        // Normalize back to string so call-sites stay string-only.
+        onChange(key === null ? "" : String(key));
+      }}
+      isDisabled={disabled ?? false}
+      className={styles.fieldGroup}
+      triggerClassName={styles.fieldTrigger}
+      {...(placeholder ? { placeholder } : {})}
+      {...(testId ? { "data-testid": testId } : {})}
+    >
+      {options.map((opt) => (
+        <SelectItem key={opt.id} id={opt.id} textValue={opt.label}>
+          {opt.label}
+        </SelectItem>
+      ))}
+    </Select>
   );
 }
 
@@ -579,36 +618,24 @@ function TaskDialogContent({
           label="Доска"
           value={localBoardId}
           onChange={handleBoardChange}
+          options={
+            filteredBoards.length === 0
+              ? [{ id: localBoardId, label: localBoardId }]
+              : filteredBoards.map((b) => ({ id: b.id, label: b.name }))
+          }
           disabled={boardsQuery.status === "pending"}
           testId="task-dialog-board-select"
-        >
-          {filteredBoards.length === 0 ? (
-            <option value={localBoardId}>{localBoardId}</option>
-          ) : (
-            filteredBoards.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))
-          )}
-        </FieldSelect>
+        />
 
         <FieldSelect
           label="Статус / Колонка"
           value={localColumnId}
           onChange={setLocalColumnId}
+          options={allColumns.map((c) => ({ id: c.id, label: c.name }))}
+          placeholder="— выберите —"
           disabled={columnsQuery.status === "pending" || !localBoardId}
           testId="task-dialog-column-select"
-        >
-          {localColumnId === "" ? (
-            <option value="">— выберите —</option>
-          ) : null}
-          {allColumns.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </FieldSelect>
+        />
       </div>
 
       {/* Role */}
@@ -617,16 +644,13 @@ function TaskDialogContent({
           label="Роль агента"
           value={localRoleId}
           onChange={setLocalRoleId}
+          options={[
+            { id: "", label: "(нет роли)" },
+            ...allRoles.map((r) => ({ id: r.id, label: r.name })),
+          ]}
           disabled={rolesQuery.status === "pending"}
           testId="task-dialog-role-select"
-        >
-          <option value="">(нет роли)</option>
-          {allRoles.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </FieldSelect>
+        />
       </div>
 
       {/* Attached prompts */}
