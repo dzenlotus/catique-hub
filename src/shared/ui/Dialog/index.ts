@@ -1,2 +1,6 @@
-export { Dialog, DialogTrigger } from "./Dialog";
-export type { DialogProps, DialogChildrenRenderProp } from "./Dialog";
+export { Dialog, DialogTrigger, DialogFooter } from "./Dialog";
+export type {
+  DialogProps,
+  DialogChildrenRenderProp,
+  DialogFooterProps,
+} from "./Dialog";

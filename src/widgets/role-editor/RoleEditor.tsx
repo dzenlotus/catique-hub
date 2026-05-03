@@ -8,7 +8,7 @@
 
 import { useEffect, useState, type ReactElement } from "react";
 import { useRole, useUpdateRoleMutation } from "@entities/role";
-import { Dialog, Button, Input, MarkdownField } from "@shared/ui";
+import { Dialog, DialogFooter, Button, Input, MarkdownField } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -94,7 +94,7 @@ function RoleEditorContent({
           <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
           <div className={styles.skeletonBlock} />
         </div>
-        <div className={styles.footer}>
+        <DialogFooter className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -111,7 +111,7 @@ function RoleEditorContent({
           >
             Save
           </Button>
-        </div>
+        </DialogFooter>
       </>
     );
   }
@@ -137,7 +137,7 @@ function RoleEditorContent({
             Retry
           </Button>
         </div>
-        <div className={styles.footer}>
+        <DialogFooter className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -146,7 +146,7 @@ function RoleEditorContent({
           >
             Close
           </Button>
-        </div>
+        </DialogFooter>
       </>
     );
   }
@@ -165,7 +165,7 @@ function RoleEditorContent({
             Role not found.
           </p>
         </div>
-        <div className={styles.footer}>
+        <DialogFooter className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -174,7 +174,7 @@ function RoleEditorContent({
           >
             Close
           </Button>
-        </div>
+        </DialogFooter>
       </>
     );
   }
@@ -288,7 +288,7 @@ function RoleEditorContent({
       </div>
 
       {/* Footer */}
-      <div className={styles.footer}>
+      <DialogFooter className={styles.footer}>
         {saveError ? (
           <p
             className={styles.saveError}
@@ -315,7 +315,7 @@ function RoleEditorContent({
         >
           Save
         </Button>
-      </div>
+      </DialogFooter>
     </>
   );
 }

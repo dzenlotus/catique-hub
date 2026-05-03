@@ -9,7 +9,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { PixelInterfaceEssentialRefresh } from "@shared/ui/Icon";
 import { usePrompt, useUpdatePromptMutation, useRecomputePromptTokenCountMutation } from "@entities/prompt";
-import { Dialog, Button, Input, Tooltip, TooltipTrigger, MarkdownField } from "@shared/ui";
+import { Dialog, DialogFooter, Button, Input, Tooltip, TooltipTrigger, MarkdownField } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -99,7 +99,7 @@ function PromptEditorContent({
           <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
           <div className={styles.skeletonBlock} />
         </div>
-        <div className={styles.footer}>
+        <DialogFooter className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -116,7 +116,7 @@ function PromptEditorContent({
           >
             Save
           </Button>
-        </div>
+        </DialogFooter>
       </>
     );
   }
@@ -142,7 +142,7 @@ function PromptEditorContent({
             Retry
           </Button>
         </div>
-        <div className={styles.footer}>
+        <DialogFooter className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -151,7 +151,7 @@ function PromptEditorContent({
           >
             Close
           </Button>
-        </div>
+        </DialogFooter>
       </>
     );
   }
@@ -170,7 +170,7 @@ function PromptEditorContent({
             Prompt not found.
           </p>
         </div>
-        <div className={styles.footer}>
+        <DialogFooter className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -179,7 +179,7 @@ function PromptEditorContent({
           >
             Close
           </Button>
-        </div>
+        </DialogFooter>
       </>
     );
   }
@@ -338,7 +338,7 @@ function PromptEditorContent({
       </div>
 
       {/* Footer */}
-      <div className={styles.footer}>
+      <DialogFooter className={styles.footer}>
         {saveError ? (
           <p
             className={styles.saveError}
@@ -365,7 +365,7 @@ function PromptEditorContent({
         >
           Save
         </Button>
-      </div>
+      </DialogFooter>
     </>
   );
 }

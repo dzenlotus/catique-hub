@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { useClientInstructions, useWriteClientInstructionsMutation } from "@entities/connected-client";
-import { Dialog, Button, MarkdownField } from "@shared/ui";
+import { Dialog, DialogFooter, Button, MarkdownField } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -156,7 +156,7 @@ function ClientInstructionsEditorContent({
           aria-hidden="true"
         />
         <div className={styles.skeletonBlock} aria-hidden="true" />
-        <div className={styles.footer}>
+        <DialogFooter className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -181,7 +181,7 @@ function ClientInstructionsEditorContent({
           >
             Save
           </Button>
-        </div>
+        </DialogFooter>
       </>
     );
   }
@@ -207,7 +207,7 @@ function ClientInstructionsEditorContent({
             Retry
           </Button>
         </div>
-        <div className={styles.footer}>
+        <DialogFooter className={styles.footer}>
           <div className={styles.footerLeft} />
           <Button
             variant="ghost"
@@ -217,7 +217,7 @@ function ClientInstructionsEditorContent({
           >
             Close
           </Button>
-        </div>
+        </DialogFooter>
       </>
     );
   }
@@ -261,7 +261,7 @@ function ClientInstructionsEditorContent({
       />
 
       {/* Footer */}
-      <div className={styles.footer}>
+      <DialogFooter className={styles.footer}>
         <div className={styles.footerLeft}>
           <Button
             variant="ghost"
@@ -291,7 +291,7 @@ function ClientInstructionsEditorContent({
         >
           Save
         </Button>
-      </div>
+      </DialogFooter>
     </>
   );
 }

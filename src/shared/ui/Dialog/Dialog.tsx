@@ -1,4 +1,10 @@
-import { useRef, type ReactElement, type ReactNode } from "react";
+import {
+  Children,
+  isValidElement,
+  useRef,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import {
   Dialog as AriaDialog,
   DialogTrigger as AriaDialogTrigger,
@@ -10,6 +16,74 @@ import {
 import { cn } from "@shared/lib";
 
 import styles from "./Dialog.module.css";
+
+// ---------------------------------------------------------------------------
+// `DialogFooter` slot
+//
+// Round-19c: lets the consumer mark a JSX block as "render OUTSIDE the
+// scrollable body, pinned to the dialog's bottom edge". The previous
+// `position: sticky; bottom: calc(-1 * var(--space-24))` trick pushed
+// the footer 24 px BELOW the body's viewport — sticky cannot pull it
+// back. Splitting the body and the footer into siblings of the dialog
+// flex column is the correct contract.
+// ---------------------------------------------------------------------------
+
+const DIALOG_FOOTER_SYMBOL = Symbol.for("catique.DialogFooter");
+
+export interface DialogFooterProps {
+  children: ReactNode;
+  /** Extra class merged onto the footer container. */
+  className?: string;
+  /** Stable test id for the footer element. */
+  "data-testid"?: string;
+}
+
+/**
+ * Marker component identifying the dialog footer. Place it as a
+ * direct child of `<Dialog>`; everything else stays inside the
+ * scrollable body. Only the first DialogFooter child is honoured —
+ * the rest fall through into the body.
+ */
+export function DialogFooter({
+  children,
+  className,
+  "data-testid": dataTestId,
+}: DialogFooterProps): ReactElement {
+  return (
+    <div
+      className={cn(styles.footer, className)}
+      {...(dataTestId !== undefined ? { "data-testid": dataTestId } : {})}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Tag the function component so Dialog can identify it after rendering
+// (works across HMR / module reloads via Symbol.for).
+(DialogFooter as unknown as { __TAG?: symbol }).__TAG = DIALOG_FOOTER_SYMBOL;
+
+function isDialogFooter(node: ReactNode): boolean {
+  if (!isValidElement(node)) return false;
+  const type = node.type as unknown as { __TAG?: symbol } | undefined;
+  return type?.__TAG === DIALOG_FOOTER_SYMBOL;
+}
+
+function splitFooter(
+  rendered: ReactNode,
+): { body: ReactNode; footer: ReactNode | null } {
+  const arr = Children.toArray(rendered);
+  let footer: ReactNode | null = null;
+  const body: ReactNode[] = [];
+  for (const child of arr) {
+    if (footer === null && isDialogFooter(child)) {
+      footer = child;
+    } else {
+      body.push(child);
+    }
+  }
+  return { body, footer };
+}
 
 /**
  * Render-prop API for `<Dialog>`. RAC's underlying Dialog passes a `close`
@@ -93,9 +167,7 @@ export function Dialog({
               {description ? (
                 <p className={styles.description}>{description}</p>
               ) : null}
-              <div className={styles.body}>
-                <DialogBodyContent close={close}>{children}</DialogBodyContent>
-              </div>
+              <DialogContent close={close}>{children}</DialogContent>
             </>
           )}
         </AriaDialog>
@@ -104,15 +176,21 @@ export function Dialog({
   );
 }
 
-interface DialogBodyContentProps {
+interface DialogContentProps {
   close: () => void;
   children: ReactNode | DialogChildrenRenderProp;
 }
 
-function DialogBodyContent({
+/**
+ * Renders the content under the dialog title. Splits the rendered tree
+ * so any `<DialogFooter>` siblings are pulled OUT of the scrollable
+ * body and pinned beneath it as flex siblings of the body — making the
+ * footer a fixed strip while only `<body-content>` scrolls.
+ */
+function DialogContent({
   close,
   children,
-}: DialogBodyContentProps): ReactElement {
+}: DialogContentProps): ReactElement {
   const lastContentRef = useRef<ReactNode>(null);
   const content =
     typeof children === "function"
@@ -123,7 +201,17 @@ function DialogBodyContent({
     lastContentRef.current = content;
   }
 
-  return <>{content ?? lastContentRef.current}</>;
+  const stable = content ?? lastContentRef.current;
+  const { body, footer } = splitFooter(stable);
+
+  return (
+    <>
+      <div className={styles.body} data-testid="dialog-body">
+        {body}
+      </div>
+      {footer}
+    </>
+  );
 }
 
 /**

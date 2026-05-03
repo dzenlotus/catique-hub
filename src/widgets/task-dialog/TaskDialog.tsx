@@ -36,6 +36,7 @@ import { useRoles } from "@entities/role";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import {
   Dialog,
+  DialogFooter,
   Button,
   Input,
   MarkdownField,
@@ -404,7 +405,7 @@ function TaskDialogContent({
           <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
           <div className={styles.skeletonBlock} />
         </div>
-        <div className={styles.footer}>
+        <DialogFooter className={styles.footer}>
           <div className={styles.footerActions}>
             <Button
               variant="secondary"
@@ -423,7 +424,7 @@ function TaskDialogContent({
               Save changes
             </Button>
           </div>
-        </div>
+        </DialogFooter>
       </>
     );
   }
@@ -449,7 +450,7 @@ function TaskDialogContent({
             Retry
           </Button>
         </div>
-        <div className={styles.footer}>
+        <DialogFooter className={styles.footer}>
           <div className={styles.footerActions}>
             <Button
               variant="secondary"
@@ -460,7 +461,7 @@ function TaskDialogContent({
               Close
             </Button>
           </div>
-        </div>
+        </DialogFooter>
       </>
     );
   }
@@ -477,7 +478,7 @@ function TaskDialogContent({
         >
           <p className={styles.notFoundBannerMessage}>Task not found.</p>
         </div>
-        <div className={styles.footer}>
+        <DialogFooter className={styles.footer}>
           <div className={styles.footerActions}>
             <Button
               variant="secondary"
@@ -488,7 +489,7 @@ function TaskDialogContent({
               Close
             </Button>
           </div>
-        </div>
+        </DialogFooter>
       </>
     );
   }
@@ -683,7 +684,7 @@ function TaskDialogContent({
       </Scrollable>
 
       {/* Footer */}
-      <div className={styles.footer}>
+      <DialogFooter className={styles.footer}>
         {/* Delete (trash) button — left side */}
         {confirmDelete ? (
           <div className={styles.deleteConfirm} data-testid="task-dialog-delete-confirm">
@@ -748,7 +749,7 @@ function TaskDialogContent({
             Save changes
           </Button>
         </div>
-      </div>
+      </DialogFooter>
     </>
   );
 }
