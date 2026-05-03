@@ -57,7 +57,6 @@ const ALL_VIEWS: NavView[] = [
   "boards",
   "agent-roles",
   "prompts",
-  "prompt-groups",
   "skills",
   "mcp-servers",
   "settings",
@@ -109,15 +108,21 @@ describe("MainSidebar — wordmark + section labels", () => {
 // ---------------------------------------------------------------------------
 
 describe("MainSidebar — nav items", () => {
-  it("renders all 7 workspace nav items", () => {
+  it("renders all 6 workspace nav items", () => {
     setup();
     expect(screen.getByRole("button", { name: /^boards$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /agent roles/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^prompts$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /prompt groups/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^skills$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /mcp servers/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^settings$/i })).toBeInTheDocument();
+  });
+
+  it("does NOT render a 'Prompt groups' nav item (round-19c merge)", () => {
+    setup();
+    expect(
+      screen.queryByRole("button", { name: /prompt groups/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders with a <nav> labelled 'Main navigation'", () => {
@@ -135,7 +140,6 @@ describe("MainSidebar — nav items", () => {
         boards: /^boards$/i,
         "agent-roles": /agent roles/i,
         prompts: /^prompts$/i,
-        "prompt-groups": /prompt groups/i,
         skills: /^skills$/i,
         "mcp-servers": /mcp servers/i,
         settings: /^settings$/i,
@@ -151,7 +155,6 @@ describe("MainSidebar — nav items", () => {
     const inactiveRegexes = [
       /agent roles/i,
       /^prompts$/i,
-      /prompt groups/i,
       /^skills$/i,
       /mcp servers/i,
     ];
@@ -178,7 +181,6 @@ describe("MainSidebar — nav items", () => {
       ["boards", /^boards$/i],
       ["agent-roles", /agent roles/i],
       ["prompts", /^prompts$/i],
-      ["prompt-groups", /prompt groups/i],
       ["skills", /^skills$/i],
       ["mcp-servers", /mcp servers/i],
       ["settings", /^settings$/i],

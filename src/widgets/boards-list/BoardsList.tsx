@@ -54,7 +54,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
     <section className={styles.root} aria-labelledby="boards-list-heading">
       <header className={styles.header}>
         <h2 id="boards-list-heading" className={styles.heading}>
-          Доски
+          Boards
         </h2>
         <div className={styles.headerActions}>
           <Button
@@ -65,7 +65,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
           >
             <span className={styles.btnLabel}>
               <span aria-hidden="true">+</span>
-              Создать доску
+              Create board
             </span>
           </Button>
         </div>
@@ -82,7 +82,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
           ) : boardsQuery.status === "error" ? (
             <div className={styles.error} role="alert">
               <p className={styles.errorMessage}>
-                Не удалось загрузить доски: {boardsQuery.error.message}
+                Failed to load boards: {boardsQuery.error.message}
               </p>
               <Button
                 variant="secondary"
@@ -91,7 +91,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                   void boardsQuery.refetch();
                 }}
               >
-                Повторить
+                Retry
               </Button>
             </div>
           ) : filteredBoards.length === 0 ? (
@@ -153,7 +153,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                   <button
                     type="button"
                     className={styles.editButton}
-                    aria-label="Редактировать доску"
+                    aria-label="Edit board"
                     onClick={(e) => {
                       e.stopPropagation();
                       setEditingBoardId(board.id);

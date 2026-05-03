@@ -57,7 +57,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps): ReactElement {
         type="button"
         className={styles.dismiss}
         onClick={() => onDismiss(toast.id)}
-        aria-label="Закрыть уведомление"
+        aria-label="Dismiss notification"
         data-testid={`toast-dismiss-${toast.id}`}
       >
         <span aria-hidden="true">×</span>
@@ -78,7 +78,7 @@ export function Toaster(): ReactElement {
     <div
       className={styles.container}
       aria-live="polite"
-      aria-label="Уведомления"
+      aria-label="Notifications"
       data-testid="toaster"
     >
       {toasts.map((toast) => (

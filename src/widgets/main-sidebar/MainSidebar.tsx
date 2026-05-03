@@ -1,14 +1,17 @@
 import type { ReactElement } from "react";
 
+import { Scrollable } from "@shared/ui";
+
 import HeartSolid from "./assets/heart-solid.svg?react";
 import { NavRow } from "./NavRow";
 import { WORKSPACE_ITEMS } from "./workspaceItems";
 import styles from "./MainSidebar.module.css";
 
 // ---------------------------------------------------------------------------
-// NavView — the 7 navigable top-level views surfaced as nav rows in the
+// NavView — the 6 navigable top-level views surfaced as nav rows in the
 // main sidebar. "spaces" is kept for internal routing (per-space settings
 // page) but is not shown as a nav item.
+// Round-19c: "prompt-groups" was merged into "prompts".
 // ---------------------------------------------------------------------------
 
 /** All navigable top-level views in the app shell. */
@@ -16,7 +19,6 @@ export type NavView =
   | "boards"
   | "agent-roles"
   | "prompts"
-  | "prompt-groups"
   | "skills"
   | "mcp-servers"
   | "settings"
@@ -63,24 +65,32 @@ export function MainSidebar({
         <span className={styles.wordmarkSub}>Orchestrate. Build. Ship.</span>
       </div>
 
-      {/* Workspace nav rows — no section header. */}
-      <ul className={styles.navList} role="list">
-        {WORKSPACE_ITEMS.map(({ view, label, icon }) => {
-          const isActive = view === activeView;
-          return (
-            <li key={view}>
-              <NavRow
-                isActive={isActive}
-                onClick={() => onSelectView(view)}
-                aria-current={isActive ? "page" : undefined}
-              >
-                {icon}
-                <span className={styles.navLabel}>{label}</span>
-              </NavRow>
-            </li>
-          );
-        })}
-      </ul>
+      {/* Workspace nav rows — no section header. The `<Scrollable>` host
+          fills its grid row and lets the list scroll vertically when the
+          number of nav items grows past the available height. */}
+      <Scrollable
+        axis="y"
+        className={styles.navListShell}
+        data-testid="main-sidebar-nav-scroll"
+      >
+        <ul className={styles.navList} role="list">
+          {WORKSPACE_ITEMS.map(({ view, label, icon }) => {
+            const isActive = view === activeView;
+            return (
+              <li key={view}>
+                <NavRow
+                  isActive={isActive}
+                  onClick={() => onSelectView(view)}
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  {icon}
+                  <span className={styles.navLabel}>{label}</span>
+                </NavRow>
+              </li>
+            );
+          })}
+        </ul>
+      </Scrollable>
 
       {/* Mascot — anchored at the bottom of the sidebar column. Sized to
           fill the column width (proportional height). The 1fr grid row

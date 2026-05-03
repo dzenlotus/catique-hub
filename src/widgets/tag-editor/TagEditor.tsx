@@ -35,7 +35,7 @@ export function TagEditor({ tagId, onClose }: TagEditorProps): ReactElement {
 
   return (
     <Dialog
-      title="Тег"
+      title="Tag"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -101,7 +101,7 @@ function TagEditorContent({
             isDisabled
             data-testid="tag-editor-cancel"
           >
-            Отмена
+            Cancel
           </Button>
           <Button
             variant="primary"
@@ -109,7 +109,7 @@ function TagEditorContent({
             isDisabled
             data-testid="tag-editor-save"
           >
-            Сохранить
+            Save
           </Button>
         </div>
       </>
@@ -127,14 +127,14 @@ function TagEditorContent({
           data-testid="tag-editor-fetch-error"
         >
           <p className={styles.errorBannerMessage}>
-            Не удалось загрузить тег: {query.error.message}
+            Failed to load tag: {query.error.message}
           </p>
           <Button
             variant="secondary"
             size="sm"
             onPress={() => void query.refetch()}
           >
-            Повторить
+            Retry
           </Button>
         </div>
         <div className={styles.footer}>
@@ -144,7 +144,7 @@ function TagEditorContent({
             onPress={onClose}
             data-testid="tag-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -162,7 +162,7 @@ function TagEditorContent({
           data-testid="tag-editor-not-found"
         >
           <p className={styles.notFoundBannerMessage}>
-            Тег не найден.
+            Tag not found.
           </p>
         </div>
         <div className={styles.footer}>
@@ -172,7 +172,7 @@ function TagEditorContent({
             onPress={onClose}
             data-testid="tag-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -187,7 +187,7 @@ function TagEditorContent({
     setSaveError(null);
     const trimmedName = localName.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
 
@@ -207,12 +207,12 @@ function TagEditorContent({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
-        pushToast("success", "Тег сохранён");
+        pushToast("success", "Tag saved");
         onClose();
       },
       onError: (err) => {
-        pushToast("error", `Не удалось сохранить тег: ${err.message}`);
-        setSaveError(`Не удалось сохранить: ${err.message}`);
+        pushToast("error", `Failed to save tag: ${err.message}`);
+        setSaveError(`Failed to save: ${err.message}`);
       },
     });
   };
@@ -230,10 +230,10 @@ function TagEditorContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={localName}
           onChange={setLocalName}
-          placeholder="Название тега"
+          placeholder="Tag name"
           className={styles.fullWidthInput}
           data-testid="tag-editor-name-input"
         />
@@ -241,7 +241,7 @@ function TagEditorContent({
 
       {/* Color */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Цвет</p>
+        <p className={styles.sectionLabel}>Color</p>
         <div className={styles.colorRow}>
           {localColor !== "" && (
             <span
@@ -255,7 +255,7 @@ function TagEditorContent({
             className={styles.colorInput}
             value={localColor === "" ? "#000000" : localColor}
             onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Цвет тега"
+            aria-label="Tag color"
             data-testid="tag-editor-color-input"
           />
           {localColor !== "" && (
@@ -264,7 +264,7 @@ function TagEditorContent({
               size="sm"
               onPress={() => setLocalColor("")}
             >
-              Сбросить
+              Reset
             </Button>
           )}
         </div>
@@ -287,7 +287,7 @@ function TagEditorContent({
           onPress={handleCancel}
           data-testid="tag-editor-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -296,7 +296,7 @@ function TagEditorContent({
           onPress={handleSave}
           data-testid="tag-editor-save"
         >
-          Сохранить
+          Save
         </Button>
       </div>
     </>

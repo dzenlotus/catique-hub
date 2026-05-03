@@ -132,7 +132,7 @@ export function GlobalSearch({
               ? err.message
               : typeof err === "object" && err !== null && "message" in err
                 ? String((err as { message: unknown }).message)
-                : "Неизвестная ошибка";
+                : "Unknown error";
           setState({ status: "error", message });
         }
       });
@@ -183,7 +183,7 @@ export function GlobalSearch({
     if (query.trim() === "") {
       return (
         <div className={styles.hint} data-testid="global-search-empty">
-          Начните вводить, чтобы найти задачи или отчёты
+          Start typing to find tasks or reports
         </div>
       );
     }
@@ -191,7 +191,7 @@ export function GlobalSearch({
     if (state.status === "loading") {
       return (
         <div className={styles.loadingWrap} data-testid="global-search-loading">
-          <span>Поиск…</span>
+          <span>Searching…</span>
         </div>
       );
     }
@@ -203,7 +203,7 @@ export function GlobalSearch({
           role="alert"
           data-testid="global-search-error"
         >
-          Ошибка поиска: {state.message}
+          Search error: {state.message}
         </div>
       );
     }
@@ -211,7 +211,7 @@ export function GlobalSearch({
     if (state.status === "ok" && state.results.length === 0) {
       return (
         <div className={styles.empty} data-testid="global-search-empty">
-          Ничего не найдено по запросу &ldquo;{debouncedQuery}&rdquo;
+          No results for &ldquo;{debouncedQuery}&rdquo;
         </div>
       );
     }
@@ -222,11 +222,11 @@ export function GlobalSearch({
       let globalIndex = 0;
 
       return (
-        <div role="listbox" aria-label="Результаты поиска">
+        <div role="listbox" aria-label="Search results">
           {tasks.length > 0 ? (
             <div>
               <div className={styles.groupHeader} aria-hidden="true">
-                Задачи
+                Tasks
               </div>
               {tasks.map((result) => {
                 const idx = globalIndex++;
@@ -246,7 +246,7 @@ export function GlobalSearch({
           {agentReports.length > 0 ? (
             <div>
               <div className={styles.groupHeader} aria-hidden="true">
-                Отчёты агента
+                Agent reports
               </div>
               {agentReports.map((result) => {
                 const idx = globalIndex++;
@@ -282,7 +282,7 @@ export function GlobalSearch({
       <Modal className={styles.modal}>
         <AriaDialog
           className={cn(styles.panel)}
-          aria-label="Глобальный поиск"
+          aria-label="Global search"
           data-testid="global-search"
         >
           {/* Keyboard nav wrapper — arrow keys / enter move between results */}
@@ -295,8 +295,8 @@ export function GlobalSearch({
                 ref={inputRef}
                 type="search"
                 role="searchbox"
-                aria-label="Поиск по задачам и отчётам"
-                placeholder="Поиск задач, отчётов…"
+                aria-label="Search tasks and reports"
+                placeholder="Search tasks, reports…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className={styles.input}

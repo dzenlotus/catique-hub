@@ -34,7 +34,7 @@ export function SkillCreateDialog({
 }: SkillCreateDialogProps): ReactElement {
   return (
     <Dialog
-      title="Создать навык"
+      title="Create skill"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -77,7 +77,7 @@ function SkillCreateDialogContent({
     setSaveError(null);
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
 
@@ -92,7 +92,7 @@ function SkillCreateDialogContent({
         onClose();
       },
       onError: (err) => {
-        setSaveError(`Не удалось создать: ${err.message}`);
+        setSaveError(`Failed to create: ${err.message}`);
       },
     });
   };
@@ -106,10 +106,10 @@ function SkillCreateDialogContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={name}
           onChange={setName}
-          placeholder="Название навыка"
+          placeholder="Skill name"
           autoFocus
           className={styles.fullWidthInput}
           data-testid="skill-create-dialog-name-input"
@@ -119,10 +119,10 @@ function SkillCreateDialogContent({
       {/* Description */}
       <div className={styles.section}>
         <Input
-          label="Описание"
+          label="Description"
           value={description}
           onChange={setDescription}
-          placeholder="Краткое описание навыка"
+          placeholder="Short description of the skill"
           className={styles.fullWidthInput}
           data-testid="skill-create-dialog-description-input"
         />
@@ -130,7 +130,7 @@ function SkillCreateDialogContent({
 
       {/* Color */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Цвет</p>
+        <p className={styles.sectionLabel}>Color</p>
         <div className={styles.colorRow}>
           {color !== "" && (
             <span
@@ -144,7 +144,7 @@ function SkillCreateDialogContent({
             className={styles.colorInput}
             value={color === "" ? "#000000" : color}
             onChange={(e) => setColor(e.target.value)}
-            aria-label="Цвет навыка"
+            aria-label="Skill color"
             data-testid="skill-create-dialog-color-input"
           />
           {color !== "" && (
@@ -154,7 +154,7 @@ function SkillCreateDialogContent({
               onPress={() => setColor("")}
               data-testid="skill-create-dialog-color-reset"
             >
-              Сбросить
+              Reset
             </Button>
           )}
         </div>
@@ -177,7 +177,7 @@ function SkillCreateDialogContent({
           onPress={handleCancel}
           data-testid="skill-create-dialog-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -187,7 +187,7 @@ function SkillCreateDialogContent({
           onPress={handleSave}
           data-testid="skill-create-dialog-save"
         >
-          Создать
+          Create
         </Button>
       </div>
     </>

@@ -34,7 +34,7 @@ export function RoleCreateDialog({
 }: RoleCreateDialogProps): ReactElement {
   return (
     <Dialog
-      title="Создать роль"
+      title="Create role"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -77,7 +77,7 @@ function RoleCreateDialogContent({
     setSaveError(null);
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
 
@@ -93,7 +93,7 @@ function RoleCreateDialogContent({
         onClose();
       },
       onError: (err) => {
-        setSaveError(`Не удалось создать: ${err.message}`);
+        setSaveError(`Failed to create: ${err.message}`);
       },
     });
   };
@@ -107,10 +107,10 @@ function RoleCreateDialogContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={name}
           onChange={setName}
-          placeholder="Название роли"
+          placeholder="Role name"
           autoFocus
           className={styles.fullWidthInput}
           data-testid="role-create-dialog-name-input"
@@ -119,7 +119,7 @@ function RoleCreateDialogContent({
 
       {/* Color */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Цвет</p>
+        <p className={styles.sectionLabel}>Color</p>
         <div className={styles.colorRow}>
           {color !== "" && (
             <span
@@ -133,7 +133,7 @@ function RoleCreateDialogContent({
             className={styles.colorInput}
             value={color === "" ? "#000000" : color}
             onChange={(e) => setColor(e.target.value)}
-            aria-label="Цвет роли"
+            aria-label="Role color"
             data-testid="role-create-dialog-color-input"
           />
           {color !== "" && (
@@ -143,7 +143,7 @@ function RoleCreateDialogContent({
               onPress={() => setColor("")}
               data-testid="role-create-dialog-color-reset"
             >
-              Сбросить
+              Reset
             </Button>
           )}
         </div>
@@ -151,14 +151,14 @@ function RoleCreateDialogContent({
 
       {/* Content */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Содержимое</p>
+        <p className={styles.sectionLabel}>Content</p>
         <textarea
           className={styles.contentTextarea}
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Содержимое роли (Markdown)..."
+          placeholder="Role content (Markdown)…"
           data-testid="role-create-dialog-content-textarea"
-          aria-label="Содержимое"
+          aria-label="Content"
         />
       </div>
 
@@ -179,7 +179,7 @@ function RoleCreateDialogContent({
           onPress={handleCancel}
           data-testid="role-create-dialog-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -189,7 +189,7 @@ function RoleCreateDialogContent({
           onPress={handleSave}
           data-testid="role-create-dialog-save"
         >
-          Создать
+          Create
         </Button>
       </div>
     </>

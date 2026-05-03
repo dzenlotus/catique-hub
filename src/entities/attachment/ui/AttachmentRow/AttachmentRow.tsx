@@ -66,7 +66,7 @@ export function AttachmentRow({
       data-testid={`attachment-row-${attachment.id}`}
     >
       {/* MIME badge */}
-      <span className={styles.mimeBadge} aria-label={`Тип: ${attachment.mimeType}`}>
+      <span className={styles.mimeBadge} aria-label={`Type: ${attachment.mimeType}`}>
         {mimeTypeShortcode(attachment.mimeType)}
       </span>
 
@@ -82,7 +82,7 @@ export function AttachmentRow({
       <Button
         variant="ghost"
         size="sm"
-        aria-label={`Удалить вложение ${attachment.filename}`}
+        aria-label={`Delete attachment ${attachment.filename}`}
         isDisabled={isDeleting}
         isPending={isDeleting}
         onPress={() => onDelete?.(attachment.id)}

@@ -172,14 +172,14 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
     return (
       <div className={styles.attachmentErrorBanner} role="alert">
         <p className={styles.attachmentErrorMessage}>
-          Не удалось загрузить вложения: {query.error.message}
+          Failed to load attachments: {query.error.message}
         </p>
         <Button
           variant="secondary"
           size="sm"
           onPress={() => void query.refetch()}
         >
-          Повторить
+          Retry
         </Button>
       </div>
     );
@@ -190,10 +190,10 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
   const handleDelete = (id: string): void => {
     deleteMutation.mutate(id, {
       onSuccess: () => {
-        pushToast("success", "Вложение удалено");
+        pushToast("success", "Attachment deleted");
       },
       onError: (err) => {
-        pushToast("error", `Не удалось удалить вложение: ${err.message}`);
+        pushToast("error", `Failed to delete attachment: ${err.message}`);
       },
     });
   };
@@ -202,7 +202,7 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
     void (async () => {
       const result = await open({
         multiple: false,
-        filters: [{ name: "Любой файл", extensions: ["*"] }],
+        filters: [{ name: "Any file", extensions: ["*"] }],
       });
       if (result === null) return;
       const sourcePath = typeof result === "string" ? result : result[0];
@@ -213,10 +213,10 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
         { taskId, sourcePath, originalFilename, mimeType: null },
         {
           onSuccess: () => {
-            pushToast("success", "Файл загружен");
+            pushToast("success", "File uploaded");
           },
           onError: (err) => {
-            pushToast("error", `Не удалось загрузить файл: ${err.message}`);
+            pushToast("error", `Failed to upload file: ${err.message}`);
           },
         },
       );
@@ -231,14 +231,14 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
       onPress={handleUpload}
       data-testid="task-dialog-upload-btn"
     >
-      Загрузить файл
+      Upload file
     </Button>
   );
 
   if (attachments.length === 0) {
     return (
       <div className={styles.attachmentEmptyState}>
-        <p className={styles.sectionEmptyHint}>Нет вложений</p>
+        <p className={styles.sectionEmptyHint}>No attachments</p>
         {uploadButton}
       </div>
     );
@@ -439,14 +439,14 @@ function TaskDialogContent({
           data-testid="task-dialog-fetch-error"
         >
           <p className={styles.errorBannerMessage}>
-            Не удалось загрузить задачу: {query.error.message}
+            Failed to load task: {query.error.message}
           </p>
           <Button
             variant="secondary"
             size="sm"
             onPress={() => void query.refetch()}
           >
-            Повторить
+            Retry
           </Button>
         </div>
         <div className={styles.footer}>
@@ -475,7 +475,7 @@ function TaskDialogContent({
           role="alert"
           data-testid="task-dialog-not-found"
         >
-          <p className={styles.notFoundBannerMessage}>Задача не найдена.</p>
+          <p className={styles.notFoundBannerMessage}>Task not found.</p>
         </div>
         <div className={styles.footer}>
           <div className={styles.footerActions}>
@@ -507,7 +507,7 @@ function TaskDialogContent({
     setSaveError(null);
     const trimmedTitle = localTitle.trim();
     if (!trimmedTitle) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Title cannot be empty.");
       return;
     }
     const trimmedDescription = localDescription.trim() || null;
@@ -535,12 +535,12 @@ function TaskDialogContent({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
-        pushToast("success", "Задача сохранена");
+        pushToast("success", "Task saved");
         onClose();
       },
       onError: (err) => {
-        pushToast("error", `Не удалось сохранить задачу: ${err.message}`);
-        setSaveError(`Не удалось сохранить: ${err.message}`);
+        pushToast("error", `Failed to save task: ${err.message}`);
+        setSaveError(`Failed to save: ${err.message}`);
       },
     });
   };
@@ -565,11 +565,11 @@ function TaskDialogContent({
       { id: task.id, boardId: task.boardId },
       {
         onSuccess: () => {
-          pushToast("success", "Задача удалена");
+          pushToast("success", "Task deleted");
           onClose();
         },
         onError: (err) => {
-          pushToast("error", `Не удалось удалить задачу: ${err.message}`);
+          pushToast("error", `Failed to delete task: ${err.message}`);
           setConfirmDelete(false);
         },
       },
@@ -591,10 +591,10 @@ function TaskDialogContent({
       {/* Title */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Title"
           value={localTitle}
           onChange={setLocalTitle}
-          placeholder="Название задачи"
+          placeholder="Task title"
           className={styles.titleInput}
           data-testid="task-dialog-title-input"
         />
@@ -602,12 +602,12 @@ function TaskDialogContent({
 
       {/* Description — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Описание</p>
+        <p className={styles.sectionLabel}>Description</p>
         <MarkdownField
           value={localDescription}
           onChange={setLocalDescription}
-          placeholder="Добавьте описание..."
-          ariaLabel="Описание"
+          placeholder="Add a description…"
+          ariaLabel="Description"
           data-testid="task-dialog-description-textarea"
         />
       </div>
@@ -615,7 +615,7 @@ function TaskDialogContent({
       {/* Board + Column row */}
       <div className={cn(styles.section, styles.rowSection)}>
         <FieldSelect
-          label="Доска"
+          label="Board"
           value={localBoardId}
           onChange={handleBoardChange}
           options={
@@ -628,11 +628,11 @@ function TaskDialogContent({
         />
 
         <FieldSelect
-          label="Статус / Колонка"
+          label="Status / Column"
           value={localColumnId}
           onChange={setLocalColumnId}
           options={allColumns.map((c) => ({ id: c.id, label: c.name }))}
-          placeholder="— выберите —"
+          placeholder="— select —"
           disabled={columnsQuery.status === "pending" || !localBoardId}
           testId="task-dialog-column-select"
         />
@@ -641,11 +641,11 @@ function TaskDialogContent({
       {/* Role */}
       <div className={styles.section}>
         <FieldSelect
-          label="Роль агента"
+          label="Agent role"
           value={localRoleId}
           onChange={setLocalRoleId}
           options={[
-            { id: "", label: "(нет роли)" },
+            { id: "", label: "(no role)" },
             ...allRoles.map((r) => ({ id: r.id, label: r.name })),
           ]}
           disabled={rolesQuery.status === "pending"}
@@ -667,7 +667,7 @@ function TaskDialogContent({
         className={styles.sectionBlock}
         data-testid="task-dialog-placeholder-attachments"
       >
-        <h3 className={styles.sectionHeading}>Вложения</h3>
+        <h3 className={styles.sectionHeading}>Attachments</h3>
         <AttachmentsSection taskId={task.id} />
       </div>
 
@@ -676,7 +676,7 @@ function TaskDialogContent({
         className={styles.sectionBlock}
         data-testid="task-dialog-placeholder-agent-reports"
       >
-        <h3 className={styles.sectionHeading}>Отчёты агента</h3>
+        <h3 className={styles.sectionHeading}>Agent reports</h3>
         <AgentReportsList taskId={task.id} />
       </div>
 
@@ -687,14 +687,14 @@ function TaskDialogContent({
         {/* Delete (trash) button — left side */}
         {confirmDelete ? (
           <div className={styles.deleteConfirm} data-testid="task-dialog-delete-confirm">
-            <span className={styles.deleteConfirmText}>Удалить задачу?</span>
+            <span className={styles.deleteConfirmText}>Delete task?</span>
             <Button
               variant="secondary"
               size="sm"
               onPress={handleDeleteCancel}
               data-testid="task-dialog-delete-cancel"
             >
-              Нет
+              No
             </Button>
             <Button
               variant="ghost"
@@ -704,7 +704,7 @@ function TaskDialogContent({
               className={styles.deleteConfirmBtn}
               data-testid="task-dialog-delete-confirm-btn"
             >
-              Да, удалить
+              Yes, delete
             </Button>
           </div>
         ) : (
@@ -713,7 +713,7 @@ function TaskDialogContent({
             size="sm"
             onPress={handleDeleteRequest}
             className={styles.deleteBtn}
-            aria-label="Удалить задачу"
+            aria-label="Delete task"
             data-testid="task-dialog-delete-btn"
           >
             🗑

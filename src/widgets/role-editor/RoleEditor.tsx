@@ -32,7 +32,7 @@ export function RoleEditor({ roleId, onClose }: RoleEditorProps): ReactElement {
 
   return (
     <Dialog
-      title="Роль"
+      title="Role"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -101,7 +101,7 @@ function RoleEditorContent({
             isDisabled
             data-testid="role-editor-cancel"
           >
-            Отмена
+            Cancel
           </Button>
           <Button
             variant="primary"
@@ -109,7 +109,7 @@ function RoleEditorContent({
             isDisabled
             data-testid="role-editor-save"
           >
-            Сохранить
+            Save
           </Button>
         </div>
       </>
@@ -127,14 +127,14 @@ function RoleEditorContent({
           data-testid="role-editor-fetch-error"
         >
           <p className={styles.errorBannerMessage}>
-            Не удалось загрузить роль: {query.error.message}
+            Failed to load role: {query.error.message}
           </p>
           <Button
             variant="secondary"
             size="sm"
             onPress={() => void query.refetch()}
           >
-            Повторить
+            Retry
           </Button>
         </div>
         <div className={styles.footer}>
@@ -144,7 +144,7 @@ function RoleEditorContent({
             onPress={onClose}
             data-testid="role-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -162,7 +162,7 @@ function RoleEditorContent({
           data-testid="role-editor-not-found"
         >
           <p className={styles.notFoundBannerMessage}>
-            Роль не найдена.
+            Role not found.
           </p>
         </div>
         <div className={styles.footer}>
@@ -172,7 +172,7 @@ function RoleEditorContent({
             onPress={onClose}
             data-testid="role-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -187,7 +187,7 @@ function RoleEditorContent({
     setSaveError(null);
     const trimmedName = localName.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
 
@@ -211,12 +211,12 @@ function RoleEditorContent({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
-        pushToast("success", "Роль сохранена");
+        pushToast("success", "Role saved");
         onClose();
       },
       onError: (err) => {
-        pushToast("error", `Не удалось сохранить роль: ${err.message}`);
-        setSaveError(`Не удалось сохранить: ${err.message}`);
+        pushToast("error", `Failed to save role: ${err.message}`);
+        setSaveError(`Failed to save: ${err.message}`);
       },
     });
   };
@@ -235,10 +235,10 @@ function RoleEditorContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={localName}
           onChange={setLocalName}
-          placeholder="Название роли"
+          placeholder="Role name"
           className={styles.fullWidthInput}
           data-testid="role-editor-name-input"
         />
@@ -246,7 +246,7 @@ function RoleEditorContent({
 
       {/* Color */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Цвет</p>
+        <p className={styles.sectionLabel}>Color</p>
         <div className={styles.colorRow}>
           {localColor !== "" && (
             <span
@@ -260,7 +260,7 @@ function RoleEditorContent({
             className={styles.colorInput}
             value={localColor === "" ? "#000000" : localColor}
             onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Цвет роли"
+            aria-label="Role color"
             data-testid="role-editor-color-input"
           />
           {localColor !== "" && (
@@ -269,7 +269,7 @@ function RoleEditorContent({
               size="sm"
               onPress={() => setLocalColor("")}
             >
-              Сбросить
+              Reset
             </Button>
           )}
         </div>
@@ -277,12 +277,12 @@ function RoleEditorContent({
 
       {/* Content — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Содержимое</p>
+        <p className={styles.sectionLabel}>Content</p>
         <MarkdownField
           value={localContent}
           onChange={setLocalContent}
-          placeholder="Содержимое роли (Markdown)..."
-          ariaLabel="Содержимое"
+          placeholder="Role content (Markdown)…"
+          ariaLabel="Content"
           data-testid="role-editor-content-textarea"
         />
       </div>
@@ -304,7 +304,7 @@ function RoleEditorContent({
           onPress={handleCancel}
           data-testid="role-editor-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -313,7 +313,7 @@ function RoleEditorContent({
           onPress={handleSave}
           data-testid="role-editor-save"
         >
-          Сохранить
+          Save
         </Button>
       </div>
     </>

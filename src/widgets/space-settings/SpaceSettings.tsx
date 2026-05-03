@@ -3,7 +3,7 @@
  *
  * Reachable via `/spaces/:spaceId/settings`. The Sidebar's SpaceRow
  * navigates here whenever the user clicks the space name or selects
- * "Настройки пространства" from the kebab menu.
+ * "Space settings" from the kebab menu.
  *
  * Surface:
  *   - Editable: name, description.
@@ -21,7 +21,7 @@ import { useParams, useLocation } from "wouter";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { routes } from "@app/routes";
 import { useSpace, useUpdateSpaceMutation } from "@entities/space";
-import { Button, Input } from "@shared/ui";
+import { Button, Input, Scrollable } from "@shared/ui";
 import { PixelInterfaceEssentialSettingCog } from "@shared/ui/Icon";
 
 import styles from "./SpaceSettings.module.css";
@@ -48,7 +48,7 @@ export function SpaceSettings(): ReactElement {
     return (
       <div className={styles.root} data-testid="space-settings">
         <div className={styles.statusPanel} role="status">
-          <p className={styles.statusMessage}>Загрузка пространства…</p>
+          <p className={styles.statusMessage}>Loading space…</p>
         </div>
       </div>
     );
@@ -59,14 +59,14 @@ export function SpaceSettings(): ReactElement {
       <div className={styles.root} data-testid="space-settings">
         <div className={styles.statusPanel} role="alert">
           <p className={styles.statusMessage}>
-            Не удалось загрузить пространство: {spaceQuery.error.message}
+            Failed to load space: {spaceQuery.error.message}
           </p>
           <Button
             variant="secondary"
             size="sm"
             onPress={() => setLocation(routes.spaces)}
           >
-            Назад к списку пространств
+            Back to spaces
           </Button>
         </div>
       </div>
@@ -90,8 +90,8 @@ export function SpaceSettings(): ReactElement {
             {spaceQuery.data.name}
           </h2>
           <p className={styles.pageDescription}>
-            Настройки пространства. Префикс задаётся при создании и не
-            меняется.
+            Space settings. The prefix is set at creation and cannot be
+            changed.
           </p>
         </div>
       </header>
@@ -146,7 +146,7 @@ function SpaceSettingsForm({
     setSavedAt(null);
 
     if (trimmedName.length === 0) {
-      setError("Название не может быть пустым.");
+      setError("Name cannot be empty.");
       return;
     }
 
@@ -164,7 +164,7 @@ function SpaceSettingsForm({
         setSavedAt(Date.now());
       },
       onError: (err) => {
-        setError(`Не удалось сохранить: ${err.message}`);
+        setError(`Failed to save: ${err.message}`);
       },
     });
   };
@@ -172,28 +172,28 @@ function SpaceSettingsForm({
   return (
     <section className={styles.card} aria-labelledby="space-settings-form">
       <h3 id="space-settings-form" className={styles.cardHeading}>
-        Основное
+        General
       </h3>
       <div className={styles.cardBody}>
         <div className={styles.fields}>
           <Input
-            label="Название"
+            label="Name"
             value={name}
             onChange={setName}
-            placeholder="Название пространства"
+            placeholder="Space name"
             data-testid="space-settings-name-input"
           />
 
           <Input
-            label="Описание"
+            label="Description"
             value={description}
             onChange={setDescription}
-            placeholder="Необязательное описание..."
+            placeholder="Optional description…"
             data-testid="space-settings-description-input"
           />
 
           <div className={styles.readOnlyRow}>
-            <span className={styles.readOnlyLabel}>Префикс</span>
+            <span className={styles.readOnlyLabel}>Prefix</span>
             <span
               className={styles.readOnlyValue}
               data-testid="space-settings-prefix"
@@ -219,7 +219,7 @@ function SpaceSettingsForm({
               role="status"
               data-testid="space-settings-saved"
             >
-              Сохранено
+              Saved
             </p>
           ) : null}
           <Button
@@ -230,7 +230,7 @@ function SpaceSettingsForm({
             onPress={handleSave}
             data-testid="space-settings-save"
           >
-            Сохранить
+            Save
           </Button>
         </div>
       </div>

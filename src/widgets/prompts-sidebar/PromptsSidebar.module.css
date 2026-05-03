@@ -1,0 +1,310 @@
+/*
+ * PromptsSidebar — secondary rail for the merged Prompts page.
+ *
+ * Composes `shared/ui/SidebarShell` for chrome and adds two list
+ * sections of its own: groups (top) and prompts of the active group
+ * (bottom). Row markup mirrors the spaces-sidebar shape so the two
+ * rails read as a matched pair.
+ */
+
+/* ============================================================
+ * Group list
+ * ============================================================ */
+
+.groupList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  flex-shrink: 0;
+}
+
+.groupItem {
+  position: relative;
+}
+
+.groupRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  width: 100%;
+  padding: 10px var(--space-12) 10px 12px;
+  border-radius: var(--radius-md);
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  min-height: 38px;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.groupRow:hover:not(.groupRowActive) {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.groupRow:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.groupRowActive {
+  background-color: transparent;
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
+}
+
+.groupRowActive::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  right: 0;
+  background-color: var(--color-accent-soft);
+  border-radius: var(--radius-sm);
+  z-index: 0;
+}
+
+.groupRow > * {
+  position: relative;
+  z-index: 1;
+}
+
+.groupActiveStrip {
+  position: absolute;
+  left: -4px;
+  top: 4px;
+  bottom: 4px;
+  width: 5px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-cta-bg);
+  z-index: 2;
+}
+
+.groupSwatch {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-xs);
+  background-color: var(--color-text-subtle);
+  border: 1px solid var(--color-border-default);
+}
+
+.groupName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupKebabBtn {
+  position: absolute;
+  top: 50%;
+  right: var(--space-8);
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  min-width: 0;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-subtle);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+  z-index: 3;
+}
+
+.groupItem:hover .groupKebabBtn,
+.groupItem:focus-within .groupKebabBtn,
+.groupKebabBtn[aria-expanded="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.groupKebabBtn:hover {
+  background-color: var(--color-overlay-active);
+  color: var(--color-text-default);
+}
+
+/* "All prompts" pseudo-row — first entry in the groups list. */
+.allPromptsRow {
+  /* Reuses .groupRow visuals; keep this hook for future tweaks. */
+}
+
+/* ============================================================
+ * Prompt list (bottom section)
+ * ============================================================ */
+
+.promptList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.promptItem {
+  position: relative;
+}
+
+.promptRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  padding: 8px var(--space-12) 8px 12px;
+  border-radius: var(--radius-md);
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  min-height: 32px;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+  /* Touch-action: none avoids iOS scroll hijacking the drag gesture. */
+  touch-action: none;
+}
+
+.promptRow:hover:not(.promptRowActive) {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.promptRow:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.promptRowActive {
+  background-color: var(--color-accent-soft);
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-medium);
+}
+
+.promptDragging {
+  opacity: 0.4;
+}
+
+.promptDragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: grab;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.promptItem:hover .promptDragHandle,
+.promptDragHandle:focus-visible {
+  opacity: 1;
+}
+
+.promptDragHandle:hover {
+  background: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.promptDragHandle:active {
+  cursor: grabbing;
+}
+
+.promptDragHandle:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.promptName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.promptName:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.promptSwatch {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+}
+
+/* Drop-target highlight when hovering a group with a prompt being
+ * dragged. Applied via [data-drop-target="true"] on the group row. */
+.groupRow[data-drop-target="true"] {
+  background-color: var(--color-overlay-active);
+  color: var(--color-text-default);
+}
+
+/* ============================================================
+ * Empty / status text
+ * ============================================================ */
+
+.bodyEmpty {
+  padding: var(--space-4) var(--space-12);
+}
+
+.bodyEmptyText {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+.bodyError {
+  padding: var(--space-4) var(--space-12);
+  font-size: var(--font-size-caption);
+  color: var(--color-status-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .groupRow,
+  .promptRow,
+  .promptDragHandle {
+    transition: none;
+  }
+}

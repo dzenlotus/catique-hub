@@ -1,11 +1,12 @@
 import { useState, type ReactElement } from "react";
 import { useLocation } from "wouter";
 
-import { Scrollable } from "@shared/ui";
 import {
-  PixelInterfaceEssentialAlertCircle1,
-  PixelInterfaceEssentialPlus,
-} from "@shared/ui/Icon";
+  SidebarShell,
+  SidebarSectionLabel,
+  SidebarAddRow,
+} from "@shared/ui";
+import { PixelInterfaceEssentialAlertCircle1 } from "@shared/ui/Icon";
 import { useSpaces } from "@entities/space";
 import { useBoards } from "@entities/board";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
@@ -99,15 +100,12 @@ export function SpacesSidebar(): ReactElement {
   }
 
   return (
-    <aside
-      className={styles.sidebar}
-      aria-label="Spaces navigation"
-      data-testid="spaces-sidebar-root"
-    >
-      <Scrollable axis="y" className={styles.sectionsWrap}>
-        <div className={styles.sectionLabel} aria-label="Spaces">
-          SPACES
-        </div>
+    <>
+      <SidebarShell
+        ariaLabel="Spaces navigation"
+        testId="spaces-sidebar-root"
+      >
+        <SidebarSectionLabel ariaLabel="Spaces">SPACES</SidebarSectionLabel>
         {renderBody()}
 
         {/*
@@ -118,29 +116,19 @@ export function SpacesSidebar(): ReactElement {
          * earlier in `renderBody()`.
          */}
         {spacesQuery.status === "success" ? (
-          <button
-            type="button"
-            className={styles.addSpaceRow}
-            onClick={() => setCreateDialogOpen(true)}
-            aria-label="Add space"
-            data-testid="spaces-sidebar-add-space"
-          >
-            <PixelInterfaceEssentialPlus
-              width={14}
-              height={14}
-              aria-hidden={true}
-              className={styles.addSpaceIcon}
-            />
-            <span>Add space</span>
-          </button>
+          <SidebarAddRow
+            label="Add space"
+            onPress={() => setCreateDialogOpen(true)}
+            testId="spaces-sidebar-add-space"
+          />
         ) : null}
-      </Scrollable>
+      </SidebarShell>
 
       <SpaceCreateDialog
         isOpen={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}
         onCreated={(space) => setActiveSpaceId(space.id)}
       />
-    </aside>
+    </>
   );
 }

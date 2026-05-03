@@ -22,7 +22,6 @@ export const routes = {
   board: "/boards/:boardId",
   task: "/tasks/:taskId",
   prompts: "/prompts",
-  promptGroups: "/prompt-groups",
   /** /roles — maps to "agent-roles" NavView */
   roles: "/roles",
   /** /tags — no longer a sidebar nav item but route still valid */
@@ -67,8 +66,6 @@ export function pathForView(view: NavView): string {
       return routes.boards;
     case "prompts":
       return routes.prompts;
-    case "prompt-groups":
-      return routes.promptGroups;
     case "agent-roles":
       return routes.roles;
     case "skills":
@@ -91,7 +88,9 @@ export function pathForView(view: NavView): string {
 export function viewForPath(path: string): NavView {
   if (path === "/" || path === "") return "boards";
   if (path === routes.prompts) return "prompts";
-  if (path === routes.promptGroups) return "prompt-groups";
+  // Round-19c: /prompt-groups was merged into /prompts. The path is
+  // kept as a redirect so any deep-link still lands on the new page.
+  if (path === "/prompt-groups") return "prompts";
   if (path === routes.roles) return "agent-roles";
   if (path === routes.skills) return "skills";
   if (path === routes.mcpTools) return "mcp-servers";

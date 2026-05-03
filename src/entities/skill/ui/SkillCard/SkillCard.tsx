@@ -79,10 +79,10 @@ export function SkillCard({
           <span
             className={styles.colorSwatch}
             style={{ backgroundColor: skill.color }}
-            aria-label={`Цвет: ${skill.color}`}
+            aria-label={`Color: ${skill.color}`}
           />
         ) : null}
-        <span className={styles.skillBadge}>навык</span>
+        <span className={styles.skillBadge}>skill</span>
       </span>
     </button>
   );

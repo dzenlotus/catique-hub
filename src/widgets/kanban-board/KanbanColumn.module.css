@@ -23,19 +23,22 @@
   opacity: 0.4;
 }
 
+/*
+ * `.body` is the OverlayScrollbars host supplied by `<Scrollable axis="y">`.
+ * The host owns the bounded height + flex slot so its inner viewport
+ * can scroll. The visual list layout (gap, padding) lives on
+ * `.bodyTrack` inside the viewport.
+ */
 .body {
-  display: flex;
   flex: 1 1 auto;
-  flex-direction: column;
-  gap: var(--space-12);
   min-height: 0;
-  padding: var(--space-12) var(--space-16);
-  overflow-y: auto;
-  scrollbar-width: none;
 }
 
-.body::-webkit-scrollbar {
-  display: none;
+.bodyTrack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-12) var(--space-16);
 }
 
 .empty {

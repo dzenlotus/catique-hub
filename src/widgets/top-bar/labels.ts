@@ -10,7 +10,6 @@ import type { FC, SVGProps } from "react";
 import {
   PixelCodingAppsWebsitesModule,
   PixelInterfaceEssentialMessage,
-  PixelInterfaceEssentialList,
   PixelBusinessProductsNetworkUser,
   PixelBusinessProductPriceTag,
   PixelInterfaceEssentialPieChartPollReport1,
@@ -27,7 +26,6 @@ export interface NavLabel {
 export const NAV_LABELS: Record<string, NavLabel> = {
   boards: { label: "Boards", Icon: PixelCodingAppsWebsitesModule },
   prompts: { label: "Prompts", Icon: PixelInterfaceEssentialMessage },
-  "prompt-groups": { label: "Prompt Groups", Icon: PixelInterfaceEssentialList },
   roles: { label: "Roles", Icon: PixelBusinessProductsNetworkUser },
   tags: { label: "Tags", Icon: PixelBusinessProductPriceTag },
   reports: { label: "Reports", Icon: PixelInterfaceEssentialPieChartPollReport1 },

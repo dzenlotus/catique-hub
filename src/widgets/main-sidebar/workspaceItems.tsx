@@ -2,7 +2,6 @@ import type { ReactElement } from "react";
 import {
   PixelCodingAppsWebsitesModule,
   PixelInterfaceEssentialMessage,
-  PixelInterfaceEssentialList,
   PixelDesignMagicWand,
   PixelCodingAppsWebsitesDatabase,
   PixelInterfaceEssentialSettingCog,
@@ -37,11 +36,6 @@ export const WORKSPACE_ITEMS: WorkspaceItem[] = [
     view: "prompts",
     label: "Prompts",
     icon: <PixelInterfaceEssentialMessage width={18} height={18} aria-hidden />,
-  },
-  {
-    view: "prompt-groups",
-    label: "Prompt groups",
-    icon: <PixelInterfaceEssentialList width={18} height={18} aria-hidden />,
   },
   {
     view: "skills",

@@ -33,7 +33,7 @@ interface TagsListProps {
  *   3. empty — friendly hint.
  *   4. populated — flex-wrap row of `TagChip`s.
  *
- * A "Создать тег" header button is always visible regardless of state.
+ * A "Create tag" header button is always visible regardless of state.
  */
 export function TagsList({
   onSelectTag,
@@ -105,7 +105,7 @@ export function TagsList({
         {header}
         <div className={styles.error} role="alert">
           <p className={styles.errorMessage}>
-            Не удалось загрузить теги: {tagsQuery.error.message}
+            Failed to load tags: {tagsQuery.error.message}
           </p>
         </div>
         <TagCreateDialog

@@ -48,8 +48,8 @@ export function BoardCreateDialog({
 
   return (
     <Dialog
-      title="Создать доску"
-      description="Доски находятся внутри пространства. Введите название и выберите пространство."
+      title="Create board"
+      description="Boards live inside a space. Enter a name and pick a space."
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -140,11 +140,11 @@ function BoardCreateDialogContent({
     setSubmitError(null);
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setSubmitError("Название не может быть пустым.");
+      setSubmitError("Name cannot be empty.");
       return;
     }
     if (!resolvedSpaceId) {
-      setSubmitError("Выберите или создайте пространство.");
+      setSubmitError("Select or create a space.");
       return;
     }
     const trimmedDescription = description.trim();
@@ -160,7 +160,7 @@ function BoardCreateDialogContent({
           onClose();
         },
         onError: (err) => {
-          setSubmitError(`Не удалось создать: ${err.message}`);
+          setSubmitError(`Failed to create: ${err.message}`);
         },
       },
     );
@@ -175,10 +175,10 @@ function BoardCreateDialogContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={name}
           onChange={setName}
-          placeholder="Например: Дорожная карта"
+          placeholder="e.g. Roadmap"
           autoFocus
           className={styles.fullWidthInput}
           data-testid="board-create-dialog-name-input"
@@ -188,12 +188,12 @@ function BoardCreateDialogContent({
       {/* Description */}
       <div className={styles.section}>
         <label className={styles.selectField}>
-          <span className={styles.selectLabel}>Описание</span>
+          <span className={styles.selectLabel}>Description</span>
           <textarea
             className={styles.textarea}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Необязательно"
+            placeholder="Optional"
             rows={3}
             data-testid="board-create-dialog-description-input"
           />
@@ -204,7 +204,7 @@ function BoardCreateDialogContent({
       {noSpacesYet && resolvedSpaceId === null ? (
         <div className={cn(styles.section, styles.bootstrap)}>
           <p className={styles.bootstrapHint}>
-            Пространств ещё нет. Создайте пространство по умолчанию, чтобы продолжить.
+            No spaces yet. Create a default space to continue.
           </p>
           <Button
             variant="secondary"
@@ -213,13 +213,13 @@ function BoardCreateDialogContent({
             onPress={() => bootstrapSpace.mutate()}
             data-testid="board-create-dialog-bootstrap-space"
           >
-            Создать пространство по умолчанию
+            Create default space
           </Button>
         </div>
       ) : (
         <div className={styles.section}>
           <label className={styles.selectField}>
-            <span className={styles.selectLabel}>Пространство</span>
+            <span className={styles.selectLabel}>Space</span>
             <select
               className={styles.select}
               value={resolvedSpaceId ?? ""}
@@ -232,7 +232,7 @@ function BoardCreateDialogContent({
                       {s.name}
                     </option>
                   ))
-                : <option value="">Загрузка...</option>}
+                : <option value="">Loading…</option>}
             </select>
           </label>
         </div>
@@ -255,7 +255,7 @@ function BoardCreateDialogContent({
           onPress={handleCancel}
           data-testid="board-create-dialog-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -265,7 +265,7 @@ function BoardCreateDialogContent({
           onPress={handleSubmit}
           data-testid="board-create-dialog-save"
         >
-          Создать
+          Create
         </Button>
       </div>
     </div>

@@ -75,6 +75,17 @@
  * Nav list — workspace rows (Boards, Prompts, Skills, …)
  * ============================================================ */
 
+/*
+ * `.navListShell` is the OverlayScrollbars host (round-19c migration).
+ * Sits in the grid row that previously held `.navList` directly so the
+ * existing grid template doesn't change. Vertical scroll lives inside
+ * the Scrollable; the inner `<ul>.navList` keeps the column layout.
+ */
+.navListShell {
+  /* Cap the shell to its track and let the inner viewport scroll. */
+  min-height: 0;
+}
+
 .navList {
   list-style: none;
   margin: 0;
@@ -82,8 +93,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  flex-shrink: 0;
-  overflow-y: auto;
 }
 
 .navItem {

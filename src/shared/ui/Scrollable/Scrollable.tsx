@@ -20,6 +20,11 @@ export interface ScrollableProps {
    * `visible` keeps it visible while the area is scrollable. Default: `auto`.
    */
   visibility?: "auto" | "visible";
+  /**
+   * Stable test id forwarded to the host element so consumers can
+   * assert on the scroll boundary (e.g. dialog body, kanban scroller).
+   */
+  "data-testid"?: string;
 }
 
 /**
@@ -27,23 +32,24 @@ export interface ScrollableProps {
  *
  * Wraps OverlayScrollbars with the project's design tokens applied via
  * `Scrollable.css` so every scroll area in the app — sidebar, kanban
- * scroller, dialogs, prompt panel — picks up the same look (cream-tinted
- * track, accent thumb, rounded ends matching `--radius-sm`).
+ * scroller, dialogs, prompt panel — picks up the same look (thin
+ * thumb, transparent track, auto-hides at rest).
  *
  * Usage:
  *   <Scrollable axis="y" className={styles.body}>
  *     ...content...
  *   </Scrollable>
  *
- * Native scroll keeps working when the consumer simply sets
- * `overflow: auto` on a child element — but reach for `Scrollable` at
- * any scroll boundary that's part of the chrome (per Round 18 brief).
+ * The host element exposes a `data-axis` attribute that mirrors the
+ * `axis` prop so consumers can target the surface from CSS or tests
+ * without leaking the OverlayScrollbars class API.
  */
 export function Scrollable({
   children,
   axis = "y",
   className,
   visibility = "auto",
+  "data-testid": dataTestId,
 }: ScrollableProps): ReactElement {
   const overflow =
     axis === "x"
@@ -52,9 +58,17 @@ export function Scrollable({
         ? { x: "scroll" as const, y: "scroll" as const }
         : { x: "hidden" as const, y: "scroll" as const };
 
+  // OverlayScrollbarsComponent is typed as `ComponentPropsWithoutRef<'div'>`,
+  // so any data-* attribute we pass lands on the host element. Only set
+  // `data-testid` when the consumer explicitly opts in — undefined data-*
+  // attributes show up in the DOM as the literal string "undefined".
+  const dataTestIdProps =
+    dataTestId !== undefined ? { "data-testid": dataTestId } : {};
+
   return (
     <OverlayScrollbarsComponent
       className={className}
+      data-axis={axis}
       defer
       options={{
         overflow,
@@ -66,6 +80,7 @@ export function Scrollable({
           clickScroll: true,
         },
       }}
+      {...dataTestIdProps}
     >
       {children}
     </OverlayScrollbarsComponent>

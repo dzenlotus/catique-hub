@@ -1,0 +1,94 @@
+/*
+ * SidebarShell — shared cosmetic frame for the secondary (middle) rail.
+ *
+ * Hosts a section label, a vertically-scrollable list area, and an optional
+ * "+ Add ..." trigger pinned to the bottom of the section. Both
+ * `widgets/spaces-sidebar` and `widgets/prompts-sidebar` consume this
+ * primitive — keep visual changes here so the two rails stay aligned.
+ */
+
+.sidebar {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-surface-sidebar);
+  border-right: 1px solid var(--color-border-default);
+  overflow: hidden;
+}
+
+.sectionsWrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: block;
+  /* Top padding aligns the section label vertically with the topbar
+     of the content column. */
+  padding: 24px 20px 28px;
+}
+
+.sectionLabel {
+  padding: 0 var(--space-4) var(--space-12);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* "+ Add ..." trigger pinned at the bottom of a section. Mirrors the
+ * typography of regular list rows so it reads as a peer rather than a
+ * CTA pill. */
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  width: 100%;
+  margin: var(--space-8) 0 0 -4px;
+  padding: var(--space-8) var(--space-2);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background-color 80ms ease-out, color 80ms ease-out;
+}
+
+.addRow:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.addRow:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.addRowIcon {
+  flex: 0 0 auto;
+  /* Visually align the pixel "+" inside the same 28-px gutter that
+     chevrons live in, so the label starts at the same column as a
+     list item does. */
+  margin-left: 7px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .addRow {
+    transition: none;
+  }
+}
+
+/* Divider between two stacked sections inside the same rail. */
+.divider {
+  margin: var(--space-16) 0 var(--space-12);
+  border: none;
+  border-top: 1px solid var(--color-border-default);
+}

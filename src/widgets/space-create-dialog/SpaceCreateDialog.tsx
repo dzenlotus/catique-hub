@@ -39,7 +39,7 @@ export function SpaceCreateDialog({
 }: SpaceCreateDialogProps): ReactElement {
   return (
     <Dialog
-      title="Создать пространство"
+      title="Create space"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -95,7 +95,7 @@ function SpaceCreateDialogContent({
     const trimmedPrefix = prefix.trim();
 
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
 
@@ -117,7 +117,7 @@ function SpaceCreateDialogContent({
         onClose();
       },
       onError: (err) => {
-        setSaveError(`Не удалось создать: ${err.message}`);
+        setSaveError(`Failed to create: ${err.message}`);
       },
     });
   };
@@ -131,10 +131,10 @@ function SpaceCreateDialogContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={name}
           onChange={setName}
-          placeholder="Название пространства"
+          placeholder="Space name"
           autoFocus
           className={styles.fullWidthInput}
           data-testid="space-create-dialog-name-input"
@@ -144,10 +144,10 @@ function SpaceCreateDialogContent({
       {/* Prefix */}
       <div className={styles.section}>
         <Input
-          label="Префикс"
+          label="Prefix"
           value={prefix}
           onChange={handlePrefixChange}
-          placeholder="например, dev"
+          placeholder="e.g. dev"
           className={styles.fullWidthInput}
           data-testid="space-create-dialog-prefix-input"
         />
@@ -165,10 +165,10 @@ function SpaceCreateDialogContent({
       {/* Description (optional) */}
       <div className={styles.section}>
         <Input
-          label="Описание"
+          label="Description"
           value={description}
           onChange={setDescription}
-          placeholder="Необязательное описание..."
+          placeholder="Optional description…"
           className={styles.fullWidthInput}
           data-testid="space-create-dialog-description-input"
         />
@@ -191,7 +191,7 @@ function SpaceCreateDialogContent({
           onPress={handleCancel}
           data-testid="space-create-dialog-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -201,7 +201,7 @@ function SpaceCreateDialogContent({
           onPress={handleSave}
           data-testid="space-create-dialog-save"
         >
-          Создать
+          Create
         </Button>
       </div>
     </>

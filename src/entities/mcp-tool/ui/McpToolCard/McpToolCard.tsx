@@ -77,7 +77,7 @@ export function McpToolCard({
           <span
             className={styles.colorSwatch}
             style={{ backgroundColor: tool.color }}
-            aria-label={`Цвет: ${tool.color}`}
+            aria-label={`Color: ${tool.color}`}
           />
         ) : null}
         <span className={styles.jsonHint}>JSON</span>

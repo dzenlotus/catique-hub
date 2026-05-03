@@ -46,8 +46,15 @@
   width: 100%;
   /* Mockup: modal is ~640 px wide per image5.png */
   max-width: 640px;
-  /* DS v1: modal max height 80 vh — body scrolls, header/footer fixed */
+  /*
+   * DS v1: modal max height 80 vh — body scrolls, header/footer fixed.
+   * `min-height: 0` lets the inner `.dialog` honour its `flex: 1 1 auto`
+   * (without it, flex defaults to `min-height: auto` and the dialog
+   * can't shrink below intrinsic content height — body scroll then
+   * never triggers).
+   */
   max-height: 80vh;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   outline: none;
@@ -69,14 +76,20 @@
   flex-direction: column;
   gap: var(--space-12);
   /*
-   * Ctq-76 item 9: do NOT clip the dialog panel itself. The outer
-   * `.modal` already centres + animates this surface; clipping here
-   * was eating the 3 px `:focus-visible` box-shadow on inputs that sit
-   * flush against the dialog's inner padding. Rounded corners survive
-   * because every child of `.dialog` keeps inside `padding: var(--space-24)`.
+   * Fill the parent `.modal` so its 80 vh cap actually flows down to
+   * `.body`. Without `flex: 1 1 auto` + `min-height: 0`, the dialog
+   * stayed at its intrinsic height and the body never received a
+   * bounded main-axis size — so `overflow-y: auto` on the body had
+   * nothing to clip and tall content silently overflowed off-screen.
+   *
+   * `overflow: hidden` keeps the rounded corners intact while letting
+   * `.body`'s own `overflow-y: auto` own the scroll. The horizontal
+   * focus-ring slack from item 9 is preserved by `.body`'s
+   * `padding: 0 var(--space-4)` + matching negative margin (below).
    */
-  overflow: visible;
-  max-height: 80vh;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .dialog[data-focus-visible] {
@@ -110,6 +123,14 @@
    * bottom: calc(-1 * var(--space-24))` to pin against the dialog's
    * own bottom padding. We keep horizontal overflow visible so focus
    * rings on inputs along the side edges are not clipped.
+   *
+   * Round-19c follow-up: the dialog body deliberately keeps native
+   * scroll for now. Migrating to `<Scrollable>` here would break the
+   * negative-`bottom` sticky-footer trick used by PromptEditor /
+   * RoleEditor / ClientInstructionsEditor — that requires the footer
+   * to peek into the dialog's padding region, which only works when
+   * the scroll container is the same element that owns the padding.
+   * Tracked as deferred in the round-19c report.
    */
   overflow-x: visible;
   overflow-y: auto;
@@ -125,6 +146,30 @@
    */
   margin: 0 calc(-1 * var(--space-4));
   padding: 0 var(--space-4);
+
+  /* Thin native scrollbar with token-driven thumb so it reads as a
+   * peer to `<Scrollable>`-themed surfaces elsewhere in the app.
+   * Auto-hide isn't possible with native scrollbars, so this stays
+   * always-visible while the body is scrollable. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.body::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: var(--radius-full, 9999px);
+}
+
+.body::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-subtle);
 }
 
 @media (prefers-reduced-motion: no-preference) {

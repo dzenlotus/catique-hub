@@ -34,7 +34,7 @@ export function PromptCreateDialog({
 }: PromptCreateDialogProps): ReactElement {
   return (
     <Dialog
-      title="Создать промпт"
+      title="Create prompt"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -79,11 +79,11 @@ function PromptCreateDialogContent({
     const trimmedName = name.trim();
     const trimmedContent = content.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
     if (!trimmedContent) {
-      setSaveError("Содержимое не может быть пустым.");
+      setSaveError("Content cannot be empty.");
       return;
     }
 
@@ -100,7 +100,7 @@ function PromptCreateDialogContent({
         onClose();
       },
       onError: (err) => {
-        setSaveError(`Не удалось создать: ${err.message}`);
+        setSaveError(`Failed to create: ${err.message}`);
       },
     });
   };
@@ -114,10 +114,10 @@ function PromptCreateDialogContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={name}
           onChange={setName}
-          placeholder="Название промпта"
+          placeholder="Prompt name"
           autoFocus
           className={styles.fullWidthInput}
           data-testid="prompt-create-dialog-name-input"
@@ -127,10 +127,10 @@ function PromptCreateDialogContent({
       {/* Short description */}
       <div className={styles.section}>
         <Input
-          label="Краткое описание"
+          label="Short description"
           value={shortDescription}
           onChange={setShortDescription}
-          placeholder="Необязательное краткое описание..."
+          placeholder="Optional short description…"
           className={styles.fullWidthInput}
           data-testid="prompt-create-dialog-shortdesc-input"
         />
@@ -138,7 +138,7 @@ function PromptCreateDialogContent({
 
       {/* Color */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Цвет</p>
+        <p className={styles.sectionLabel}>Color</p>
         <div className={styles.colorRow}>
           {color !== "" && (
             <span
@@ -152,7 +152,7 @@ function PromptCreateDialogContent({
             className={styles.colorInput}
             value={color === "" ? "#000000" : color}
             onChange={(e) => setColor(e.target.value)}
-            aria-label="Цвет промпта"
+            aria-label="Prompt color"
             data-testid="prompt-create-dialog-color-input"
           />
           {color !== "" && (
@@ -162,7 +162,7 @@ function PromptCreateDialogContent({
               onPress={() => setColor("")}
               data-testid="prompt-create-dialog-color-reset"
             >
-              Сбросить
+              Reset
             </Button>
           )}
         </div>
@@ -170,14 +170,14 @@ function PromptCreateDialogContent({
 
       {/* Content */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Содержимое</p>
+        <p className={styles.sectionLabel}>Content</p>
         <textarea
           className={styles.contentTextarea}
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Содержимое промпта (Markdown)..."
+          placeholder="Prompt content (Markdown)…"
           data-testid="prompt-create-dialog-content-textarea"
-          aria-label="Содержимое"
+          aria-label="Content"
         />
       </div>
 
@@ -198,7 +198,7 @@ function PromptCreateDialogContent({
           onPress={handleCancel}
           data-testid="prompt-create-dialog-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -208,7 +208,7 @@ function PromptCreateDialogContent({
           onPress={handleSave}
           data-testid="prompt-create-dialog-save"
         >
-          Создать
+          Create
         </Button>
       </div>
     </>

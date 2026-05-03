@@ -4,8 +4,7 @@ import { Switch, Route, useLocation } from "wouter";
 
 import { BoardHome } from "@widgets/board-home";
 import { KanbanBoard } from "@widgets/kanban-board";
-import { PromptsList } from "@widgets/prompts-list";
-import { PromptGroupsList } from "@widgets/prompt-groups-list";
+import { PromptsPage } from "@widgets/prompts-page";
 import { RolesList } from "@widgets/roles-list";
 import { TagsList } from "@widgets/tags-list";
 import { AgentReportsList } from "@widgets/agent-reports-list";
@@ -105,10 +104,11 @@ export default function App(): ReactElement {
             <BoardHome />
           </Route>
           <Route path={routes.prompts}>
-            <PromptsList />
+            <PromptsPage />
           </Route>
-          <Route path={routes.promptGroups}>
-            <PromptGroupsList />
+          {/* Round-19c: legacy /prompt-groups route — redirects to /prompts. */}
+          <Route path="/prompt-groups">
+            <PromptsPage />
           </Route>
           <Route path={routes.roles}>
             <RolesList />

@@ -70,7 +70,7 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
       ) : skillsQuery.status === "error" ? (
         <div className={styles.error} role="alert">
           <p className={styles.errorMessage}>
-            Не удалось загрузить навыки: {skillsQuery.error.message}
+            Failed to load skills: {skillsQuery.error.message}
           </p>
           <Button
             variant="secondary"
@@ -79,7 +79,7 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
               void skillsQuery.refetch();
             }}
           >
-            Повторить
+            Retry
           </Button>
         </div>
       ) : skillsQuery.data.length === 0 ? (

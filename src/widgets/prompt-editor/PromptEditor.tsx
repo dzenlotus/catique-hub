@@ -34,7 +34,7 @@ export function PromptEditor({ promptId, onClose }: PromptEditorProps): ReactEle
 
   return (
     <Dialog
-      title="Промпт"
+      title="Prompt"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -106,7 +106,7 @@ function PromptEditorContent({
             isDisabled
             data-testid="prompt-editor-cancel"
           >
-            Отмена
+            Cancel
           </Button>
           <Button
             variant="primary"
@@ -114,7 +114,7 @@ function PromptEditorContent({
             isDisabled
             data-testid="prompt-editor-save"
           >
-            Сохранить
+            Save
           </Button>
         </div>
       </>
@@ -132,14 +132,14 @@ function PromptEditorContent({
           data-testid="prompt-editor-fetch-error"
         >
           <p className={styles.errorBannerMessage}>
-            Не удалось загрузить промпт: {query.error.message}
+            Failed to load prompt: {query.error.message}
           </p>
           <Button
             variant="secondary"
             size="sm"
             onPress={() => void query.refetch()}
           >
-            Повторить
+            Retry
           </Button>
         </div>
         <div className={styles.footer}>
@@ -149,7 +149,7 @@ function PromptEditorContent({
             onPress={onClose}
             data-testid="prompt-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -167,7 +167,7 @@ function PromptEditorContent({
           data-testid="prompt-editor-not-found"
         >
           <p className={styles.notFoundBannerMessage}>
-            Промпт не найден.
+            Prompt not found.
           </p>
         </div>
         <div className={styles.footer}>
@@ -177,7 +177,7 @@ function PromptEditorContent({
             onPress={onClose}
             data-testid="prompt-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -192,12 +192,12 @@ function PromptEditorContent({
     setSaveError(null);
     const trimmedName = localName.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
     const trimmedContent = localContent.trim();
     if (!trimmedContent) {
-      setSaveError("Содержимое не может быть пустым.");
+      setSaveError("Content cannot be empty.");
       return;
     }
     // Empty string → clear to null; non-empty → use trimmed value.
@@ -225,12 +225,12 @@ function PromptEditorContent({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
-        pushToast("success", "Промпт сохранён");
+        pushToast("success", "Prompt saved");
         onClose();
       },
       onError: (err) => {
-        pushToast("error", `Не удалось сохранить промпт: ${err.message}`);
-        setSaveError(`Не удалось сохранить: ${err.message}`);
+        pushToast("error", `Failed to save prompt: ${err.message}`);
+        setSaveError(`Failed to save: ${err.message}`);
       },
     });
   };
@@ -250,10 +250,10 @@ function PromptEditorContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={localName}
           onChange={setLocalName}
-          placeholder="Название промпта"
+          placeholder="Prompt name"
           className={styles.fullWidthInput}
           data-testid="prompt-editor-name-input"
         />
@@ -262,10 +262,10 @@ function PromptEditorContent({
       {/* Short description */}
       <div className={styles.section}>
         <Input
-          label="Краткое описание"
+          label="Short description"
           value={localShortDescription}
           onChange={setLocalShortDescription}
-          placeholder="Необязательное краткое описание..."
+          placeholder="Optional short description…"
           className={styles.fullWidthInput}
           data-testid="prompt-editor-shortdesc-input"
         />
@@ -273,7 +273,7 @@ function PromptEditorContent({
 
       {/* Color */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Цвет</p>
+        <p className={styles.sectionLabel}>Color</p>
         <div className={styles.colorRow}>
           {localColor !== "" && (
             <span
@@ -287,7 +287,7 @@ function PromptEditorContent({
             className={styles.colorInput}
             value={localColor === "" ? "#000000" : localColor}
             onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Цвет промпта"
+            aria-label="Prompt color"
             data-testid="prompt-editor-color-input"
           />
           {localColor !== "" && (
@@ -296,7 +296,7 @@ function PromptEditorContent({
               size="sm"
               onPress={() => setLocalColor("")}
             >
-              Сбросить
+              Reset
             </Button>
           )}
         </div>
@@ -304,12 +304,12 @@ function PromptEditorContent({
 
       {/* Content — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Содержимое</p>
+        <p className={styles.sectionLabel}>Content</p>
         <MarkdownField
           value={localContent}
           onChange={setLocalContent}
-          placeholder="Содержимое промпта (Markdown)..."
-          ariaLabel="Содержимое"
+          placeholder="Prompt content (Markdown)…"
+          ariaLabel="Content"
           data-testid="prompt-editor-content-textarea"
         />
       </div>
@@ -318,8 +318,8 @@ function PromptEditorContent({
       <div className={styles.tokenRow} data-testid="prompt-editor-token-row">
         <span className={styles.tokenLabel}>
           {prompt.tokenCount !== null && prompt.tokenCount > 0n
-            ? `Текущий счётчик: ≈${prompt.tokenCount.toString()} tokens`
-            : "Текущий счётчик: не подсчитан"}
+            ? `Current count: ≈${prompt.tokenCount.toString()} tokens`
+            : "Current count: not computed"}
         </span>
         <TooltipTrigger>
           <Button
@@ -328,12 +328,12 @@ function PromptEditorContent({
             isPending={recountMutation.status === "pending"}
             onPress={() => recountMutation.mutate(prompt.id)}
             data-testid="prompt-editor-recount-button"
-            aria-label="Пересчитать токены"
+            aria-label="Recount tokens"
           >
             <PixelInterfaceEssentialRefresh width={14} height={14} aria-hidden="true" />
-            Пересчитать
+            Recount
           </Button>
-          <Tooltip>Пересчитать токены</Tooltip>
+          <Tooltip>Recount tokens</Tooltip>
         </TooltipTrigger>
       </div>
 
@@ -354,7 +354,7 @@ function PromptEditorContent({
           onPress={handleCancel}
           data-testid="prompt-editor-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -363,7 +363,7 @@ function PromptEditorContent({
           onPress={handleSave}
           data-testid="prompt-editor-save"
         >
-          Сохранить
+          Save
         </Button>
       </div>
     </>

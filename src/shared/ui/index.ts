@@ -51,6 +51,18 @@ export type { EmptyStateProps } from "./EmptyState";
 export { Scrollable } from "./Scrollable";
 export type { ScrollableProps } from "./Scrollable";
 
+export {
+  SidebarShell,
+  SidebarSectionLabel,
+  SidebarAddRow,
+  SidebarSectionDivider,
+} from "./SidebarShell";
+export type {
+  SidebarShellProps,
+  SidebarSectionLabelProps,
+  SidebarAddRowProps,
+} from "./SidebarShell";
+
 export { PortalProvider, PORTAL_ROOT_ID } from "./PortalProvider";
 export type { PortalProviderProps } from "./PortalProvider";
 

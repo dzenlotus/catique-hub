@@ -79,7 +79,7 @@ export function SpacesList({ onSelectView }: SpacesListProps): ReactElement {
       ) : spacesQuery.status === "error" ? (
         <div className={styles.error} role="alert">
           <p className={styles.errorMessage}>
-            Не удалось загрузить пространства: {spacesQuery.error.message}
+            Failed to load spaces: {spacesQuery.error.message}
           </p>
           <Button
             variant="secondary"
@@ -88,7 +88,7 @@ export function SpacesList({ onSelectView }: SpacesListProps): ReactElement {
               void spacesQuery.refetch();
             }}
           >
-            Повторить
+            Retry
           </Button>
         </div>
       ) : spacesQuery.data.length === 0 ? (

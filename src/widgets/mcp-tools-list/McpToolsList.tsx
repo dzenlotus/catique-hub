@@ -70,7 +70,7 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
       ) : toolsQuery.status === "error" ? (
         <div className={styles.error} role="alert">
           <p className={styles.errorMessage}>
-            Не удалось загрузить MCP-инструменты: {toolsQuery.error.message}
+            Failed to load MCP tools: {toolsQuery.error.message}
           </p>
           <Button
             variant="secondary"
@@ -79,7 +79,7 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
               void toolsQuery.refetch();
             }}
           >
-            Повторить
+            Retry
           </Button>
         </div>
       ) : toolsQuery.data.length === 0 ? (

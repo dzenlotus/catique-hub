@@ -49,7 +49,7 @@ export function PromptGroupEditor({
 
   return (
     <Dialog
-      title="Группа промптов"
+      title="Prompt group"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -116,7 +116,7 @@ function PromptGroupEditorContent({
             isDisabled
             data-testid="prompt-group-editor-cancel"
           >
-            Отмена
+            Cancel
           </Button>
           <Button
             variant="primary"
@@ -124,7 +124,7 @@ function PromptGroupEditorContent({
             isDisabled
             data-testid="prompt-group-editor-save"
           >
-            Сохранить
+            Save
           </Button>
         </div>
       </>
@@ -142,14 +142,14 @@ function PromptGroupEditorContent({
           data-testid="prompt-group-editor-fetch-error"
         >
           <p className={styles.errorBannerMessage}>
-            Не удалось загрузить группу: {query.error.message}
+            Failed to load group: {query.error.message}
           </p>
           <Button
             variant="secondary"
             size="sm"
             onPress={() => void query.refetch()}
           >
-            Повторить
+            Retry
           </Button>
         </div>
         <div className={styles.footer}>
@@ -159,7 +159,7 @@ function PromptGroupEditorContent({
             onPress={onClose}
             data-testid="prompt-group-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -176,7 +176,7 @@ function PromptGroupEditorContent({
           role="alert"
           data-testid="prompt-group-editor-not-found"
         >
-          <p className={styles.notFoundBannerMessage}>Группа не найдена.</p>
+          <p className={styles.notFoundBannerMessage}>Group not found.</p>
         </div>
         <div className={styles.footer}>
           <Button
@@ -185,7 +185,7 @@ function PromptGroupEditorContent({
             onPress={onClose}
             data-testid="prompt-group-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -200,7 +200,7 @@ function PromptGroupEditorContent({
     setSaveError(null);
     const trimmedName = localName.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
 
@@ -226,7 +226,7 @@ function PromptGroupEditorContent({
         onClose();
       },
       onError: (err) => {
-        setSaveError(`Не удалось сохранить: ${err.message}`);
+        setSaveError(`Failed to save: ${err.message}`);
       },
     });
   };
@@ -244,10 +244,10 @@ function PromptGroupEditorContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={localName}
           onChange={setLocalName}
-          placeholder="Название группы"
+          placeholder="Group name"
           className={styles.fullWidthInput}
           data-testid="prompt-group-editor-name-input"
         />
@@ -255,7 +255,7 @@ function PromptGroupEditorContent({
 
       {/* Color */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Цвет</p>
+        <p className={styles.sectionLabel}>Color</p>
         <div className={styles.colorRow}>
           {localColor !== "" && (
             <span
@@ -269,7 +269,7 @@ function PromptGroupEditorContent({
             className={styles.colorInput}
             value={localColor === "" ? "#000000" : localColor}
             onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Цвет группы"
+            aria-label="Group color"
             data-testid="prompt-group-editor-color-input"
           />
           {localColor !== "" && (
@@ -278,7 +278,7 @@ function PromptGroupEditorContent({
               size="sm"
               onPress={() => setLocalColor("")}
             >
-              Сбросить
+              Reset
             </Button>
           )}
         </div>
@@ -287,7 +287,7 @@ function PromptGroupEditorContent({
       {/* Position */}
       <div className={styles.section}>
         <Input
-          label="Позиция"
+          label="Position"
           value={localPosition}
           onChange={setLocalPosition}
           placeholder="0"
@@ -298,7 +298,7 @@ function PromptGroupEditorContent({
 
       {/* Members */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Промпты</p>
+        <p className={styles.sectionLabel}>Prompts</p>
         <MembersSection groupId={group.id} />
       </div>
 
@@ -319,7 +319,7 @@ function PromptGroupEditorContent({
           onPress={handleCancel}
           data-testid="prompt-group-editor-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -328,7 +328,7 @@ function PromptGroupEditorContent({
           onPress={handleSave}
           data-testid="prompt-group-editor-save"
         >
-          Сохранить
+          Save
         </Button>
       </div>
     </>
@@ -378,12 +378,12 @@ function MembersSection({ groupId }: MembersSectionProps): ReactElement {
         <div className={styles.membersSkeleton} aria-hidden="true" />
       ) : membersQuery.status === "error" ? (
         <p className={styles.membersError}>
-          Не удалось загрузить промпты группы.
+          Failed to load group prompts.
         </p>
       ) : memberIds.length === 0 ? (
-        <p className={styles.membersEmpty}>В группе пока нет промптов.</p>
+        <p className={styles.membersEmpty}>No prompts in this group yet.</p>
       ) : (
-        <ul className={styles.memberList} aria-label="Промпты группы">
+        <ul className={styles.memberList} aria-label="Group prompts">
           {memberIds.map((promptId) => (
             <MemberRow
               key={promptId}
@@ -400,9 +400,9 @@ function MembersSection({ groupId }: MembersSectionProps): ReactElement {
         data-testid="prompt-group-editor-add-member"
       >
         <Combobox
-          label="Добавить промпт"
+          label="Add prompt"
           items={comboboxItems}
-          placeholder="Поиск промпта..."
+          placeholder="Search prompts…"
           inputValue={filterValue}
           onInputChange={setFilterValue}
           onSelectionChange={(key) => {
@@ -411,8 +411,8 @@ function MembersSection({ groupId }: MembersSectionProps): ReactElement {
           emptyState={
             <span className={styles.comboboxEmpty}>
               {allPromptsQuery.status === "pending"
-                ? "Загрузка…"
-                : "Промпты не найдены"}
+                ? "Loading…"
+                : "No prompts found"}
             </span>
           }
         />
@@ -451,7 +451,7 @@ function MemberRow({ promptId, groupId }: MemberRowProps): ReactElement {
       <button
         type="button"
         className={styles.memberRemoveBtn}
-        aria-label={`Удалить промпт ${name}`}
+        aria-label={`Remove prompt ${name}`}
         data-testid={`prompt-group-editor-remove-member-${promptId}`}
         onClick={() => removeMutation.mutate({ groupId, promptId })}
       >

@@ -33,7 +33,7 @@ export function McpToolEditor({ toolId, onClose }: McpToolEditorProps): ReactEle
 
   return (
     <Dialog
-      title="MCP-инструмент"
+      title="MCP tool"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -103,7 +103,7 @@ function McpToolEditorContent({
             isDisabled
             data-testid="mcp-tool-editor-cancel"
           >
-            Отмена
+            Cancel
           </Button>
           <Button
             variant="primary"
@@ -111,7 +111,7 @@ function McpToolEditorContent({
             isDisabled
             data-testid="mcp-tool-editor-save"
           >
-            Сохранить
+            Save
           </Button>
         </div>
       </>
@@ -129,14 +129,14 @@ function McpToolEditorContent({
           data-testid="mcp-tool-editor-fetch-error"
         >
           <p className={styles.errorBannerMessage}>
-            Не удалось загрузить MCP-инструмент: {query.error.message}
+            Failed to load MCP tool: {query.error.message}
           </p>
           <Button
             variant="secondary"
             size="sm"
             onPress={() => void query.refetch()}
           >
-            Повторить
+            Retry
           </Button>
         </div>
         <div className={styles.footer}>
@@ -146,7 +146,7 @@ function McpToolEditorContent({
             onPress={onClose}
             data-testid="mcp-tool-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -164,7 +164,7 @@ function McpToolEditorContent({
           data-testid="mcp-tool-editor-not-found"
         >
           <p className={styles.notFoundBannerMessage}>
-            MCP-инструмент не найден.
+            MCP tool not found.
           </p>
         </div>
         <div className={styles.footer}>
@@ -174,7 +174,7 @@ function McpToolEditorContent({
             onPress={onClose}
             data-testid="mcp-tool-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -189,13 +189,13 @@ function McpToolEditorContent({
     setSaveError(null);
     const trimmedName = localName.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
 
     const trimmedSchema = localSchemaJson.trim();
     if (!trimmedSchema) {
-      setSaveError("JSON-схема обязательна.");
+      setSaveError("JSON schema is required.");
       return;
     }
 
@@ -203,7 +203,7 @@ function McpToolEditorContent({
     try {
       JSON.parse(trimmedSchema);
     } catch {
-      setSaveError("Невалидный JSON. Проверьте синтаксис JSON-схемы.");
+      setSaveError("Invalid JSON. Check the JSON schema syntax.");
       return;
     }
 
@@ -238,9 +238,9 @@ function McpToolEditorContent({
           err instanceof AppErrorInstance &&
           err.kind === "conflict"
         ) {
-          setSaveError("Имя уже занято.");
+          setSaveError("Name already taken.");
         } else {
-          setSaveError(`Не удалось сохранить: ${err.message}`);
+          setSaveError(`Failed to save: ${err.message}`);
         }
       },
     });
@@ -261,10 +261,10 @@ function McpToolEditorContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={localName}
           onChange={setLocalName}
-          placeholder="Название инструмента"
+          placeholder="Tool name"
           className={styles.fullWidthInput}
           data-testid="mcp-tool-editor-name-input"
         />
@@ -273,10 +273,10 @@ function McpToolEditorContent({
       {/* Description */}
       <div className={styles.section}>
         <Input
-          label="Описание"
+          label="Description"
           value={localDescription}
           onChange={setLocalDescription}
-          placeholder="Краткое описание (необязательно)"
+          placeholder="Short description (optional)"
           className={styles.fullWidthInput}
           data-testid="mcp-tool-editor-description-input"
         />
@@ -284,7 +284,7 @@ function McpToolEditorContent({
 
       {/* Color */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Цвет</p>
+        <p className={styles.sectionLabel}>Color</p>
         <div className={styles.colorRow}>
           {localColor !== "" && (
             <span
@@ -298,7 +298,7 @@ function McpToolEditorContent({
             className={styles.colorInput}
             value={localColor === "" ? "#000000" : localColor}
             onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Цвет инструмента"
+            aria-label="Tool color"
             data-testid="mcp-tool-editor-color-input"
           />
           {localColor !== "" && (
@@ -307,7 +307,7 @@ function McpToolEditorContent({
               size="sm"
               onPress={() => setLocalColor("")}
             >
-              Сбросить
+              Reset
             </Button>
           )}
         </div>
@@ -315,14 +315,14 @@ function McpToolEditorContent({
 
       {/* Schema JSON */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>JSON-схема</p>
+        <p className={styles.sectionLabel}>JSON schema</p>
         <textarea
           className={styles.schemaTextarea}
           value={localSchemaJson}
           onChange={(e) => setLocalSchemaJson(e.target.value)}
           placeholder="{}"
           data-testid="mcp-tool-editor-schema-input"
-          aria-label="JSON-схема"
+          aria-label="JSON schema"
         />
       </div>
 
@@ -343,7 +343,7 @@ function McpToolEditorContent({
           onPress={handleCancel}
           data-testid="mcp-tool-editor-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -352,7 +352,7 @@ function McpToolEditorContent({
           onPress={handleSave}
           data-testid="mcp-tool-editor-save"
         >
-          Сохранить
+          Save
         </Button>
       </div>
     </>

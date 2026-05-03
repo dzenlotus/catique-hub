@@ -36,7 +36,7 @@ export function ColumnEditor({ columnId, onClose }: ColumnEditorProps): ReactEle
 
   return (
     <Dialog
-      title="Настройки колонки"
+      title="Column settings"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -110,7 +110,7 @@ function ColumnEditorContent({
             isDisabled
             data-testid="column-editor-cancel"
           >
-            Отмена
+            Cancel
           </Button>
           <Button
             variant="primary"
@@ -118,7 +118,7 @@ function ColumnEditorContent({
             isDisabled
             data-testid="column-editor-save"
           >
-            Сохранить
+            Save
           </Button>
         </div>
       </>
@@ -136,14 +136,14 @@ function ColumnEditorContent({
           data-testid="column-editor-fetch-error"
         >
           <p className={styles.errorBannerMessage}>
-            Не удалось загрузить колонку: {query.error.message}
+            Failed to load column: {query.error.message}
           </p>
           <Button
             variant="secondary"
             size="sm"
             onPress={() => void query.refetch()}
           >
-            Повторить
+            Retry
           </Button>
         </div>
         <div className={styles.footer}>
@@ -153,7 +153,7 @@ function ColumnEditorContent({
             onPress={onClose}
             data-testid="column-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -171,7 +171,7 @@ function ColumnEditorContent({
           data-testid="column-editor-not-found"
         >
           <p className={styles.notFoundBannerMessage}>
-            Колонка не найдена.
+            Column not found.
           </p>
         </div>
         <div className={styles.footer}>
@@ -181,7 +181,7 @@ function ColumnEditorContent({
             onPress={onClose}
             data-testid="column-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -197,7 +197,7 @@ function ColumnEditorContent({
     setSaveError(null);
     const trimmedName = localName.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
 
@@ -205,7 +205,7 @@ function ColumnEditorContent({
     const parsedPosition =
       localPosition.trim() === "" ? undefined : Number(localPosition);
     if (parsedPosition !== undefined && !Number.isFinite(parsedPosition)) {
-      setSaveError("Позиция должна быть числом.");
+      setSaveError("Position must be a number.");
       return;
     }
 
@@ -234,12 +234,12 @@ function ColumnEditorContent({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
-        pushToast("success", "Колонка сохранена");
+        pushToast("success", "Column saved");
         onClose();
       },
       onError: (err) => {
-        pushToast("error", `Не удалось сохранить колонку: ${err.message}`);
-        setSaveError(`Не удалось сохранить: ${err.message}`);
+        pushToast("error", `Failed to save column: ${err.message}`);
+        setSaveError(`Failed to save: ${err.message}`);
       },
     });
   };
@@ -258,10 +258,10 @@ function ColumnEditorContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={localName}
           onChange={setLocalName}
-          placeholder="Название колонки"
+          placeholder="Column name"
           className={styles.fullWidthInput}
           data-testid="column-editor-name-input"
         />
@@ -269,16 +269,16 @@ function ColumnEditorContent({
 
       {/* Role */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Роль</p>
+        <p className={styles.sectionLabel}>Role</p>
         {rolesQuery.status === "pending" ? (
           <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
         ) : rolesQuery.status === "error" ? (
           <p className={styles.roleError}>
-            Не удалось загрузить роли: {rolesQuery.error.message}
+            Failed to load roles: {rolesQuery.error.message}
           </p>
         ) : (
           <Listbox
-            aria-label="Роль"
+            aria-label="Role"
             selectionMode="single"
             selectedKeys={new Set([localRoleKey])}
             onSelectionChange={(keys) => {
@@ -290,7 +290,7 @@ function ColumnEditorContent({
             data-testid="column-editor-role-select"
           >
             <ListboxItem key={NO_ROLE_KEY} id={NO_ROLE_KEY}>
-              (нет роли)
+              (no role)
             </ListboxItem>
             {roles.map((role) => (
               <ListboxItem key={role.id} id={role.id}>
@@ -303,14 +303,14 @@ function ColumnEditorContent({
 
       {/* Position */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Позиция</p>
+        <p className={styles.sectionLabel}>Position</p>
         <input
           type="number"
           className={styles.numberInput}
           value={localPosition}
           onChange={(e) => setLocalPosition(e.target.value)}
-          placeholder="Необязательно"
-          aria-label="Позиция"
+          placeholder="Optional"
+          aria-label="Position"
           data-testid="column-editor-position-input"
         />
       </div>
@@ -332,7 +332,7 @@ function ColumnEditorContent({
           onPress={handleCancel}
           data-testid="column-editor-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -341,7 +341,7 @@ function ColumnEditorContent({
           onPress={handleSave}
           data-testid="column-editor-save"
         >
-          Сохранить
+          Save
         </Button>
       </div>
     </>

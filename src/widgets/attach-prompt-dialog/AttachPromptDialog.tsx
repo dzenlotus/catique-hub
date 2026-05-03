@@ -8,7 +8,7 @@
  *   - `onAttached`  — optional callback invoked after a successful attach.
  *
  * Form steps:
- *   1. Pick target kind (radio group): Доска / Колонка / Задача / Роль.
+ *   1. Pick target kind (radio group): Board / Column / Task / Role.
  *   2. Pick a target (cascading Comboboxes depending on kind).
  *   3. Pick a prompt (Combobox from usePrompts()).
  */
@@ -52,10 +52,10 @@ export interface AttachPromptDialogProps {
 type TargetKind = "board" | "column" | "task" | "role";
 
 const TARGET_KINDS: { value: TargetKind; label: string }[] = [
-  { value: "board", label: "Доска" },
-  { value: "column", label: "Колонка" },
-  { value: "task", label: "Задача" },
-  { value: "role", label: "Роль" },
+  { value: "board", label: "Board" },
+  { value: "column", label: "Column" },
+  { value: "task", label: "Task" },
+  { value: "role", label: "Role" },
 ];
 
 // ─── Shell ───────────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ export function AttachPromptDialog({
 }: AttachPromptDialogProps): ReactElement {
   return (
     <Dialog
-      title="Прикрепить промпт"
+      title="Attach prompt"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -196,13 +196,13 @@ function AttachPromptDialogContent({
 
     const opts = {
       onSuccess: () => {
-        pushToast("success", "Промпт прикреплён");
+        pushToast("success", "Prompt attached");
         onAttached?.();
         onClose();
       },
       onError: (err: Error) => {
-        pushToast("error", `Не удалось прикрепить промпт: ${err.message}`);
-        setSaveError(`Не удалось прикрепить: ${err.message}`);
+        pushToast("error", `Failed to attach prompt: ${err.message}`);
+        setSaveError(`Failed to attach: ${err.message}`);
       },
     };
 
@@ -259,11 +259,11 @@ function AttachPromptDialogContent({
     <>
       {/* Step 1 — target kind */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Тип цели</p>
+        <p className={styles.sectionLabel}>Target kind</p>
         <div
           className={styles.kindGroup}
           role="radiogroup"
-          aria-label="Тип цели"
+          aria-label="Target kind"
           data-testid="attach-prompt-dialog-target-kind"
         >
           {TARGET_KINDS.map(({ value, label }) => (
@@ -287,15 +287,15 @@ function AttachPromptDialogContent({
         className={styles.section}
         data-testid="attach-prompt-dialog-target"
       >
-        <p className={styles.sectionLabel}>Цель</p>
+        <p className={styles.sectionLabel}>Target</p>
 
         {/* Board picker — shown for all kinds that need a board */}
         {kind === "board" && (
           <Combobox
-            label="Доска"
+            label="Board"
             items={boardItems}
-            placeholder="Выберите доску..."
-            emptyState="Нет доступных досок"
+            placeholder="Select a board…"
+            emptyState="No boards available"
             className={styles.combobox}
             onSelectionChange={handleBoardSelect}
             selectedKey={selectedBoardId !== "" ? selectedBoardId : null}
@@ -306,23 +306,23 @@ function AttachPromptDialogContent({
         {kind === "column" && (
           <>
             <Combobox
-              label="Доска"
+              label="Board"
               items={boardItems}
-              placeholder="Сначала выберите доску..."
-              emptyState="Нет доступных досок"
+              placeholder="Select a board first…"
+              emptyState="No boards available"
               className={styles.combobox}
               onSelectionChange={handleBoardSelect}
               selectedKey={selectedBoardId !== "" ? selectedBoardId : null}
             />
             <Combobox
-              label="Колонка"
+              label="Column"
               items={columnItems}
               placeholder={
                 selectedBoardId !== ""
-                  ? "Выберите колонку..."
-                  : "Сначала выберите доску"
+                  ? "Select a column…"
+                  : "Select a board first"
               }
-              emptyState="Нет колонок на этой доске"
+              emptyState="No columns on this board"
               className={styles.combobox}
               isDisabled={selectedBoardId === ""}
               onSelectionChange={handleTargetSelect}
@@ -335,23 +335,23 @@ function AttachPromptDialogContent({
         {kind === "task" && (
           <>
             <Combobox
-              label="Доска"
+              label="Board"
               items={boardItems}
-              placeholder="Сначала выберите доску..."
-              emptyState="Нет доступных досок"
+              placeholder="Select a board first…"
+              emptyState="No boards available"
               className={styles.combobox}
               onSelectionChange={handleBoardSelect}
               selectedKey={selectedBoardId !== "" ? selectedBoardId : null}
             />
             <Combobox
-              label="Задача"
+              label="Task"
               items={taskItems}
               placeholder={
                 selectedBoardId !== ""
-                  ? "Выберите задачу..."
-                  : "Сначала выберите доску"
+                  ? "Select a task…"
+                  : "Select a board first"
               }
-              emptyState="Нет задач на этой доске"
+              emptyState="No tasks on this board"
               className={styles.combobox}
               isDisabled={selectedBoardId === ""}
               onSelectionChange={handleTargetSelect}
@@ -363,10 +363,10 @@ function AttachPromptDialogContent({
         {/* Role picker */}
         {kind === "role" && (
           <Combobox
-            label="Роль"
+            label="Role"
             items={roleItems}
-            placeholder="Выберите роль..."
-            emptyState="Нет доступных ролей"
+            placeholder="Select a role…"
+            emptyState="No roles available"
             className={styles.combobox}
             onSelectionChange={handleTargetSelect}
             selectedKey={selectedTargetId !== "" ? selectedTargetId : null}
@@ -377,10 +377,10 @@ function AttachPromptDialogContent({
       {/* Step 3 — prompt selection */}
       <div className={styles.section}>
         <Combobox
-          label="Промпт"
+          label="Prompt"
           items={promptItems}
-          placeholder="Выберите промпт..."
-          emptyState="Нет доступных промптов"
+          placeholder="Select a prompt…"
+          emptyState="No prompts available"
           className={styles.combobox}
           onSelectionChange={handlePromptSelect}
           selectedKey={selectedPromptId !== "" ? selectedPromptId : null}
@@ -405,7 +405,7 @@ function AttachPromptDialogContent({
           onPress={handleCancel}
           data-testid="attach-prompt-dialog-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -415,7 +415,7 @@ function AttachPromptDialogContent({
           onPress={handleSave}
           data-testid="attach-prompt-dialog-save"
         >
-          Прикрепить
+          Attach
         </Button>
       </div>
     </>

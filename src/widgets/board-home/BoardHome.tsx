@@ -72,10 +72,10 @@ export function BoardHome(): ReactElement {
           className={styles.cat}
         />
         <h2 id="board-home-heading" className={styles.title}>
-          Тут пока тихо
+          All quiet here
         </h2>
         <p className={styles.caption}>
-          Котик уже устроился. Открой доску в сайдбаре — и поехали.
+          The cat has settled in. Open a board from the sidebar to get going.
         </p>
       </div>
     </section>

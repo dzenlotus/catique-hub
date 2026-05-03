@@ -21,7 +21,7 @@ import {
 } from "@entities/column";
 import type { Task } from "@entities/task";
 import { useMoveTaskMutation, useTasksByBoard } from "@entities/task";
-import { Button } from "@shared/ui";
+import { Button, Scrollable } from "@shared/ui";
 import {
   PixelCodingAppsWebsitesModule,
   PixelInterfaceEssentialSettingCog,
@@ -237,7 +237,7 @@ export function KanbanBoard({
             void columnsQuery.refetch();
             pushToast(
               "error",
-              `Не удалось переупорядочить колонки: ${err.message}`,
+              `Failed to reorder columns: ${err.message}`,
             );
           },
         },
@@ -279,7 +279,7 @@ export function KanbanBoard({
           // `task.moved` for a failed mutation, so we have to refetch
           // explicitly. F-03 of docs/audit/kanban-frontend-audit.md.
           void tasksQuery.refetch();
-          pushToast("error", `Не удалось переместить задачу: ${err.message}`);
+          pushToast("error", `Failed to move task: ${err.message}`);
         },
       },
     );
@@ -421,38 +421,47 @@ export function KanbanBoard({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className={styles.scroller}>
-          {orderedColumns.map((column, index) => (
-            <KanbanColumn
-              key={column.id}
-              column={column}
-              index={index}
-              tasks={items[column.id] ?? []}
-              onTaskSelect={handleTaskSelect}
-              onAddTask={setTaskColumnId}
-              onRenameColumn={handleRenameColumn}
-              onDeleteColumn={handleDeleteColumn}
-            />
-          ))}
+        <Scrollable
+          axis="x"
+          className={styles.scroller}
+          data-testid="kanban-board-scroller"
+        >
+          {/* `.scrollerTrack` is the flex row that lays out columns.
+           * It lives inside the OverlayScrollbars viewport, so the
+           * host element's flex props don't reach it directly. */}
+          <div className={styles.scrollerTrack}>
+            {orderedColumns.map((column, index) => (
+              <KanbanColumn
+                key={column.id}
+                column={column}
+                index={index}
+                tasks={items[column.id] ?? []}
+                onTaskSelect={handleTaskSelect}
+                onAddTask={setTaskColumnId}
+                onRenameColumn={handleRenameColumn}
+                onDeleteColumn={handleDeleteColumn}
+              />
+            ))}
 
-          <div className={styles.addColumnContainer}>
-            <Button
-              variant="ghost"
-              className={styles.addColumnButton}
-              onPress={() => setIsColumnDialogOpen(true)}
-              data-testid="kanban-board-add-column"
-            >
-              <span className={styles.addColumnLabel}>
-                <PixelInterfaceEssentialPlus
-                  width={12}
-                  height={12}
-                  aria-hidden="true"
-                />
-                Add column
-              </span>
-            </Button>
+            <div className={styles.addColumnContainer}>
+              <Button
+                variant="ghost"
+                className={styles.addColumnButton}
+                onPress={() => setIsColumnDialogOpen(true)}
+                data-testid="kanban-board-add-column"
+              >
+                <span className={styles.addColumnLabel}>
+                  <PixelInterfaceEssentialPlus
+                    width={12}
+                    height={12}
+                    aria-hidden="true"
+                  />
+                  Add column
+                </span>
+              </Button>
+            </div>
           </div>
-        </div>
+        </Scrollable>
       </DragDropProvider>
 
       <TaskCreateDialog

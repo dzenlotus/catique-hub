@@ -31,7 +31,7 @@ export function SkillEditor({ skillId, onClose }: SkillEditorProps): ReactElemen
 
   return (
     <Dialog
-      title="Навык"
+      title="Skill"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -99,7 +99,7 @@ function SkillEditorContent({
             isDisabled
             data-testid="skill-editor-cancel"
           >
-            Отмена
+            Cancel
           </Button>
           <Button
             variant="primary"
@@ -107,7 +107,7 @@ function SkillEditorContent({
             isDisabled
             data-testid="skill-editor-save"
           >
-            Сохранить
+            Save
           </Button>
         </div>
       </>
@@ -125,14 +125,14 @@ function SkillEditorContent({
           data-testid="skill-editor-fetch-error"
         >
           <p className={styles.errorBannerMessage}>
-            Не удалось загрузить навык: {query.error.message}
+            Failed to load skill: {query.error.message}
           </p>
           <Button
             variant="secondary"
             size="sm"
             onPress={() => void query.refetch()}
           >
-            Повторить
+            Retry
           </Button>
         </div>
         <div className={styles.footer}>
@@ -142,7 +142,7 @@ function SkillEditorContent({
             onPress={onClose}
             data-testid="skill-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -160,7 +160,7 @@ function SkillEditorContent({
           data-testid="skill-editor-not-found"
         >
           <p className={styles.notFoundBannerMessage}>
-            Навык не найден.
+            Skill not found.
           </p>
         </div>
         <div className={styles.footer}>
@@ -170,7 +170,7 @@ function SkillEditorContent({
             onPress={onClose}
             data-testid="skill-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -185,7 +185,7 @@ function SkillEditorContent({
     setSaveError(null);
     const trimmedName = localName.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
 
@@ -213,7 +213,7 @@ function SkillEditorContent({
         onClose();
       },
       onError: (err) => {
-        setSaveError(`Не удалось сохранить: ${err.message}`);
+        setSaveError(`Failed to save: ${err.message}`);
       },
     });
   };
@@ -232,10 +232,10 @@ function SkillEditorContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={localName}
           onChange={setLocalName}
-          placeholder="Название навыка"
+          placeholder="Skill name"
           className={styles.fullWidthInput}
           data-testid="skill-editor-name-input"
         />
@@ -244,10 +244,10 @@ function SkillEditorContent({
       {/* Description */}
       <div className={styles.section}>
         <Input
-          label="Описание"
+          label="Description"
           value={localDescription}
           onChange={setLocalDescription}
-          placeholder="Краткое описание навыка"
+          placeholder="Short description of the skill"
           className={styles.fullWidthInput}
           data-testid="skill-editor-description-input"
         />
@@ -255,7 +255,7 @@ function SkillEditorContent({
 
       {/* Color */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Цвет</p>
+        <p className={styles.sectionLabel}>Color</p>
         <div className={styles.colorRow}>
           {localColor !== "" && (
             <span
@@ -269,7 +269,7 @@ function SkillEditorContent({
             className={styles.colorInput}
             value={localColor === "" ? "#000000" : localColor}
             onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Цвет навыка"
+            aria-label="Skill color"
             data-testid="skill-editor-color-input"
           />
           {localColor !== "" && (
@@ -278,7 +278,7 @@ function SkillEditorContent({
               size="sm"
               onPress={() => setLocalColor("")}
             >
-              Сбросить
+              Reset
             </Button>
           )}
         </div>
@@ -301,7 +301,7 @@ function SkillEditorContent({
           onPress={handleCancel}
           data-testid="skill-editor-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -310,7 +310,7 @@ function SkillEditorContent({
           onPress={handleSave}
           data-testid="skill-editor-save"
         >
-          Сохранить
+          Save
         </Button>
       </div>
     </>

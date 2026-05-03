@@ -19,12 +19,12 @@ export interface ConnectedClientCardProps {
    */
   onToggleEnabled?: (id: string, enabled: boolean) => void;
   /**
-   * Called when the user clicks "Редактировать инструкции". Receives the
+   * Called when the user clicks "Edit instructions". Receives the
    * client id so the parent can open the `ClientInstructionsEditor`.
    */
   onEditInstructions?: (id: string) => void;
   /**
-   * Called when the user clicks "Синхронизировать роли". Receives the
+   * Called when the user clicks "Sync roles". Receives the
    * client id so the parent can trigger `useSyncRolesToClientMutation`.
    */
   onSyncRoles?: (id: string) => void;
@@ -108,7 +108,7 @@ export function ConnectedClientCard({
           )}
           data-testid="client-installed-pill"
         >
-          {client.installed ? "Установлен" : "Не найден"}
+          {client.installed ? "Installed" : "Not found"}
         </span>
       </div>
 
@@ -124,13 +124,13 @@ export function ConnectedClientCard({
       {/* ── Enabled toggle ───────────────────────────────────────── */}
       <div className={styles.footer}>
         <span className={styles.toggleLabel}>
-          {client.enabled ? "Включён" : "Отключён"}
+          {client.enabled ? "Enabled" : "Disabled"}
         </span>
         <button
           type="button"
           role="switch"
           aria-checked={client.enabled}
-          aria-label={`${client.enabled ? "Отключить" : "Включить"} ${client.displayName}`}
+          aria-label={`${client.enabled ? "Disable" : "Enable"} ${client.displayName}`}
           className={cn(
             styles.toggle,
             client.enabled && styles.toggleOn,
@@ -150,9 +150,9 @@ export function ConnectedClientCard({
         className={styles.editInstructionsBtn}
         onClick={handleEditInstructions}
         data-testid="client-edit-instructions-btn"
-        aria-label={`Редактировать инструкции для ${client.displayName}`}
+        aria-label={`Edit instructions for ${client.displayName}`}
       >
-        Редактировать инструкции
+        Edit instructions
       </button>
 
       {/* ── Role sync (ctq-69) ─────────────────────────────────────── */}
@@ -164,9 +164,9 @@ export function ConnectedClientCard({
             onClick={handleSyncRoles}
             disabled={isSyncing}
             data-testid="client-sync-roles-btn"
-            aria-label={`Синхронизировать роли для ${client.displayName}`}
+            aria-label={`Sync roles for ${client.displayName}`}
           >
-            {isSyncing ? "Синхронизация…" : "Синхронизировать роли"}
+            {isSyncing ? "Syncing…" : "Sync roles"}
           </button>
 
           {syncedRoles !== undefined && syncedRoles.length > 0 && (
@@ -193,7 +193,7 @@ export function ConnectedClientCard({
           className={styles.syncNotSupported}
           data-testid="client-sync-not-supported"
         >
-          Синхронизация ролей не поддерживается
+          Role sync is not supported
         </p>
       )}
     </div>

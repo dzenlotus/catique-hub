@@ -12,7 +12,6 @@ import type { NavView } from "@widgets/main-sidebar";
 const ALL_VIEWS: NavView[] = [
   "boards",
   "prompts",
-  "prompt-groups",
   "agent-roles",
   "skills",
   "mcp-servers",
@@ -66,10 +65,6 @@ describe("pathForView", () => {
     expect(pathForView("prompts")).toBe("/prompts");
   });
 
-  it("maps prompt-groups → /prompt-groups", () => {
-    expect(pathForView("prompt-groups")).toBe("/prompt-groups");
-  });
-
   it("maps agent-roles → /roles", () => {
     expect(pathForView("agent-roles")).toBe("/roles");
   });
@@ -118,8 +113,10 @@ describe("viewForPath", () => {
     expect(viewForPath("/prompts")).toBe("prompts");
   });
 
-  it("maps /prompt-groups → prompt-groups", () => {
-    expect(viewForPath("/prompt-groups")).toBe("prompt-groups");
+  // Round-19c: /prompt-groups was merged into /prompts. The legacy path
+  // maps to the new "prompts" view so deep-links keep working.
+  it("maps /prompt-groups → prompts (round-19c merge)", () => {
+    expect(viewForPath("/prompt-groups")).toBe("prompts");
   });
 
   it("maps /roles → agent-roles (renamed in Round 4)", () => {

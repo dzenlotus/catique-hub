@@ -20,6 +20,13 @@ const ACTIVE_TAG_STORAGE_KEY = "catique:prompts:active-tag";
 export interface PromptsListProps {
   /** Called when the user activates a prompt card. */
   onSelectPrompt?: (id: string) => void;
+  /**
+   * When provided, the parent owns the editor open/close state and
+   * `<PromptsList>` will NOT mount its own `<PromptEditor>`. Used by
+   * `<PromptsPage>` (round-19c) where one editor instance is shared
+   * between the sidebar and the grid.
+   */
+  externallyManagedEditor?: boolean;
 }
 
 /**
@@ -34,7 +41,10 @@ export interface PromptsListProps {
  * A `PromptsTagFilter` row between the header and the grid lets the user
  * filter the list by attached tag (client-side, via `usePromptTagsMap`).
  */
-export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactElement {
+export function PromptsList({
+  onSelectPrompt,
+  externallyManagedEditor = false,
+}: PromptsListProps = {}): ReactElement {
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAttachOpen, setIsAttachOpen] = useState(false);
@@ -204,10 +214,12 @@ export function PromptsList({ onSelectPrompt }: PromptsListProps = {}): ReactEle
         </div>
       )}
 
-      <PromptEditor
-        promptId={selectedPromptId}
-        onClose={() => setSelectedPromptId(null)}
-      />
+      {externallyManagedEditor ? null : (
+        <PromptEditor
+          promptId={selectedPromptId}
+          onClose={() => setSelectedPromptId(null)}
+        />
+      )}
 
       <PromptCreateDialog
         isOpen={isCreateOpen}

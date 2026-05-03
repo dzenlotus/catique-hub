@@ -33,7 +33,7 @@ export function PromptGroupCreateDialog({
 }: PromptGroupCreateDialogProps): ReactElement {
   return (
     <Dialog
-      title="Создать группу промптов"
+      title="Create prompt group"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -75,7 +75,7 @@ function PromptGroupCreateDialogContent({
     setSaveError(null);
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
 
@@ -89,7 +89,7 @@ function PromptGroupCreateDialogContent({
         onClose();
       },
       onError: (err) => {
-        setSaveError(`Не удалось создать: ${err.message}`);
+        setSaveError(`Failed to create: ${err.message}`);
       },
     });
   };
@@ -103,10 +103,10 @@ function PromptGroupCreateDialogContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={name}
           onChange={setName}
-          placeholder="Название группы"
+          placeholder="Group name"
           autoFocus
           className={styles.fullWidthInput}
           data-testid="prompt-group-create-dialog-name-input"
@@ -115,7 +115,7 @@ function PromptGroupCreateDialogContent({
 
       {/* Color */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Цвет</p>
+        <p className={styles.sectionLabel}>Color</p>
         <div className={styles.colorRow}>
           {color !== "" && (
             <span
@@ -129,7 +129,7 @@ function PromptGroupCreateDialogContent({
             className={styles.colorInput}
             value={color === "" ? "#000000" : color}
             onChange={(e) => setColor(e.target.value)}
-            aria-label="Цвет группы"
+            aria-label="Group color"
             data-testid="prompt-group-create-dialog-color-input"
           />
           {color !== "" && (
@@ -139,7 +139,7 @@ function PromptGroupCreateDialogContent({
               onPress={() => setColor("")}
               data-testid="prompt-group-create-dialog-color-reset"
             >
-              Сбросить
+              Reset
             </Button>
           )}
         </div>
@@ -162,7 +162,7 @@ function PromptGroupCreateDialogContent({
           onPress={handleCancel}
           data-testid="prompt-group-create-dialog-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -172,7 +172,7 @@ function PromptGroupCreateDialogContent({
           onPress={handleSave}
           data-testid="prompt-group-create-dialog-save"
         >
-          Создать
+          Create
         </Button>
       </div>
     </>

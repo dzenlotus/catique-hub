@@ -36,7 +36,7 @@ export function McpToolCreateDialog({
 }: McpToolCreateDialogProps): ReactElement {
   return (
     <Dialog
-      title="Создать MCP-инструмент"
+      title="Create MCP tool"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -80,13 +80,13 @@ function McpToolCreateDialogContent({
     setSaveError(null);
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
 
     const trimmedSchema = schemaJson.trim();
     if (!trimmedSchema) {
-      setSaveError("JSON-схема обязательна.");
+      setSaveError("JSON schema is required.");
       return;
     }
 
@@ -94,7 +94,7 @@ function McpToolCreateDialogContent({
     try {
       JSON.parse(trimmedSchema);
     } catch {
-      setSaveError("Невалидный JSON. Проверьте синтаксис JSON-схемы.");
+      setSaveError("Invalid JSON. Check the JSON schema syntax.");
       return;
     }
 
@@ -113,9 +113,9 @@ function McpToolCreateDialogContent({
           err instanceof AppErrorInstance &&
           err.kind === "conflict"
         ) {
-          setSaveError("Имя уже занято.");
+          setSaveError("Name already taken.");
         } else {
-          setSaveError(`Не удалось создать: ${err.message}`);
+          setSaveError(`Failed to create: ${err.message}`);
         }
       },
     });
@@ -130,10 +130,10 @@ function McpToolCreateDialogContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={name}
           onChange={setName}
-          placeholder="Название инструмента"
+          placeholder="Tool name"
           autoFocus
           className={styles.fullWidthInput}
           data-testid="mcp-tool-create-dialog-name-input"
@@ -143,10 +143,10 @@ function McpToolCreateDialogContent({
       {/* Description */}
       <div className={styles.section}>
         <Input
-          label="Описание"
+          label="Description"
           value={description}
           onChange={setDescription}
-          placeholder="Краткое описание (необязательно)"
+          placeholder="Short description (optional)"
           className={styles.fullWidthInput}
           data-testid="mcp-tool-create-dialog-description-input"
         />
@@ -154,7 +154,7 @@ function McpToolCreateDialogContent({
 
       {/* Color */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Цвет</p>
+        <p className={styles.sectionLabel}>Color</p>
         <div className={styles.colorRow}>
           {color !== "" && (
             <span
@@ -168,7 +168,7 @@ function McpToolCreateDialogContent({
             className={styles.colorInput}
             value={color === "" ? "#000000" : color}
             onChange={(e) => setColor(e.target.value)}
-            aria-label="Цвет инструмента"
+            aria-label="Tool color"
             data-testid="mcp-tool-create-dialog-color-input"
           />
           {color !== "" && (
@@ -178,7 +178,7 @@ function McpToolCreateDialogContent({
               onPress={() => setColor("")}
               data-testid="mcp-tool-create-dialog-color-reset"
             >
-              Сбросить
+              Reset
             </Button>
           )}
         </div>
@@ -186,17 +186,17 @@ function McpToolCreateDialogContent({
 
       {/* Schema JSON */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>JSON-схема</p>
+        <p className={styles.sectionLabel}>JSON schema</p>
         <textarea
           className={styles.schemaTextarea}
           value={schemaJson}
           onChange={(e) => setSchemaJson(e.target.value)}
           placeholder="{}"
           data-testid="mcp-tool-create-dialog-schema-input"
-          aria-label="JSON-схема"
+          aria-label="JSON schema"
         />
         <p className={styles.schemaHint}>
-          JSON-схема. Должен быть валидный JSON.
+          JSON schema. Must be valid JSON.
         </p>
       </div>
 
@@ -217,7 +217,7 @@ function McpToolCreateDialogContent({
           onPress={handleCancel}
           data-testid="mcp-tool-create-dialog-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -227,7 +227,7 @@ function McpToolCreateDialogContent({
           onPress={handleSave}
           data-testid="mcp-tool-create-dialog-save"
         >
-          Создать
+          Create
         </Button>
       </div>
     </>

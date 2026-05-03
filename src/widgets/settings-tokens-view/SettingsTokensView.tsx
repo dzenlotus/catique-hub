@@ -2,7 +2,7 @@
  * SettingsTokensView — per-prompt token count management panel.
  *
  * Shows all prompts in a table with their current token count and a per-row
- * recount button. The bulk "Пересчитать всё" button iterates sequentially
+ * recount button. The bulk "Recount all" button iterates sequentially
  * (back-pressure friendly) and tracks progress via a simple state machine.
  */
 
@@ -70,7 +70,7 @@ function PromptRow({ prompt }: PromptRowProps): ReactElement {
           size="sm"
           isPending={isPending}
           onPress={() => recount.mutate(prompt.id)}
-          aria-label={`Пересчитать токены для «${prompt.name}»`}
+          aria-label={`Recount tokens for "${prompt.name}"`}
           data-testid={`settings-tokens-view-row-${prompt.id}-recount`}
         >
           <PixelInterfaceEssentialRefresh width={13} height={13} aria-hidden="true" />
@@ -108,9 +108,9 @@ export function SettingsTokensView(): ReactElement {
         await recount.mutateAsync(prompt.id);
       } catch (err) {
         const msg =
-          err instanceof Error ? err.message : "Неизвестная ошибка";
+          err instanceof Error ? err.message : "Unknown error";
         setBulkError(
-          `Ошибка при пересчёте «${prompt.name}»: ${msg}`,
+          `Error recounting "${prompt.name}": ${msg}`,
         );
         setBulk({ kind: "idle" });
         return;
@@ -119,14 +119,14 @@ export function SettingsTokensView(): ReactElement {
     }
 
     setBulk({ kind: "idle" });
-    pushToast("info", `Пересчитано ${prompts.length} промптов`);
+    pushToast("info", `Recounted ${prompts.length} prompts`);
   };
 
   const isBulkRunning = bulk.kind === "running";
 
   const bulkLabel = isBulkRunning
-    ? `Пересчитано ${bulk.done} из ${bulk.total}…`
-    : "Пересчитать всё";
+    ? `Recounted ${bulk.done} of ${bulk.total}…`
+    : "Recount all";
 
   // ── Pending ──────────────────────────────────────────────────────────────
 
@@ -137,13 +137,13 @@ export function SettingsTokensView(): ReactElement {
         data-testid="settings-tokens-view"
       >
         <div className={styles.header}>
-          <h4 className={styles.title}>Подсчёт токенов</h4>
+          <h4 className={styles.title}>Token counts</h4>
           <Button variant="ghost" size="sm" isDisabled>
             <PixelInterfaceEssentialRefresh width={14} height={14} aria-hidden="true" />
             {bulkLabel}
           </Button>
         </div>
-        <table className={styles.table} aria-label="Токены промптов">
+        <table className={styles.table} aria-label="Prompt tokens">
           <colgroup>
             <col style={{ width: "40%" }} />
             <col style={{ width: "30%" }} />
@@ -152,9 +152,9 @@ export function SettingsTokensView(): ReactElement {
           </colgroup>
           <thead>
             <tr className={styles.headerRow}>
-              <th className={styles.th}>Название</th>
-              <th className={styles.th}>Описание</th>
-              <th className={styles.th}>Токены</th>
+              <th className={styles.th}>Name</th>
+              <th className={styles.th}>Description</th>
+              <th className={styles.th}>Tokens</th>
               <th className={styles.th} />
             </tr>
           </thead>
@@ -177,7 +177,7 @@ export function SettingsTokensView(): ReactElement {
         data-testid="settings-tokens-view"
       >
         <div className={styles.header}>
-          <h4 className={styles.title}>Подсчёт токенов</h4>
+          <h4 className={styles.title}>Token counts</h4>
         </div>
         <div
           className={styles.errorBanner}
@@ -185,14 +185,14 @@ export function SettingsTokensView(): ReactElement {
           data-testid="settings-tokens-view-error"
         >
           <p className={styles.errorMessage}>
-            Не удалось загрузить промпты: {query.error.message}
+            Failed to load prompts: {query.error.message}
           </p>
           <Button
             variant="secondary"
             size="sm"
             onPress={() => void query.refetch()}
           >
-            Повторить
+            Retry
           </Button>
         </div>
       </div>
@@ -208,13 +208,13 @@ export function SettingsTokensView(): ReactElement {
         data-testid="settings-tokens-view"
       >
         <div className={styles.header}>
-          <h4 className={styles.title}>Подсчёт токенов</h4>
+          <h4 className={styles.title}>Token counts</h4>
         </div>
         <p
           className={styles.empty}
           data-testid="settings-tokens-view-empty"
         >
-          Промптов пока нет.
+          No prompts yet.
         </p>
       </div>
     );
@@ -228,14 +228,14 @@ export function SettingsTokensView(): ReactElement {
       data-testid="settings-tokens-view"
     >
       <div className={styles.header}>
-        <h4 className={styles.title}>Подсчёт токенов</h4>
+        <h4 className={styles.title}>Token counts</h4>
         <Button
           variant="ghost"
           size="sm"
           isPending={isBulkRunning}
           onPress={() => void handleBulkRecount()}
           data-testid="settings-tokens-view-bulk-recount"
-          aria-label="Пересчитать токены для всех промптов"
+          aria-label="Recount tokens for all prompts"
         >
           <PixelInterfaceEssentialRefresh width={14} height={14} aria-hidden="true" />
           {bulkLabel}
@@ -252,7 +252,7 @@ export function SettingsTokensView(): ReactElement {
         </div>
       )}
 
-      <table className={styles.table} aria-label="Токены промптов">
+      <table className={styles.table} aria-label="Prompt tokens">
         <colgroup>
           <col style={{ width: "40%" }} />
           <col style={{ width: "30%" }} />
@@ -261,9 +261,9 @@ export function SettingsTokensView(): ReactElement {
         </colgroup>
         <thead>
           <tr className={styles.headerRow}>
-            <th className={styles.th}>Название</th>
-            <th className={styles.th}>Описание</th>
-            <th className={styles.th}>Токены</th>
+            <th className={styles.th}>Name</th>
+            <th className={styles.th}>Description</th>
+            <th className={styles.th}>Tokens</th>
             <th className={styles.th} />
           </tr>
         </thead>

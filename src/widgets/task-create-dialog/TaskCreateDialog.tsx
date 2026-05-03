@@ -54,7 +54,7 @@ export function TaskCreateDialog({
 }: TaskCreateDialogProps): ReactElement {
   return (
     <Dialog
-      title="Создать задачу"
+      title="Create task"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -133,15 +133,15 @@ function TaskCreateDialogContent({
     setSaveError(null);
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Title cannot be empty.");
       return;
     }
     if (!selectedBoardId) {
-      setSaveError("Выберите доску.");
+      setSaveError("Select a board.");
       return;
     }
     if (!selectedColumnId) {
-      setSaveError("Выберите статус.");
+      setSaveError("Select a status.");
       return;
     }
 
@@ -164,12 +164,12 @@ function TaskCreateDialogContent({
       mutationArgs,
       {
         onSuccess: () => {
-          pushToast("success", "Задача создана");
+          pushToast("success", "Task created");
           onClose();
         },
         onError: (err) => {
-          pushToast("error", "Не удалось создать задачу");
-          setSaveError(`Не удалось создать: ${err.message}`);
+          pushToast("error", "Failed to create task");
+          setSaveError(`Failed to create: ${err.message}`);
         },
       },
     );
@@ -186,10 +186,10 @@ function TaskCreateDialogContent({
       {/* Title */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Title"
           value={title}
           onChange={setTitle}
-          placeholder="Название задачи"
+          placeholder="Task title"
           autoFocus
           className={styles.fullWidthInput}
           data-testid="task-create-dialog-title-input"
@@ -199,7 +199,7 @@ function TaskCreateDialogContent({
       {/* Description */}
       <div className={styles.section}>
         <div className={styles.descriptionHeader}>
-          <span className={styles.sectionLabel}>Описание</span>
+          <span className={styles.sectionLabel}>Description</span>
           <div className={styles.descriptionTabs}>
             <button
               type="button"
@@ -209,7 +209,7 @@ function TaskCreateDialogContent({
               )}
               onClick={() => setDescriptionMode("edit")}
             >
-              Редактировать
+              Edit
             </button>
             <button
               type="button"
@@ -219,7 +219,7 @@ function TaskCreateDialogContent({
               )}
               onClick={() => setDescriptionMode("preview")}
             >
-              Просмотр
+              Preview
             </button>
           </div>
         </div>
@@ -228,9 +228,9 @@ function TaskCreateDialogContent({
             className={styles.textarea}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Необязательно. Поддерживается Markdown."
+            placeholder="Optional. Markdown is supported."
             rows={4}
-            aria-label="Описание"
+            aria-label="Description"
             data-testid="task-create-dialog-description-textarea"
           />
         ) : (
@@ -238,7 +238,7 @@ function TaskCreateDialogContent({
             {description.trim() ? (
               <MarkdownPreview source={description} />
             ) : (
-              <p className={styles.previewEmpty}>Нет содержимого для предпросмотра.</p>
+              <p className={styles.previewEmpty}>Nothing to preview.</p>
             )}
           </div>
         )}
@@ -246,18 +246,18 @@ function TaskCreateDialogContent({
 
       {/* Board */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Доска</p>
+        <p className={styles.sectionLabel}>Board</p>
         {boardsQuery.status === "pending" ? (
           <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
         ) : boardsQuery.status === "error" ? (
           <p className={styles.fieldError}>
-            Не удалось загрузить доски: {boardsQuery.error.message}
+            Failed to load boards: {boardsQuery.error.message}
           </p>
         ) : boards.length === 0 ? (
-          <p className={styles.fieldError}>Нет доступных досок.</p>
+          <p className={styles.fieldError}>No boards available.</p>
         ) : (
           <Listbox
-            aria-label="Доска"
+            aria-label="Board"
             selectionMode="single"
             selectedKeys={selectedBoardId !== null ? new Set([selectedBoardId]) : new Set()}
             onSelectionChange={(keys) => {
@@ -279,20 +279,20 @@ function TaskCreateDialogContent({
 
       {/* Column / Status */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Статус</p>
+        <p className={styles.sectionLabel}>Status</p>
         {selectedBoardId === null ? (
-          <p className={styles.fieldHint}>Сначала выберите доску.</p>
+          <p className={styles.fieldHint}>Select a board first.</p>
         ) : columnsQuery.status === "pending" ? (
           <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
         ) : columnsQuery.status === "error" ? (
           <p className={styles.fieldError}>
-            Не удалось загрузить колонки: {columnsQuery.error.message}
+            Failed to load columns: {columnsQuery.error.message}
           </p>
         ) : columns.length === 0 ? (
-          <p className={styles.fieldError}>У доски нет колонок.</p>
+          <p className={styles.fieldError}>This board has no columns.</p>
         ) : (
           <Listbox
-            aria-label="Статус"
+            aria-label="Status"
             selectionMode="single"
             selectedKeys={selectedColumnId !== null ? new Set([selectedColumnId]) : new Set()}
             onSelectionChange={(keys) => {
@@ -314,16 +314,16 @@ function TaskCreateDialogContent({
 
       {/* Role */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Роль</p>
+        <p className={styles.sectionLabel}>Role</p>
         {rolesQuery.status === "pending" ? (
           <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
         ) : rolesQuery.status === "error" ? (
           <p className={styles.fieldError}>
-            Не удалось загрузить роли: {rolesQuery.error.message}
+            Failed to load roles: {rolesQuery.error.message}
           </p>
         ) : (
           <Listbox
-            aria-label="Роль"
+            aria-label="Role"
             selectionMode="single"
             selectedKeys={selectedRoleId !== null ? new Set([selectedRoleId]) : new Set(["__none__"])}
             onSelectionChange={(keys) => {
@@ -337,7 +337,7 @@ function TaskCreateDialogContent({
             data-testid="task-create-dialog-role-select"
           >
             <ListboxItem key="__none__" id="__none__">
-              (нет роли)
+              (no role)
             </ListboxItem>
             {roles.map((role) => (
               <ListboxItem key={role.id} id={role.id}>
@@ -365,7 +365,7 @@ function TaskCreateDialogContent({
           onPress={handleCancel}
           data-testid="task-create-dialog-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -375,7 +375,7 @@ function TaskCreateDialogContent({
           onPress={handleSave}
           data-testid="task-create-dialog-save"
         >
-          Создать
+          Create
         </Button>
       </div>
     </Scrollable>

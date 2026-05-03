@@ -59,9 +59,9 @@ function ClientCardRow({
  * Settings view (ctq-67 / ctq-68 / ctq-69).
  *
  * Shows all known agentic clients with their installed/enabled status.
- * Provides a "Просканировать" button that triggers a filesystem rescan
- * via `discover_clients`. Each card exposes "Редактировать инструкции"
- * (ctq-68) and "Синхронизировать роли" (ctq-69).
+ * Provides a "Rescan" button that triggers a filesystem rescan via
+ * `discover_clients`. Each card exposes "Edit instructions" (ctq-68)
+ * and "Sync roles" (ctq-69).
  */
 export function ConnectedAgentsSection(): ReactElement {
   const { data: clients, status, error } = useConnectedClients();
@@ -103,7 +103,7 @@ export function ConnectedAgentsSection(): ReactElement {
           isDisabled={discoverMutation.isPending}
           data-testid="discover-clients-button"
         >
-          {discoverMutation.isPending ? "Сканирование…" : "Просканировать"}
+          {discoverMutation.isPending ? "Scanning…" : "Rescan"}
         </Button>
       </div>
 
@@ -118,15 +118,15 @@ export function ConnectedAgentsSection(): ReactElement {
 
       {status === "error" && (
         <p className={cn(styles.message, styles.errorMessage)} role="alert" data-testid="connected-agents-error">
-          Не удалось загрузить список клиентов:{" "}
-          {error instanceof Error ? error.message : "неизвестная ошибка"}
+          Failed to load clients:{" "}
+          {error instanceof Error ? error.message : "unknown error"}
         </p>
       )}
 
       {status === "success" && clients.length === 0 && (
         <p className={styles.message} data-testid="connected-agents-empty">
-          Клиенты не найдены. Нажмите «Просканировать», чтобы обнаружить
-          установленные агентские клиенты.
+          No clients found. Press &ldquo;Rescan&rdquo; to discover installed
+          agentic clients.
         </p>
       )}
 

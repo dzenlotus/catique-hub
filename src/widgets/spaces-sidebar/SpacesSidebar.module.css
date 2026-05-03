@@ -4,50 +4,11 @@
  * Middle rail. Hosts the SPACES section header and the collapsible
  * space tree (with board children inline). Width is set on the grid
  * track in `App.module.css` — this widget fills its column.
+ *
+ * Round-19c: cosmetic chrome (root <aside>, scrollable wrap, section
+ * label, "+ Add ..." trigger) lifted into `shared/ui/SidebarShell`.
+ * Only the row-specific styles remain here.
  */
-
-/* ============================================================
- * Shell
- * ============================================================ */
-
-.sidebar {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  grid-template-rows: 1fr;
-  background-color: var(--color-surface-sidebar);
-  border-right: 1px solid var(--color-border-default);
-  overflow: hidden;
-}
-
-/* ============================================================
- * Sections wrapper — scrollable area
- * ============================================================ */
-
-.sectionsWrap {
-  height: 100%;
-  display: block;
-  /* Top padding aligns the SPACES label vertically with the topbar
-     of the content column. */
-  padding: 24px 20px 28px;
-}
-
-/* ============================================================
- * Section label — "SPACES"
- * ============================================================ */
-
-.sectionLabel {
-  padding: 0 var(--space-4) var(--space-12);
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: var(--font-weight-bold);
-  line-height: var(--line-height-tight);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-text-subtle);
-  user-select: none;
-  flex-shrink: 0;
-}
 
 /* ============================================================
  * SPACES list — collapsible space rows
@@ -130,56 +91,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Ctq-76 item 1: "+ Add space" trigger sits at the bottom of the
- * spaces list. Mirrors the `.spaceNameBtn` typography so it reads as
- * a peer of the existing space items, not as a CTA pill. */
-.addSpaceRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
-  width: 100%;
-  margin: var(--space-8) 0 0 -4px;
-  padding: var(--space-8) var(--space-2);
-  border: none;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition: background-color 80ms ease-out, color 80ms ease-out;
-}
-
-.addSpaceRow:hover {
-  background-color: var(--color-overlay-hover);
-  color: var(--color-text-default);
-}
-
-.addSpaceRow:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-.addSpaceIcon {
-  flex: 0 0 auto;
-  /*
-   * Visually align the pixel "+" inside the same 28-px gutter the
-   * chevron lives in, so the label starts at the same column as a
-   * space name does. The chevron column is 28 px wide and centres a
-   * 14-px icon — replicate that geometry here.
-   */
-  margin-left: 7px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .addSpaceRow {
-    transition: none;
-  }
 }
 
 /* Board rows inside expanded space */

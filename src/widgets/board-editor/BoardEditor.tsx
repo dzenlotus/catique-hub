@@ -34,7 +34,7 @@ export function BoardEditor({ boardId, onClose }: BoardEditorProps): ReactElemen
 
   return (
     <Dialog
-      title="Редактирование доски"
+      title="Edit board"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -106,7 +106,7 @@ function BoardEditorContent({
             isDisabled
             data-testid="board-editor-cancel"
           >
-            Отмена
+            Cancel
           </Button>
           <Button
             variant="primary"
@@ -114,7 +114,7 @@ function BoardEditorContent({
             isDisabled
             data-testid="board-editor-save"
           >
-            Сохранить
+            Save
           </Button>
         </div>
       </>
@@ -132,14 +132,14 @@ function BoardEditorContent({
           data-testid="board-editor-fetch-error"
         >
           <p className={styles.errorBannerMessage}>
-            Не удалось загрузить доску: {query.error.message}
+            Failed to load board: {query.error.message}
           </p>
           <Button
             variant="secondary"
             size="sm"
             onPress={() => void query.refetch()}
           >
-            Повторить
+            Retry
           </Button>
         </div>
         <div className={styles.footer}>
@@ -149,7 +149,7 @@ function BoardEditorContent({
             onPress={onClose}
             data-testid="board-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -167,7 +167,7 @@ function BoardEditorContent({
           data-testid="board-editor-not-found"
         >
           <p className={styles.notFoundBannerMessage}>
-            Доска не найдена.
+            Board not found.
           </p>
         </div>
         <div className={styles.footer}>
@@ -177,7 +177,7 @@ function BoardEditorContent({
             onPress={onClose}
             data-testid="board-editor-cancel"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -193,11 +193,11 @@ function BoardEditorContent({
     setSaveError(null);
     const trimmedName = localName.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
     if (!localSpaceId) {
-      setSaveError("Необходимо выбрать пространство.");
+      setSaveError("A space must be selected.");
       return;
     }
 
@@ -205,7 +205,7 @@ function BoardEditorContent({
     const parsedPosition =
       localPosition.trim() === "" ? undefined : Number(localPosition);
     if (parsedPosition !== undefined && !Number.isFinite(parsedPosition)) {
-      setSaveError("Позиция должна быть числом.");
+      setSaveError("Position must be a number.");
       return;
     }
 
@@ -230,12 +230,12 @@ function BoardEditorContent({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
-        pushToast("success", "Доска сохранена");
+        pushToast("success", "Board saved");
         onClose();
       },
       onError: (err) => {
-        pushToast("error", `Не удалось сохранить доску: ${err.message}`);
-        setSaveError(`Не удалось сохранить: ${err.message}`);
+        pushToast("error", `Failed to save board: ${err.message}`);
+        setSaveError(`Failed to save: ${err.message}`);
       },
     });
   };
@@ -255,10 +255,10 @@ function BoardEditorContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={localName}
           onChange={setLocalName}
-          placeholder="Название доски"
+          placeholder="Board name"
           className={styles.fullWidthInput}
           data-testid="board-editor-name-input"
         />
@@ -266,30 +266,30 @@ function BoardEditorContent({
 
       {/* Description */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Описание</p>
+        <p className={styles.sectionLabel}>Description</p>
         <textarea
           className={styles.textarea}
           value={localDescription}
           onChange={(e) => setLocalDescription(e.target.value)}
-          placeholder="Необязательно"
+          placeholder="Optional"
           rows={3}
-          aria-label="Описание"
+          aria-label="Description"
           data-testid="board-editor-description-input"
         />
       </div>
 
       {/* Space */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Пространство</p>
+        <p className={styles.sectionLabel}>Space</p>
         {spacesQuery.status === "pending" ? (
           <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
         ) : spacesQuery.status === "error" ? (
           <p className={styles.spaceError}>
-            Не удалось загрузить пространства: {spacesQuery.error.message}
+            Failed to load spaces: {spacesQuery.error.message}
           </p>
         ) : (
           <Listbox
-            aria-label="Пространство"
+            aria-label="Space"
             selectionMode="single"
             selectedKeys={new Set([localSpaceId])}
             onSelectionChange={(keys) => {
@@ -311,14 +311,14 @@ function BoardEditorContent({
 
       {/* Position */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Позиция</p>
+        <p className={styles.sectionLabel}>Position</p>
         <input
           type="number"
           className={styles.numberInput}
           value={localPosition}
           onChange={(e) => setLocalPosition(e.target.value)}
-          placeholder="Необязательно"
-          aria-label="Позиция"
+          placeholder="Optional"
+          aria-label="Position"
           data-testid="board-editor-position-input"
         />
       </div>
@@ -340,7 +340,7 @@ function BoardEditorContent({
           onPress={handleCancel}
           data-testid="board-editor-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -349,7 +349,7 @@ function BoardEditorContent({
           onPress={handleSave}
           data-testid="board-editor-save"
         >
-          Сохранить
+          Save
         </Button>
       </div>
     </>

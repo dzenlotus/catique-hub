@@ -1,0 +1,47 @@
+/*
+ * PromptsPage — merged Prompts + Prompt Groups view.
+ *
+ * Layout: a fixed-width left rail (the prompts-sidebar widget) + a
+ * flexible main content area that hosts the existing PromptsList grid.
+ * Sits inside `App.module.css` `.mainPane` which already provides
+ * the outer scroll container, so we only need a flex column here.
+ */
+
+.root {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebarSlot {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/*
+ * `.contentSlot` is the OverlayScrollbars host (round-19c migration).
+ * Native `overflow-y` is no longer needed — the Scrollable wrapper owns
+ * the scroll inside its own viewport.
+ */
+.contentSlot {
+  height: 100%;
+  min-height: 0;
+  background-color: var(--color-bg-default);
+}
+
+@media (max-width: 720px) {
+  /* Below this breakpoint the rail collapses; the grid uses the
+     content area only. The rail is hidden via display:none so
+     the page stays readable on narrow windows. */
+  .root {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebarSlot {
+    display: none;
+  }
+}

@@ -8,9 +8,9 @@
  *   - `onClose`     — called when the dialog should close.
  *
  * Semantics:
- *   - ONE-WAY: no auto-watch, no polling. Manual "Перезагрузить" only.
- *   - Dirty-discard confirmation on "Закрыть" and "Перезагрузить".
- *   - "Изменено извне" warning when `modifiedAt` drifts between mount
+ *   - ONE-WAY: no auto-watch, no polling. Manual "Reload" only.
+ *   - Dirty-discard confirmation on "Close" and "Reload".
+ *   - "Changed externally" warning when `modifiedAt` drifts between mount
  *     and save attempt. Checked once on save (no polling).
  */
 
@@ -44,7 +44,7 @@ export function ClientInstructionsEditor({
 
   return (
     <Dialog
-      title={`Инструкции — ${displayName}`}
+      title={`Instructions — ${displayName}`}
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -84,7 +84,7 @@ function ClientInstructionsEditorContent({
   const [localContent, setLocalContent] = useState("");
   // Track modifiedAt at mount time to detect external changes.
   const mountedModifiedAt = useRef<bigint | null>(null);
-  // Show "изменено извне" warning when modifiedAt drifts.
+  // Show "changed externally" warning when modifiedAt drifts.
   const [showExternalChangeWarning, setShowExternalChangeWarning] =
     useState(false);
 
@@ -104,7 +104,7 @@ function ClientInstructionsEditorContent({
   const confirmDirtyDiscard = useCallback((): boolean => {
     if (!isDirty) return true;
     return window.confirm(
-      "Есть несохранённые изменения. Отменить их?",
+      "Unsaved changes will be discarded. Continue?",
     );
   }, [isDirty]);
 
@@ -137,10 +137,10 @@ function ClientInstructionsEditorContent({
           // Update the mounted baseline to the newly written modifiedAt.
           mountedModifiedAt.current = fresh.modifiedAt;
           setShowExternalChangeWarning(false);
-          pushToast("success", "Инструкции сохранены");
+          pushToast("success", "Instructions saved");
         },
         onError: (err) => {
-          pushToast("error", `Не удалось сохранить: ${err.message}`);
+          pushToast("error", `Failed to save: ${err.message}`);
         },
       },
     );
@@ -163,7 +163,7 @@ function ClientInstructionsEditorContent({
             isDisabled
             data-testid="client-instructions-editor-reload"
           >
-            Перезагрузить
+            Reload
           </Button>
           <Button
             variant="ghost"
@@ -171,7 +171,7 @@ function ClientInstructionsEditorContent({
             isDisabled
             data-testid="client-instructions-editor-close"
           >
-            Закрыть
+            Close
           </Button>
           <Button
             variant="primary"
@@ -179,7 +179,7 @@ function ClientInstructionsEditorContent({
             isDisabled
             data-testid="client-instructions-editor-save"
           >
-            Сохранить
+            Save
           </Button>
         </div>
       </>
@@ -197,14 +197,14 @@ function ClientInstructionsEditorContent({
           data-testid="client-instructions-editor-fetch-error"
         >
           <p className={styles.errorBannerMessage}>
-            Не удалось загрузить инструкции: {query.error.message}
+            Failed to load instructions: {query.error.message}
           </p>
           <Button
             variant="secondary"
             size="sm"
             onPress={() => void query.refetch()}
           >
-            Повторить
+            Retry
           </Button>
         </div>
         <div className={styles.footer}>
@@ -215,7 +215,7 @@ function ClientInstructionsEditorContent({
             onPress={onClose}
             data-testid="client-instructions-editor-close"
           >
-            Закрыть
+            Close
           </Button>
         </div>
       </>
@@ -237,7 +237,7 @@ function ClientInstructionsEditorContent({
         {instructions.filePath}
       </p>
 
-      {/* "Изменено извне" warning */}
+      {/* "Changed externally" warning */}
       {showExternalChangeWarning && (
         <div
           className={styles.warningBanner}
@@ -245,8 +245,8 @@ function ClientInstructionsEditorContent({
           data-testid="client-instructions-editor-external-change-warning"
         >
           <p>
-            Файл был изменён другой программой с момента открытия редактора.
-            Сохранение перезапишет внешние изменения.
+            The file was changed by another program since the editor opened.
+            Saving will overwrite the external changes.
           </p>
         </div>
       )}
@@ -255,8 +255,8 @@ function ClientInstructionsEditorContent({
       <MarkdownField
         value={localContent}
         onChange={setLocalContent}
-        placeholder="Глобальные инструкции (Markdown)..."
-        ariaLabel="Содержимое инструкций"
+        placeholder="Global instructions (Markdown)…"
+        ariaLabel="Instructions content"
         data-testid="client-instructions-editor-textarea"
       />
 
@@ -270,7 +270,7 @@ function ClientInstructionsEditorContent({
             isDisabled={writeMutation.isPending}
             data-testid="client-instructions-editor-reload"
           >
-            Перезагрузить
+            Reload
           </Button>
         </div>
         <Button
@@ -280,7 +280,7 @@ function ClientInstructionsEditorContent({
           isDisabled={writeMutation.isPending}
           data-testid="client-instructions-editor-close"
         >
-          Закрыть
+          Close
         </Button>
         <Button
           variant="primary"
@@ -289,7 +289,7 @@ function ClientInstructionsEditorContent({
           onPress={handleSave}
           data-testid="client-instructions-editor-save"
         >
-          Сохранить
+          Save
         </Button>
       </div>
     </>

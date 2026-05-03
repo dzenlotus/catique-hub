@@ -6,6 +6,7 @@ import { ColumnHeader } from "@entities/column";
 import type { Task } from "@entities/task";
 import { TaskCard } from "@entities/task";
 import { cn } from "@shared/lib";
+import { Scrollable } from "@shared/ui";
 
 import styles from "./KanbanColumn.module.css";
 
@@ -125,30 +126,36 @@ function KanbanColumnImpl({
         onDelete={onDeleteColumn}
       />
 
-      <div className={styles.body}>
-        {tasks.length === 0 ? (
-          <button
-            type="button"
-            className={styles.empty}
-            onClick={() => onAddTask(column.id)}
-            aria-label={`Add task to ${column.name}`}
-            data-testid={`kanban-column-empty-${column.id}`}
-          >
-            No tasks yet
-          </button>
-        ) : (
-          tasks.map((task, taskIndex) => (
-            <SortableTask
-              key={task.id}
-              task={task}
-              index={taskIndex}
-              columnId={column.id}
-              isDoneColumn={isDoneColumn}
-              onTaskSelect={onTaskSelect}
-            />
-          ))
-        )}
-      </div>
+      <Scrollable
+        axis="y"
+        className={styles.body}
+        data-testid={`kanban-column-scroll-${column.id}`}
+      >
+        <div className={styles.bodyTrack}>
+          {tasks.length === 0 ? (
+            <button
+              type="button"
+              className={styles.empty}
+              onClick={() => onAddTask(column.id)}
+              aria-label={`Add task to ${column.name}`}
+              data-testid={`kanban-column-empty-${column.id}`}
+            >
+              No tasks yet
+            </button>
+          ) : (
+            tasks.map((task, taskIndex) => (
+              <SortableTask
+                key={task.id}
+                task={task}
+                index={taskIndex}
+                columnId={column.id}
+                isDoneColumn={isDoneColumn}
+                onTaskSelect={onTaskSelect}
+              />
+            ))
+          )}
+        </div>
+      </Scrollable>
 
     </section>
   );

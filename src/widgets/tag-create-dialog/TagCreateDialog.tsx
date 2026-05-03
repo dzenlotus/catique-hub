@@ -33,7 +33,7 @@ export function TagCreateDialog({
 }: TagCreateDialogProps): ReactElement {
   return (
     <Dialog
-      title="Создать тег"
+      title="Create tag"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -75,7 +75,7 @@ function TagCreateDialogContent({
     setSaveError(null);
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setSaveError("Название не может быть пустым.");
+      setSaveError("Name cannot be empty.");
       return;
     }
 
@@ -89,7 +89,7 @@ function TagCreateDialogContent({
         onClose();
       },
       onError: (err) => {
-        setSaveError(`Не удалось создать: ${err.message}`);
+        setSaveError(`Failed to create: ${err.message}`);
       },
     });
   };
@@ -103,10 +103,10 @@ function TagCreateDialogContent({
       {/* Name */}
       <div className={styles.section}>
         <Input
-          label="Название"
+          label="Name"
           value={name}
           onChange={setName}
-          placeholder="Название тега"
+          placeholder="Tag name"
           autoFocus
           className={styles.fullWidthInput}
           data-testid="tag-create-dialog-name-input"
@@ -115,7 +115,7 @@ function TagCreateDialogContent({
 
       {/* Color */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Цвет</p>
+        <p className={styles.sectionLabel}>Color</p>
         <div className={styles.colorRow}>
           {color !== "" && (
             <span
@@ -129,7 +129,7 @@ function TagCreateDialogContent({
             className={styles.colorInput}
             value={color === "" ? "#000000" : color}
             onChange={(e) => setColor(e.target.value)}
-            aria-label="Цвет тега"
+            aria-label="Tag color"
             data-testid="tag-create-dialog-color-input"
           />
           {color !== "" && (
@@ -139,7 +139,7 @@ function TagCreateDialogContent({
               onPress={() => setColor("")}
               data-testid="tag-create-dialog-color-reset"
             >
-              Сбросить
+              Reset
             </Button>
           )}
         </div>
@@ -162,7 +162,7 @@ function TagCreateDialogContent({
           onPress={handleCancel}
           data-testid="tag-create-dialog-cancel"
         >
-          Отмена
+          Cancel
         </Button>
         <Button
           variant="primary"
@@ -172,7 +172,7 @@ function TagCreateDialogContent({
           onPress={handleSave}
           data-testid="tag-create-dialog-save"
         >
-          Создать
+          Create
         </Button>
       </div>
     </>

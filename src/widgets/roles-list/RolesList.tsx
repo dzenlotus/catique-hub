@@ -75,7 +75,7 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
           ) : rolesQuery.status === "error" ? (
             <div className={styles.error} role="alert">
               <p className={styles.errorMessage}>
-                Не удалось загрузить роли: {rolesQuery.error.message}
+                Failed to load roles: {rolesQuery.error.message}
               </p>
               <Button
                 variant="secondary"
@@ -84,7 +84,7 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
                   void rolesQuery.refetch();
                 }}
               >
-                Повторить
+                Retry
               </Button>
             </div>
           ) : rolesQuery.data.length === 0 ? (

@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { useState, useEffect } from "react";
-import { Button, Input } from "@shared/ui";
+import { Button, Input, Scrollable } from "@shared/ui";
 import { PixelInterfaceEssentialSettingCog } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { SettingsTokensView } from "@widgets/settings-tokens-view";
@@ -73,8 +73,8 @@ function SidecarStatusPill({ status }: { status: SidecarStatus }): ReactElement 
 
 function readActiveTheme(): string {
   const attr = document.documentElement.dataset["theme"];
-  if (attr === "light") return "Светлая";
-  return "Тёмная";
+  if (attr === "light") return "Light";
+  return "Dark";
 }
 
 /**
@@ -143,8 +143,13 @@ export function SettingsView(): ReactElement {
   }
 
   return (
-    <div className={styles.root}>
-      <header className={styles.pageHeader} aria-labelledby="settings-page-heading">
+    <Scrollable
+      axis="y"
+      className={styles.scrollHost}
+      data-testid="settings-view-scroll"
+    >
+      <div className={styles.root}>
+        <header className={styles.pageHeader} aria-labelledby="settings-page-heading">
         <PixelInterfaceEssentialSettingCog
           width={20}
           height={20}
@@ -164,15 +169,15 @@ export function SettingsView(): ReactElement {
       {/* ── Appearance ─────────────────────────────────────────────── */}
       <section className={styles.card} aria-labelledby="settings-appearance">
         <h3 id="settings-appearance" className={styles.cardHeading}>
-          Внешний вид
+          Appearance
         </h3>
         <div className={styles.cardBody}>
           <p className={styles.hint}>
-            Активная тема:{" "}
+            Active theme:{" "}
             <strong data-testid="active-theme-name">{activeTheme}</strong>
           </p>
           <p className={styles.hint}>
-            (используйте переключатель в нижней части боковой панели)
+            (use the toggle at the bottom of the sidebar)
           </p>
         </div>
       </section>
@@ -184,23 +189,23 @@ export function SettingsView(): ReactElement {
         data-testid="settings-view-profile-section"
       >
         <h3 id="settings-profile" className={styles.cardHeading}>
-          Профиль
+          Profile
         </h3>
         <div className={styles.cardBody}>
           <div className={styles.profileRow}>
             <div
               className={styles.avatar}
               data-testid="settings-view-profile-avatar"
-              aria-label="Аватар пользователя — M"
+              aria-label="User avatar — M"
             >
               M
             </div>
             <div className={styles.profileFields}>
               <Input
-                label="Имя"
+                label="Name"
                 defaultValue="Maintainer"
                 isDisabled
-                description="Локальный режим — только один пользователь. Аккаунты появятся в E6+."
+                description="Local mode — single-user only. Accounts arrive in E6+."
                 data-testid="settings-view-profile-name-input"
               />
               <Input
@@ -214,8 +219,8 @@ export function SettingsView(): ReactElement {
             </div>
           </div>
           <p className={cn(styles.hint, styles.profileCaption)}>
-            Catique HUB сейчас работает в локальном режиме. Учётные записи и
-            синхронизация — будущая итерация.
+            Catique HUB currently runs in local mode. Accounts and sync are a
+            future iteration.
           </p>
           <div>
             <span className={styles.localPill}>Local-first</span>
@@ -270,7 +275,7 @@ export function SettingsView(): ReactElement {
       {/* ── Tokens ──────────────────────────────────────────────────── */}
       <section className={styles.card} aria-labelledby="settings-tokens">
         <h3 id="settings-tokens" className={styles.cardHeading}>
-          Токены
+          Tokens
         </h3>
         <div className={styles.cardBody} data-testid="settings-tokens-section">
           <SettingsTokensView />
@@ -280,30 +285,30 @@ export function SettingsView(): ReactElement {
       {/* ── Data ────────────────────────────────────────────────────── */}
       <section className={styles.card} aria-labelledby="settings-data">
         <h3 id="settings-data" className={styles.cardHeading}>
-          Данные
+          Data
         </h3>
         <div className={styles.cardBody}>
           <dl className={styles.dl}>
-            <dt className={styles.dt}>Импорт из Promptery</dt>
+            <dt className={styles.dt}>Import from Promptery</dt>
             <dd className={styles.dd}>
-              Используйте мастер импорта из меню приложения.
+              Use the import wizard in the application menu.
             </dd>
 
-            <dt className={styles.dt}>Расположение базы данных (SQLite)</dt>
+            <dt className={styles.dt}>Database location (SQLite)</dt>
             <dd className={styles.dd}>
               <code className={styles.code}>$APPLOCALDATA/catique/db.sqlite</code>
             </dd>
 
-            <dt className={styles.dt}>Резервные копии</dt>
+            <dt className={styles.dt}>Backups</dt>
             <dd className={styles.dd}>TBD</dd>
           </dl>
 
           <div className={styles.actions}>
             <Button variant="secondary" size="sm" isDisabled>
-              Экспортировать данные (TODO)
+              Export data (TODO)
             </Button>
             <Button variant="secondary" size="sm" isDisabled>
-              Очистить данные (TODO)
+              Clear data (TODO)
             </Button>
           </div>
         </div>
@@ -321,15 +326,15 @@ export function SettingsView(): ReactElement {
         </h3>
         <div className={styles.cardBody}>
           <dl className={styles.dl}>
-            <dt className={styles.dt}>Статус</dt>
+            <dt className={styles.dt}>Status</dt>
             <dd className={styles.dd} data-testid="sidecar-status-pill">
               <SidecarStatusPill status={sidecarStatus} />
             </dd>
 
-            <dt className={styles.dt}>Задержка</dt>
+            <dt className={styles.dt}>Latency</dt>
             <dd className={styles.dd} data-testid="sidecar-latency">
               {sidecarLatencyMs !== null
-                ? `${sidecarLatencyMs.toFixed(2)} мс`
+                ? `${sidecarLatencyMs.toFixed(2)} ms`
                 : "—"}
             </dd>
           </dl>
@@ -342,7 +347,7 @@ export function SettingsView(): ReactElement {
               onPress={() => void handleSidecarRestart()}
               data-testid="sidecar-restart-button"
             >
-              {isRestarting ? "Перезапуск…" : "Перезапустить"}
+              {isRestarting ? "Restarting…" : "Restart"}
             </Button>
           </div>
         </div>
@@ -351,23 +356,24 @@ export function SettingsView(): ReactElement {
       {/* ── About ───────────────────────────────────────────────────── */}
       <section className={styles.card} aria-labelledby="settings-about">
         <h3 id="settings-about" className={styles.cardHeading}>
-          О приложении
+          About
         </h3>
         <div className={styles.cardBody}>
           <dl className={styles.dl}>
-            <dt className={styles.dt}>Версия</dt>
+            <dt className={styles.dt}>Version</dt>
             <dd className={styles.dd} data-testid="app-version">
               {APP_VERSION}
             </dd>
 
-            <dt className={styles.dt}>Лицензия</dt>
+            <dt className={styles.dt}>License</dt>
             <dd className={styles.dd}>Elastic-2.0</dd>
 
-            <dt className={styles.dt}>Исходный код</dt>
-            <dd className={styles.dd}>GitHub / catique-hub (ссылка TBD)</dd>
+            <dt className={styles.dt}>Source code</dt>
+            <dd className={styles.dd}>GitHub / catique-hub (link TBD)</dd>
           </dl>
         </div>
       </section>
-    </div>
+      </div>
+    </Scrollable>
   );
 }
