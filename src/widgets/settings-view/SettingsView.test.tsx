@@ -69,16 +69,16 @@ describe("SettingsView", () => {
   it("renders all four section headings", () => {
     setup();
     expect(
-      screen.getByRole("heading", { name: /внешний вид/i }),
+      screen.getByRole("heading", { name: /^appearance$/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /^токены$/i }),
+      screen.getByRole("heading", { name: /^tokens$/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /данные/i }),
+      screen.getByRole("heading", { name: /^data$/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /о приложении/i }),
+      screen.getByRole("heading", { name: /^about$/i }),
     ).toBeInTheDocument();
   });
 
@@ -94,25 +94,25 @@ describe("SettingsView", () => {
     expect(versionEl.textContent).toMatch(/\d+\.\d+/);
   });
 
-  it("Appearance section shows 'Тёмная' when data-theme is not set (default dark)", () => {
-    // No data-theme set — readActiveTheme() returns "Тёмная".
+  it("Appearance section shows 'Dark' when data-theme is not set (default dark)", () => {
+    // No data-theme set — readActiveTheme() returns "Dark".
     setup();
     const themeEl = screen.getByTestId("active-theme-name");
-    expect(themeEl.textContent).toBe("Тёмная");
+    expect(themeEl.textContent).toBe("Dark");
   });
 
-  it("Appearance section shows 'Светлая' when data-theme='light'", () => {
+  it("Appearance section shows 'Light' when data-theme='light'", () => {
     document.documentElement.dataset["theme"] = "light";
     setup();
     const themeEl = screen.getByTestId("active-theme-name");
-    expect(themeEl.textContent).toBe("Светлая");
+    expect(themeEl.textContent).toBe("Light");
   });
 
-  it("Appearance section shows 'Тёмная' when data-theme='dark'", () => {
+  it("Appearance section shows 'Dark' when data-theme='dark'", () => {
     document.documentElement.dataset["theme"] = "dark";
     setup();
     const themeEl = screen.getByTestId("active-theme-name");
-    expect(themeEl.textContent).toBe("Тёмная");
+    expect(themeEl.textContent).toBe("Dark");
   });
 
   it("renders at least one disabled TODO button in the Data section", () => {
@@ -134,7 +134,7 @@ describe("SettingsView", () => {
 
   it("Appearance section contains hint about the sidebar toggle", () => {
     setup();
-    expect(screen.getByText(/боковой панели/i)).toBeInTheDocument();
+    expect(screen.getByText(/sidebar/i)).toBeInTheDocument();
   });
 
   it("About section mentions Elastic-2.0 license", () => {
@@ -144,10 +144,10 @@ describe("SettingsView", () => {
 
   // ── Profile section ────────────────────────────────────────────────
 
-  it("Profile section renders with the heading 'Профиль'", () => {
+  it("Profile section renders with the heading 'Profile'", () => {
     setup();
     expect(
-      screen.getByRole("heading", { name: /^профиль$/i }),
+      screen.getByRole("heading", { name: /^profile$/i }),
     ).toBeInTheDocument();
   });
 

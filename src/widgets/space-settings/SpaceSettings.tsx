@@ -46,64 +46,82 @@ export function SpaceSettings(): ReactElement {
 
   if (spaceQuery.status === "pending") {
     return (
-      <div className={styles.root} data-testid="space-settings">
-        <div className={styles.statusPanel} role="status">
-          <p className={styles.statusMessage}>Loading space…</p>
+      <Scrollable
+        axis="y"
+        className={styles.scrollHost}
+        data-testid="space-settings-scroll"
+      >
+        <div className={styles.root} data-testid="space-settings">
+          <div className={styles.statusPanel} role="status">
+            <p className={styles.statusMessage}>Loading space…</p>
+          </div>
         </div>
-      </div>
+      </Scrollable>
     );
   }
 
   if (spaceQuery.status === "error") {
     return (
-      <div className={styles.root} data-testid="space-settings">
-        <div className={styles.statusPanel} role="alert">
-          <p className={styles.statusMessage}>
-            Failed to load space: {spaceQuery.error.message}
-          </p>
-          <Button
-            variant="secondary"
-            size="sm"
-            onPress={() => setLocation(routes.spaces)}
-          >
-            Back to spaces
-          </Button>
+      <Scrollable
+        axis="y"
+        className={styles.scrollHost}
+        data-testid="space-settings-scroll"
+      >
+        <div className={styles.root} data-testid="space-settings">
+          <div className={styles.statusPanel} role="alert">
+            <p className={styles.statusMessage}>
+              Failed to load space: {spaceQuery.error.message}
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => setLocation(routes.spaces)}
+            >
+              Back to spaces
+            </Button>
+          </div>
         </div>
-      </div>
+      </Scrollable>
     );
   }
 
   return (
-    <div className={styles.root} data-testid="space-settings">
-      <header
-        className={styles.pageHeader}
-        aria-labelledby="space-settings-heading"
-      >
-        <PixelInterfaceEssentialSettingCog
-          width={20}
-          height={20}
-          className={styles.pageHeaderIcon}
-          aria-hidden={true}
-        />
-        <div className={styles.pageHeaderText}>
-          <h2 id="space-settings-heading" className={styles.pageTitle}>
-            {spaceQuery.data.name}
-          </h2>
-          <p className={styles.pageDescription}>
-            Space settings. The prefix is set at creation and cannot be
-            changed.
-          </p>
-        </div>
-      </header>
+    <Scrollable
+      axis="y"
+      className={styles.scrollHost}
+      data-testid="space-settings-scroll"
+    >
+      <div className={styles.root} data-testid="space-settings">
+        <header
+          className={styles.pageHeader}
+          aria-labelledby="space-settings-heading"
+        >
+          <PixelInterfaceEssentialSettingCog
+            width={20}
+            height={20}
+            className={styles.pageHeaderIcon}
+            aria-hidden={true}
+          />
+          <div className={styles.pageHeaderText}>
+            <h2 id="space-settings-heading" className={styles.pageTitle}>
+              {spaceQuery.data.name}
+            </h2>
+            <p className={styles.pageDescription}>
+              Space settings. The prefix is set at creation and cannot be
+              changed.
+            </p>
+          </div>
+        </header>
 
-      <SpaceSettingsForm
-        key={spaceQuery.data.id}
-        spaceId={spaceQuery.data.id}
-        initialName={spaceQuery.data.name}
-        initialDescription={spaceQuery.data.description ?? ""}
-        prefix={spaceQuery.data.prefix}
-      />
-    </div>
+        <SpaceSettingsForm
+          key={spaceQuery.data.id}
+          spaceId={spaceQuery.data.id}
+          initialName={spaceQuery.data.name}
+          initialDescription={spaceQuery.data.description ?? ""}
+          prefix={spaceQuery.data.prefix}
+        />
+      </div>
+    </Scrollable>
   );
 }
 
