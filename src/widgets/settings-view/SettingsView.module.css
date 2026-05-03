@@ -1,18 +1,76 @@
 /*
- * SettingsView — vertical stack of section cards.
+ * SettingsView — table-of-contents sidebar + scrollable card stack.
  * Token-based; no hard-coded colour values.
  */
 
 /*
- * `.scrollHost` is the OverlayScrollbars host (round-19c migration).
- * Replaces the previous `.root.root { overflow-y: auto }` opt-out — the
- * Scrollable wrapper now owns the page-level vertical scroll surface
- * inside the `mainPane > *` overflow:hidden constraint set by App.
+ * Round-19c: SettingsView adopts SidebarShell as a left-rail TOC.
+ * Sidebar width matches the spaces-sidebar grid track in
+ * `App.module.css` (220 px) so the rail reads as a peer across the app.
+ */
+.layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/*
+ * `.scrollHost` is the OverlayScrollbars host. The Scrollable wrapper
+ * owns the page-level vertical scroll surface inside the `mainPane > *`
+ * overflow:hidden constraint set by App.
  */
 .scrollHost {
   height: 100%;
   width: 100%;
   min-height: 0;
+}
+
+/* TOC nav list inside SidebarShell. */
+.navList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.navItem {
+  display: block;
+  width: 100%;
+  padding: var(--space-8) var(--space-12);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.navItem:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.navItem:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navItem {
+    transition: none;
+  }
 }
 
 .root {

@@ -9,7 +9,9 @@
 
 .root {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  /* 220 px matches the spaces-sidebar grid track in `App.module.css` so
+   * SidebarShell renders at the same width across every consumer. */
+  grid-template-columns: 220px 1fr;
   height: 100%;
   width: 100%;
   min-height: 0;

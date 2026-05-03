@@ -1,6 +1,10 @@
 import type { ReactElement } from "react";
 import { useState, useEffect } from "react";
 import { Button, Input, Scrollable } from "@shared/ui";
+import {
+  SidebarShell,
+  SidebarSectionLabel,
+} from "@shared/ui/SidebarShell";
 import { PixelInterfaceEssentialSettingCog } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { SettingsTokensView } from "@widgets/settings-tokens-view";
@@ -11,6 +15,35 @@ import styles from "./SettingsView.module.css";
 
 // resolveJsonModule is enabled in tsconfig.json, so direct import is fine.
 const APP_VERSION: string = pkgJson.version;
+
+// ---------------------------------------------------------------------------
+// Sidebar table of contents (round-19c). Each entry is matched 1:1 against
+// the `id` attribute on the corresponding `<section>` so click → scroll.
+// ---------------------------------------------------------------------------
+
+const SETTINGS_SECTIONS: ReadonlyArray<{ id: string; label: string }> = [
+  { id: "settings-appearance", label: "Appearance" },
+  { id: "settings-profile", label: "Profile" },
+  { id: "settings-connected-agents", label: "Connected agents" },
+  { id: "settings-keyboard-shortcuts", label: "Keyboard shortcuts" },
+  { id: "settings-tokens", label: "Tokens" },
+  { id: "settings-data", label: "Data" },
+  { id: "settings-mcp-sidecar", label: "MCP sidecar" },
+  { id: "settings-about", label: "About" },
+];
+
+/**
+ * Smooth-scroll the visible Settings page so the section anchored on
+ * `id` is at the top of the viewport. Falls back to `scrollIntoView`
+ * default behaviour when `prefers-reduced-motion` is set, which the
+ * platform respects automatically.
+ */
+function scrollToSection(id: string): void {
+  if (typeof document === "undefined") return;
+  const target = document.getElementById(id);
+  if (target === null) return;
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
 // ---------------------------------------------------------------------------
 // MCP Sidecar types — mirrors crates/sidecar/src/lib.rs SidecarStatus enum.
@@ -143,13 +176,35 @@ export function SettingsView(): ReactElement {
   }
 
   return (
-    <Scrollable
-      axis="y"
-      className={styles.scrollHost}
-      data-testid="settings-view-scroll"
-    >
-      <div className={styles.root}>
-        <header className={styles.pageHeader} aria-labelledby="settings-page-heading">
+    <div className={styles.layout}>
+      <SidebarShell
+        ariaLabel="Settings sections"
+        testId="settings-view-sidebar"
+      >
+        <SidebarSectionLabel>Sections</SidebarSectionLabel>
+        <ul className={styles.navList} role="list">
+          {SETTINGS_SECTIONS.map((section) => (
+            <li key={section.id}>
+              <button
+                type="button"
+                className={styles.navItem}
+                onClick={() => scrollToSection(section.id)}
+                data-testid={`settings-view-nav-${section.id}`}
+              >
+                {section.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </SidebarShell>
+
+      <Scrollable
+        axis="y"
+        className={styles.scrollHost}
+        data-testid="settings-view-scroll"
+      >
+        <div className={styles.root}>
+          <header className={styles.pageHeader} aria-labelledby="settings-page-heading">
         <PixelInterfaceEssentialSettingCog
           width={20}
           height={20}
@@ -373,7 +428,8 @@ export function SettingsView(): ReactElement {
           </dl>
         </div>
       </section>
-      </div>
-    </Scrollable>
+        </div>
+      </Scrollable>
+    </div>
   );
 }
