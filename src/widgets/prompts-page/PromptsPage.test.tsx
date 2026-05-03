@@ -116,8 +116,9 @@ describe("PromptsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("GROUPS")).toBeInTheDocument();
     });
-    // Defaults to "All prompts" → label reads ALL PROMPTS.
-    expect(screen.getByText("ALL PROMPTS")).toBeInTheDocument();
+    // Round-19d: bottom section header is always just "PROMPTS" — the
+    // active group no longer filters the sidebar list.
+    expect(screen.getByText("PROMPTS")).toBeInTheDocument();
   });
 
   it("lists groups in the top section", async () => {
@@ -154,7 +155,7 @@ describe("PromptsPage", () => {
     });
   });
 
-  it("clicking a group shows its members instead of the ungrouped list", async () => {
+  it("clicking a group opens the inline group view and keeps all prompts in the sidebar", async () => {
     mockIpc({
       prompts: [
         makePrompt({ id: "prm-1", name: "Member" }),
@@ -165,35 +166,40 @@ describe("PromptsPage", () => {
     });
     const { user } = renderPage();
 
-    // Wait for both queries (list_prompt_groups + list_prompt_group_members)
-    // to settle before clicking.
     await waitFor(() => {
       expect(
         screen.getByTestId("prompts-sidebar-group-select-grp-1"),
       ).toBeInTheDocument();
     });
-    await waitFor(() => {
-      // The synthetic UNGROUPED bucket should contain prm-2 only.
-      expect(
-        screen.getByTestId("prompts-sidebar-prompt-row-prm-2"),
-      ).toBeInTheDocument();
-    });
-
-    await user.click(
-      screen.getByTestId("prompts-sidebar-group-select-grp-1"),
-    );
-
+    // Both prompts are visible in the sidebar regardless of group state.
     await waitFor(() => {
       expect(
         screen.getByTestId("prompts-sidebar-prompt-row-prm-1"),
       ).toBeInTheDocument();
     });
     expect(
-      screen.queryByTestId("prompts-sidebar-prompt-row-prm-2"),
-    ).not.toBeInTheDocument();
+      screen.getByTestId("prompts-sidebar-prompt-row-prm-2"),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByTestId("prompts-sidebar-group-select-grp-1"),
+    );
+
+    // Right pane swaps to the inline group view.
+    await waitFor(() => {
+      expect(screen.getByTestId("inline-group-view")).toBeInTheDocument();
+    });
+
+    // Sidebar still shows BOTH prompts.
+    expect(
+      screen.getByTestId("prompts-sidebar-prompt-row-prm-1"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("prompts-sidebar-prompt-row-prm-2"),
+    ).toBeInTheDocument();
   });
 
-  it("clicking a prompt row opens the editor modal", async () => {
+  it("clicking a prompt row opens the inline editor panel (not a modal)", async () => {
     mockIpc({
       prompts: [makePrompt({ id: "prm-x", name: "Open me" })],
       groups: [],
@@ -210,10 +216,14 @@ describe("PromptsPage", () => {
       screen.getByTestId("prompts-sidebar-prompt-select-prm-x"),
     );
 
-    // PromptEditor renders a <Dialog> which mounts as role="dialog".
+    // Round-19d: editor renders inline as a panel, not as a Dialog.
     await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.getByTestId("prompt-editor-panel")).toBeInTheDocument();
     });
+    // No <Dialog role="dialog"> should be mounted for the prompt editor
+    // (modals from other widgets — eg. group create — are NOT triggered
+    // by this click path, so role=dialog should be entirely absent).
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("exposes a draggable handle with an aria-label per prompt row", async () => {

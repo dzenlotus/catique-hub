@@ -1,0 +1,153 @@
+/*
+ * InlineGroupView — right-pane view of a prompt group.
+ *
+ * Replaces the modal `<PromptGroupEditor>` for in-page rendering when a
+ * group is selected from the sidebar.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-24);
+  box-sizing: border-box;
+  gap: var(--space-16);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding-bottom: var(--space-12);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.swatch {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border-default);
+  background-color: var(--color-text-subtle);
+}
+
+.title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-headline);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+/* ── Drop zone wrapping the prompts grid ───────────────────────────── */
+
+.dropZone {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  border-radius: var(--radius-md);
+  border: 1px dashed transparent;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out;
+}
+
+.dropZone[data-drop-target="true"] {
+  border-color: var(--color-border-focus);
+  background-color: var(--color-overlay-hover);
+}
+
+.dropHint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
+  font-style: italic;
+  padding: var(--space-8) var(--space-4);
+}
+
+/* ── Prompt grid ───────────────────────────────────────────────────── */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-12);
+  align-content: flex-start;
+  overflow-y: auto;
+  padding: var(--space-4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+.grid::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: var(--radius-full, 9999px);
+}
+
+.cardCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  position: relative;
+}
+
+.cardActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── Empty state ───────────────────────────────────────────────────── */
+
+.empty {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-8);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border-subtle);
+  padding: var(--space-32);
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+}
+
+.emptyHint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.errorBanner {
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-danger-soft);
+  color: var(--color-status-danger);
+  border: 1px solid var(--color-status-danger);
+  font-size: var(--font-size-body);
+}

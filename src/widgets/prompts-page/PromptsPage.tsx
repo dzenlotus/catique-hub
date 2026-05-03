@@ -1,60 +1,56 @@
-import { useMemo, useState, type ReactElement } from "react";
+import { useCallback, useMemo, useState, type ReactElement } from "react";
 import { useQueries } from "@tanstack/react-query";
+import { DragDropProvider } from "@dnd-kit/react";
+import type { DragEndEvent } from "@dnd-kit/react";
 
 import {
   promptGroupsKeys,
   listPromptGroupMembers,
+  useAddPromptGroupMemberMutation,
   useDeletePromptGroupMutation,
   usePromptGroups,
+  useRemovePromptGroupMemberMutation,
 } from "@entities/prompt-group";
 import { useToast } from "@app/providers/ToastProvider";
 import { Scrollable } from "@shared/ui";
 import { PromptsList } from "@widgets/prompts-list";
-import { PromptEditor } from "@widgets/prompt-editor";
+import { PromptEditorPanel } from "@widgets/prompt-editor-panel";
 import { PromptGroupEditor } from "@widgets/prompt-group-editor";
 import { PromptsSidebar } from "@widgets/prompts-sidebar";
+import { InlineGroupView } from "@widgets/inline-group-view";
 
 import styles from "./PromptsPage.module.css";
 
 // ---------------------------------------------------------------------------
-// PromptsPage — merged Prompts + Prompt Groups view (round-19c).
+// PromptsPage — merged Prompts + Prompt Groups view (round-19d).
+//
+// Right-pane router:
+//   - selectedPromptId !== null  → inline `<PromptEditorPanel>` (no modal).
+//   - selectedGroupId  !== null  → `<InlineGroupView>` of that group.
+//   - both null                  → `<PromptsList>` grid (default landing).
+//
+// DnD is owned at this level so the sidebar's draggable rows and the
+// inline group view's droppable area share one provider. Drop targets:
+//   - sidebar group row     id = `group:<id>`
+//   - inline group view     id = `group-content:<id>`  (different id;
+//     both mean "drop on this group" — the handler routes them to the
+//     same membership mutation).
 // ---------------------------------------------------------------------------
 
-/**
- * Single page replacing the previous /prompts and /prompt-groups routes.
- *
- * Architecture:
- *   - Left rail: `<PromptsSidebar>` (groups on top, prompts of the
- *     active group on the bottom, drag-and-drop wired to the
- *     prompt-group membership IPC).
- *   - Right pane: the existing `<PromptsList>` grid (unchanged
- *     contract). Selecting a prompt in either the rail or the grid
- *     opens the existing `<PromptEditor>` modal.
- *
- * Editor surface decision: PromptEditor stays a modal. The widget is
- * already shaped around `<Dialog>` + open/close transitions; rebuilding
- * it for inline-render would balloon scope and risk breaking its tests.
- * Keeping the modal also matches what the existing PromptsList grid
- * does today, so a prompt picked in the sidebar and a prompt picked in
- * the grid behave identically.
- */
 export function PromptsPage(): ReactElement {
   const groupsQuery = usePromptGroups();
   const deleteGroup = useDeletePromptGroupMutation();
+  const addMember = useAddPromptGroupMemberMutation();
+  const removeMember = useRemovePromptGroupMemberMutation();
   const { pushToast } = useToast();
 
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
 
-  // Selection: groupId === null means "All prompts" (ungrouped). The
-  // sidebar drives both the active highlight and the prompts shown in
-  // the bottom section.
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
 
-  // Fetch the ordered member-id list for every loaded group in parallel.
-  // The page owns this fan-out so the sidebar can stay a presentational
-  // consumer that doesn't itself fan out N queries.
+  // Per-group ordered member-id list (parallel queries).
   const memberQueries = useQueries({
     queries: groups.map((group) => ({
       queryKey: promptGroupsKeys.members(group.id),
@@ -71,10 +67,16 @@ export function PromptsPage(): ReactElement {
     return map;
   }, [groups, memberQueries]);
 
+  // promptId → owning groupId (null when not in any group).
+  const promptToGroup = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const [groupId, ids] of Object.entries(groupMembers)) {
+      for (const id of ids) map.set(id, groupId);
+    }
+    return map;
+  }, [groupMembers]);
+
   function handleDeleteGroup(groupId: string): void {
-    // No confirm modal here yet — delete fires immediately. UX-wise this
-    // mirrors the toast-on-error pattern used elsewhere; a confirm flow
-    // is tracked as deferred work.
     deleteGroup.mutate(groupId, {
       onSuccess: () => {
         pushToast("success", "Group deleted");
@@ -86,25 +88,78 @@ export function PromptsPage(): ReactElement {
     });
   }
 
-  return (
-    <section className={styles.root} data-testid="prompts-page-root">
-      <div className={styles.sidebarSlot}>
-        <PromptsSidebar
-          selectedPromptId={selectedPromptId}
-          selectedGroupId={selectedGroupId}
-          onSelectGroup={(groupId) => {
-            setSelectedGroupId(groupId);
-            // Clear prompt selection when switching groups so the editor
-            // doesn't keep showing a prompt the user just navigated away from.
-            setSelectedPromptId(null);
-          }}
+  // Shared DnD handler — accepts both `group:<id>` and `group-content:<id>`.
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent): void => {
+      if (event.canceled) return;
+
+      const sourceId = event.operation.source?.id;
+      const targetId = event.operation.target?.id;
+      if (typeof sourceId !== "string" || typeof targetId !== "string") return;
+
+      let targetGroupId: string | null = null;
+      if (targetId.startsWith("group-content:")) {
+        targetGroupId = targetId.slice("group-content:".length);
+      } else if (targetId.startsWith("group:")) {
+        targetGroupId = targetId.slice("group:".length);
+      } else {
+        return;
+      }
+
+      const currentGroupId = promptToGroup.get(sourceId) ?? null;
+      if (currentGroupId === targetGroupId) return;
+
+      if (currentGroupId !== null) {
+        removeMember.mutate(
+          { groupId: currentGroupId, promptId: sourceId },
+          {
+            onError: (err) =>
+              pushToast(
+                "error",
+                `Failed to remove prompt from previous group: ${err.message}`,
+              ),
+          },
+        );
+      }
+
+      addMember.mutate(
+        {
+          groupId: targetGroupId,
+          promptId: sourceId,
+          position: BigInt(groupMembers[targetGroupId]?.length ?? 0),
+        },
+        {
+          onError: (err) =>
+            pushToast(
+              "error",
+              `Failed to add prompt to group: ${err.message}`,
+            ),
+        },
+      );
+    },
+    [promptToGroup, groupMembers, addMember, removeMember, pushToast],
+  );
+
+  const renderRightPane = (): ReactElement => {
+    if (selectedPromptId !== null) {
+      return (
+        <PromptEditorPanel
+          promptId={selectedPromptId}
+          onClose={() => setSelectedPromptId(null)}
+        />
+      );
+    }
+    if (selectedGroupId !== null) {
+      return (
+        <InlineGroupView
+          groupId={selectedGroupId}
           onSelectPrompt={(id) => setSelectedPromptId(id)}
           onRenameGroup={(id) => setEditingGroupId(id)}
           onDeleteGroup={handleDeleteGroup}
-          groupMembers={groupMembers}
         />
-      </div>
-
+      );
+    }
+    return (
       <Scrollable
         axis="y"
         className={styles.contentSlot}
@@ -115,21 +170,37 @@ export function PromptsPage(): ReactElement {
           externallyManagedEditor
         />
       </Scrollable>
+    );
+  };
 
-      {/*
-       * Both editors are mounted at page level so the sidebar selection
-       * and the grid selection share one editor instance. Each renders
-       * nothing when its id prop is null (RAC handles unmount).
-       */}
-      <PromptEditor
-        promptId={selectedPromptId}
-        onClose={() => setSelectedPromptId(null)}
-      />
+  return (
+    <DragDropProvider onDragEnd={handleDragEnd}>
+      <section className={styles.root} data-testid="prompts-page-root">
+        <div className={styles.sidebarSlot}>
+          <PromptsSidebar
+            selectedPromptId={selectedPromptId}
+            selectedGroupId={selectedGroupId}
+            onSelectGroup={(groupId) => {
+              setSelectedGroupId(groupId);
+              setSelectedPromptId(null);
+            }}
+            onSelectPrompt={(id) => {
+              setSelectedPromptId(id);
+              setSelectedGroupId(null);
+            }}
+            onRenameGroup={(id) => setEditingGroupId(id)}
+            onDeleteGroup={handleDeleteGroup}
+            groupMembers={groupMembers}
+          />
+        </div>
 
-      <PromptGroupEditor
-        groupId={editingGroupId}
-        onClose={() => setEditingGroupId(null)}
-      />
-    </section>
+        <div className={styles.contentSlot}>{renderRightPane()}</div>
+
+        <PromptGroupEditor
+          groupId={editingGroupId}
+          onClose={() => setEditingGroupId(null)}
+        />
+      </section>
+    </DragDropProvider>
   );
 }
