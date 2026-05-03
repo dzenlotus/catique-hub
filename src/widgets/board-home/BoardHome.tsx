@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { useBoards } from "@entities/board";
-import { boardPath } from "@app/routes";
+import { boardPath, routes } from "@app/routes";
 import { PixelPetAnimalsCat } from "@shared/ui/Icon";
 import { lastBoardStore } from "@shared/storage";
 
@@ -24,13 +24,24 @@ function readLastBoardId(spaceId: string | null): string | null {
  *
  * The boards-list browse page was removed (Round 19) — boards are reached
  * exclusively via the SPACES tree in the sidebar.
+ *
+ * Round-19c bug fix: BoardHome is also rendered as a *backdrop* behind
+ * `<TaskDialog>` on the `/tasks/:taskId` route. Without a path guard,
+ * the redirect inside the useEffect fires while the dialog is opening
+ * and immediately yanks the user back to `/boards/:id`, unmounting
+ * the dialog before they see it. Gate the redirect on the actual home
+ * path so it only triggers when the user is genuinely at `/`.
  */
 export function BoardHome(): ReactElement {
   const { activeSpaceId } = useActiveSpace();
   const boardsQuery = useBoards();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
   useEffect(() => {
+    // Only redirect from the actual home path. When BoardHome renders
+    // as a backdrop under `/tasks/:taskId`, the dialog is in charge and
+    // we must not navigate away from underneath it.
+    if (location !== routes.boards) return;
     if (activeSpaceId === null) return;
     if (boardsQuery.status !== "success") return;
 
@@ -43,7 +54,13 @@ export function BoardHome(): ReactElement {
     if (stillExists) {
       setLocation(boardPath(lastId));
     }
-  }, [activeSpaceId, boardsQuery.status, boardsQuery.data, setLocation]);
+  }, [
+    location,
+    activeSpaceId,
+    boardsQuery.status,
+    boardsQuery.data,
+    setLocation,
+  ]);
 
   return (
     <section className={styles.root} aria-labelledby="board-home-heading">
