@@ -93,8 +93,16 @@
   align-items: stretch;
   gap: 24px;
   min-width: 0;
-  min-height: 100%;
+  /* Round-19d: explicit `height: 100%` instead of `min-height: 100%`.
+   * The OverlayScrollbars viewport this lives inside has a defined
+   * height, and `min-height` on flex children only kicks in when the
+   * parent has no explicit cross-axis size — the viewport DOES have
+   * one, but the layout was still letting columns shrink to content
+   * height. Forcing `height: 100%` + `align-items: stretch` reliably
+   * pulls every column to the full board height. */
+  height: 100%;
   padding: var(--space-16) var(--space-24) var(--space-24);
+  box-sizing: border-box;
 }
 
 /*

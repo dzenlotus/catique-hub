@@ -1,17 +1,17 @@
 /**
- * MarkdownField — content textarea with implicit view ⇄ edit modes.
+ * MarkdownField — content field with implicit view ⇄ edit modes plus
+ * an editing toolbar.
  *
  * Default mode is **view**: the value is rendered through
  * `MarkdownPreview` so the user reads formatted content. Click on the
  * preview (or tab focus, or focus from the keyboard) flips the field
  * into **edit** mode — a `<textarea>` takes its place and is given
- * focus immediately. Blurring the textarea (clicking outside, tabbing
- * away) returns the field to view mode. Esc also returns to view mode
- * without losing the in-flight value.
- *
- * Closes ctq-76 item 11. Replaces the previous "Edit / Preview"
- * explicit toggle pattern (RoleEditor, PromptEditor,
- * ClientInstructionsEditor) — same end state, no toggle chrome.
+ * focus immediately, alongside a Markdown editing toolbar with the
+ * common formatting affordances (bold, italic, heading, link, code,
+ * lists, quote). Blurring the textarea (clicking outside, tabbing
+ * away) returns the field to view mode unless focus moved into the
+ * toolbar. Esc also returns to view mode without losing the in-flight
+ * value.
  *
  * The component is fully controlled — the parent owns `value` and
  * `onChange`. We expose `onModeChange` so a parent can react to mode
@@ -58,6 +58,125 @@ export interface MarkdownFieldProps {
   "data-testid"?: string;
 }
 
+interface ToolbarAction {
+  /** Stable key for React + data-testid. */
+  id: string;
+  /** Visible button label (single character / glyph for compactness). */
+  glyph: string;
+  /** Tooltip / aria-label. */
+  label: string;
+  /** Apply the formatting transformation to the textarea contents. */
+  apply: (textarea: HTMLTextAreaElement, value: string) => {
+    next: string;
+    selectionStart: number;
+    selectionEnd: number;
+  };
+}
+
+/** Wrap the current selection (or insert a placeholder if empty). */
+function wrapSelection(
+  before: string,
+  after: string,
+  placeholder: string,
+): ToolbarAction["apply"] {
+  return (ta, value) => {
+    const start = ta.selectionStart ?? value.length;
+    const end = ta.selectionEnd ?? value.length;
+    const selected = value.slice(start, end);
+    const inner = selected.length > 0 ? selected : placeholder;
+    const next = `${value.slice(0, start)}${before}${inner}${after}${value.slice(end)}`;
+    return {
+      next,
+      selectionStart: start + before.length,
+      selectionEnd: start + before.length + inner.length,
+    };
+  };
+}
+
+/** Prefix every selected line (or the current line if no selection). */
+function prefixLines(prefix: string): ToolbarAction["apply"] {
+  return (ta, value) => {
+    const start = ta.selectionStart ?? value.length;
+    const end = ta.selectionEnd ?? value.length;
+    // Expand selection to whole-line boundaries.
+    const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+    let lineEnd = value.indexOf("\n", end);
+    if (lineEnd === -1) lineEnd = value.length;
+    const block = value.slice(lineStart, lineEnd);
+    const prefixed = block
+      .split("\n")
+      .map((line) => `${prefix}${line}`)
+      .join("\n");
+    const next = `${value.slice(0, lineStart)}${prefixed}${value.slice(lineEnd)}`;
+    return {
+      next,
+      selectionStart: lineStart,
+      selectionEnd: lineStart + prefixed.length,
+    };
+  };
+}
+
+/** Insert a Markdown link, inheriting the selection as the link text. */
+function insertLink(): ToolbarAction["apply"] {
+  return (ta, value) => {
+    const start = ta.selectionStart ?? value.length;
+    const end = ta.selectionEnd ?? value.length;
+    const selected = value.slice(start, end);
+    const text = selected.length > 0 ? selected : "link text";
+    const link = `[${text}](https://)`;
+    const next = `${value.slice(0, start)}${link}${value.slice(end)}`;
+    // Place the cursor inside the URL so the user can paste/type it.
+    const urlOffset = link.length - 1;
+    return {
+      next,
+      selectionStart: start + urlOffset,
+      selectionEnd: start + urlOffset,
+    };
+  };
+}
+
+const TOOLBAR_ACTIONS: ToolbarAction[] = [
+  {
+    id: "bold",
+    glyph: "B",
+    label: "Bold (Cmd+B)",
+    apply: wrapSelection("**", "**", "bold"),
+  },
+  {
+    id: "italic",
+    glyph: "I",
+    label: "Italic (Cmd+I)",
+    apply: wrapSelection("*", "*", "italic"),
+  },
+  {
+    id: "heading",
+    glyph: "H",
+    label: "Heading",
+    apply: prefixLines("## "),
+  },
+  { id: "link", glyph: "🔗", label: "Link", apply: insertLink() },
+  {
+    id: "code",
+    glyph: "</>",
+    label: "Inline code",
+    apply: wrapSelection("`", "`", "code"),
+  },
+  {
+    id: "code-block",
+    glyph: "{ }",
+    label: "Code block",
+    apply: wrapSelection("\n```\n", "\n```\n", "code"),
+  },
+  { id: "ul", glyph: "•", label: "Bullet list", apply: prefixLines("- ") },
+  {
+    id: "ol",
+    glyph: "1.",
+    label: "Numbered list",
+    apply: prefixLines("1. "),
+  },
+  { id: "quote", glyph: "❝", label: "Quote", apply: prefixLines("> ") },
+];
+
 export function MarkdownField({
   value,
   onChange,
@@ -71,10 +190,8 @@ export function MarkdownField({
 }: MarkdownFieldProps): ReactElement {
   const [mode, setMode] = useState<MarkdownFieldMode>(defaultMode);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Sync external mode listeners + autofocus the textarea when entering
-  // edit mode. The autofocus has to wait for the textarea to mount on
-  // this render — `useEffect` runs after commit so the ref is wired.
   useEffect(() => {
     onModeChange?.(mode);
     if (mode === "edit") {
@@ -92,10 +209,6 @@ export function MarkdownField({
 
   const handleViewKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>): void => {
-      // Enter / Space on the view-mode button enters edit mode. The
-      // browser already does this for native `<button>`s, but we keep
-      // the explicit handler so behaviour stays identical if the
-      // root element changes shape later.
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         enterEdit();
@@ -106,31 +219,113 @@ export function MarkdownField({
 
   const handleEditKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-      // Esc returns to view mode without discarding the in-flight value.
-      // The parent is the source of truth via `value`; the textarea
-      // already pushed every keystroke through `onChange`.
       if (event.key === "Escape") {
         event.preventDefault();
         exitEdit();
+        return;
+      }
+      // Cmd/Ctrl + B / I shortcuts mirror the toolbar.
+      const isMod = event.metaKey || event.ctrlKey;
+      if (!isMod) return;
+      if (event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        applyAction(TOOLBAR_ACTIONS[0]!);
+      } else if (event.key.toLowerCase() === "i") {
+        event.preventDefault();
+        applyAction(TOOLBAR_ACTIONS[1]!);
       }
     },
-    [exitEdit],
+    // applyAction is defined below; eslint-react would flag this — but
+    // applyAction depends on `value` + `onChange` which can change every
+    // render, so we re-create it inline rather than memoising.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [exitEdit, value, onChange],
   );
+
+  const applyAction = (action: ToolbarAction): void => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const result = action.apply(ta, value);
+    onChange(result.next);
+    // Restore selection on the next paint so the new value is in the DOM.
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(result.selectionStart, result.selectionEnd);
+    });
+  };
+
+  /**
+   * Treat focus moves into the toolbar as STILL editing — exit only
+   * when focus leaves the whole MarkdownField root. A textarea blur
+   * checks `relatedTarget` against the container ref; if focus went
+   * to a toolbar button, stay in edit mode.
+   */
+  const handleTextareaBlur = (
+    event: React.FocusEvent<HTMLTextAreaElement>,
+  ): void => {
+    const next = event.relatedTarget as Node | null;
+    if (next && containerRef.current?.contains(next)) {
+      return; // focus moved to a toolbar button; stay in edit mode
+    }
+    exitEdit();
+  };
 
   if (mode === "edit") {
     return (
-      <textarea
-        ref={textareaRef}
-        className={cn(styles.textarea, className)}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={exitEdit}
-        onKeyDown={handleEditKeyDown}
-        placeholder={placeholder}
-        aria-label={ariaLabel}
-        rows={rows}
-        data-testid={testId}
-      />
+      <div
+        ref={containerRef}
+        className={cn(styles.editRoot, className)}
+        data-testid={testId ? `${testId}-edit-root` : undefined}
+      >
+        <div
+          className={styles.toolbar}
+          role="toolbar"
+          aria-label="Markdown formatting"
+          data-testid={testId ? `${testId}-toolbar` : undefined}
+        >
+          {TOOLBAR_ACTIONS.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              className={styles.toolbarButton}
+              onMouseDown={(e) => {
+                // Prevent textarea blur before the click handler runs;
+                // the textarea is the source of selection state.
+                e.preventDefault();
+              }}
+              onClick={() => applyAction(action)}
+              aria-label={action.label}
+              title={action.label}
+              data-testid={
+                testId ? `${testId}-toolbar-${action.id}` : undefined
+              }
+            >
+              {action.glyph}
+            </button>
+          ))}
+          <span className={styles.toolbarSpacer} />
+          <button
+            type="button"
+            className={styles.toolbarDoneButton}
+            onClick={exitEdit}
+            data-testid={testId ? `${testId}-toolbar-done` : undefined}
+          >
+            Done
+          </button>
+        </div>
+        <textarea
+          ref={textareaRef}
+          className={styles.textarea}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={handleTextareaBlur}
+          onKeyDown={handleEditKeyDown}
+          placeholder={placeholder}
+          aria-label={ariaLabel}
+          rows={rows}
+          data-testid={testId}
+        />
+      </div>
     );
   }
 
@@ -143,9 +338,7 @@ export function MarkdownField({
       onClick={enterEdit}
       onFocus={enterEdit}
       onKeyDown={handleViewKeyDown}
-      aria-label={
-        ariaLabel ? `Edit ${ariaLabel}` : "Edit content"
-      }
+      aria-label={ariaLabel ? `Edit ${ariaLabel}` : "Edit content"}
       data-testid={testId}
     >
       {isEmpty ? (
