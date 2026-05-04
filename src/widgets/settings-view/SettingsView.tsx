@@ -4,6 +4,7 @@ import { Button, Input, Scrollable } from "@shared/ui";
 import {
   SidebarShell,
   SidebarSectionLabel,
+  SidebarNavItem,
 } from "@shared/ui/SidebarShell";
 import { PixelInterfaceEssentialSettingCog } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
@@ -198,15 +199,14 @@ export function SettingsView(): ReactElement {
     setActiveTheme(next);
   }
 
-  // Active TOC section — highest section currently in the upper half of
-  // the scroll viewport. Tracked via IntersectionObserver on each
-  // `<section[id]>`.
+  // Active TOC section. State-driven (clicks set it directly); IO acts
+  // as a passive observer that updates state when the user scrolls
+  // manually. A short post-click "lock" window blocks IO from
+  // overriding the click target while the smooth-scroll is in flight.
   const [activeSectionId, setActiveSectionId] = useState<string>(
     SETTINGS_SECTIONS[0]?.id ?? "",
   );
-  // Set from `scrollToSection` so the click target wins immediately
-  // even before the scroll lands and the IO updates.
-  const programmaticTargetRef = useRef<string | null>(null);
+  const clickLockUntilRef = useRef<number>(0);
 
   useEffect(() => {
     const elements: HTMLElement[] = SETTINGS_SECTIONS
@@ -215,21 +215,25 @@ export function SettingsView(): ReactElement {
     if (elements.length === 0) return;
 
     // We observe the section heading (`<h3 id=…>`). Headings are short
-    // (~40 px), so the observation band has to start at the viewport's
-    // very top — otherwise scrolling exactly to a heading places it
-    // ABOVE the band while the next heading falls INSIDE it, and the
-    // active highlight jumps to the wrong (next) entry.
+    // (~40 px), so the observation band starts at the viewport's very
+    // top — otherwise scrolling exactly to a heading places it ABOVE
+    // the band while the next heading falls INSIDE it, and the active
+    // highlight jumps to the wrong (next) entry.
     //
     // rootMargin "0px 0px -85% 0px" → root collapses to the top 15 %
     // of the viewport. A heading is "intersecting" as soon as any part
     // of it is in that strip; mid-scroll multiple headings can be in
     // the band — picking the one with the lowest |top| reliably
     // surfaces the heading currently at the top of the viewport.
+    const intersectingMap = new Map<string, boolean>();
     const observer = new IntersectionObserver(
       (entries) => {
-        // IntersectionObserver only delivers entries whose state has
-        // changed in this firing — so we have to merge against a
-        // running record of which sections are currently intersecting.
+        // Ignore IO firings during a click-driven smooth-scroll — the
+        // intermediate sections we pass through would briefly become
+        // "active" otherwise, causing the highlight to flicker through
+        // every section between the old and new targets.
+        if (Date.now() < clickLockUntilRef.current) return;
+
         for (const entry of entries) {
           intersectingMap.set(entry.target.id, entry.isIntersecting);
         }
@@ -239,9 +243,6 @@ export function SettingsView(): ReactElement {
           .sort((a, b) => Math.abs(a.top) - Math.abs(b.top));
         const candidateId = stillIntersecting[0]?.id;
         if (!candidateId) return;
-        if (programmaticTargetRef.current === candidateId) {
-          programmaticTargetRef.current = null;
-        }
         setActiveSectionId(candidateId);
       },
       {
@@ -249,13 +250,14 @@ export function SettingsView(): ReactElement {
         threshold: 0,
       },
     );
-    const intersectingMap = new Map<string, boolean>();
     for (const el of elements) observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
   function handleNavClick(id: string): void {
-    programmaticTargetRef.current = id;
+    // Lock IO updates for ~700 ms so the smooth-scroll can finish
+    // without the in-transit sections taking over the active state.
+    clickLockUntilRef.current = Date.now() + 700;
     setActiveSectionId(id);
     scrollToSection(id);
   }
@@ -348,18 +350,13 @@ export function SettingsView(): ReactElement {
             const isActive = section.id === activeSectionId;
             return (
               <li key={section.id}>
-                <button
-                  type="button"
-                  className={cn(
-                    styles.navItem,
-                    isActive && styles.navItemActive,
-                  )}
+                <SidebarNavItem
+                  isActive={isActive}
                   onClick={() => handleNavClick(section.id)}
-                  aria-current={isActive ? "true" : undefined}
-                  data-testid={`settings-view-nav-${section.id}`}
+                  testId={`settings-view-nav-${section.id}`}
                 >
                   {section.label}
-                </button>
+                </SidebarNavItem>
               </li>
             );
           })}

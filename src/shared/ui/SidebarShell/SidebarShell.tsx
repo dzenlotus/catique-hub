@@ -146,3 +146,76 @@ export function SidebarAddRow({
 export function SidebarSectionDivider(): ReactElement {
   return <hr className={styles.divider} aria-hidden="true" />;
 }
+
+// ---------------------------------------------------------------------------
+// SidebarNavItem — unified active-row primitive.
+// ---------------------------------------------------------------------------
+
+export interface SidebarNavItemProps {
+  /** Whether this entry is the current selection. Drives the active strip. */
+  isActive?: boolean;
+  /** Click / activate handler. */
+  onClick?: () => void;
+  /** Forwarded as `aria-label` on the button. */
+  ariaLabel?: string;
+  /** Forwarded as `data-testid` on the button. */
+  testId?: string;
+  /**
+   * Indent depth. `0` = top-level, `1` = nested (e.g. boards under a
+   * space). Affects horizontal padding only.
+   */
+  level?: 0 | 1;
+  /**
+   * Trailing slot rendered as a sibling of the button — typically a
+   * kebab menu trigger. Kept outside the activation surface so the
+   * menu trigger doesn't double-fire onClick.
+   */
+  trailing?: ReactNode;
+  /** Class merged onto the row container. */
+  className?: string;
+  /** Class merged onto the inner button. */
+  buttonClassName?: string;
+  /** Inner content — typically icon + label. */
+  children: ReactNode;
+}
+
+/**
+ * Unified row used across sidebars to keep active highlights identical.
+ * The button gets the active strip via `::before`; the optional
+ * `trailing` slot sits beside it as a sibling for absolute positioning
+ * of menu triggers without re-triggering the button onClick.
+ */
+export function SidebarNavItem({
+  isActive = false,
+  onClick,
+  ariaLabel,
+  testId,
+  level = 0,
+  trailing,
+  className,
+  buttonClassName,
+  children,
+}: SidebarNavItemProps): ReactElement {
+  const buttonProps =
+    testId !== undefined ? { "data-testid": testId } : {};
+  return (
+    <div className={cn(styles.navItemRow, className)}>
+      <button
+        type="button"
+        className={cn(
+          styles.navItem,
+          isActive && styles.navItemActive,
+          level === 1 && styles.navItemNested,
+          buttonClassName,
+        )}
+        {...(onClick !== undefined ? { onClick } : {})}
+        {...(ariaLabel !== undefined ? { "aria-label": ariaLabel } : {})}
+        aria-current={isActive ? "page" : undefined}
+        {...buttonProps}
+      >
+        {children}
+      </button>
+      {trailing}
+    </div>
+  );
+}

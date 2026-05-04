@@ -52,6 +52,9 @@ export type { MarkdownFieldProps, MarkdownFieldMode } from "./MarkdownField";
 export { IconPicker, IconRenderer } from "./IconPicker";
 export type { IconPickerProps } from "./IconPicker";
 
+export { MarqueeText } from "./MarqueeText";
+export type { MarqueeTextProps } from "./MarqueeText";
+
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateProps } from "./EmptyState";
 
@@ -63,11 +66,13 @@ export {
   SidebarSectionLabel,
   SidebarAddRow,
   SidebarSectionDivider,
+  SidebarNavItem,
 } from "./SidebarShell";
 export type {
   SidebarShellProps,
   SidebarSectionLabelProps,
   SidebarAddRowProps,
+  SidebarNavItemProps,
 } from "./SidebarShell";
 
 export { PortalProvider, PORTAL_ROOT_ID } from "./PortalProvider";

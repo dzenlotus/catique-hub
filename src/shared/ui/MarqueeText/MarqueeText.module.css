@@ -1,0 +1,96 @@
+/*
+ * MarqueeText — single-line text that scrolls left-to-right on hover
+ * when it would otherwise overflow.
+ *
+ * Layout strategy:
+ *   - The outer `.viewport` clips overflow.
+ *   - Inside it a `.track` wraps two copies of the same text laid out
+ *     side-by-side; on hover we translate the track by 50% to bring the
+ *     second copy in. The pair gives a seamless loop without any JS
+ *     restart logic — the animation continues cleanly because the start
+ *     and end states show identical content.
+ *   - Animation is gated by the `data-overflow="true"` attribute set by
+ *     the React component when the natural width exceeds the viewport.
+ *     Otherwise the second copy is hidden and behaviour collapses to a
+ *     static label.
+ */
+
+.viewport {
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  /* Soft fade on the trailing edge so the seam between the two copies
+   * doesn't pop visually when the loop lands. */
+  --marquee-fade: 12px;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - var(--marquee-fade)),
+    transparent 100%
+  );
+          mask-image: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - var(--marquee-fade)),
+    transparent 100%
+  );
+}
+
+.track {
+  display: inline-flex;
+  /* Default — non-overflowing, single copy visible. */
+  flex: 0 0 auto;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.copy {
+  flex: 0 0 auto;
+  padding-right: var(--space-16);
+  /* The static (non-marquee) presentation: ellipsis when the value is
+   * short enough to fit. The hover animation overrides this with a
+   * full-bleed scroll. */
+}
+
+.copyClone {
+  /* Hidden until overflow is detected. */
+  visibility: hidden;
+}
+
+/* Overflow case: reveal the clone, animate on hover. */
+.viewport[data-overflow="true"] .copyClone {
+  visibility: visible;
+}
+
+.viewport[data-overflow="true"] .copy {
+  /* Disable ellipsis only when we know we're going to scroll. */
+  text-overflow: clip;
+}
+
+.viewport[data-overflow="true"]:hover .track,
+.viewport[data-overflow="true"]:focus-within .track {
+  /* Duration scales with content length via --marquee-duration so long
+   * names don't crawl proportionally faster than short ones. The CSS
+   * variable is set inline by the React component. */
+  animation: marquee-scroll var(--marquee-duration, 6s) linear infinite;
+}
+
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewport[data-overflow="true"]:hover .track,
+  .viewport[data-overflow="true"]:focus-within .track {
+    animation: none;
+  }
+}

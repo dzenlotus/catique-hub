@@ -2,7 +2,14 @@ import { useState, type MouseEvent, type ReactElement } from "react";
 import { useLocation } from "wouter";
 
 import { cn } from "@shared/lib";
-import { Button, Menu, MenuItem, MenuTrigger } from "@shared/ui";
+import {
+  Button,
+  Menu,
+  MenuItem,
+  MarqueeText,
+  MenuTrigger,
+} from "@shared/ui";
+import { SidebarNavItem } from "@shared/ui/SidebarShell";
 import { booleanCodec, useLocalStorage } from "@shared/storage";
 import type { Space } from "@entities/space";
 import { type Board, useDeleteBoardMutation } from "@entities/board";
@@ -115,7 +122,7 @@ export function SpaceRow({
           data-testid={`spaces-sidebar-space-name-${space.id}`}
         >
           <SpaceIcon name={space.name} />
-          <span className={styles.spaceNameText}>{space.name}</span>
+          <MarqueeText text={space.name} className={styles.spaceNameText} />
         </button>
       </div>
 
@@ -126,40 +133,39 @@ export function SpaceRow({
             const isActive = activeBoardId === board.id;
             return (
               <li key={board.id} className={styles.boardItem}>
-                <button
-                  type="button"
-                  className={cn(styles.boardRow, isActive && styles.boardRowActive)}
+                <SidebarNavItem
+                  isActive={isActive}
+                  level={1}
+                  ariaLabel={board.name}
                   onClick={() => onSelectBoard(board.id)}
-                  aria-current={isActive ? "page" : undefined}
-                  aria-label={board.name}
+                  trailing={
+                    <MenuTrigger>
+                      <Button
+                        variant="ghost"
+                        className={styles.boardKebabBtn}
+                        aria-label={`Actions for board ${board.name}`}
+                        data-testid={`spaces-sidebar-board-kebab-${board.id}`}
+                      >
+                        <KebabIcon />
+                      </Button>
+                      <Menu
+                        onAction={(key) => {
+                          if (key === "settings") setEditingBoardId(board.id);
+                          else if (key === "delete") handleDeleteBoard(board);
+                        }}
+                      >
+                        <MenuItem id="settings">Settings</MenuItem>
+                        <MenuItem id="delete">Delete</MenuItem>
+                      </Menu>
+                    </MenuTrigger>
+                  }
                 >
-                  {/* Active strip for board row */}
-                  {isActive && <span className={styles.boardActiveStrip} aria-hidden="true" />}
                   <BoardIcon name={board.name} />
-                  <span className={styles.boardRowLabel}>{board.name}</span>
-                </button>
-
-                {/* Per-board kebab menu — Settings opens BoardEditor.
-                 *  Delete is omitted until the `delete_board` IPC lands. */}
-                <MenuTrigger>
-                  <Button
-                    variant="ghost"
-                    className={styles.boardKebabBtn}
-                    aria-label={`Actions for board ${board.name}`}
-                    data-testid={`spaces-sidebar-board-kebab-${board.id}`}
-                  >
-                    <KebabIcon />
-                  </Button>
-                  <Menu
-                    onAction={(key) => {
-                      if (key === "settings") setEditingBoardId(board.id);
-                      else if (key === "delete") handleDeleteBoard(board);
-                    }}
-                  >
-                    <MenuItem id="settings">Settings</MenuItem>
-                    <MenuItem id="delete">Delete</MenuItem>
-                  </Menu>
-                </MenuTrigger>
+                  <MarqueeText
+                    text={board.name}
+                    className={styles.boardRowLabel}
+                  />
+                </SidebarNavItem>
               </li>
             );
           })}

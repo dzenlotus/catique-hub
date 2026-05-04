@@ -7,6 +7,7 @@ import { Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
 
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
+import { ToastProvider } from "@app/providers/ToastProvider";
 import { LocalStorageStore, stringCodec } from "@shared/storage";
 import { SpacesSidebar } from "./SpacesSidebar";
 
@@ -45,7 +46,9 @@ function renderWithClient(
   render(
     <Router hook={hook}>
       <QueryClientProvider client={client}>
-        <ActiveSpaceProvider>{ui}</ActiveSpaceProvider>
+        <ToastProvider>
+          <ActiveSpaceProvider>{ui}</ActiveSpaceProvider>
+        </ToastProvider>
       </QueryClientProvider>
     </Router>,
   );
