@@ -7,9 +7,15 @@
  */
 
 import { useEffect, useState, type ReactElement } from "react";
-import { PixelInterfaceEssentialRefresh } from "@shared/ui/Icon";
-import { usePrompt, useUpdatePromptMutation, useRecomputePromptTokenCountMutation } from "@entities/prompt";
-import { Dialog, DialogFooter, Button, Input, Tooltip, TooltipTrigger, MarkdownField, IconPicker } from "@shared/ui";
+import { usePrompt, useUpdatePromptMutation } from "@entities/prompt";
+import {
+  Dialog,
+  DialogFooter,
+  Button,
+  Input,
+  MarkdownField,
+  IconPicker,
+} from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -65,7 +71,6 @@ function PromptEditorContent({
 }: PromptEditorContentProps): ReactElement {
   const query = usePrompt(promptId);
   const updateMutation = useUpdatePromptMutation();
-  const recountMutation = useRecomputePromptTokenCountMutation();
   const { pushToast } = useToast();
 
   // Local edit state — initialised from the loaded prompt.
@@ -332,27 +337,13 @@ function PromptEditorContent({
         />
       </div>
 
-      {/* Token count */}
+      {/* Token count — auto-recomputed on save (round-19d). */}
       <div className={styles.tokenRow} data-testid="prompt-editor-token-row">
         <span className={styles.tokenLabel}>
           {prompt.tokenCount !== null && prompt.tokenCount > 0n
             ? `Current count: ≈${prompt.tokenCount.toString()} tokens`
             : "Current count: not computed"}
         </span>
-        <TooltipTrigger>
-          <Button
-            variant="ghost"
-            size="sm"
-            isPending={recountMutation.status === "pending"}
-            onPress={() => recountMutation.mutate(prompt.id)}
-            data-testid="prompt-editor-recount-button"
-            aria-label="Recount tokens"
-          >
-            <PixelInterfaceEssentialRefresh width={14} height={14} aria-hidden="true" />
-            Recount
-          </Button>
-          <Tooltip>Recount tokens</Tooltip>
-        </TooltipTrigger>
       </div>
 
       {/* Footer */}
