@@ -1,8 +1,5 @@
 import { useState, useMemo, type ReactElement } from "react";
-import {
-  PixelInterfaceEssentialClip1,
-  PixelInterfaceEssentialPlus,
-} from "@shared/ui/Icon";
+import { PixelInterfaceEssentialPlus } from "@shared/ui/Icon";
 
 import { PromptCard, usePrompts, usePromptTagsMap } from "@entities/prompt";
 import { Button, EmptyState } from "@shared/ui";
@@ -10,7 +7,6 @@ import { PixelInterfaceEssentialMessage } from "@shared/ui/Icon";
 import { stringCodec, useLocalStorage } from "@shared/storage";
 import { PromptEditor } from "@widgets/prompt-editor";
 import { PromptCreateDialog } from "@widgets/prompt-create-dialog";
-import { AttachPromptDialog } from "@widgets/attach-prompt-dialog";
 import { PromptsTagFilter } from "@widgets/prompts-tag-filter";
 
 import styles from "./PromptsList.module.css";
@@ -47,7 +43,6 @@ export function PromptsList({
 }: PromptsListProps = {}): ReactElement {
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isAttachOpen, setIsAttachOpen] = useState(false);
   // Persisted via @shared/storage — the hook handles restricted-environment
   // fallback and cross-tab sync.
   const [activeTagId, setActiveTagIdRaw, clearActiveTagId] = useLocalStorage(
@@ -105,17 +100,6 @@ export function PromptsList({
           </div>
         </div>
         <div className={styles.headerActions}>
-          <Button
-            variant="secondary"
-            size="md"
-            onPress={() => setIsAttachOpen(true)}
-            data-testid="prompts-list-attach-button"
-          >
-            <span className={styles.btnLabel}>
-              <PixelInterfaceEssentialClip1 width={14} height={14} aria-hidden="true" />
-              Attach prompt
-            </span>
-          </Button>
           <Button
             variant="primary"
             size="md"
@@ -226,10 +210,6 @@ export function PromptsList({
         onClose={() => setIsCreateOpen(false)}
       />
 
-      <AttachPromptDialog
-        isOpen={isAttachOpen}
-        onClose={() => setIsAttachOpen(false)}
-      />
     </section>
   );
 }
