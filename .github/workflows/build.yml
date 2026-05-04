@@ -83,7 +83,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Cache cargo registry + target
-        uses: Swatinem/rust-cache@v2.7.3
+        uses: Swatinem/rust-cache@v2.9.1
         with:
           workspaces: ". -> target"
           shared-key: catique-hub-build-${{ matrix.os }}
