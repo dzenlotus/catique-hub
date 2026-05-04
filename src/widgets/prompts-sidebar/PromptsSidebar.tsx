@@ -5,6 +5,7 @@ import {
   SidebarSectionLabel,
   SidebarAddRow,
   SidebarSectionDivider,
+  SidebarNavItem,
 } from "@shared/ui";
 import { type Prompt, usePrompts } from "@entities/prompt";
 import {
@@ -171,6 +172,22 @@ export function PromptsSidebar({
         ariaLabel="Prompts navigation"
         testId="prompts-sidebar-root"
       >
+        {/*
+         * Top-level "Prompts" entry — landing page for the all-prompts
+         * grid. Active when no group AND no prompt is selected. Sits
+         * above the GROUPS section per the user's round-19d ask.
+         */}
+        <SidebarNavItem
+          isActive={selectedGroupId === null && selectedPromptId === null}
+          onClick={() => onSelectGroup(null)}
+          ariaLabel="Prompts"
+          testId="prompts-sidebar-all-prompts"
+        >
+          Prompts
+        </SidebarNavItem>
+
+        <SidebarSectionDivider />
+
         <SidebarSectionLabel ariaLabel="Groups">GROUPS</SidebarSectionLabel>
         {renderGroupsBody()}
         {groupsQuery.status === "success" ? (

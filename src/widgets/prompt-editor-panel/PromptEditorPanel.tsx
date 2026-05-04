@@ -234,6 +234,14 @@ export function PromptEditorPanel({
       data-testid="prompt-editor-panel"
     >
       <header className={styles.header}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={onClose}
+          data-testid="prompt-editor-panel-back"
+        >
+          ← Back
+        </Button>
         <h2 className={styles.title}>{prompt.name}</h2>
       </header>
       <div className={styles.scrollArea}>

@@ -4,23 +4,23 @@
  * Value contract: a string identifier matching one of the keys exported
  * by `@shared/ui/Icon` (e.g. "PixelInterfaceEssentialMessage"). Empty
  * string / null = no icon. Consumers persist this string in their
- * domain model and use `<IconRenderer name={value} />` (below) to draw
- * the chosen icon.
+ * domain model and use `<IconRenderer name={value} />` to draw the
+ * chosen icon.
  *
- * The popover is implemented with react-aria-components so focus
- * management, scrim dismiss, and Esc behaviour come for free. The grid
- * is virtualised by the simple "cap to first N matches" heuristic —
- * 663 icons render fast enough that a windowing library is overkill,
- * but capping at 200 keeps the initial paint under 50 ms even on
- * lower-end laptops.
+ * The popover follows the canonical react-aria-components pattern:
+ * `<DialogTrigger>` with RAC's `<Button>` as the trigger and
+ * `<Popover>` > `<Dialog>` as the body. RAC's Button gives Pressable
+ * semantics (keyboard, focus, hover) so the trigger actually opens
+ * the popover; a plain `<button>` element does not.
  */
 
+import { useMemo, useState, type ReactElement } from "react";
 import {
-  useMemo,
-  useState,
-  type ReactElement,
-} from "react";
-import { Popover, DialogTrigger } from "react-aria-components";
+  Button as AriaButton,
+  Dialog as AriaDialog,
+  DialogTrigger,
+  Popover,
+} from "react-aria-components";
 
 import { cn } from "@shared/lib";
 import * as IconSet from "@shared/ui/Icon";
@@ -54,7 +54,6 @@ export function IconRenderer({
   if (name === null || name === undefined || name === "") return null;
   const Component = (IconSet as Record<string, unknown>)[name];
   if (typeof Component !== "function") return null;
-  // The icon components accept SVG props; cast through unknown for safety.
   const IconComp = Component as (props: {
     width?: number;
     height?: number;
@@ -116,77 +115,80 @@ export function IconPicker({
 
   return (
     <DialogTrigger isOpen={isOpen} onOpenChange={setIsOpen}>
-      <button
-        type="button"
+      <AriaButton
         className={cn(styles.trigger, value === null && styles.triggerEmpty)}
         aria-label={ariaLabel}
-        data-testid={testId}
+        {...(testId !== undefined ? { "data-testid": testId } : {})}
       >
         {value !== null ? (
           <IconRenderer name={value} width={20} height={20} />
         ) : (
           <span aria-hidden="true">+</span>
         )}
-      </button>
+      </AriaButton>
       <Popover className={styles.popover} placement="bottom start">
-        <input
-          type="text"
-          className={styles.searchInput}
-          placeholder="Search icons…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          autoFocus
-          data-testid={
-            testId !== undefined ? `${testId}-search` : undefined
-          }
-        />
-        <div className={styles.toolbar}>
-          <span>
-            {filtered.length}
-            {filtered.length >= MAX_VISIBLE ? "+" : ""} matches
-          </span>
-          {value !== null ? (
-            <button
-              type="button"
-              className={styles.clearButton}
-              onClick={handleClear}
-              data-testid={
-                testId !== undefined ? `${testId}-clear` : undefined
-              }
-            >
-              Clear icon
-            </button>
-          ) : null}
-        </div>
-        {filtered.length === 0 ? (
-          <div className={styles.empty}>No icons match “{query}”.</div>
-        ) : (
-          <div
-            className={styles.grid}
+        <AriaDialog className={styles.dialog} aria-label="Icon picker">
+          <input
+            type="text"
+            className={styles.searchInput}
+            placeholder="Search icons…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
             data-testid={
-              testId !== undefined ? `${testId}-grid` : undefined
+              testId !== undefined ? `${testId}-search` : undefined
             }
-          >
-            {filtered.map((name) => (
+          />
+          <div className={styles.toolbar}>
+            <span>
+              {filtered.length}
+              {filtered.length >= MAX_VISIBLE ? "+" : ""} matches
+            </span>
+            {value !== null ? (
               <button
-                key={name}
                 type="button"
-                className={cn(
-                  styles.iconCell,
-                  name === value && styles.iconCellActive,
-                )}
-                title={name.replace(/^Pixel/, "")}
-                aria-label={name}
-                onClick={() => handleSelect(name)}
+                className={styles.clearButton}
+                onClick={handleClear}
                 data-testid={
-                  testId !== undefined ? `${testId}-option-${name}` : undefined
+                  testId !== undefined ? `${testId}-clear` : undefined
                 }
               >
-                <IconRenderer name={name} width={20} height={20} />
+                Clear icon
               </button>
-            ))}
+            ) : null}
           </div>
-        )}
+          {filtered.length === 0 ? (
+            <div className={styles.empty}>No icons match “{query}”.</div>
+          ) : (
+            <div
+              className={styles.grid}
+              data-testid={
+                testId !== undefined ? `${testId}-grid` : undefined
+              }
+            >
+              {filtered.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className={cn(
+                    styles.iconCell,
+                    name === value && styles.iconCellActive,
+                  )}
+                  title={name.replace(/^Pixel/, "")}
+                  aria-label={name}
+                  onClick={() => handleSelect(name)}
+                  data-testid={
+                    testId !== undefined
+                      ? `${testId}-option-${name}`
+                      : undefined
+                  }
+                >
+                  <IconRenderer name={name} width={20} height={20} />
+                </button>
+              ))}
+            </div>
+          )}
+        </AriaDialog>
       </Popover>
     </DialogTrigger>
   );
