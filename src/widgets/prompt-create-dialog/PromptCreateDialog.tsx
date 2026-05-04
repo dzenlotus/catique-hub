@@ -14,7 +14,7 @@ import { useState, type ReactElement } from "react";
 
 import { useCreatePromptMutation } from "@entities/prompt";
 import type { Prompt } from "@entities/prompt";
-import { Dialog, Button, Input, IconPicker } from "@shared/ui";
+import { Dialog, Button, Input, IconColorPicker } from "@shared/ui";
 
 import styles from "./PromptCreateDialog.module.css";
 
@@ -138,47 +138,18 @@ function PromptCreateDialogContent({
         />
       </div>
 
-      {/* Icon */}
+      {/* Combined icon + color picker (round-19d). */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Icon</p>
-        <IconPicker
-          value={icon}
-          onChange={setIcon}
-          ariaLabel="Prompt icon"
-          data-testid="prompt-create-dialog-icon-picker"
+        <p className={styles.sectionLabel}>Appearance</p>
+        <IconColorPicker
+          value={{ icon, color: color === "" ? null : color }}
+          onChange={(next) => {
+            setIcon(next.icon);
+            setColor(next.color ?? "");
+          }}
+          ariaLabel="Prompt icon and color"
+          data-testid="prompt-create-dialog-appearance-picker"
         />
-      </div>
-
-      {/* Color */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {color !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: color }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={color === "" ? "#000000" : color}
-            onChange={(e) => setColor(e.target.value)}
-            aria-label="Prompt color"
-            data-testid="prompt-create-dialog-color-input"
-          />
-          {color !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setColor("")}
-              data-testid="prompt-create-dialog-color-reset"
-            >
-              Reset
-            </Button>
-          )}
-        </div>
       </div>
 
       {/* Content */}

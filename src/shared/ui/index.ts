@@ -52,6 +52,12 @@ export type { MarkdownFieldProps, MarkdownFieldMode } from "./MarkdownField";
 export { IconPicker, IconRenderer } from "./IconPicker";
 export type { IconPickerProps } from "./IconPicker";
 
+export { IconColorPicker } from "./IconColorPicker";
+export type {
+  IconColorPickerProps,
+  IconColorValue,
+} from "./IconColorPicker";
+
 export { MarqueeText } from "./MarqueeText";
 export type { MarqueeTextProps } from "./MarqueeText";
 

@@ -66,7 +66,7 @@ describe("PromptCreateDialog", () => {
       screen.getByTestId("prompt-create-dialog-shortdesc-input"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("prompt-create-dialog-color-input"),
+      screen.getByTestId("prompt-create-dialog-appearance-picker"),
     ).toBeInTheDocument();
   });
 

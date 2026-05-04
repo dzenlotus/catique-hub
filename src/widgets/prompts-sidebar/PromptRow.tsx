@@ -73,8 +73,8 @@ export function PromptRow({
       {prompt.icon !== null ? (
         <IconRenderer
           name={prompt.icon}
-          width={8}
-          height={8}
+          width={16}
+          height={16}
           className={styles.promptIcon}
           {...(prompt.color !== null
             ? { style: { color: prompt.color } }

@@ -68,8 +68,8 @@ export function PromptCard({
         {prompt.icon !== null ? (
           <IconRenderer
             name={prompt.icon}
-            width={10}
-            height={10}
+            width={18}
+            height={18}
             className={styles.nameIcon}
             {...(prompt.color !== null
               ? { style: { color: prompt.color } }

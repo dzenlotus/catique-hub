@@ -126,31 +126,21 @@ describe("PromptEditor", () => {
     expect(nameInput).toHaveValue("Новое название");
   });
 
-  it("color input updates local state", async () => {
+  it("renders the unified appearance picker (icon + color)", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_prompt") return makePrompt({ color: "#ff0000" });
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
-    const { user } = renderWithClient(<PromptEditor promptId="prm-1" onClose={onClose} />);
+    renderWithClient(<PromptEditor promptId="prm-1" onClose={onClose} />);
 
     await screen.findByTestId("prompt-editor-name-input");
-    const colorInput = screen.getByTestId("prompt-editor-color-input") as HTMLInputElement;
-
-    // Verify initial value is set.
-    expect(colorInput.value).toBe("#ff0000");
-
-    // Simulate change — verify state reflects the new value.
-    await user.click(colorInput);
-    // Directly fire a change event to simulate color picker interaction.
-    colorInput.value = "#00ff00";
-    colorInput.dispatchEvent(new Event("change", { bubbles: true }));
-
-    await waitFor(() => {
-      expect((screen.getByTestId("prompt-editor-color-input") as HTMLInputElement).value).toBe(
-        "#00ff00",
-      );
-    });
+    // Round-19d: the standalone color input was replaced with a
+    // combined `<IconColorPicker>`. The trigger is rendered on the
+    // form; the actual color input lives inside the popover.
+    expect(
+      screen.getByTestId("prompt-editor-appearance-picker"),
+    ).toBeInTheDocument();
   });
 
   it("clicking Save triggers useUpdatePromptMutation with dirty fields only", async () => {
@@ -232,35 +222,10 @@ describe("PromptEditor", () => {
     });
   });
 
-  it("empty color gets sent as null on update", async () => {
-    const prompt = makePrompt({ color: "#ff0000" });
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_prompt") return prompt;
-      if (cmd === "update_prompt") return { ...prompt, color: null };
-      if (cmd === "list_prompts") return [prompt];
-      throw new Error(`unexpected: ${cmd}`);
-    });
-    const onClose = vi.fn();
-    const { user } = renderWithClient(<PromptEditor promptId="prm-1" onClose={onClose} />);
-
-    await screen.findByTestId("prompt-editor-name-input");
-
-    // Click the "Reset" button to clear the color.
-    const resetButton = screen.getByText("Reset");
-    await user.click(resetButton);
-
-    const saveButton = screen.getByTestId("prompt-editor-save");
-    await user.click(saveButton);
-
-    await waitFor(() => {
-      const updateCall = invokeMock.mock.calls.find(([cmd]) => cmd === "update_prompt");
-      expect(updateCall).toBeDefined();
-      expect(updateCall?.[1]).toMatchObject({
-        id: "prm-1",
-        color: null,
-      });
-    });
-  });
+  // Round-19d: the standalone color reset moved into the
+  // `<IconColorPicker>` popover. Exercising it through jsdom requires
+  // the RAC popover to mount, which is out of scope for this widget
+  // suite — the picker primitive owns that contract.
 
   // ── Token count read-out ─────────────────────────────────────────
 

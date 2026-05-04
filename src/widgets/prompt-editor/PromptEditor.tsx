@@ -14,7 +14,7 @@ import {
   Button,
   Input,
   MarkdownField,
-  IconPicker,
+  IconColorPicker,
 } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
@@ -284,46 +284,21 @@ function PromptEditorContent({
         />
       </div>
 
-      {/* Icon */}
+      {/* Combined icon + color picker (round-19d). */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Icon</p>
-        <IconPicker
-          value={localIcon}
-          onChange={setLocalIcon}
-          ariaLabel="Prompt icon"
-          data-testid="prompt-editor-icon-picker"
+        <p className={styles.sectionLabel}>Appearance</p>
+        <IconColorPicker
+          value={{
+            icon: localIcon,
+            color: localColor === "" ? null : localColor,
+          }}
+          onChange={(next) => {
+            setLocalIcon(next.icon);
+            setLocalColor(next.color ?? "");
+          }}
+          ariaLabel="Prompt icon and color"
+          data-testid="prompt-editor-appearance-picker"
         />
-      </div>
-
-      {/* Color */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {localColor !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: localColor }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={localColor === "" ? "#000000" : localColor}
-            onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Prompt color"
-            data-testid="prompt-editor-color-input"
-          />
-          {localColor !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setLocalColor("")}
-            >
-              Reset
-            </Button>
-          )}
-        </div>
       </div>
 
       {/* Content — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}

@@ -1,0 +1,210 @@
+/*
+ * IconColorPicker — combined icon + color trigger and popover.
+ *
+ * Trigger renders either the chosen icon (tinted with the chosen
+ * color) or a small colored circle when no icon is set. Popover
+ * shows a color row + an icon search grid; both surfaces edit the
+ * same value object. Compact 24×24 trigger to read as a peer to
+ * the editor's other inline controls.
+ */
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-canvas);
+  cursor: pointer;
+  transition:
+    border-color 80ms ease-out,
+    background-color 80ms ease-out;
+}
+
+.trigger:hover {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-overlay-hover);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* Plain colored dot — fallback when no icon is set. Size matches the
+ * icon glyph below so swapping between dot and icon doesn't shift the
+ * layout around it. */
+.dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: var(--dot-color, var(--color-text-subtle));
+  border: 1px solid var(--color-border-default);
+}
+
+/* Icon glyph — sized to fill the trigger comfortably. */
+.icon {
+  display: inline-flex;
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+
+.popover {
+  width: 320px;
+  max-height: 380px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-overlay);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  outline: none;
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  outline: none;
+  max-height: inherit;
+}
+
+/* ── Color row ────────────────────────────────────────────────────── */
+
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.colorLabel {
+  flex: 0 0 auto;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.colorInput {
+  width: 40px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-canvas);
+  cursor: pointer;
+}
+
+.colorInput:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.colorClear {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-caption);
+  cursor: pointer;
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-xs);
+  margin-left: auto;
+}
+
+.colorClear:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+/* ── Icon search + grid ───────────────────────────────────────────── */
+
+.searchInput {
+  width: 100%;
+  padding: var(--space-6) var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-canvas);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: var(--color-border-focus);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+}
+
+.iconClear {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-caption);
+  cursor: pointer;
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-xs);
+}
+
+.iconClear:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: var(--space-4);
+  overflow-y: auto;
+  padding-right: var(--space-4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.iconCell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background-color 80ms ease-out,
+    border-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.iconCell:hover {
+  background-color: var(--color-overlay-hover);
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-default);
+}
+
+.iconCellActive {
+  background-color: var(--color-accent-soft);
+  border-color: var(--color-cta-bg);
+  color: var(--color-text-default);
+}
+
+.empty {
+  padding: var(--space-16);
+  text-align: center;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
+}
