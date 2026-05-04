@@ -245,7 +245,7 @@ describe("PromptEditor", () => {
     await screen.findByTestId("prompt-editor-name-input");
 
     // Click the "Reset" button to clear the color.
-    const resetButton = screen.getByText("Сбросить");
+    const resetButton = screen.getByText("Reset");
     await user.click(resetButton);
 
     const saveButton = screen.getByTestId("prompt-editor-save");
@@ -263,7 +263,7 @@ describe("PromptEditor", () => {
 
   // ── Token count read-out ─────────────────────────────────────────
 
-  it("shows 'не подсчитан' when tokenCount is null", async () => {
+  it("shows 'not computed' when tokenCount is null", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_prompt") return makePrompt({ tokenCount: null });
       throw new Error(`unexpected: ${cmd}`);
@@ -272,7 +272,7 @@ describe("PromptEditor", () => {
 
     await screen.findByTestId("prompt-editor-token-row");
     expect(screen.getByTestId("prompt-editor-token-row")).toHaveTextContent(
-      "Текущий счётчик: не подсчитан",
+      "Current count: not computed",
     );
   });
 
@@ -285,7 +285,7 @@ describe("PromptEditor", () => {
 
     await screen.findByTestId("prompt-editor-token-row");
     expect(screen.getByTestId("prompt-editor-token-row")).toHaveTextContent(
-      "Текущий счётчик: ≈1337 tokens",
+      "Current count: ≈1337 tokens",
     );
   });
 
@@ -384,7 +384,7 @@ describe("PromptEditor", () => {
     // Initial state: not counted.
     await screen.findByTestId("prompt-editor-token-row");
     expect(screen.getByTestId("prompt-editor-token-row")).toHaveTextContent(
-      "Текущий счётчик: не подсчитан",
+      "Current count: not computed",
     );
 
     // Click recount.
@@ -394,7 +394,7 @@ describe("PromptEditor", () => {
     // After success the query is invalidated and re-fetched — read-out updates.
     await waitFor(() => {
       expect(screen.getByTestId("prompt-editor-token-row")).toHaveTextContent(
-        "Текущий счётчик: ≈42 tokens",
+        "Current count: ≈42 tokens",
       );
     });
   });

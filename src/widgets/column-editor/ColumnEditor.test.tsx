@@ -122,8 +122,8 @@ describe("ColumnEditor", () => {
     expect(screen.getByTestId("column-editor-position-input")).toHaveValue(2);
     // Role listbox should be present.
     expect(screen.getByTestId("column-editor-role-select")).toBeInTheDocument();
-    // "(нет роли)" option should appear (column has no role).
-    expect(screen.getByText("(нет роли)")).toBeInTheDocument();
+    // "(no role)" option should appear (column has no role).
+    expect(screen.getByText("(no role)")).toBeInTheDocument();
     // The role name should also appear in the list.
     expect(screen.getByText("Разработчик")).toBeInTheDocument();
   });
@@ -164,7 +164,7 @@ describe("ColumnEditor", () => {
     await waitFor(() => {
       expect(screen.getByTestId("column-editor-save-error")).toBeInTheDocument();
     });
-    expect(screen.getByText(/название не может быть пустым/i)).toBeInTheDocument();
+    expect(screen.getByText(/name cannot be empty/i)).toBeInTheDocument();
     // update_column should NOT have been called.
     const updateCall = invokeMock.mock.calls.find(([cmd]) => cmd === "update_column");
     expect(updateCall).toBeUndefined();
@@ -265,7 +265,7 @@ describe("ColumnEditor", () => {
     await waitFor(() => {
       expect(screen.getByTestId("column-editor-save-error")).toBeInTheDocument();
     });
-    expect(screen.getByText(/не удалось сохранить/i)).toBeInTheDocument();
+    expect(screen.getByText(/failed to save:/i)).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 });

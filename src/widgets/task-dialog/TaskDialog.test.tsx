@@ -245,7 +245,7 @@ describe("TaskDialog", () => {
     });
   });
 
-  it("role select includes '(нет роли)' as first option and loaded roles", async () => {
+  it("role select includes '(no role)' as first option and loaded roles", async () => {
     const task = makeTask();
     invokeMock.mockImplementation(defaultInvokeHandler(task));
     const onClose = vi.fn();
@@ -260,7 +260,7 @@ describe("TaskDialog", () => {
     await waitFor(() => {
       const options = screen.getAllByRole("option");
       const texts = options.map((o) => o.textContent ?? "");
-      expect(texts[0]).toBe("(нет роли)");
+      expect(texts[0]).toBe("(no role)");
       expect(texts).toContain("Dev Agent");
     });
   });
@@ -299,9 +299,9 @@ describe("TaskDialog", () => {
     await user.click(boardTrigger);
     await user.click(await screen.findByRole("option", { name: "Board 2" }));
 
-    // Column selection resets to placeholder ("— выберите —")
+    // Column selection resets to placeholder ("— select —")
     await waitFor(() => {
-      expect(columnTrigger).toHaveTextContent("— выберите —");
+      expect(columnTrigger).toHaveTextContent("— select —");
     });
 
     // After cascade, brd-2 columns load — verify by opening column popover
@@ -584,8 +584,8 @@ describe("TaskDialog", () => {
     expect(screen.getByTestId("task-dialog-placeholder-agent-reports")).toBeInTheDocument();
 
     expect(screen.getByText("Attached prompts")).toBeInTheDocument();
-    expect(screen.getByText("Вложения")).toBeInTheDocument();
-    expect(screen.getByText("Отчёты агента")).toBeInTheDocument();
+    expect(screen.getByText("Attachments")).toBeInTheDocument();
+    expect(screen.getByText("Agent reports")).toBeInTheDocument();
   });
 
   it("prompts section shows empty-state hint when no prompts attached", async () => {
@@ -605,7 +605,7 @@ describe("TaskDialog", () => {
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Нет вложений")).toBeInTheDocument();
+      expect(screen.getByText("No attachments")).toBeInTheDocument();
     });
 
     const uploadBtn = screen.getByTestId("task-dialog-upload-btn");
@@ -700,7 +700,9 @@ describe("TaskDialog", () => {
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/не удалось загрузить вложения/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/failed to load attachments/i),
+      ).toBeInTheDocument();
     });
     expect(screen.getByText(/attachments down/i)).toBeInTheDocument();
   });
@@ -821,7 +823,7 @@ describe("TaskDialog", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Файл загружен")).toBeInTheDocument();
+      expect(screen.getByText("File uploaded")).toBeInTheDocument();
     });
   });
 
@@ -866,7 +868,7 @@ describe("TaskDialog", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/не удалось загрузить файл/i),
+        screen.getByText(/failed to upload file/i),
       ).toBeInTheDocument();
     });
     expect(screen.getByText(/disk full/i)).toBeInTheDocument();

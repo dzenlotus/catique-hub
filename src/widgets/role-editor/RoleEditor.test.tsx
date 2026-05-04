@@ -79,6 +79,7 @@ describe("RoleEditor", () => {
   it("renders an error banner when the query fails", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_role") throw new Error("transport down");
+      if (cmd === "list_connected_clients") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -93,6 +94,7 @@ describe("RoleEditor", () => {
   it("renders form fields populated when loaded", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_role") return makeRole();
+      if (cmd === "list_connected_clients") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -110,6 +112,7 @@ describe("RoleEditor", () => {
   it("name input is editable", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_role") return makeRole();
+      if (cmd === "list_connected_clients") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -128,6 +131,7 @@ describe("RoleEditor", () => {
       if (cmd === "get_role") return role;
       if (cmd === "update_role") return { ...role, name: "Новое название" };
       if (cmd === "list_roles") return [role];
+      if (cmd === "list_connected_clients") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -157,6 +161,7 @@ describe("RoleEditor", () => {
   it("clicking Cancel closes without triggering mutation", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_role") return makeRole();
+      if (cmd === "list_connected_clients") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -177,6 +182,7 @@ describe("RoleEditor", () => {
       if (cmd === "get_role") return role;
       if (cmd === "update_role") return { ...role, color: null };
       if (cmd === "list_roles") return [role];
+      if (cmd === "list_connected_clients") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -184,8 +190,8 @@ describe("RoleEditor", () => {
 
     await screen.findByTestId("role-editor-name-input");
 
-    // Click the "Сбросить" button to clear the color.
-    const resetButton = screen.getByText("Сбросить");
+    // Click the "Reset" button to clear the color.
+    const resetButton = screen.getByText("Reset");
     await user.click(resetButton);
 
     const saveButton = screen.getByTestId("role-editor-save");
@@ -206,6 +212,7 @@ describe("RoleEditor", () => {
   it("shows the mode toggle defaulting to 'edit' mode", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_role") return makeRole();
+      if (cmd === "list_connected_clients") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -224,6 +231,7 @@ describe("RoleEditor", () => {
   it("renders markdown heading by default and flips to textarea on click", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_role") return makeRole({ content: "# Роль агента" });
+      if (cmd === "list_connected_clients") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -250,6 +258,7 @@ describe("RoleEditor", () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_role") return role;
       if (cmd === "update_role") throw new Error("сервер недоступен");
+      if (cmd === "list_connected_clients") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();

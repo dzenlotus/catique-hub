@@ -46,17 +46,17 @@ describe("ConnectedClientCard", () => {
     ).toHaveTextContent("/Users/test/.claude");
   });
 
-  it("renders 'Установлен' pill when installed is true", () => {
+  it("renders 'Installed' pill when installed is true", () => {
     render(<ConnectedClientCard client={makeClient({ installed: true })} />);
     expect(screen.getByTestId("client-installed-pill")).toHaveTextContent(
-      "Установлен",
+      "Installed",
     );
   });
 
-  it("renders 'Не найден' pill when installed is false", () => {
+  it("renders 'Not found' pill when installed is false", () => {
     render(<ConnectedClientCard client={makeClient({ installed: false })} />);
     expect(screen.getByTestId("client-installed-pill")).toHaveTextContent(
-      "Не найден",
+      "Not found",
     );
   });
 

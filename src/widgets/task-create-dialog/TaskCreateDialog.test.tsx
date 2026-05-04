@@ -307,13 +307,13 @@ describe("TaskCreateDialog", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
-  it("role listbox renders '(нет роли)' as first option", async () => {
+  it("role listbox renders '(no role)' as first option", async () => {
     setupDefaultMocks();
     renderDialog();
 
     const roleSelect = await screen.findByTestId("task-create-dialog-role-select");
     expect(roleSelect).toBeInTheDocument();
-    expect(screen.getByText("(нет роли)")).toBeInTheDocument();
+    expect(screen.getByText("(no role)")).toBeInTheDocument();
   });
 
   it("selected role id is included in create_task payload", async () => {
@@ -344,10 +344,10 @@ describe("TaskCreateDialog", () => {
     const colOpt = columnSelect.querySelector("[role='option']");
     if (colOpt) await user.click(colOpt);
 
-    // Select the role (second option in the role listbox — first is "(нет роли)").
+    // Select the role (second option in the role listbox — first is "(no role)").
     const roleSelect = await screen.findByTestId("task-create-dialog-role-select");
     const roleOptions = roleSelect.querySelectorAll("[role='option']");
-    // roleOptions[0] is "(нет роли)", roleOptions[1] is "Developer".
+    // roleOptions[0] is "(no role)", roleOptions[1] is "Developer".
     if (roleOptions[1]) await user.click(roleOptions[1]);
 
     await waitFor(() => {
