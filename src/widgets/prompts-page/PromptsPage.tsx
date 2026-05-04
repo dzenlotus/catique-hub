@@ -1,5 +1,12 @@
-import { useCallback, useMemo, useRef, useState, type ReactElement } from "react";
-import { useQueries } from "@tanstack/react-query";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { DragDropProvider } from "@dnd-kit/react";
 import type {
   DragEndEvent,
@@ -17,6 +24,11 @@ import {
   useRemovePromptGroupMemberMutation,
   useSetPromptGroupMembersMutation,
 } from "@entities/prompt-group";
+import {
+  promptsKeys,
+  recomputePromptTokenCount,
+  usePrompts,
+} from "@entities/prompt";
 import { useToast } from "@app/providers/ToastProvider";
 import { Scrollable } from "@shared/ui";
 import { PromptsList } from "@widgets/prompts-list";
@@ -45,11 +57,44 @@ import styles from "./PromptsPage.module.css";
 
 export function PromptsPage(): ReactElement {
   const groupsQuery = usePromptGroups();
+  const promptsQuery = usePrompts();
+  const queryClient = useQueryClient();
   const deleteGroup = useDeletePromptGroupMutation();
   const addMember = useAddPromptGroupMemberMutation();
   const removeMember = useRemovePromptGroupMemberMutation();
   const setMembers = useSetPromptGroupMembersMutation();
   const { pushToast } = useToast();
+
+  // ── Token-count backfill (round-19d) ────────────────────────────────
+  // Per the user's "all prompts must always have token counts"
+  // requirement: when the prompts list lands, scan for entries with
+  // `tokenCount === null` and fire `recompute_prompt_token_count` for
+  // each (fire-and-forget). A ref tracks ids we've already attempted
+  // so a single null prompt doesn't loop on every render.
+  const backfillAttemptedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const list = promptsQuery.data;
+    if (!list || list.length === 0) return;
+    const targets = list.filter(
+      (p) => p.tokenCount === null && !backfillAttemptedRef.current.has(p.id),
+    );
+    if (targets.length === 0) return;
+    for (const prompt of targets) {
+      backfillAttemptedRef.current.add(prompt.id);
+      void recomputePromptTokenCount(prompt.id)
+        .then(() => {
+          void queryClient.invalidateQueries({
+            queryKey: promptsKeys.detail(prompt.id),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: promptsKeys.list(),
+          });
+        })
+        .catch(() => {
+          // Silent: leave the count null until the next session retries.
+        });
+    }
+  }, [promptsQuery.data, queryClient]);
 
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
 
@@ -104,16 +149,24 @@ export function PromptsPage(): ReactElement {
   }
 
   // ── Drag start: open optimistic-reorder state for the source group ──
+  // Source id arrives as `member:<promptId>` (see `<SortableMemberCard>`)
+  // — strip the prefix to find the owner group, then initialise the
+  // optimistic bucket with the prefixed ids that match the dnd-kit
+  // sortable registrations.
   const handleDragStart = useCallback(
     (event: DragStartEvent): void => {
       const sourceType = event.operation.source?.type;
       const sourceId = event.operation.source?.id;
       if (sourceType !== "group-member-prompt") return;
       if (typeof sourceId !== "string") return;
-      // Find the group that owns this prompt id.
-      const ownerGroupId = promptToGroup.get(sourceId);
+      const promptId = sourceId.startsWith("member:")
+        ? sourceId.slice("member:".length)
+        : sourceId;
+      const ownerGroupId = promptToGroup.get(promptId);
       if (!ownerGroupId) return;
-      const initialIds = (groupMembers[ownerGroupId] ?? []).slice();
+      const initialIds = (groupMembers[ownerGroupId] ?? []).map(
+        (id) => `member:${id}`,
+      );
       const bucket = { [`group-members-${ownerGroupId}`]: initialIds };
       reorderItemsRef.current = bucket;
       setReorderItems(bucket);
@@ -139,10 +192,14 @@ export function PromptsPage(): ReactElement {
   const handleDragEnd = useCallback(
     (event: DragEndEvent): void => {
       // Reorder branch — settle the drop into a `set_prompt_group_members`
-      // mutation against the captured group id.
+      // mutation against the captured group id. Strip the `member:`
+      // prefix so the wire payload is the bare prompt-id list.
       if (reorderGroupId !== null) {
         const groupKey = `group-members-${reorderGroupId}`;
-        const nextOrder = reorderItemsRef.current[groupKey] ?? [];
+        const nextPrefixed = reorderItemsRef.current[groupKey] ?? [];
+        const nextOrder = nextPrefixed.map((id) =>
+          id.startsWith("member:") ? id.slice("member:".length) : id,
+        );
         const initialOrder = groupMembers[reorderGroupId] ?? [];
         const owningGroup = reorderGroupId;
         // Always tear down the optimistic state before any side effects.

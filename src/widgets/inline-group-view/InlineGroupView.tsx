@@ -69,7 +69,13 @@ export function InlineGroupView({
   });
 
   const memberPrompts = useMemo<Prompt[]>(() => {
-    const ids = orderOverride ?? membersQuery.data ?? [];
+    const rawIds = orderOverride ?? membersQuery.data ?? [];
+    // Optimistic order from the parent comes prefixed (`member:<id>`)
+    // because dnd-kit demands globally-unique ids per provider — strip
+    // the prefix back to the bare prompt id used by the data layer.
+    const ids = rawIds.map((id) =>
+      id.startsWith("member:") ? id.slice("member:".length) : id,
+    );
     const promptsById = new Map(
       (promptsQuery.data ?? []).map((p) => [p.id, p] as const),
     );
@@ -258,8 +264,11 @@ function SortableMemberCard({
   onRemove,
   isRemoving,
 }: SortableMemberCardProps): ReactElement {
+  // Distinct id from the sidebar's `useSortable({ id: prompt.id })` —
+  // dnd-kit registers entities globally per provider, and two
+  // sortables sharing an id under one provider crashes the manager.
   const { ref, handleRef, isDragging } = useSortable({
-    id: prompt.id,
+    id: `member:${prompt.id}`,
     index,
     group: groupSortableKey,
     type: "group-member-prompt",
@@ -315,10 +324,12 @@ function sumTokenCount(prompts: ReadonlyArray<Prompt>): string {
   let total = 0n;
   let any = false;
   for (const p of prompts) {
-    if (p.tokenCount !== null) {
-      total += p.tokenCount;
-      any = true;
-    }
+    const count = p.tokenCount;
+    if (count === null || count === undefined) continue;
+    // Defensive: Tauri can land i64 as either bigint or number depending
+    // on the value range — normalise so the running sum stays bigint.
+    total += typeof count === "bigint" ? count : BigInt(count);
+    any = true;
   }
   if (!any) return "— tokens";
   return `≈${total.toString()} tokens`;
