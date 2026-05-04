@@ -120,14 +120,21 @@ export interface AddPromptGroupMemberArgs {
   position: bigint;
 }
 
-/** `add_prompt_group_member` — add a prompt to the group at a given position. */
+/**
+ * `add_prompt_group_member` — add a prompt to the group at a given position.
+ *
+ * Tauri's IPC serialises args via `JSON.stringify`, which throws on
+ * `bigint`. Convert `position` to `number` (backend stores i64; values
+ * up to 2^53 are safely representable as JS number, well above any
+ * realistic group-member count).
+ */
 export async function addPromptGroupMember(
   args: AddPromptGroupMemberArgs,
 ): Promise<void> {
   return invokeWithAppError<void>("add_prompt_group_member", {
     groupId: args.groupId,
     promptId: args.promptId,
-    position: args.position,
+    position: Number(args.position),
   });
 }
 
