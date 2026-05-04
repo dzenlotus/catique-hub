@@ -49,6 +49,7 @@ export function PromptEditorPanel({
   const [localColor, setLocalColor] = useState("");
   const [localIcon, setLocalIcon] = useState<string | null>(null);
   const [localContent, setLocalContent] = useState("");
+  const [localExamples, setLocalExamples] = useState<string[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,6 +59,7 @@ export function PromptEditorPanel({
       setLocalColor(query.data.color ?? "");
       setLocalIcon(query.data.icon ?? null);
       setLocalContent(query.data.content);
+      setLocalExamples(query.data.examples);
       setSaveError(null);
     }
   }, [query.data, promptId]);
@@ -212,6 +214,17 @@ export function PromptEditorPanel({
     if (localIcon !== (prompt.icon ?? null)) {
       mutationArgs.icon = localIcon;
     }
+    // Examples diff: trim each + drop empties, then array-equal compare
+    // against the loaded value.
+    const trimmedExamples = localExamples
+      .map((e) => e.trim())
+      .filter((e) => e.length > 0);
+    const sameExamples =
+      trimmedExamples.length === prompt.examples.length &&
+      trimmedExamples.every((e, i) => e === prompt.examples[i]);
+    if (!sameExamples) {
+      mutationArgs.examples = trimmedExamples;
+    }
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
@@ -233,8 +246,21 @@ export function PromptEditorPanel({
     setLocalColor(prompt.color ?? "");
     setLocalIcon(prompt.icon ?? null);
     setLocalContent(prompt.content);
+    setLocalExamples(prompt.examples);
     setSaveError(null);
     onClose();
+  };
+
+  const addExample = (): void => {
+    setLocalExamples((prev) => [...prev, ""]);
+  };
+  const updateExample = (index: number, next: string): void => {
+    setLocalExamples((prev) =>
+      prev.map((value, i) => (i === index ? next : value)),
+    );
+  };
+  const removeExample = (index: number): void => {
+    setLocalExamples((prev) => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -333,6 +359,53 @@ export function PromptEditorPanel({
             ariaLabel="Content"
             data-testid="prompt-editor-panel-content-textarea"
           />
+        </div>
+
+        {/* Examples — optional ordered list. Each renders as `<example>`
+            inside the prompt's task XML envelope. */}
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <p className={styles.sectionLabel}>Examples</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={addExample}
+              data-testid="prompt-editor-panel-add-example"
+            >
+              + Add example
+            </Button>
+          </div>
+          {localExamples.length === 0 ? (
+            <p className={styles.exampleHint}>
+              No examples yet. Examples render as `&lt;example&gt;` children
+              inside the prompt's task XML.
+            </p>
+          ) : (
+            <ol className={styles.exampleList}>
+              {localExamples.map((value, index) => (
+                <li key={index} className={styles.exampleItem}>
+                  <span className={styles.exampleIndex}>#{index}</span>
+                  <MarkdownField
+                    value={value}
+                    onChange={(next) => updateExample(index, next)}
+                    placeholder="Example body (Markdown)…"
+                    ariaLabel={`Example ${index}`}
+                    rows={4}
+                    data-testid={`prompt-editor-panel-example-${index}`}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onPress={() => removeExample(index)}
+                    aria-label={`Remove example ${index}`}
+                    data-testid={`prompt-editor-panel-example-remove-${index}`}
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
 
         {/* Token count — auto-recomputed on save (round-19d). */}

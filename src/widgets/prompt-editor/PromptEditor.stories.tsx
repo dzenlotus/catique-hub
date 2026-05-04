@@ -24,6 +24,7 @@ function stubPrompt(overrides?: Partial<Prompt>): Prompt {
     color: "#4f46e5",
     shortDescription: "Основной промпт для задач разработки",
     icon: null,
+    examples: [],
     tokenCount: 42n,
     createdAt: 0n,
     updatedAt: 0n,

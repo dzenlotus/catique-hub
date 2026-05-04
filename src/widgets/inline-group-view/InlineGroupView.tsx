@@ -357,6 +357,18 @@ function renderPromptsXml(
       .map((line) => `    ${line}`)
       .join("\n");
     lines.push(indented);
+    // Examples follow the prompt body; numbered from 0 for parity with
+    // the editor's `#0` / `#1` chips.
+    for (let i = 0; i < prompt.examples.length; i += 1) {
+      const example = prompt.examples[i] ?? "";
+      lines.push(`    <example index="${i}">`);
+      const exampleBody = example
+        .split("\n")
+        .map((line) => `      ${line}`)
+        .join("\n");
+      lines.push(exampleBody);
+      lines.push(`    </example>`);
+    }
     lines.push(`  </prompt>`);
   }
   lines.push(`</prompts>`);

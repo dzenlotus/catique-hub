@@ -50,9 +50,18 @@ pub async fn create_prompt(
     color: Option<String>,
     short_description: Option<String>,
     icon: Option<String>,
+    examples: Option<Vec<String>>,
 ) -> Result<Prompt, AppError> {
-    let prompt =
-        PromptsUseCase::new(&state.pool).create(name, content, color, short_description, icon)?;
+    // The TS layer may omit `examples` for backwards compatibility — treat
+    // a missing field the same as an empty list.
+    let prompt = PromptsUseCase::new(&state.pool).create(
+        name,
+        content,
+        color,
+        short_description,
+        icon,
+        examples.unwrap_or_default(),
+    )?;
     events::emit(&state, events::PROMPT_CREATED, json!({ "id": prompt.id }));
     Ok(prompt)
 }
@@ -71,6 +80,7 @@ pub async fn update_prompt(
     color: Option<Option<String>>,
     short_description: Option<Option<String>>,
     icon: Option<Option<String>>,
+    examples: Option<Vec<String>>,
 ) -> Result<Prompt, AppError> {
     let prompt = PromptsUseCase::new(&state.pool).update(
         id,
@@ -79,6 +89,7 @@ pub async fn update_prompt(
         color,
         short_description,
         icon,
+        examples,
     )?;
     events::emit(&state, events::PROMPT_UPDATED, json!({ "id": prompt.id }));
     Ok(prompt)

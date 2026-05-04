@@ -39,6 +39,7 @@ function makePrompt(overrides: Partial<Prompt> = {}): Prompt {
     color: null,
     shortDescription: null,
     icon: null,
+    examples: [],
     tokenCount: null,
     createdAt: 0n,
     updatedAt: 0n,

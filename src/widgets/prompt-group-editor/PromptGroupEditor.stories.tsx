@@ -40,6 +40,7 @@ function stubPrompt(id: string, name: string): Prompt {
     color: null,
     shortDescription: null,
     icon: null,
+    examples: [],
     tokenCount: null,
     createdAt: 0n,
     updatedAt: 0n,

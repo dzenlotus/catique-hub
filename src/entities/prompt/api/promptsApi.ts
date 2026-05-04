@@ -69,6 +69,12 @@ export interface CreatePromptArgs {
   shortDescription?: string;
   /** Optional Pixel-icon identifier (matches a key from `@shared/ui/Icon`). */
   icon?: string;
+  /**
+   * Optional ordered list of worked examples. Each example renders as
+   * an `<example>` child of the prompt's XML envelope at task-build
+   * time. Defaults to empty.
+   */
+  examples?: string[];
 }
 
 /** `create_prompt` — create a new prompt. */
@@ -81,6 +87,7 @@ export async function createPrompt(args: CreatePromptArgs): Promise<Prompt> {
   if (args.shortDescription !== undefined)
     payload.shortDescription = args.shortDescription;
   if (args.icon !== undefined) payload.icon = args.icon;
+  if (args.examples !== undefined) payload.examples = args.examples;
   return invokeWithAppError<Prompt>("create_prompt", payload);
 }
 
@@ -105,6 +112,12 @@ export interface UpdatePromptArgs {
    * `Option<Option<String>>` on the Rust side.
    */
   icon?: string | null;
+  /**
+   * Skip = `undefined`, set = array (empty array clears all examples).
+   * Mirrors `Option<Vec<String>>` on the Rust side — examples is
+   * "list, possibly empty", not nullable.
+   */
+  examples?: string[];
 }
 
 /** `update_prompt` — partial update. Only provided fields are changed. */
@@ -116,6 +129,7 @@ export async function updatePrompt(args: UpdatePromptArgs): Promise<Prompt> {
   if (args.shortDescription !== undefined)
     payload.shortDescription = args.shortDescription;
   if (args.icon !== undefined) payload.icon = args.icon;
+  if (args.examples !== undefined) payload.examples = args.examples;
   return invokeWithAppError<Prompt>("update_prompt", payload);
 }
 
