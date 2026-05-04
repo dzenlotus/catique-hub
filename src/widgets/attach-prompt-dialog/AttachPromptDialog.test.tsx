@@ -158,52 +158,52 @@ describe("AttachPromptDialog", () => {
     expect(radios).toHaveLength(4);
 
     const labels = radios.map((r) => r.closest("label")?.textContent?.trim());
-    expect(labels).toContain("Доска");
-    expect(labels).toContain("Колонка");
-    expect(labels).toContain("Задача");
-    expect(labels).toContain("Роль");
+    expect(labels).toContain("Board");
+    expect(labels).toContain("Column");
+    expect(labels).toContain("Task");
+    expect(labels).toContain("Role");
   });
 
-  it("defaults to 'Доска' radio checked", () => {
+  it("defaults to 'Board' radio checked", () => {
     renderWithClient(<AttachPromptDialog isOpen onClose={() => undefined} />);
     const boardRadio = screen.getByDisplayValue("board");
     expect(boardRadio).toBeChecked();
   });
 
-  it("switching to 'Колонка' renders board and column comboboxes", async () => {
+  it("switching to 'Column' renders board and column comboboxes", async () => {
     const { user } = renderWithClient(
       <AttachPromptDialog isOpen onClose={() => undefined} />,
     );
     await user.click(screen.getByDisplayValue("column"));
     // Both the board and column comboboxes should be present
     expect(
-      screen.getByRole("combobox", { name: "Доска" }),
+      screen.getByRole("combobox", { name: "Board" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("combobox", { name: "Колонка" }),
+      screen.getByRole("combobox", { name: "Column" }),
     ).toBeInTheDocument();
   });
 
-  it("switching to 'Задача' renders board and task comboboxes", async () => {
+  it("switching to 'Task' renders board and task comboboxes", async () => {
     const { user } = renderWithClient(
       <AttachPromptDialog isOpen onClose={() => undefined} />,
     );
     await user.click(screen.getByDisplayValue("task"));
     expect(
-      screen.getByRole("combobox", { name: "Доска" }),
+      screen.getByRole("combobox", { name: "Board" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("combobox", { name: "Задача" }),
+      screen.getByRole("combobox", { name: "Task" }),
     ).toBeInTheDocument();
   });
 
-  it("switching to 'Роль' renders role combobox", async () => {
+  it("switching to 'Role' renders role combobox", async () => {
     const { user } = renderWithClient(
       <AttachPromptDialog isOpen onClose={() => undefined} />,
     );
     await user.click(screen.getByDisplayValue("role"));
     expect(
-      screen.getByRole("combobox", { name: "Роль" }),
+      screen.getByRole("combobox", { name: "Role" }),
     ).toBeInTheDocument();
   });
 
@@ -240,8 +240,8 @@ describe("AttachPromptDialog", () => {
       expect(invokeMock).toHaveBeenCalled();
     });
 
-    await selectComboboxItem(user, "Доска", "Доска Альфа");
-    await selectComboboxItem(user, "Промпт", "Системный промпт");
+    await selectComboboxItem(user, "Board", "Доска Альфа");
+    await selectComboboxItem(user, "Prompt", "Системный промпт");
 
     await waitFor(() => {
       expect(
@@ -281,17 +281,17 @@ describe("AttachPromptDialog", () => {
       expect(invokeMock).toHaveBeenCalled();
     });
 
-    await selectComboboxItem(user, "Доска", "Доска Альфа");
+    await selectComboboxItem(user, "Board", "Доска Альфа");
 
     // Wait for column combobox to be enabled
     await waitFor(() => {
       expect(
-        screen.getByRole("combobox", { name: "Колонка" }),
+        screen.getByRole("combobox", { name: "Column" }),
       ).not.toBeDisabled();
     });
 
-    await selectComboboxItem(user, "Колонка", "Бэклог");
-    await selectComboboxItem(user, "Промпт", "Системный промпт");
+    await selectComboboxItem(user, "Column", "Бэклог");
+    await selectComboboxItem(user, "Prompt", "Системный промпт");
 
     await waitFor(() => {
       expect(
@@ -326,8 +326,8 @@ describe("AttachPromptDialog", () => {
       expect(invokeMock).toHaveBeenCalled();
     });
 
-    await selectComboboxItem(user, "Доска", "Доска Альфа");
-    await selectComboboxItem(user, "Промпт", "Системный промпт");
+    await selectComboboxItem(user, "Board", "Доска Альфа");
+    await selectComboboxItem(user, "Prompt", "Системный промпт");
 
     await waitFor(() => {
       expect(
@@ -370,8 +370,8 @@ describe("AttachPromptDialog", () => {
       expect(invokeMock).toHaveBeenCalled();
     });
 
-    await selectComboboxItem(user, "Доска", "Доска Альфа");
-    await selectComboboxItem(user, "Промпт", "Системный промпт");
+    await selectComboboxItem(user, "Board", "Доска Альфа");
+    await selectComboboxItem(user, "Prompt", "Системный промпт");
 
     await waitFor(() => {
       expect(

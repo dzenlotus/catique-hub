@@ -133,7 +133,7 @@ describe("McpToolEditor", () => {
     await waitFor(() => {
       expect(screen.getByTestId("mcp-tool-editor-save-error")).toBeInTheDocument();
     });
-    expect(screen.getByText(/невалидный json/i)).toBeInTheDocument();
+    expect(screen.getByText(/invalid json/i)).toBeInTheDocument();
   });
 
   it("clicking Save triggers useUpdateMcpToolMutation with dirty fields only", async () => {
@@ -199,8 +199,8 @@ describe("McpToolEditor", () => {
 
     await screen.findByTestId("mcp-tool-editor-name-input");
 
-    // Click the "Сбросить" button to clear the color.
-    const resetButton = screen.getByText("Сбросить");
+    // Click the "Reset" button to clear the color.
+    const resetButton = screen.getByText("Reset");
     await user.click(resetButton);
 
     const saveButton = screen.getByTestId("mcp-tool-editor-save");

@@ -116,7 +116,7 @@ describe("McpToolCreateDialog", () => {
         screen.getByTestId("mcp-tool-create-dialog-error"),
       ).toBeInTheDocument();
     });
-    expect(screen.getByText(/невалидный json/i)).toBeInTheDocument();
+    expect(screen.getByText(/invalid json/i)).toBeInTheDocument();
   });
 
   it("calls create_mcp_tool with correct payload on submit", async () => {
@@ -174,7 +174,7 @@ describe("McpToolCreateDialog", () => {
     });
   });
 
-  it("shows 'Имя уже занято' on conflict error from backend", async () => {
+  it("shows 'Name already taken' on conflict error from backend", async () => {
     invokeMock.mockRejectedValue({ kind: "conflict", data: { entity: "mcp_tool", reason: "name already exists" } });
 
     const { user } = renderWithClient(
@@ -191,7 +191,7 @@ describe("McpToolCreateDialog", () => {
     await waitFor(() => {
       expect(screen.getByTestId("mcp-tool-create-dialog-error")).toBeInTheDocument();
     });
-    expect(screen.getByText(/имя уже занято/i)).toBeInTheDocument();
+    expect(screen.getByText(/name already taken/i)).toBeInTheDocument();
   });
 
   it("shows inline error on mutation failure", async () => {

@@ -188,8 +188,8 @@ describe("SkillEditor", () => {
 
     await screen.findByTestId("skill-editor-name-input");
 
-    // Click the "Сбросить" button to clear the color.
-    const resetButton = screen.getByText("Сбросить");
+    // Click the "Reset" button to clear the color.
+    const resetButton = screen.getByText("Reset");
     await user.click(resetButton);
 
     const saveButton = screen.getByTestId("skill-editor-save");
