@@ -302,6 +302,7 @@ fn prompt_row_to_prompt(row: PromptRow) -> Prompt {
         content: row.content,
         color: row.color,
         short_description: row.short_description,
+        icon: row.icon,
         token_count: row.token_count,
         created_at: row.created_at,
         updated_at: row.updated_at,

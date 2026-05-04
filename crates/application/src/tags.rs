@@ -245,6 +245,7 @@ mod tests {
                     content: String::new(),
                     color: None,
                     short_description: None,
+                    icon: None,
                     token_count: None,
                 },
             )
@@ -257,6 +258,7 @@ mod tests {
                     content: String::new(),
                     color: None,
                     short_description: None,
+                    icon: None,
                     token_count: None,
                 },
             )

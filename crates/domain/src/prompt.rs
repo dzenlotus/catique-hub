@@ -15,6 +15,10 @@ pub struct Prompt {
     pub content: String,
     pub color: Option<String>,
     pub short_description: Option<String>,
+    /// Optional pixel-icon identifier. The TS layer maps this string onto
+    /// a React component from `src/shared/ui/Icon/`. `None` (and any
+    /// identifier the frontend doesn't recognise) renders no icon.
+    pub icon: Option<String>,
     pub token_count: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,

@@ -49,9 +49,10 @@ pub async fn create_prompt(
     content: String,
     color: Option<String>,
     short_description: Option<String>,
+    icon: Option<String>,
 ) -> Result<Prompt, AppError> {
     let prompt =
-        PromptsUseCase::new(&state.pool).create(name, content, color, short_description)?;
+        PromptsUseCase::new(&state.pool).create(name, content, color, short_description, icon)?;
     events::emit(&state, events::PROMPT_CREATED, json!({ "id": prompt.id }));
     Ok(prompt)
 }
@@ -69,9 +70,16 @@ pub async fn update_prompt(
     content: Option<String>,
     color: Option<Option<String>>,
     short_description: Option<Option<String>>,
+    icon: Option<Option<String>>,
 ) -> Result<Prompt, AppError> {
-    let prompt =
-        PromptsUseCase::new(&state.pool).update(id, name, content, color, short_description)?;
+    let prompt = PromptsUseCase::new(&state.pool).update(
+        id,
+        name,
+        content,
+        color,
+        short_description,
+        icon,
+    )?;
     events::emit(&state, events::PROMPT_UPDATED, json!({ "id": prompt.id }));
     Ok(prompt)
 }

@@ -23,6 +23,10 @@ pub struct PromptRow {
     pub content: String,
     pub color: Option<String>,
     pub short_description: Option<String>,
+    /// Optional pixel-icon identifier (migration `005_prompt_icons.sql`).
+    /// The frontend maps this string onto a React component from
+    /// `src/shared/ui/Icon/`.
+    pub icon: Option<String>,
     pub token_count: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -36,6 +40,7 @@ impl PromptRow {
             content: row.get("content")?,
             color: row.get("color")?,
             short_description: row.get("short_description")?,
+            icon: row.get("icon")?,
             token_count: row.get("token_count")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
@@ -60,6 +65,8 @@ pub struct PromptDraft {
     pub content: String,
     pub color: Option<String>,
     pub short_description: Option<String>,
+    /// Pixel-icon identifier (`None` means no icon).
+    pub icon: Option<String>,
     /// Cached token count of `content` (cl100k_base in Promptery).
     /// Catique computes this in the use-case layer (E3) — for now the
     /// caller may pass `None` and the row gets a NULL `token_count`.
@@ -73,6 +80,8 @@ pub struct PromptPatch {
     pub content: Option<String>,
     pub color: Option<Option<String>>,
     pub short_description: Option<Option<String>>,
+    /// `None` = leave alone; `Some(None)` = clear; `Some(Some(s))` = set.
+    pub icon: Option<Option<String>>,
     pub token_count: Option<Option<i64>>,
 }
 
@@ -83,7 +92,8 @@ pub struct PromptPatch {
 /// Surfaces rusqlite errors.
 pub fn list_all(conn: &Connection) -> Result<Vec<PromptRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, content, color, short_description, token_count, created_at, updated_at \
+        "SELECT id, name, content, color, short_description, icon, token_count, \
+                created_at, updated_at \
          FROM prompts ORDER BY name ASC",
     )?;
     let rows = stmt.query_map([], PromptRow::from_row)?;
@@ -101,7 +111,8 @@ pub fn list_all(conn: &Connection) -> Result<Vec<PromptRow>, DbError> {
 /// Surfaces rusqlite errors.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<PromptRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, content, color, short_description, token_count, created_at, updated_at \
+        "SELECT id, name, content, color, short_description, icon, token_count, \
+                created_at, updated_at \
          FROM prompts WHERE id = ?1",
     )?;
     Ok(stmt
@@ -119,14 +130,16 @@ pub fn insert(conn: &Connection, draft: &PromptDraft) -> Result<PromptRow, DbErr
     let now = now_millis();
     conn.execute(
         "INSERT INTO prompts \
-            (id, name, content, color, short_description, token_count, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+            (id, name, content, color, short_description, icon, token_count, \
+             created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
         params![
             id,
             draft.name,
             draft.content,
             draft.color,
             draft.short_description,
+            draft.icon,
             draft.token_count,
             now
         ],
@@ -137,6 +150,7 @@ pub fn insert(conn: &Connection, draft: &PromptDraft) -> Result<PromptRow, DbErr
         content: draft.content.clone(),
         color: draft.color.clone(),
         short_description: draft.short_description.clone(),
+        icon: draft.icon.clone(),
         token_count: draft.token_count,
         created_at: now,
         updated_at: now,
@@ -167,6 +181,7 @@ pub fn update(
     let now = now_millis();
     let color_new = patch.color.as_ref();
     let desc_new = patch.short_description.as_ref();
+    let icon_new = patch.icon.as_ref();
     let tok_new = patch.token_count.as_ref();
 
     let mut sql = String::from(
@@ -183,6 +198,11 @@ pub fn update(
     if let Some(d) = desc_new {
         let _ = write!(sql, ", short_description = ?{next_param}");
         params_vec.push(rusqlite::types::Value::from(d.clone()));
+        next_param += 1;
+    }
+    if let Some(i) = icon_new {
+        let _ = write!(sql, ", icon = ?{next_param}");
+        params_vec.push(rusqlite::types::Value::from(i.clone()));
         next_param += 1;
     }
     if let Some(t) = tok_new {
@@ -369,6 +389,7 @@ mod tests {
             content: format!("body of {name}"),
             color: Some("#abcdef".into()),
             short_description: Some("desc".into()),
+            icon: None,
             token_count: Some(42),
         }
     }
@@ -461,5 +482,93 @@ mod tests {
     fn set_token_count_returns_false_for_missing_id() {
         let conn = fresh_db();
         assert!(!set_token_count(&conn, "ghost", 42).unwrap());
+    }
+
+    #[test]
+    fn icon_round_trips_through_insert_and_get() {
+        let conn = fresh_db();
+        let row = insert(
+            &conn,
+            &PromptDraft {
+                name: "iconic".into(),
+                content: String::new(),
+                color: None,
+                short_description: None,
+                icon: Some("star".into()),
+                token_count: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(row.icon.as_deref(), Some("star"));
+        let got = get_by_id(&conn, &row.id).unwrap().unwrap();
+        assert_eq!(got.icon.as_deref(), Some("star"));
+        // Round-trip via list_all too — ensures the SELECT projection is right.
+        let all = list_all(&conn).unwrap();
+        let listed = all.iter().find(|r| r.id == row.id).unwrap();
+        assert_eq!(listed.icon.as_deref(), Some("star"));
+    }
+
+    #[test]
+    fn icon_defaults_to_none_when_omitted() {
+        let conn = fresh_db();
+        let row = insert(
+            &conn,
+            &PromptDraft {
+                name: "no-icon".into(),
+                content: String::new(),
+                color: None,
+                short_description: None,
+                icon: None,
+                token_count: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(row.icon, None);
+    }
+
+    #[test]
+    fn update_can_set_clear_and_change_icon() {
+        let conn = fresh_db();
+        let row = insert(&conn, &draft("p")).unwrap();
+        assert_eq!(row.icon, None);
+
+        // Set.
+        let after_set = update(
+            &conn,
+            &row.id,
+            &PromptPatch {
+                icon: Some(Some("bolt".into())),
+                ..PromptPatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(after_set.icon.as_deref(), Some("bolt"));
+
+        // Change.
+        let after_change = update(
+            &conn,
+            &row.id,
+            &PromptPatch {
+                icon: Some(Some("heart".into())),
+                ..PromptPatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(after_change.icon.as_deref(), Some("heart"));
+
+        // Clear.
+        let after_clear = update(
+            &conn,
+            &row.id,
+            &PromptPatch {
+                icon: Some(None),
+                ..PromptPatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(after_clear.icon, None);
     }
 }

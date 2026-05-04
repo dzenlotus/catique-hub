@@ -143,7 +143,9 @@ pub fn all_adapters() -> Vec<Box<dyn ClientAdapter>> {
     vec![
         Box::new(adapters::claude_code::ClaudeCodeAdapter),
         Box::new(adapters::claude_desktop::ClaudeDesktopAdapter),
+        Box::new(adapters::codex::CodexAdapter),
         Box::new(adapters::cursor::CursorAdapter),
+        Box::new(adapters::opencode::OpenCodeAdapter),
         Box::new(adapters::qwen::QwenAdapter),
     ]
 }

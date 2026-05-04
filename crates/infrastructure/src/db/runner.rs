@@ -467,9 +467,16 @@ mod tests {
         )
         .unwrap();
 
-        // Now run 004.
-        let applied = run_pending(&mut conn).expect("004 pending");
-        assert_eq!(applied.len(), 1);
+        // Now run pending. The seeded `_migrations` rows cover 001-003,
+        // so every later migration (004_cat_as_agent_phase1, 005_…)
+        // will run here in lexical order. The assertion below pins the
+        // *first* applied entry — the post-004 invariants this test
+        // protects do not regress when later migrations land.
+        let applied = run_pending(&mut conn).expect("post-003 pending");
+        assert!(
+            !applied.is_empty(),
+            "at least migration 004 must run when 001-003 are pre-seeded",
+        );
         assert_eq!(applied[0].name, "004_cat_as_agent_phase1");
 
         // Every board's owner_role_id must be maintainer-system.

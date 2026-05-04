@@ -474,8 +474,8 @@ pub fn list_task_prompts(
     task_id: &str,
 ) -> Result<Vec<super::prompts::PromptRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT p.id, p.name, p.content, p.color, p.short_description, p.token_count, \
-                p.created_at, p.updated_at \
+        "SELECT p.id, p.name, p.content, p.color, p.short_description, p.icon, \
+                p.token_count, p.created_at, p.updated_at \
          FROM task_prompts tp \
          JOIN prompts p ON p.id = tp.prompt_id \
          WHERE tp.task_id = ?1 \
