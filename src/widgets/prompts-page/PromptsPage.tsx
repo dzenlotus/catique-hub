@@ -36,6 +36,7 @@ import { PromptEditorPanel } from "@widgets/prompt-editor-panel";
 import { PromptGroupEditor } from "@widgets/prompt-group-editor";
 import { PromptsSidebar } from "@widgets/prompts-sidebar";
 import { InlineGroupView } from "@widgets/inline-group-view";
+import { InlineGroupSettings } from "@widgets/inline-group-settings";
 
 import styles from "./PromptsPage.module.css";
 
@@ -101,6 +102,9 @@ export function PromptsPage(): ReactElement {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  // Round-19d: inline group-settings page (right pane). Distinct from
+  // `editingGroupId` which still drives the rename modal.
+  const [groupSettingsId, setGroupSettingsId] = useState<string | null>(null);
 
   // Optimistic reorder state for `<InlineGroupView>` sortable cards.
   // `reorderGroupId` is the group whose members are being dragged;
@@ -286,6 +290,21 @@ export function PromptsPage(): ReactElement {
   );
 
   const renderRightPane = (): ReactElement => {
+    // Group settings page wins over everything else — opened from the
+    // sidebar kebab and drops back to the previously-selected group
+    // view (or grid) on close.
+    if (groupSettingsId !== null) {
+      return (
+        <InlineGroupSettings
+          groupId={groupSettingsId}
+          onClose={() => setGroupSettingsId(null)}
+          onDelete={(id) => {
+            handleDeleteGroup(id);
+            setGroupSettingsId(null);
+          }}
+        />
+      );
+    }
     if (selectedPromptId !== null) {
       // Back is only meaningful when the prompt was opened from inside
       // a group view — i.e. the group context is still set. When the
@@ -352,6 +371,10 @@ export function PromptsPage(): ReactElement {
               setSelectedGroupId(null);
             }}
             onRenameGroup={(id) => setEditingGroupId(id)}
+            onGroupSettings={(id) => {
+              setGroupSettingsId(id);
+              setSelectedPromptId(null);
+            }}
             onDeleteGroup={handleDeleteGroup}
             groupMembers={groupMembers}
           />

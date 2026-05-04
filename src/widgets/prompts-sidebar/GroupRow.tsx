@@ -17,6 +17,7 @@ export interface GroupRowProps {
   isActive: boolean;
   onSelect: (id: string) => void;
   onRename: (id: string) => void;
+  onSettings: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
@@ -30,6 +31,7 @@ export function GroupRow({
   isActive,
   onSelect,
   onRename,
+  onSettings,
   onDelete,
 }: GroupRowProps): ReactElement {
   // Each group accepts prompts from any other group. The droppable id is
@@ -84,10 +86,12 @@ export function GroupRow({
           <Menu
             onAction={(key) => {
               if (key === "rename") onRename(group.id);
+              else if (key === "settings") onSettings(group.id);
               else if (key === "delete") onDelete(group.id);
             }}
           >
             <MenuItem id="rename">Rename</MenuItem>
+            <MenuItem id="settings">Settings</MenuItem>
             <MenuItem id="delete">Delete</MenuItem>
           </Menu>
         </MenuTrigger>

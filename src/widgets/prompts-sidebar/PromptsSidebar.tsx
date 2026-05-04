@@ -46,6 +46,8 @@ export interface PromptsSidebarProps {
   onSelectPrompt: (promptId: string) => void;
   /** Called when the user picks "Rename" on a group's kebab. */
   onRenameGroup: (groupId: string) => void;
+  /** Called when the user picks "Settings" on a group's kebab. */
+  onGroupSettings: (groupId: string) => void;
   /** Called when the user picks "Delete" on a group's kebab. */
   onDeleteGroup: (groupId: string) => void;
   /**
@@ -62,6 +64,7 @@ export function PromptsSidebar({
   onSelectGroup,
   onSelectPrompt,
   onRenameGroup,
+  onGroupSettings,
   onDeleteGroup,
 }: PromptsSidebarProps): ReactElement {
   const promptsQuery = usePrompts();
@@ -116,6 +119,7 @@ export function PromptsSidebar({
             isActive={group.id === selectedGroupId}
             onSelect={onSelectGroup}
             onRename={onRenameGroup}
+            onSettings={onGroupSettings}
             onDelete={onDeleteGroup}
           />
         ))}
