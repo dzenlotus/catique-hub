@@ -12,7 +12,7 @@
  *     prompts dragged in from the sidebar — handled by `<PromptsPage>`.
  */
 
-import { useMemo, type ReactElement } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import { useDroppable } from "@dnd-kit/react";
 import { useSortable } from "@dnd-kit/react/sortable";
 
@@ -27,6 +27,7 @@ import {
   useRemovePromptGroupMemberMutation,
 } from "@entities/prompt-group";
 import { Button, MenuTrigger, Menu, MenuItem } from "@shared/ui";
+import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
 import styles from "./InlineGroupView.module.css";
@@ -58,6 +59,10 @@ export function InlineGroupView({
   const promptsQuery = usePrompts();
   const removeMember = useRemovePromptGroupMemberMutation();
   const { pushToast } = useToast();
+
+  // Track hovered prompt card so the matching `<prompt>` block in the
+  // XML preview can highlight (bold + tinted with the prompt's color).
+  const [hoveredPromptId, setHoveredPromptId] = useState<string | null>(null);
 
   // Distinct id from the sidebar row droppable (`group:<id>`); the
   // shared `<DragDropProvider>` in `<PromptsPage>` routes both prefixes
@@ -208,6 +213,9 @@ export function InlineGroupView({
                 onSelect={onSelectPrompt}
                 onRemove={handleRemoveFromGroup}
                 isRemoving={removeMember.isPending}
+                onHoverChange={(isHovered) =>
+                  setHoveredPromptId(isHovered ? prompt.id : null)
+                }
               />
             ))
           )}
@@ -229,12 +237,11 @@ export function InlineGroupView({
                 Add prompts to see how they'll render to an agent.
               </p>
             ) : (
-              <pre
-                className={styles.previewXml}
-                data-testid="inline-group-view-xml-preview"
-              >
-                {renderPromptsXml(memberPrompts, group.name)}
-              </pre>
+              <PromptsXmlPreview
+                prompts={memberPrompts}
+                groupName={group.name}
+                hoveredPromptId={hoveredPromptId}
+              />
             )}
           </div>
         </div>
@@ -254,6 +261,9 @@ interface SortableMemberCardProps {
   onSelect: (id: string) => void;
   onRemove: (id: string) => void;
   isRemoving: boolean;
+  /** Notifies the parent on pointer enter/leave so the right-pane
+   * XML preview can highlight the matching `<prompt>` block. */
+  onHoverChange: (isHovered: boolean) => void;
 }
 
 function SortableMemberCard({
@@ -263,6 +273,7 @@ function SortableMemberCard({
   onSelect,
   onRemove,
   isRemoving,
+  onHoverChange,
 }: SortableMemberCardProps): ReactElement {
   // Distinct id from the sidebar's `useSortable({ id: prompt.id })` —
   // dnd-kit registers entities globally per provider, and two
@@ -281,6 +292,10 @@ function SortableMemberCard({
       className={styles.cardCell}
       data-dragging={isDragging ? "true" : undefined}
       data-testid={`inline-group-view-card-${prompt.id}`}
+      onMouseEnter={() => onHoverChange(true)}
+      onMouseLeave={() => onHoverChange(false)}
+      onFocus={() => onHoverChange(true)}
+      onBlur={() => onHoverChange(false)}
     >
       <button
         type="button"
@@ -335,13 +350,28 @@ function sumTokenCount(prompts: ReadonlyArray<Prompt>): string {
   return `≈${total.toString()} tokens`;
 }
 
-/** Render the group as the XML envelope an agent receives. Mirrors
- * the layout that the task-context build will emit at runtime so the
- * user can preview wire-format ordering as they reorder. */
-function renderPromptsXml(
-  prompts: ReadonlyArray<Prompt>,
-  groupName: string,
-): string {
+// ─────────────────────────────────────────────────────────────────────────────
+// XML preview — structured renderer
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PromptsXmlPreviewProps {
+  prompts: ReadonlyArray<Prompt>;
+  groupName: string;
+  hoveredPromptId: string | null;
+}
+
+/**
+ * Renders the same XML envelope as the previous string helper but as
+ * structured nodes — each `<prompt>` block lives in its own `<span
+ * data-prompt-id>`, so hovering a card in the left list can highlight
+ * the matching block (bold + tinted with the prompt's color) without
+ * re-tokenising the whole document.
+ */
+function PromptsXmlPreview({
+  prompts,
+  groupName,
+  hoveredPromptId,
+}: PromptsXmlPreviewProps): ReactElement {
   const escape = (s: string): string =>
     s
       .replace(/&/g, "&amp;")
@@ -349,29 +379,56 @@ function renderPromptsXml(
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
 
-  const lines = [`<prompts group="${escape(groupName)}">`];
-  for (const prompt of prompts) {
-    lines.push(`  <prompt id="${escape(prompt.id)}" name="${escape(prompt.name)}">`);
-    const indented = prompt.content
-      .split("\n")
-      .map((line) => `    ${line}`)
-      .join("\n");
-    lines.push(indented);
-    // Examples follow the prompt body; numbered from 0 for parity with
-    // the editor's `#0` / `#1` chips.
-    for (let i = 0; i < prompt.examples.length; i += 1) {
-      const example = prompt.examples[i] ?? "";
-      lines.push(`    <example index="${i}">`);
-      const exampleBody = example
-        .split("\n")
-        .map((line) => `      ${line}`)
-        .join("\n");
-      lines.push(exampleBody);
-      lines.push(`    </example>`);
-    }
-    lines.push(`  </prompt>`);
-  }
-  lines.push(`</prompts>`);
-  return lines.join("\n");
+  return (
+    <pre
+      className={styles.previewXml}
+      data-testid="inline-group-view-xml-preview"
+    >
+      <span>{`<prompts group="${escape(groupName)}">\n`}</span>
+      {prompts.map((prompt) => {
+        const isHovered = hoveredPromptId === prompt.id;
+        const indented = prompt.content
+          .split("\n")
+          .map((line) => `    ${line}`)
+          .join("\n");
+        const examplesBlock = prompt.examples
+          .map((example, i) => {
+            const body = example
+              .split("\n")
+              .map((line) => `      ${line}`)
+              .join("\n");
+            return `    <example index="${i}">\n${body}\n    </example>`;
+          })
+          .join("\n");
+        const block = [
+          `  <prompt id="${escape(prompt.id)}" name="${escape(prompt.name)}">`,
+          indented,
+          ...(examplesBlock.length > 0 ? [examplesBlock] : []),
+          `  </prompt>`,
+        ].join("\n");
+
+        const highlightStyle: React.CSSProperties | undefined =
+          isHovered && prompt.color !== null
+            ? { color: prompt.color }
+            : undefined;
+
+        return (
+          <span
+            key={prompt.id}
+            className={cn(
+              styles.promptBlock,
+              isHovered && styles.promptBlockHover,
+            )}
+            data-prompt-id={prompt.id}
+            {...(highlightStyle !== undefined ? { style: highlightStyle } : {})}
+          >
+            {block}
+            {"\n"}
+          </span>
+        );
+      })}
+      <span>{`</prompts>`}</span>
+    </pre>
+  );
 }
 

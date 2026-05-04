@@ -144,6 +144,22 @@
   word-break: break-word;
 }
 
+/*
+ * Per-prompt segment inside the XML preview. Default: inherits the
+ * surrounding monospace + default text color. When the user hovers
+ * the corresponding card in the left list, `<InlineGroupView>` adds
+ * the `.promptBlockHover` class and inlines `color: <prompt.color>`
+ * — bold + the prompt's color highlight the matching segment.
+ */
+.promptBlock {
+  display: inline;
+  transition: color 80ms ease-out, font-weight 80ms ease-out;
+}
+
+.promptBlockHover {
+  font-weight: var(--font-weight-bold, 700);
+}
+
 .previewEmpty {
   margin: 0;
   font-size: var(--font-size-body-sm);
