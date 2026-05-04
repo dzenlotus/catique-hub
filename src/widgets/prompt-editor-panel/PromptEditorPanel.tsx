@@ -21,6 +21,7 @@ import {
   MarkdownField,
   IconColorPicker,
 } from "@shared/ui";
+import { PixelInterfaceEssentialBin } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -382,7 +383,11 @@ export function PromptEditorPanel({
                     aria-label={`Remove example ${index}`}
                     data-testid={`prompt-editor-panel-example-remove-${index}`}
                   >
-                    Remove
+                    <PixelInterfaceEssentialBin
+                      width={14}
+                      height={14}
+                      aria-hidden="true"
+                    />
                   </Button>
                 </li>
               ))}

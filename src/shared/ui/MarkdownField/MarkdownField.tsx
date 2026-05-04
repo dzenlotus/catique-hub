@@ -1,17 +1,26 @@
 /**
  * MarkdownField — content field with implicit view ⇄ edit modes plus
- * an editing toolbar.
+ * a grouped Markdown formatting toolbar.
  *
  * Default mode is **view**: the value is rendered through
- * `MarkdownPreview` so the user reads formatted content. Click on the
- * preview (or tab focus, or focus from the keyboard) flips the field
- * into **edit** mode — a `<textarea>` takes its place and is given
- * focus immediately, alongside a Markdown editing toolbar with the
- * common formatting affordances (bold, italic, heading, link, code,
- * lists, quote). Blurring the textarea (clicking outside, tabbing
- * away) returns the field to view mode unless focus moved into the
- * toolbar. Esc also returns to view mode without losing the in-flight
- * value.
+ * `MarkdownPreview`. Click on the preview (or tab focus, or focus
+ * from the keyboard) flips into **edit** mode — a `<textarea>` takes
+ * its place and is given focus immediately, alongside the toolbar
+ * (sticky at the top of the edit surface so it stays visible while
+ * the textarea grows).
+ *
+ * Toolbar UX (round-19d redesign):
+ *   - Logical groups separated by thin dividers (text · heading ·
+ *     list · code · block · link). Mirrors what tooling like
+ *     GitHub's editor, Obsidian, and Notion settle on.
+ *   - Each control has a tooltip (browser title attr) carrying the
+ *     human label + keyboard shortcut.
+ *   - Icon-style glyphs sized to a uniform 28×28 hit target. Where a
+ *     dedicated SVG exists in the Pixel set we use it; otherwise we
+ *     fall back to a typographic glyph styled with the appropriate
+ *     family (`B`, `I`, `H1`/`H2`/`H3` etc).
+ *   - Cmd/Ctrl+B and Cmd/Ctrl+I shortcuts mirror the toolbar.
+ *   - Esc returns to view mode without discarding the value.
  *
  * The component is fully controlled — the parent owns `value` and
  * `onChange`. We expose `onModeChange` so a parent can react to mode
@@ -25,9 +34,15 @@ import {
   useState,
   type KeyboardEvent,
   type ReactElement,
+  type ReactNode,
 } from "react";
 
 import { MarkdownPreview } from "@shared/ui/MarkdownPreview";
+import {
+  PixelInterfaceEssentialLink,
+  PixelInterfaceEssentialList,
+  PixelCodingAppsWebsitesProgrammingHoldCode,
+} from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 
 import styles from "./MarkdownField.module.css";
@@ -47,10 +62,7 @@ export interface MarkdownFieldProps {
   rows?: number;
   /** Initial mode. Default "view". */
   defaultMode?: MarkdownFieldMode;
-  /**
-   * Optional listener for mode transitions. Useful when the parent
-   * needs to gate close-on-Esc with a dirty-discard prompt.
-   */
+  /** Optional listener for mode transitions. */
   onModeChange?: (mode: MarkdownFieldMode) => void;
   /** Optional class merged onto the root element. */
   className?: string;
@@ -59,18 +71,22 @@ export interface MarkdownFieldProps {
 }
 
 interface ToolbarAction {
-  /** Stable key for React + data-testid. */
   id: string;
-  /** Visible button label (single character / glyph for compactness). */
-  glyph: string;
-  /** Tooltip / aria-label. */
+  /** Visible glyph or icon. */
+  glyph: ReactNode;
+  /** Optional small className for typographic glyph rendering. */
+  glyphClass?: string;
   label: string;
-  /** Apply the formatting transformation to the textarea contents. */
   apply: (textarea: HTMLTextAreaElement, value: string) => {
     next: string;
     selectionStart: number;
     selectionEnd: number;
   };
+}
+
+interface ToolbarGroup {
+  id: string;
+  actions: ToolbarAction[];
 }
 
 /** Wrap the current selection (or insert a placeholder if empty). */
@@ -98,7 +114,6 @@ function prefixLines(prefix: string): ToolbarAction["apply"] {
   return (ta, value) => {
     const start = ta.selectionStart ?? value.length;
     const end = ta.selectionEnd ?? value.length;
-    // Expand selection to whole-line boundaries.
     const lineStart = value.lastIndexOf("\n", start - 1) + 1;
     let lineEnd = value.indexOf("\n", end);
     if (lineEnd === -1) lineEnd = value.length;
@@ -125,7 +140,6 @@ function insertLink(): ToolbarAction["apply"] {
     const text = selected.length > 0 ? selected : "link text";
     const link = `[${text}](https://)`;
     const next = `${value.slice(0, start)}${link}${value.slice(end)}`;
-    // Place the cursor inside the URL so the user can paste/type it.
     const urlOffset = link.length - 1;
     return {
       next,
@@ -135,46 +149,139 @@ function insertLink(): ToolbarAction["apply"] {
   };
 }
 
-const TOOLBAR_ACTIONS: ToolbarAction[] = [
+/** Insert a horizontal rule on a fresh line. */
+function insertRule(): ToolbarAction["apply"] {
+  return (ta, value) => {
+    const start = ta.selectionStart ?? value.length;
+    const before = value.slice(0, start);
+    const needsLeadingNewline = before.length > 0 && !before.endsWith("\n");
+    const insert = `${needsLeadingNewline ? "\n" : ""}\n---\n`;
+    const next = `${before}${insert}${value.slice(start)}`;
+    const cursor = start + insert.length;
+    return { next, selectionStart: cursor, selectionEnd: cursor };
+  };
+}
+
+const TOOLBAR_GROUPS: ToolbarGroup[] = [
   {
-    id: "bold",
-    glyph: "B",
-    label: "Bold (Cmd+B)",
-    apply: wrapSelection("**", "**", "bold"),
-  },
-  {
-    id: "italic",
-    glyph: "I",
-    label: "Italic (Cmd+I)",
-    apply: wrapSelection("*", "*", "italic"),
+    id: "text",
+    actions: [
+      {
+        id: "bold",
+        glyph: "B",
+        glyphClass: "glyphBold",
+        label: "Bold (⌘B)",
+        apply: wrapSelection("**", "**", "bold"),
+      },
+      {
+        id: "italic",
+        glyph: "I",
+        glyphClass: "glyphItalic",
+        label: "Italic (⌘I)",
+        apply: wrapSelection("*", "*", "italic"),
+      },
+      {
+        id: "strike",
+        glyph: "S",
+        glyphClass: "glyphStrike",
+        label: "Strikethrough",
+        apply: wrapSelection("~~", "~~", "strike"),
+      },
+    ],
   },
   {
     id: "heading",
-    glyph: "H",
-    label: "Heading",
-    apply: prefixLines("## "),
+    actions: [
+      {
+        id: "h1",
+        glyph: "H1",
+        glyphClass: "glyphHeading",
+        label: "Heading 1",
+        apply: prefixLines("# "),
+      },
+      {
+        id: "h2",
+        glyph: "H2",
+        glyphClass: "glyphHeading",
+        label: "Heading 2",
+        apply: prefixLines("## "),
+      },
+      {
+        id: "h3",
+        glyph: "H3",
+        glyphClass: "glyphHeading",
+        label: "Heading 3",
+        apply: prefixLines("### "),
+      },
+    ],
   },
-  { id: "link", glyph: "🔗", label: "Link", apply: insertLink() },
+  {
+    id: "list",
+    actions: [
+      {
+        id: "ul",
+        glyph: <PixelInterfaceEssentialList width={16} height={16} aria-hidden />,
+        label: "Bullet list",
+        apply: prefixLines("- "),
+      },
+      {
+        id: "ol",
+        glyph: "1.",
+        glyphClass: "glyphMono",
+        label: "Numbered list",
+        apply: prefixLines("1. "),
+      },
+      {
+        id: "quote",
+        glyph: "❝",
+        glyphClass: "glyphQuote",
+        label: "Quote",
+        apply: prefixLines("> "),
+      },
+    ],
+  },
   {
     id: "code",
-    glyph: "</>",
-    label: "Inline code",
-    apply: wrapSelection("`", "`", "code"),
+    actions: [
+      {
+        id: "inline-code",
+        glyph: (
+          <PixelCodingAppsWebsitesProgrammingHoldCode
+            width={16}
+            height={16}
+            aria-hidden
+          />
+        ),
+        label: "Inline code",
+        apply: wrapSelection("`", "`", "code"),
+      },
+      {
+        id: "code-block",
+        glyph: "```",
+        glyphClass: "glyphMono",
+        label: "Code block",
+        apply: wrapSelection("\n```\n", "\n```\n", "code"),
+      },
+    ],
   },
   {
-    id: "code-block",
-    glyph: "{ }",
-    label: "Code block",
-    apply: wrapSelection("\n```\n", "\n```\n", "code"),
+    id: "link",
+    actions: [
+      {
+        id: "link",
+        glyph: <PixelInterfaceEssentialLink width={16} height={16} aria-hidden />,
+        label: "Link",
+        apply: insertLink(),
+      },
+      {
+        id: "hr",
+        glyph: "—",
+        glyphClass: "glyphMono",
+        label: "Horizontal rule",
+        apply: insertRule(),
+      },
+    ],
   },
-  { id: "ul", glyph: "•", label: "Bullet list", apply: prefixLines("- ") },
-  {
-    id: "ol",
-    glyph: "1.",
-    label: "Numbered list",
-    apply: prefixLines("1. "),
-  },
-  { id: "quote", glyph: "❝", label: "Quote", apply: prefixLines("> ") },
 ];
 
 export function MarkdownField({
@@ -217,6 +324,17 @@ export function MarkdownField({
     [enterEdit],
   );
 
+  const applyAction = (action: ToolbarAction): void => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const result = action.apply(ta, value);
+    onChange(result.next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(result.selectionStart, result.selectionEnd);
+    });
+  };
+
   const handleEditKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>): void => {
       if (event.key === "Escape") {
@@ -224,48 +342,37 @@ export function MarkdownField({
         exitEdit();
         return;
       }
-      // Cmd/Ctrl + B / I shortcuts mirror the toolbar.
       const isMod = event.metaKey || event.ctrlKey;
       if (!isMod) return;
-      if (event.key.toLowerCase() === "b") {
+      // Lookup by id so the shortcut is robust against group reordering.
+      const findAction = (id: string): ToolbarAction | undefined => {
+        for (const group of TOOLBAR_GROUPS) {
+          const found = group.actions.find((a) => a.id === id);
+          if (found) return found;
+        }
+        return undefined;
+      };
+      const key = event.key.toLowerCase();
+      const action =
+        key === "b" ? findAction("bold") :
+        key === "i" ? findAction("italic") :
+        key === "k" ? findAction("link") :
+        undefined;
+      if (action) {
         event.preventDefault();
-        applyAction(TOOLBAR_ACTIONS[0]!);
-      } else if (event.key.toLowerCase() === "i") {
-        event.preventDefault();
-        applyAction(TOOLBAR_ACTIONS[1]!);
+        applyAction(action);
       }
     },
-    // applyAction is defined below; eslint-react would flag this — but
-    // applyAction depends on `value` + `onChange` which can change every
-    // render, so we re-create it inline rather than memoising.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [exitEdit, value, onChange],
   );
 
-  const applyAction = (action: ToolbarAction): void => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const result = action.apply(ta, value);
-    onChange(result.next);
-    // Restore selection on the next paint so the new value is in the DOM.
-    requestAnimationFrame(() => {
-      ta.focus();
-      ta.setSelectionRange(result.selectionStart, result.selectionEnd);
-    });
-  };
-
-  /**
-   * Treat focus moves into the toolbar as STILL editing — exit only
-   * when focus leaves the whole MarkdownField root. A textarea blur
-   * checks `relatedTarget` against the container ref; if focus went
-   * to a toolbar button, stay in edit mode.
-   */
   const handleTextareaBlur = (
     event: React.FocusEvent<HTMLTextAreaElement>,
   ): void => {
     const next = event.relatedTarget as Node | null;
     if (next && containerRef.current?.contains(next)) {
-      return; // focus moved to a toolbar button; stay in edit mode
+      return; // focus moved into the toolbar; stay in edit mode
     }
     exitEdit();
   };
@@ -283,35 +390,37 @@ export function MarkdownField({
           aria-label="Markdown formatting"
           data-testid={testId ? `${testId}-toolbar` : undefined}
         >
-          {TOOLBAR_ACTIONS.map((action) => (
-            <button
-              key={action.id}
-              type="button"
-              className={styles.toolbarButton}
-              onMouseDown={(e) => {
-                // Prevent textarea blur before the click handler runs;
-                // the textarea is the source of selection state.
-                e.preventDefault();
-              }}
-              onClick={() => applyAction(action)}
-              aria-label={action.label}
-              title={action.label}
-              data-testid={
-                testId ? `${testId}-toolbar-${action.id}` : undefined
-              }
-            >
-              {action.glyph}
-            </button>
+          {TOOLBAR_GROUPS.map((group, index) => (
+            <span key={group.id} className={styles.group} role="group">
+              {index > 0 ? (
+                <span className={styles.divider} aria-hidden="true" />
+              ) : null}
+              {group.actions.map((action) => (
+                <button
+                  key={action.id}
+                  type="button"
+                  className={styles.toolbarButton}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyAction(action)}
+                  aria-label={action.label}
+                  title={action.label}
+                  data-testid={
+                    testId ? `${testId}-toolbar-${action.id}` : undefined
+                  }
+                >
+                  <span
+                    className={cn(
+                      styles.glyph,
+                      action.glyphClass !== undefined &&
+                        styles[action.glyphClass],
+                    )}
+                  >
+                    {action.glyph}
+                  </span>
+                </button>
+              ))}
+            </span>
           ))}
-          <span className={styles.toolbarSpacer} />
-          <button
-            type="button"
-            className={styles.toolbarDoneButton}
-            onClick={exitEdit}
-            data-testid={testId ? `${testId}-toolbar-done` : undefined}
-          >
-            Done
-          </button>
         </div>
         <textarea
           ref={textareaRef}
@@ -329,7 +438,7 @@ export function MarkdownField({
     );
   }
 
-  // View mode — clickable preview surface. Empty value → muted placeholder.
+  // View mode — clickable preview surface.
   const isEmpty = value.trim().length === 0;
   return (
     <button

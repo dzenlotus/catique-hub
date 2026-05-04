@@ -16,43 +16,67 @@
   width: 100%;
 }
 
+/*
+ * Toolbar (round-19d redesign):
+ *   - Logical groups (text · heading · list · code · link) separated
+ *     by thin vertical dividers, like every well-tooled markdown
+ *     editor. Wraps on narrow widths.
+ *   - 28×28 square buttons, no individual borders — hover lights up
+ *     the cell, no chrome competing with the icon.
+ *   - Glyphs use weight-appropriate fonts (bold for B, italic for I,
+ *     monospace for `1.`, `\`\`\``, `—`).
+ *   - Sticky to the top of the edit surface so it stays visible
+ *     while the textarea grows.
+ */
 .toolbar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-4);
-  padding: var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
   border: 1px solid var(--color-border-default);
   border-bottom: none;
   border-top-left-radius: var(--radius-md);
   border-top-right-radius: var(--radius-md);
   background-color: var(--color-surface-raised);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.divider {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  margin: 0 var(--space-4);
+  background-color: var(--color-border-default);
 }
 
 .toolbarButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
+  width: 28px;
   height: 28px;
-  padding: 0 var(--space-6);
-  border: 1px solid transparent;
+  padding: 0;
+  border: none;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-muted);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition:
     background-color 80ms ease-out,
-    border-color 80ms ease-out,
     color 80ms ease-out;
 }
 
 .toolbarButton:hover {
   background-color: var(--color-overlay-hover);
-  border-color: var(--color-border-subtle);
   color: var(--color-text-default);
 }
 
@@ -61,28 +85,57 @@
   outline-offset: 1px;
 }
 
-.toolbarSpacer {
-  flex: 1 1 auto;
+.toolbarButton:active {
+  background-color: var(--color-overlay-active);
 }
 
-.toolbarDoneButton {
+/* Glyph wrapper inside a button — keeps consistent baseline + line-height. */
+.glyph {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 28px;
-  padding: 0 var(--space-12);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-sm);
-  background-color: var(--color-surface-canvas);
-  color: var(--color-text-default);
   font-family: var(--font-sans);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
 }
 
-.toolbarDoneButton:hover {
-  background-color: var(--color-overlay-hover);
+/* Per-action typographic styling so `B` / `I` / `H1` etc actually
+ * read as their formatting. `glyphMono` uses tabular figures for
+ * `1.`, ``` ``` ``` and `—`. */
+.glyphBold {
+  font-family: var(--font-serif, var(--font-sans));
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.glyphItalic {
+  font-family: var(--font-serif, var(--font-sans));
+  font-style: italic;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.glyphStrike {
+  font-weight: 600;
+  text-decoration: line-through;
+  font-size: 14px;
+}
+
+.glyphHeading {
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.glyphMono {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.glyphQuote {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .textarea {
