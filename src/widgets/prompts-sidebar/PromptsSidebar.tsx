@@ -180,10 +180,10 @@ export function PromptsSidebar({
         <SidebarNavItem
           isActive={selectedGroupId === null && selectedPromptId === null}
           onClick={() => onSelectGroup(null)}
-          ariaLabel="Prompts"
+          ariaLabel="All Prompts"
           testId="prompts-sidebar-all-prompts"
         >
-          Prompts
+          All Prompts
         </SidebarNavItem>
 
         <SidebarSectionDivider />

@@ -58,6 +58,9 @@ export function PromptRow({
       )}
       data-testid={`prompts-sidebar-prompt-row-${prompt.id}`}
     >
+      {isActive && (
+        <span className={styles.promptActiveStrip} aria-hidden="true" />
+      )}
       <button
         type="button"
         ref={(element) => handleRef(element)}

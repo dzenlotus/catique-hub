@@ -197,10 +197,41 @@
   outline-offset: 2px;
 }
 
+/* Etalon match (PromptsSidebar groupRow): inset accent-soft background
+ * + leading red strip rendered as a sibling element by PromptRow. */
 .promptRowActive {
-  background-color: var(--color-accent-soft);
+  background-color: transparent;
   color: var(--color-text-default);
   font-weight: var(--font-weight-medium);
+}
+
+.promptRowActive::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  right: 0;
+  background-color: var(--color-accent-soft);
+  border-radius: var(--radius-sm);
+  z-index: 0;
+}
+
+.promptRow > * {
+  position: relative;
+  z-index: 1;
+}
+
+.promptActiveStrip {
+  position: absolute;
+  left: -4px;
+  top: 4px;
+  bottom: 4px;
+  width: 5px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-cta-bg);
+  z-index: 2;
+  pointer-events: none;
 }
 
 .promptDragging {

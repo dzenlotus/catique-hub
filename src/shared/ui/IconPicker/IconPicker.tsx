@@ -14,7 +14,12 @@
  * the popover; a plain `<button>` element does not.
  */
 
-import { useMemo, useState, type ReactElement } from "react";
+import {
+  useMemo,
+  useState,
+  type ComponentType,
+  type ReactElement,
+} from "react";
 import {
   Button as AriaButton,
   Dialog as AriaDialog,
@@ -53,13 +58,24 @@ export function IconRenderer({
 }): ReactElement | null {
   if (name === null || name === undefined || name === "") return null;
   const Component = (IconSet as Record<string, unknown>)[name];
-  if (typeof Component !== "function") return null;
-  const IconComp = Component as (props: {
+  // `?react` SVG imports may produce either a plain function or a
+  // forwardRef / memo object — both are valid React components but
+  // only the function form satisfies `typeof === "function"`. Accept
+  // both shapes so the grid actually renders icons in production.
+  if (
+    Component === undefined ||
+    Component === null ||
+    (typeof Component !== "function" && typeof Component !== "object")
+  ) {
+    return null;
+  }
+  type IconProps = {
     width?: number;
     height?: number;
     className?: string;
     "aria-hidden"?: boolean;
-  }) => ReactElement;
+  };
+  const IconComp = Component as ComponentType<IconProps>;
   return (
     <IconComp
       width={width}

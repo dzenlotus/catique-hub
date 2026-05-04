@@ -26,11 +26,19 @@ export interface PromptEditorPanelProps {
   promptId: string;
   /** Called on cancel or successful save. */
   onClose: () => void;
+  /**
+   * When provided, a "← Back" button is rendered in the header that
+   * invokes this callback. Omit to hide the button — for entry points
+   * with no meaningful "back" target (e.g. the sidebar's PROMPTS list,
+   * which closes the panel via its own selection state).
+   */
+  onBack?: () => void;
 }
 
 export function PromptEditorPanel({
   promptId,
   onClose,
+  onBack,
 }: PromptEditorPanelProps): ReactElement {
   const query = usePrompt(promptId);
   const updateMutation = useUpdatePromptMutation();
@@ -234,14 +242,16 @@ export function PromptEditorPanel({
       data-testid="prompt-editor-panel"
     >
       <header className={styles.header}>
-        <Button
-          variant="ghost"
-          size="sm"
-          onPress={onClose}
-          data-testid="prompt-editor-panel-back"
-        >
-          ← Back
-        </Button>
+        {onBack !== undefined ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={onBack}
+            data-testid="prompt-editor-panel-back"
+          >
+            ← Back
+          </Button>
+        ) : null}
         <h2 className={styles.title}>{prompt.name}</h2>
       </header>
       <div className={styles.scrollArea}>

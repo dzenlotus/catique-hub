@@ -287,10 +287,19 @@ export function PromptsPage(): ReactElement {
 
   const renderRightPane = (): ReactElement => {
     if (selectedPromptId !== null) {
+      // Back is only meaningful when the prompt was opened from inside
+      // a group view — i.e. the group context is still set. When the
+      // user clicked a prompt from the sidebar's PROMPTS list, the
+      // sidebar clears `selectedGroupId` first, so `onBack` is omitted
+      // and the back arrow is not rendered.
+      const showBackToGroup = selectedGroupId !== null;
       return (
         <PromptEditorPanel
           promptId={selectedPromptId}
           onClose={() => setSelectedPromptId(null)}
+          {...(showBackToGroup
+            ? { onBack: () => setSelectedPromptId(null) }
+            : {})}
         />
       );
     }
