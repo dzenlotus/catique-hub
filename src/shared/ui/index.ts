@@ -49,6 +49,9 @@ export type { MarkdownPreviewProps } from "./MarkdownPreview";
 export { MarkdownField } from "./MarkdownField";
 export type { MarkdownFieldProps, MarkdownFieldMode } from "./MarkdownField";
 
+export { IconPicker, IconRenderer } from "./IconPicker";
+export type { IconPickerProps } from "./IconPicker";
+
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateProps } from "./EmptyState";
 
