@@ -23,6 +23,7 @@ function stubPrompt(overrides?: Partial<Prompt>): Prompt {
     content: "Ты — опытный разработчик программного обеспечения. Следуй принципам SOLID и пиши чистый, читаемый код.",
     color: "#4f46e5",
     shortDescription: "Основной промпт для задач разработки",
+    icon: null,
     tokenCount: 42n,
     createdAt: 0n,
     updatedAt: 0n,

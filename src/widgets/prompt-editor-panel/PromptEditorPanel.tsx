@@ -26,6 +26,7 @@ import {
   Tooltip,
   TooltipTrigger,
   MarkdownField,
+  IconPicker,
 } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
@@ -51,6 +52,7 @@ export function PromptEditorPanel({
   const [localName, setLocalName] = useState("");
   const [localShortDescription, setLocalShortDescription] = useState("");
   const [localColor, setLocalColor] = useState("");
+  const [localIcon, setLocalIcon] = useState<string | null>(null);
   const [localContent, setLocalContent] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -59,6 +61,7 @@ export function PromptEditorPanel({
       setLocalName(query.data.name);
       setLocalShortDescription(query.data.shortDescription ?? "");
       setLocalColor(query.data.color ?? "");
+      setLocalIcon(query.data.icon ?? null);
       setLocalContent(query.data.content);
       setSaveError(null);
     }
@@ -211,6 +214,9 @@ export function PromptEditorPanel({
     if (resolvedColor !== prompt.color) {
       mutationArgs.color = resolvedColor;
     }
+    if (localIcon !== (prompt.icon ?? null)) {
+      mutationArgs.icon = localIcon;
+    }
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
@@ -228,6 +234,7 @@ export function PromptEditorPanel({
     setLocalName(prompt.name);
     setLocalShortDescription(prompt.shortDescription ?? "");
     setLocalColor(prompt.color ?? "");
+    setLocalIcon(prompt.icon ?? null);
     setLocalContent(prompt.content);
     setSaveError(null);
     onClose();
@@ -264,6 +271,17 @@ export function PromptEditorPanel({
             placeholder="Optional short description…"
             className={styles.fullWidthInput}
             data-testid="prompt-editor-panel-shortdesc-input"
+          />
+        </div>
+
+        {/* Icon */}
+        <div className={styles.section}>
+          <p className={styles.sectionLabel}>Icon</p>
+          <IconPicker
+            value={localIcon}
+            onChange={setLocalIcon}
+            ariaLabel="Prompt icon"
+            data-testid="prompt-editor-panel-icon-picker"
           />
         </div>
 

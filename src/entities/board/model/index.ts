@@ -5,5 +5,6 @@ export {
   useBoard,
   useCreateBoardMutation,
   useUpdateBoardMutation,
+  useDeleteBoardMutation,
   useAddBoardPromptMutation,
 } from "./store";

@@ -5,8 +5,9 @@ import { cn } from "@shared/lib";
 import { Button, Menu, MenuItem, MenuTrigger } from "@shared/ui";
 import { booleanCodec, useLocalStorage } from "@shared/storage";
 import type { Space } from "@entities/space";
-import type { Board } from "@entities/board";
+import { type Board, useDeleteBoardMutation } from "@entities/board";
 import { spaceSettingsPath } from "@app/routes";
+import { useToast } from "@app/providers/ToastProvider";
 import { BoardEditor } from "@widgets/board-editor";
 
 import { ChevronIcon } from "./ChevronIcon";
@@ -50,9 +51,27 @@ export function SpaceRow({
     isDefaultExpanded,
   );
   // ctq-76 item 3 — open BoardEditor when the user picks "Settings" from
-  // the per-board kebab. Delete is intentionally not wired yet (no
-  // `delete_board` IPC command on the backend; tracked separately).
+  // the per-board kebab. Round-19d: Delete now wired to the existing
+  // `delete_board` IPC; the mutation invalidates `useBoards()` so the
+  // row disappears once the backend confirms.
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
+  const deleteBoardMutation = useDeleteBoardMutation();
+  const { pushToast } = useToast();
+
+  function handleDeleteBoard(board: Board): void {
+    const ok = window.confirm(
+      `Delete board "${board.name}"? Tasks and columns under it will go with it.`,
+    );
+    if (!ok) return;
+    deleteBoardMutation.mutate(board.id, {
+      onSuccess: () => {
+        pushToast("success", "Board deleted");
+      },
+      onError: (err) => {
+        pushToast("error", `Failed to delete board: ${err.message}`);
+      },
+    });
+  }
 
   const spaceBoards = boards.filter((b) => b.spaceId === space.id);
 
@@ -134,9 +153,11 @@ export function SpaceRow({
                   <Menu
                     onAction={(key) => {
                       if (key === "settings") setEditingBoardId(board.id);
+                      else if (key === "delete") handleDeleteBoard(board);
                     }}
                   >
                     <MenuItem id="settings">Settings</MenuItem>
+                    <MenuItem id="delete">Delete</MenuItem>
                   </Menu>
                 </MenuTrigger>
               </li>

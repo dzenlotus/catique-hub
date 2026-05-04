@@ -55,7 +55,7 @@ function stubRole(id: string, name: string): Role {
 }
 
 function stubPrompt(id: string, name: string): Prompt {
-  return { id, name, content: "", color: null, shortDescription: null, tokenCount: null, createdAt: 0n, updatedAt: 0n };
+  return { id, name, content: "", color: null, shortDescription: null, icon: null, tokenCount: null, createdAt: 0n, updatedAt: 0n };
 }
 
 const sampleBoards: Board[] = [

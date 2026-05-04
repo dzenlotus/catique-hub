@@ -14,7 +14,7 @@ import { useState, type ReactElement } from "react";
 
 import { useCreatePromptMutation } from "@entities/prompt";
 import type { Prompt } from "@entities/prompt";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, Input, IconPicker } from "@shared/ui";
 
 import styles from "./PromptCreateDialog.module.css";
 
@@ -70,6 +70,7 @@ function PromptCreateDialogContent({
   const [content, setContent] = useState("");
   const [shortDescription, setShortDescription] = useState("");
   const [color, setColor] = useState("");
+  const [icon, setIcon] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const canSubmit = name.trim().length > 0 && content.trim().length > 0;
@@ -93,6 +94,7 @@ function PromptCreateDialogContent({
     const trimmedShortDesc = shortDescription.trim();
     if (trimmedShortDesc !== "") args.shortDescription = trimmedShortDesc;
     if (color !== "") args.color = color;
+    if (icon !== null) args.icon = icon;
 
     createMutation.mutate(args, {
       onSuccess: (prompt) => {
@@ -133,6 +135,17 @@ function PromptCreateDialogContent({
           placeholder="Optional short description…"
           className={styles.fullWidthInput}
           data-testid="prompt-create-dialog-shortdesc-input"
+        />
+      </div>
+
+      {/* Icon */}
+      <div className={styles.section}>
+        <p className={styles.sectionLabel}>Icon</p>
+        <IconPicker
+          value={icon}
+          onChange={setIcon}
+          ariaLabel="Prompt icon"
+          data-testid="prompt-create-dialog-icon-picker"
         />
       </div>
 

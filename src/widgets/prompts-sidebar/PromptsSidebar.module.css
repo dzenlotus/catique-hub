@@ -274,6 +274,11 @@
   border-radius: var(--radius-full);
 }
 
+.promptIcon {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+}
+
 /* Drop-target highlight when hovering a group with a prompt being
  * dragged. Applied via [data-drop-target="true"] on the group row. */
 .groupRow[data-drop-target="true"] {

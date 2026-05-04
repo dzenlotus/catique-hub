@@ -9,7 +9,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { PixelInterfaceEssentialRefresh } from "@shared/ui/Icon";
 import { usePrompt, useUpdatePromptMutation, useRecomputePromptTokenCountMutation } from "@entities/prompt";
-import { Dialog, DialogFooter, Button, Input, Tooltip, TooltipTrigger, MarkdownField } from "@shared/ui";
+import { Dialog, DialogFooter, Button, Input, Tooltip, TooltipTrigger, MarkdownField, IconPicker } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -72,6 +72,7 @@ function PromptEditorContent({
   const [localName, setLocalName] = useState("");
   const [localShortDescription, setLocalShortDescription] = useState("");
   const [localColor, setLocalColor] = useState("");
+  const [localIcon, setLocalIcon] = useState<string | null>(null);
   const [localContent, setLocalContent] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -81,6 +82,7 @@ function PromptEditorContent({
       setLocalName(query.data.name);
       setLocalShortDescription(query.data.shortDescription ?? "");
       setLocalColor(query.data.color ?? "");
+      setLocalIcon(query.data.icon ?? null);
       setLocalContent(query.data.content);
       setSaveError(null);
     }
@@ -222,6 +224,10 @@ function PromptEditorContent({
     if (resolvedColor !== prompt.color) {
       mutationArgs.color = resolvedColor;
     }
+    // Icon: null clears, string sets, omitted when unchanged.
+    if (localIcon !== (prompt.icon ?? null)) {
+      mutationArgs.icon = localIcon;
+    }
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
@@ -240,6 +246,7 @@ function PromptEditorContent({
     setLocalName(prompt.name);
     setLocalShortDescription(prompt.shortDescription ?? "");
     setLocalColor(prompt.color ?? "");
+    setLocalIcon(prompt.icon ?? null);
     setLocalContent(prompt.content);
     setSaveError(null);
     onClose();
@@ -268,6 +275,17 @@ function PromptEditorContent({
           placeholder="Optional short description…"
           className={styles.fullWidthInput}
           data-testid="prompt-editor-shortdesc-input"
+        />
+      </div>
+
+      {/* Icon */}
+      <div className={styles.section}>
+        <p className={styles.sectionLabel}>Icon</p>
+        <IconPicker
+          value={localIcon}
+          onChange={setLocalIcon}
+          ariaLabel="Prompt icon"
+          data-testid="prompt-editor-icon-picker"
         />
       </div>
 

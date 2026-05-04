@@ -51,6 +51,9 @@
 }
 
 .name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
   font-size: var(--font-size-headline-sm);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
@@ -60,6 +63,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.nameIcon {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
 }
 
 .description {

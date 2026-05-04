@@ -26,6 +26,7 @@ import {
 
 import {
   createBoard,
+  deleteBoard,
   getBoard,
   listBoards,
   updateBoard,
@@ -112,6 +113,21 @@ export function useUpdateBoardMutation(): UseMutationResult<
       void queryClient.invalidateQueries({
         queryKey: boardsKeys.detail(updated.id),
       });
+    },
+  });
+}
+
+/**
+ * `useDeleteBoardMutation` — delete a board, invalidate the list, and
+ * remove the stale detail entry from the cache.
+ */
+export function useDeleteBoardMutation(): UseMutationResult<void, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteBoard,
+    onSuccess: (_data, id) => {
+      void queryClient.invalidateQueries({ queryKey: boardsKeys.list() });
+      queryClient.removeQueries({ queryKey: boardsKeys.detail(id) });
     },
   });
 }

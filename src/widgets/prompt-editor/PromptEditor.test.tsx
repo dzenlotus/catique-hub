@@ -23,6 +23,7 @@ function makePrompt(overrides: Partial<Prompt> = {}): Prompt {
     content: "Содержимое промпта",
     color: "#ff0000",
     shortDescription: "Краткое описание",
+    icon: null,
     tokenCount: null,
     createdAt: 0n,
     updatedAt: 0n,

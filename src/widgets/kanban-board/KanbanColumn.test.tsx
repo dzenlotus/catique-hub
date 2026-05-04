@@ -53,6 +53,7 @@ interface RenderOptions {
   onAddTask?: (id: string) => void;
   onRenameColumn?: (id: string, name: string) => void;
   onDeleteColumn?: (id: string) => void;
+  onQuickAddTask?: (columnId: string, title: string) => Promise<void>;
 }
 
 function renderColumn(options: RenderOptions = {}): {
@@ -67,8 +68,12 @@ function renderColumn(options: RenderOptions = {}): {
         tasks={options.tasks ?? []}
         onTaskSelect={options.onTaskSelect ?? vi.fn()}
         onAddTask={options.onAddTask ?? vi.fn()}
+        onQuickAddTask={options.onQuickAddTask ?? (async () => {})}
         onRenameColumn={options.onRenameColumn ?? vi.fn()}
         onDeleteColumn={options.onDeleteColumn ?? vi.fn()}
+        selectedTaskIds={new Set()}
+        selectionActive={false}
+        onToggleTaskSelection={vi.fn()}
       />
     </DragDropProvider>,
   );
@@ -109,12 +114,15 @@ describe("KanbanColumn", () => {
     expect(onAddTask).toHaveBeenCalledWith(makeColumn().id);
   });
 
-  it("does NOT render an 'Add task' footer button (round-19c removal)", () => {
-    // Regression guard: the column footer "+ Add task" button was removed
-    // in round 19c. The empty-state button is the in-column entry; further
-    // creation flows route through the global task-create dialog.
-    renderColumn({ tasks: [makeTask()] });
-    expect(screen.queryByText(/Add task/i)).toBeNull();
+  it("renders a footer '+ Add task' affordance for quick inline creation (round-19d)", () => {
+    // Round-19d reintroduces the column-footer button — it now opens
+    // an inline title input instead of dispatching to the global task
+    // dialog, and is hidden by default (revealed on column hover).
+    const column = makeColumn();
+    renderColumn({ column, tasks: [makeTask()] });
+    expect(
+      screen.getByTestId(`kanban-column-add-task-${column.id}`),
+    ).toBeInTheDocument();
   });
 
   it("exposes the column drag handle with an accessible name and is keyboard-reachable", () => {
@@ -139,8 +147,12 @@ describe("KanbanColumn", () => {
           tasks={[]}
           onTaskSelect={vi.fn()}
           onAddTask={vi.fn()}
+          onQuickAddTask={async () => {}}
           onRenameColumn={vi.fn()}
           onDeleteColumn={vi.fn()}
+          selectedTaskIds={new Set()}
+          selectionActive={false}
+          onToggleTaskSelection={vi.fn()}
         />
       </DragDropProvider>,
     );

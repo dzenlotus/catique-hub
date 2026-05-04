@@ -197,6 +197,16 @@ export async function updateBoard(args: UpdateBoardArgs): Promise<Board> {
   return invokeWithAppError<Board>("update_board", payload);
 }
 
+/**
+ * `delete_board` — remove a board. Throws AppError `notFound` if the id
+ * is unknown, `transactionRolledBack` if downstream invariants block
+ * deletion (e.g. the board has linked tasks/columns the schema doesn't
+ * cascade).
+ */
+export async function deleteBoard(id: string): Promise<void> {
+  return invokeWithAppError<void>("delete_board", { id });
+}
+
 export interface AddBoardPromptArgs {
   boardId: string;
   promptId: string;

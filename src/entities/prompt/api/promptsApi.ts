@@ -67,6 +67,8 @@ export interface CreatePromptArgs {
   color?: string;
   /** Optional one-liner shown below the title. */
   shortDescription?: string;
+  /** Optional Pixel-icon identifier (matches a key from `@shared/ui/Icon`). */
+  icon?: string;
 }
 
 /** `create_prompt` — create a new prompt. */
@@ -78,6 +80,7 @@ export async function createPrompt(args: CreatePromptArgs): Promise<Prompt> {
   if (args.color !== undefined) payload.color = args.color;
   if (args.shortDescription !== undefined)
     payload.shortDescription = args.shortDescription;
+  if (args.icon !== undefined) payload.icon = args.icon;
   return invokeWithAppError<Prompt>("create_prompt", payload);
 }
 
@@ -97,6 +100,11 @@ export interface UpdatePromptArgs {
    * `Option<Option<String>>` on the Rust side.
    */
   shortDescription?: string | null;
+  /**
+   * Skip = `undefined`, set = string, clear-to-NULL = `null`. Mirrors
+   * `Option<Option<String>>` on the Rust side.
+   */
+  icon?: string | null;
 }
 
 /** `update_prompt` — partial update. Only provided fields are changed. */
@@ -107,6 +115,7 @@ export async function updatePrompt(args: UpdatePromptArgs): Promise<Prompt> {
   if (args.color !== undefined) payload.color = args.color;
   if (args.shortDescription !== undefined)
     payload.shortDescription = args.shortDescription;
+  if (args.icon !== undefined) payload.icon = args.icon;
   return invokeWithAppError<Prompt>("update_prompt", payload);
 }
 

@@ -15,6 +15,7 @@ function stubPrompt(overrides?: Partial<Prompt>): Prompt {
     content: "Ты опытный разработчик, помогающий командам строить продукты.",
     color: null,
     shortDescription: null,
+    icon: null,
     tokenCount: null,
     createdAt: 0n,
     updatedAt: 0n,

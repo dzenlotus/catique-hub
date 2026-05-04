@@ -214,19 +214,30 @@ export function SettingsView(): ReactElement {
       .filter((el): el is HTMLElement => el !== null);
     if (elements.length === 0) return;
 
+    // We observe the section heading (`<h3 id=…>`). Headings are short
+    // (~40 px), so the observation band has to start at the viewport's
+    // very top — otherwise scrolling exactly to a heading places it
+    // ABOVE the band while the next heading falls INSIDE it, and the
+    // active highlight jumps to the wrong (next) entry.
+    //
+    // rootMargin "0px 0px -85% 0px" → root collapses to the top 15 %
+    // of the viewport. A heading is "intersecting" as soon as any part
+    // of it is in that strip; mid-scroll multiple headings can be in
+    // the band — picking the one with the lowest |top| reliably
+    // surfaces the heading currently at the top of the viewport.
     const observer = new IntersectionObserver(
       (entries) => {
-        // Pick the entry whose top is closest to (and above) 25% of the
-        // viewport — same heuristic GitHub uses for sticky-section TOCs.
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort(
-            (a, b) =>
-              Math.abs(a.boundingClientRect.top) -
-              Math.abs(b.boundingClientRect.top),
-          );
-        if (visible.length === 0) return;
-        const candidateId = visible[0]?.target.id;
+        // IntersectionObserver only delivers entries whose state has
+        // changed in this firing — so we have to merge against a
+        // running record of which sections are currently intersecting.
+        for (const entry of entries) {
+          intersectingMap.set(entry.target.id, entry.isIntersecting);
+        }
+        const stillIntersecting = elements
+          .map((el) => ({ id: el.id, top: el.getBoundingClientRect().top }))
+          .filter((s) => intersectingMap.get(s.id) === true)
+          .sort((a, b) => Math.abs(a.top) - Math.abs(b.top));
+        const candidateId = stillIntersecting[0]?.id;
         if (!candidateId) return;
         if (programmaticTargetRef.current === candidateId) {
           programmaticTargetRef.current = null;
@@ -234,11 +245,11 @@ export function SettingsView(): ReactElement {
         setActiveSectionId(candidateId);
       },
       {
-        // Trigger when the section enters the upper 25% of the viewport.
-        rootMargin: "-15% 0px -70% 0px",
+        rootMargin: "0px 0px -85% 0px",
         threshold: 0,
       },
     );
+    const intersectingMap = new Map<string, boolean>();
     for (const el of elements) observer.observe(el);
     return () => observer.disconnect();
   }, []);

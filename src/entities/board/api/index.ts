@@ -3,6 +3,7 @@ export {
   getBoard,
   createBoard,
   updateBoard,
+  deleteBoard,
   addBoardPrompt,
   AppErrorInstance,
 } from "./boardsApi";

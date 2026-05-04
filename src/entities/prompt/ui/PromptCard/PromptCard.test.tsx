@@ -12,6 +12,7 @@ function makePrompt(overrides: Partial<Prompt> = {}): Prompt {
     content: "You are a helpful assistant.",
     color: null,
     shortDescription: null,
+    icon: null,
     tokenCount: null,
     createdAt: 0n,
     updatedAt: 0n,

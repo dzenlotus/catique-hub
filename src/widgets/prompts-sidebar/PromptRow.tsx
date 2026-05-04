@@ -2,6 +2,7 @@ import { type ReactElement } from "react";
 import { useSortable } from "@dnd-kit/react/sortable";
 
 import { cn } from "@shared/lib";
+import { IconRenderer } from "@shared/ui";
 import type { Prompt } from "@entities/prompt";
 
 import styles from "./PromptsSidebar.module.css";
@@ -66,7 +67,14 @@ export function PromptRow({
       >
         <span aria-hidden="true">⋮⋮</span>
       </button>
-      {prompt.color !== null ? (
+      {prompt.icon !== null ? (
+        <IconRenderer
+          name={prompt.icon}
+          width={14}
+          height={14}
+          className={styles.promptIcon}
+        />
+      ) : prompt.color !== null ? (
         <span
           className={styles.promptSwatch}
           style={{ backgroundColor: prompt.color }}

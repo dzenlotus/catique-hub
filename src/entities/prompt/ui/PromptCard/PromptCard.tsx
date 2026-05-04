@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 
 import { cn } from "@shared/lib";
+import { IconRenderer } from "@shared/ui";
 
 import type { Prompt } from "../../model/types";
 
@@ -64,6 +65,14 @@ export function PromptCard({
       onClick={() => onSelect?.(prompt.id)}
     >
       <span className={styles.name} title={prompt.name}>
+        {prompt.icon !== null ? (
+          <IconRenderer
+            name={prompt.icon}
+            width={16}
+            height={16}
+            className={styles.nameIcon}
+          />
+        ) : null}
         {prompt.name}
       </span>
 

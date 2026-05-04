@@ -20,7 +20,12 @@ import {
   useUpdateColumnMutation,
 } from "@entities/column";
 import type { Task } from "@entities/task";
-import { useMoveTaskMutation, useTasksByBoard } from "@entities/task";
+import {
+  useCreateTaskMutation,
+  useDeleteTaskMutation,
+  useMoveTaskMutation,
+  useTasksByBoard,
+} from "@entities/task";
 import { Button, Scrollable } from "@shared/ui";
 import {
   PixelCodingAppsWebsitesModule,
@@ -30,9 +35,12 @@ import {
 import { cn } from "@shared/lib";
 import { TaskCreateDialog } from "@widgets/task-create-dialog";
 import { ColumnCreateDialog } from "@widgets/column-create-dialog";
+import { BoardEditor } from "@widgets/board-editor";
 import { lastBoardStore } from "@shared/storage";
 
 import { KanbanColumn } from "./KanbanColumn";
+import { BulkActionsBar } from "./BulkActionsBar";
+import { useTaskSelection } from "./useTaskSelection";
 import styles from "./KanbanBoard.module.css";
 
 export interface KanbanBoardProps {
@@ -113,6 +121,9 @@ export function KanbanBoard({
   const deleteColumn = useDeleteColumnMutation();
   const reorderColumns = useReorderColumnsMutation();
   const moveTask = useMoveTaskMutation();
+  const createTask = useCreateTaskMutation();
+  const deleteTask = useDeleteTaskMutation();
+  const taskSelection = useTaskSelection();
 
   const { pushToast } = useToast();
 
@@ -125,6 +136,7 @@ export function KanbanBoard({
   // Ctq-76 item 4: column creation now lives in `ColumnCreateDialog`,
   // not in an inline form. We track only the dialog visibility here.
   const [isColumnDialogOpen, setIsColumnDialogOpen] = useState(false);
+  const [isBoardEditorOpen, setIsBoardEditorOpen] = useState(false);
   const [taskColumnId, setTaskColumnId] = useState<string | null>(null);
 
   const columns = columnsQuery.data ?? [];
@@ -319,6 +331,125 @@ export function KanbanBoard({
     [deleteColumn, boardId],
   );
 
+  /**
+   * Bulk-selection click router. Cmd/Ctrl-click always toggles.
+   * Plain click toggles when a selection is already active. Shift-click
+   * range-selects within the same column when an anchor exists. Anchors
+   * are tracked per click via the most-recently selected id.
+   */
+  const lastClickedRef = useRef<string | null>(null);
+  const handleToggleTaskSelection = useCallback(
+    (taskId: string, event: React.MouseEvent): void => {
+      const isModifier = event.metaKey || event.ctrlKey;
+      if (event.shiftKey && lastClickedRef.current !== null) {
+        // Range-select within the column the anchor lives in.
+        const anchor = lastClickedRef.current;
+        const owningColumn = Object.entries(itemsRef.current).find(
+          ([, list]) => list.some((t) => t.id === anchor),
+        )?.[0];
+        if (owningColumn !== undefined) {
+          const ids = (itemsRef.current[owningColumn] ?? []).map((t) => t.id);
+          if (ids.includes(taskId)) {
+            taskSelection.selectRange(anchor, taskId, ids);
+            lastClickedRef.current = taskId;
+            return;
+          }
+        }
+      }
+      if (isModifier || taskSelection.selectionActive) {
+        taskSelection.toggle(taskId);
+        lastClickedRef.current = taskId;
+        return;
+      }
+      // Plain click outside selection mode = single toggle (start mode).
+      taskSelection.toggle(taskId);
+      lastClickedRef.current = taskId;
+    },
+    [taskSelection],
+  );
+
+  const handleBulkClear = useCallback((): void => {
+    taskSelection.clear();
+    lastClickedRef.current = null;
+  }, [taskSelection]);
+
+  const handleBulkMove = useCallback(
+    async (targetColumnId: string): Promise<void> => {
+      const ids = Array.from(taskSelection.selected);
+      const targetTasks = itemsRef.current[targetColumnId] ?? [];
+      const basePosition = targetTasks.reduce(
+        (acc, t) => (t.position > acc ? t.position : acc),
+        0,
+      );
+      try {
+        // Sequential awaits so positions don't collide; cheap for the
+        // small batch sizes typical of bulk-select UX.
+        for (let i = 0; i < ids.length; i += 1) {
+          await moveTask.mutateAsync({
+            id: ids[i] as string,
+            boardId,
+            columnId: targetColumnId,
+            position: basePosition + i + 1,
+          });
+        }
+        pushToast(
+          "success",
+          `Moved ${ids.length} task${ids.length === 1 ? "" : "s"}`,
+        );
+        handleBulkClear();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        pushToast("error", `Failed to move tasks: ${message}`);
+      }
+    },
+    [taskSelection, moveTask, boardId, pushToast, handleBulkClear],
+  );
+
+  const handleBulkDelete = useCallback(async (): Promise<void> => {
+    const ids = Array.from(taskSelection.selected);
+    try {
+      await Promise.all(
+        ids.map((id) => deleteTask.mutateAsync({ id, boardId })),
+      );
+      pushToast(
+        "success",
+        `Deleted ${ids.length} task${ids.length === 1 ? "" : "s"}`,
+      );
+      handleBulkClear();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      pushToast("error", `Failed to delete tasks: ${message}`);
+    }
+  }, [taskSelection, deleteTask, boardId, pushToast, handleBulkClear]);
+
+  /**
+   * Quick inline task creation from a column footer (round-19d).
+   * Position = max(currentColumnPositions) + 1, mirroring the
+   * append-to-end semantics of the existing modal-based create flow.
+   */
+  const handleQuickAddTask = useCallback(
+    async (columnId: string, title: string): Promise<void> => {
+      const columnTasks = itemsRef.current[columnId] ?? [];
+      const lastPosition = columnTasks.reduce(
+        (acc, t) => (t.position > acc ? t.position : acc),
+        0,
+      );
+      try {
+        await createTask.mutateAsync({
+          boardId,
+          columnId,
+          title,
+          position: lastPosition + 1,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        pushToast("error", `Failed to create task: ${message}`);
+        throw err;
+      }
+    },
+    [createTask, boardId, pushToast],
+  );
+
   if (columnsQuery.status === "pending" || tasksQuery.status === "pending") {
     return (
       <div className={styles.root}>
@@ -407,7 +538,13 @@ export function KanbanBoard({
             </p>
           ) : null}
         </div>
-        <button type="button" className={styles.iconButton} aria-label="Board options">
+        <button
+          type="button"
+          className={styles.iconButton}
+          aria-label="Board options"
+          onClick={() => setIsBoardEditorOpen(true)}
+          data-testid="kanban-board-options-button"
+        >
           <PixelInterfaceEssentialSettingCog
             width={16}
             height={16}
@@ -438,8 +575,12 @@ export function KanbanBoard({
                 tasks={items[column.id] ?? []}
                 onTaskSelect={handleTaskSelect}
                 onAddTask={setTaskColumnId}
+                onQuickAddTask={handleQuickAddTask}
                 onRenameColumn={handleRenameColumn}
                 onDeleteColumn={handleDeleteColumn}
+                selectedTaskIds={taskSelection.selected}
+                selectionActive={taskSelection.selectionActive}
+                onToggleTaskSelection={handleToggleTaskSelection}
               />
             ))}
 
@@ -476,6 +617,19 @@ export function KanbanBoard({
         onClose={() => setIsColumnDialogOpen(false)}
         boardId={boardId}
         nextPosition={nextColumnPosition}
+      />
+
+      <BoardEditor
+        boardId={isBoardEditorOpen ? boardId : null}
+        onClose={() => setIsBoardEditorOpen(false)}
+      />
+
+      <BulkActionsBar
+        count={taskSelection.selected.size}
+        columns={orderedColumns}
+        onMoveTo={(id) => void handleBulkMove(id)}
+        onDelete={() => void handleBulkDelete()}
+        onClear={handleBulkClear}
       />
     </div>
   );
