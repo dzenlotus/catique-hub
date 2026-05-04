@@ -181,9 +181,12 @@ export interface SidebarNavItemProps {
 
 /**
  * Unified row used across sidebars to keep active highlights identical.
- * The button gets the active strip via `::before`; the optional
- * `trailing` slot sits beside it as a sibling for absolute positioning
- * of menu triggers without re-triggering the button onClick.
+ * The button gets the accent-soft active background; an absolutely-
+ * positioned strip marks the active row in the leading gutter. The
+ * optional `trailing` slot sits beside the button as a sibling for
+ * absolute positioning of menu triggers without re-triggering the
+ * button onClick. When `trailing` is present the inner button reserves
+ * right-padding so the label can ellipsise without sliding under it.
  */
 export function SidebarNavItem({
   isActive = false,
@@ -200,12 +203,16 @@ export function SidebarNavItem({
     testId !== undefined ? { "data-testid": testId } : {};
   return (
     <div className={cn(styles.navItemRow, className)}>
+      {isActive ? (
+        <span className={styles.activeStrip} aria-hidden="true" />
+      ) : null}
       <button
         type="button"
         className={cn(
           styles.navItem,
           isActive && styles.navItemActive,
           level === 1 && styles.navItemNested,
+          trailing !== undefined && styles.navItemHasTrailing,
           buttonClassName,
         )}
         {...(onClick !== undefined ? { onClick } : {})}

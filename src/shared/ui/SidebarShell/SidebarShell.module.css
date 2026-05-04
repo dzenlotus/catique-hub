@@ -129,6 +129,11 @@
     color 80ms ease-out;
 }
 
+/*
+ * Hover + active share the same full-button-rect background so the two
+ * states read as the same shape with a different fill. Hover uses the
+ * neutral overlay; active uses the accent-soft tint.
+ */
 .navItem:hover:not(.navItemActive) {
   background-color: var(--color-overlay-hover);
   color: var(--color-text-default);
@@ -140,26 +145,26 @@
 }
 
 .navItemActive {
-  background-color: transparent;
+  background-color: var(--color-accent-soft);
   color: var(--color-text-default);
   font-weight: var(--font-weight-semibold);
 }
 
-.navItemActive::before {
-  content: "";
+/*
+ * Red active strip (round-19d carry-over from the legacy boardRow).
+ * Rendered by `<SidebarNavItem>` when `isActive`, positioned over the
+ * accent-soft background to mark the current selection at a glance.
+ */
+.activeStrip {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 4px;
-  right: 0;
-  background-color: var(--color-accent-soft);
-  border-radius: var(--radius-sm);
-  z-index: 0;
-}
-
-.navItem > * {
-  position: relative;
-  z-index: 1;
+  left: 7px;
+  top: 4px;
+  bottom: 4px;
+  width: 5px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-cta-bg);
+  z-index: 2;
+  pointer-events: none;
 }
 
 /* Indented variant for nested rows (e.g. boards under a space). */
@@ -167,8 +172,15 @@
   padding-left: 24px;
 }
 
-.navItemNested.navItemActive::before {
-  left: 16px;
+.navItemNested .activeStrip {
+  left: 19px;
+}
+
+/* When a trailing slot (kebab) is rendered, reserve right-padding on
+ * the inner button so the label can ellipsise without sliding under
+ * the absolutely-positioned trigger. */
+.navItemHasTrailing {
+  padding-right: 36px;
 }
 
 /* Container that pairs the row button with a trailing kebab/menu trigger. */
