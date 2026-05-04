@@ -69,6 +69,7 @@ impl<'a> PromptsUseCase<'a> {
         color: Option<String>,
         short_description: Option<String>,
         icon: Option<String>,
+        examples: Vec<String>,
     ) -> Result<Prompt, AppError> {
         let trimmed = validate_non_empty("name", &name)?;
         validate_optional_color("color", color.as_deref())?;
@@ -81,6 +82,7 @@ impl<'a> PromptsUseCase<'a> {
                 color,
                 short_description,
                 icon,
+                examples,
                 token_count: None, // E3 will compute cl100k_base count
             },
         )
@@ -103,6 +105,7 @@ impl<'a> PromptsUseCase<'a> {
         color: Option<Option<String>>,
         short_description: Option<Option<String>>,
         icon: Option<Option<String>>,
+        examples: Option<Vec<String>>,
     ) -> Result<Prompt, AppError> {
         if let Some(n) = name.as_deref() {
             validate_non_empty("name", n)?;
@@ -117,6 +120,7 @@ impl<'a> PromptsUseCase<'a> {
             color,
             short_description,
             icon,
+            examples,
             token_count: None,
         };
         match repo::update(&conn, &id, &patch).map_err(|e| map_db_err_unique(e, "prompt"))? {
@@ -200,6 +204,7 @@ fn row_to_prompt(row: PromptRow) -> Prompt {
         color: row.color,
         short_description: row.short_description,
         icon: row.icon,
+        examples: row.examples,
         token_count: row.token_count,
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -225,7 +230,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = PromptsUseCase::new(&pool);
         match uc
-            .create(String::new(), String::new(), None, None, None)
+            .create(String::new(), String::new(), None, None, None, Vec::new())
             .expect_err("v")
         {
             AppError::Validation { field, .. } => assert_eq!(field, "name"),
@@ -237,10 +242,10 @@ mod tests {
     fn duplicate_name_returns_conflict() {
         let pool = fresh_pool();
         let uc = PromptsUseCase::new(&pool);
-        uc.create("Same".into(), String::new(), None, None, None)
+        uc.create("Same".into(), String::new(), None, None, None, Vec::new())
             .unwrap();
         match uc
-            .create("Same".into(), String::new(), None, None, None)
+            .create("Same".into(), String::new(), None, None, None, Vec::new())
             .expect_err("c")
         {
             AppError::Conflict { entity, .. } => assert_eq!(entity, "prompt"),
@@ -259,6 +264,7 @@ mod tests {
                 None,
                 Some("desc".into()),
                 Some("star".into()),
+                vec!["ex1".into(), "ex2".into()],
             )
             .unwrap();
         let list = uc.list().unwrap();
@@ -266,6 +272,7 @@ mod tests {
         let got = uc.get(&p.id).unwrap();
         assert_eq!(got.name, "P");
         assert_eq!(got.icon.as_deref(), Some("star"));
+        assert_eq!(got.examples, vec!["ex1", "ex2"]);
     }
 
     #[test]
@@ -284,11 +291,59 @@ mod tests {
         let uc = PromptsUseCase::new(&pool);
         // "Hello" = 5 chars → (5 + 3) / 4 = 2 tokens.
         let p = uc
-            .create("TC".into(), "Hello".into(), None, None, None)
+            .create("TC".into(), "Hello".into(), None, None, None, Vec::new())
             .unwrap();
         let updated = uc.recompute_token_count(p.id.clone()).unwrap();
         assert_eq!(updated.token_count, Some(2));
         assert_eq!(updated.id, p.id);
+    }
+
+    #[test]
+    fn update_can_replace_examples() {
+        let pool = fresh_pool();
+        let uc = PromptsUseCase::new(&pool);
+        let p = uc
+            .create(
+                "EX".into(),
+                String::new(),
+                None,
+                None,
+                None,
+                vec!["initial".into()],
+            )
+            .unwrap();
+        let after = uc
+            .update(
+                p.id.clone(),
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(vec!["replaced".into(), "twice".into()]),
+            )
+            .unwrap();
+        assert_eq!(after.examples, vec!["replaced", "twice"]);
+    }
+
+    #[test]
+    fn update_can_clear_examples_via_empty_vec() {
+        let pool = fresh_pool();
+        let uc = PromptsUseCase::new(&pool);
+        let p = uc
+            .create(
+                "CLR".into(),
+                String::new(),
+                None,
+                None,
+                None,
+                vec!["before".into()],
+            )
+            .unwrap();
+        let after = uc
+            .update(p.id, None, None, None, None, None, Some(Vec::new()))
+            .unwrap();
+        assert!(after.examples.is_empty());
     }
 
     #[test]

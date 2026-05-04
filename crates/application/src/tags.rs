@@ -246,6 +246,7 @@ mod tests {
                     color: None,
                     short_description: None,
                     icon: None,
+                    examples: Vec::new(),
                     token_count: None,
                 },
             )
@@ -259,6 +260,7 @@ mod tests {
                     color: None,
                     short_description: None,
                     icon: None,
+                    examples: Vec::new(),
                     token_count: None,
                 },
             )

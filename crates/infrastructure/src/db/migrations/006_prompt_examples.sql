@@ -1,0 +1,12 @@
+-- 006_prompt_examples.sql — add an optional `examples_json` payload to prompts.
+--
+-- Stores a JSON-encoded array of strings (e.g. `["ex 1","ex 2"]`). The
+-- domain layer always exposes `examples: Vec<String>`; NULL on disk and
+-- malformed JSON both round-trip to an empty Vec — see the defensive
+-- decoder in `crates/infrastructure/src/db/repositories/prompts.rs`.
+--
+-- We keep the column nullable (rather than `NOT NULL DEFAULT '[]'`) so
+-- the "no examples" state is encoded as a single NULL byte instead of
+-- four characters per row, and so existing rows surface unchanged
+-- without a backfill UPDATE.
+ALTER TABLE prompts ADD COLUMN examples_json TEXT NULL;

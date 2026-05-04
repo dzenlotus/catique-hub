@@ -19,6 +19,13 @@ pub struct Prompt {
     /// a React component from `src/shared/ui/Icon/`. `None` (and any
     /// identifier the frontend doesn't recognise) renders no icon.
     pub icon: Option<String>,
+    /// Worked examples illustrating how the prompt should be used. Stored
+    /// on disk as a JSON-encoded array (`examples_json` TEXT, migration
+    /// `006_prompt_examples.sql`); the domain layer always exposes a
+    /// `Vec<String>` — `NULL` and malformed JSON both round-trip to
+    /// `vec![]`. The field is "list, possibly empty", not nullable, so
+    /// it is always present in serialised form.
+    pub examples: Vec<String>,
     pub token_count: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,

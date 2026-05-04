@@ -48,12 +48,14 @@ export function IconRenderer({
   width = 16,
   height = 16,
   className,
+  style,
   "aria-hidden": ariaHidden = true,
 }: {
   name: string | null | undefined;
   width?: number;
   height?: number;
   className?: string;
+  style?: React.CSSProperties;
   "aria-hidden"?: boolean;
 }): ReactElement | null {
   if (name === null || name === undefined || name === "") return null;
@@ -73,6 +75,7 @@ export function IconRenderer({
     width?: number;
     height?: number;
     className?: string;
+    style?: React.CSSProperties;
     "aria-hidden"?: boolean;
   };
   const IconComp = Component as ComponentType<IconProps>;
@@ -81,6 +84,7 @@ export function IconRenderer({
       width={width}
       height={height}
       {...(className !== undefined ? { className } : {})}
+      {...(style !== undefined ? { style } : {})}
       aria-hidden={ariaHidden}
     />
   );
@@ -137,7 +141,7 @@ export function IconPicker({
         {...(testId !== undefined ? { "data-testid": testId } : {})}
       >
         {value !== null ? (
-          <IconRenderer name={value} width={20} height={20} />
+          <IconRenderer name={value} width={14} height={14} />
         ) : (
           <span aria-hidden="true">+</span>
         )}

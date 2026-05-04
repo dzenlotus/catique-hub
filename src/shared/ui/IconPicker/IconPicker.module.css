@@ -7,18 +7,19 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-6);
-  min-width: 36px;
-  height: 36px;
-  padding: 0 var(--space-8);
+  width: 24px;
+  height: 24px;
+  padding: 0;
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   background-color: var(--color-surface-canvas);
   color: var(--color-text-default);
   cursor: pointer;
   transition:
     border-color 80ms ease-out,
     background-color 80ms ease-out;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .trigger:hover {

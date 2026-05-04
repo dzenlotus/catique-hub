@@ -236,8 +236,9 @@ function PromptEditorContent({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
+        // Stay open — let the user keep editing. Close is now opt-in
+        // via Cancel / Esc / scrim click.
         pushToast("success", "Prompt saved");
-        onClose();
       },
       onError: (err) => {
         pushToast("error", `Failed to save prompt: ${err.message}`);

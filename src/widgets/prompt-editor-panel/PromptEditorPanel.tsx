@@ -215,8 +215,10 @@ export function PromptEditorPanel({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
+        // Stay on the editor — query invalidation refreshes `query.data`
+        // which sync-effects re-seed the local state. The user keeps
+        // their place; close is now opt-in via Cancel / Back.
         pushToast("success", "Prompt saved");
-        onClose();
       },
       onError: (err) => {
         pushToast("error", `Failed to save prompt: ${err.message}`);

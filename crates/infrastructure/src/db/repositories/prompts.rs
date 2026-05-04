@@ -27,6 +27,12 @@ pub struct PromptRow {
     /// The frontend maps this string onto a React component from
     /// `src/shared/ui/Icon/`.
     pub icon: Option<String>,
+    /// Worked examples (migration `006_prompt_examples.sql`). Always a
+    /// `Vec<String>` — NULL on disk and malformed JSON both decode to
+    /// an empty Vec via the defensive `from_str::<Vec<String>>` in
+    /// [`PromptRow::from_row`]. An empty Vec is written as NULL so the
+    /// "no examples" state is one byte rather than four (`"[]"`).
+    pub examples: Vec<String>,
     pub token_count: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -34,6 +40,18 @@ pub struct PromptRow {
 
 impl PromptRow {
     fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+        // `examples_json` is stored as TEXT NULL. Two failure modes — NULL
+        // (the common "no examples" state) and a payload that doesn't
+        // parse as `Vec<String>` (the user's database was hand-edited or
+        // a bug wrote garbage) — must both round-trip to an empty Vec
+        // rather than panic. We therefore swallow JSON errors here and
+        // surface the empty-Vec default; the only error we propagate is
+        // a column-access failure (schema drift), which `?` handles.
+        let examples_json: Option<String> = row.get("examples_json")?;
+        let examples = examples_json
+            .as_deref()
+            .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok())
+            .unwrap_or_default();
         Ok(Self {
             id: row.get("id")?,
             name: row.get("name")?,
@@ -41,6 +59,7 @@ impl PromptRow {
             color: row.get("color")?,
             short_description: row.get("short_description")?,
             icon: row.get("icon")?,
+            examples,
             token_count: row.get("token_count")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
@@ -67,6 +86,9 @@ pub struct PromptDraft {
     pub short_description: Option<String>,
     /// Pixel-icon identifier (`None` means no icon).
     pub icon: Option<String>,
+    /// Worked examples. Empty Vec is the "no examples" default and is
+    /// persisted as `examples_json = NULL`.
+    pub examples: Vec<String>,
     /// Cached token count of `content` (cl100k_base in Promptery).
     /// Catique computes this in the use-case layer (E3) — for now the
     /// caller may pass `None` and the row gets a NULL `token_count`.
@@ -82,6 +104,12 @@ pub struct PromptPatch {
     pub short_description: Option<Option<String>>,
     /// `None` = leave alone; `Some(None)` = clear; `Some(Some(s))` = set.
     pub icon: Option<Option<String>>,
+    /// Examples is "list, possibly empty" — not nullable. The outer
+    /// `Option` only decides whether to touch the column:
+    /// `None` = leave alone, `Some(vec)` = replace (an empty vec writes
+    /// NULL on disk). We deliberately do NOT use `Option<Option<…>>`
+    /// here.
+    pub examples: Option<Vec<String>>,
     pub token_count: Option<Option<i64>>,
 }
 
@@ -92,8 +120,8 @@ pub struct PromptPatch {
 /// Surfaces rusqlite errors.
 pub fn list_all(conn: &Connection) -> Result<Vec<PromptRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, content, color, short_description, icon, token_count, \
-                created_at, updated_at \
+        "SELECT id, name, content, color, short_description, icon, examples_json, \
+                token_count, created_at, updated_at \
          FROM prompts ORDER BY name ASC",
     )?;
     let rows = stmt.query_map([], PromptRow::from_row)?;
@@ -111,13 +139,27 @@ pub fn list_all(conn: &Connection) -> Result<Vec<PromptRow>, DbError> {
 /// Surfaces rusqlite errors.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<PromptRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, content, color, short_description, icon, token_count, \
-                created_at, updated_at \
+        "SELECT id, name, content, color, short_description, icon, examples_json, \
+                token_count, created_at, updated_at \
          FROM prompts WHERE id = ?1",
     )?;
     Ok(stmt
         .query_row(params![id], PromptRow::from_row)
         .optional()?)
+}
+
+/// Encode a `Vec<String>` for `examples_json` storage. Empty Vec → `None`
+/// (NULL on disk) so the "no examples" state takes one byte per row;
+/// non-empty Vec → `Some(serde_json::to_string(...))`. Serialisation of
+/// `Vec<String>` cannot fail (every component is a leaf string), so the
+/// `unwrap_or_default()` only guards against impossible serde-internal
+/// errors with the empty-Vec fallback.
+fn encode_examples(examples: &[String]) -> Option<String> {
+    if examples.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(examples).unwrap_or_default())
+    }
 }
 
 /// Insert one prompt. Generates id, stamps timestamps.
@@ -128,11 +170,12 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<PromptRow>, DbErr
 pub fn insert(conn: &Connection, draft: &PromptDraft) -> Result<PromptRow, DbError> {
     let id = new_id();
     let now = now_millis();
+    let examples_json = encode_examples(&draft.examples);
     conn.execute(
         "INSERT INTO prompts \
-            (id, name, content, color, short_description, icon, token_count, \
-             created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
+            (id, name, content, color, short_description, icon, examples_json, \
+             token_count, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
         params![
             id,
             draft.name,
@@ -140,6 +183,7 @@ pub fn insert(conn: &Connection, draft: &PromptDraft) -> Result<PromptRow, DbErr
             draft.color,
             draft.short_description,
             draft.icon,
+            examples_json,
             draft.token_count,
             now
         ],
@@ -151,6 +195,7 @@ pub fn insert(conn: &Connection, draft: &PromptDraft) -> Result<PromptRow, DbErr
         color: draft.color.clone(),
         short_description: draft.short_description.clone(),
         icon: draft.icon.clone(),
+        examples: draft.examples.clone(),
         token_count: draft.token_count,
         created_at: now,
         updated_at: now,
@@ -182,6 +227,7 @@ pub fn update(
     let color_new = patch.color.as_ref();
     let desc_new = patch.short_description.as_ref();
     let icon_new = patch.icon.as_ref();
+    let examples_new = patch.examples.as_ref();
     let tok_new = patch.token_count.as_ref();
 
     let mut sql = String::from(
@@ -203,6 +249,14 @@ pub fn update(
     if let Some(i) = icon_new {
         let _ = write!(sql, ", icon = ?{next_param}");
         params_vec.push(rusqlite::types::Value::from(i.clone()));
+        next_param += 1;
+    }
+    if let Some(ex) = examples_new {
+        // `Some(vec)` always touches the column, even when `vec` is
+        // empty — that's the agreed "clear" semantics. `encode_examples`
+        // turns the empty case into a NULL on disk for storage parity.
+        let _ = write!(sql, ", examples_json = ?{next_param}");
+        params_vec.push(rusqlite::types::Value::from(encode_examples(ex)));
         next_param += 1;
     }
     if let Some(t) = tok_new {
@@ -390,6 +444,7 @@ mod tests {
             color: Some("#abcdef".into()),
             short_description: Some("desc".into()),
             icon: None,
+            examples: Vec::new(),
             token_count: Some(42),
         }
     }
@@ -495,6 +550,7 @@ mod tests {
                 color: None,
                 short_description: None,
                 icon: Some("star".into()),
+                examples: Vec::new(),
                 token_count: None,
             },
         )
@@ -519,11 +575,171 @@ mod tests {
                 color: None,
                 short_description: None,
                 icon: None,
+                examples: Vec::new(),
                 token_count: None,
             },
         )
         .unwrap();
         assert_eq!(row.icon, None);
+    }
+
+    #[test]
+    fn examples_round_trip_through_insert_and_get() {
+        let conn = fresh_db();
+        let row = insert(
+            &conn,
+            &PromptDraft {
+                name: "with-examples".into(),
+                content: String::new(),
+                color: None,
+                short_description: None,
+                icon: None,
+                examples: vec!["one".into(), "two".into(), "three".into()],
+                token_count: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(row.examples, vec!["one", "two", "three"]);
+        let got = get_by_id(&conn, &row.id).unwrap().unwrap();
+        assert_eq!(got.examples, vec!["one", "two", "three"]);
+        // Round-trip via list_all too — confirms the SELECT projection
+        // includes `examples_json`.
+        let listed = list_all(&conn)
+            .unwrap()
+            .into_iter()
+            .find(|r| r.id == row.id)
+            .unwrap();
+        assert_eq!(listed.examples, vec!["one", "two", "three"]);
+    }
+
+    #[test]
+    fn examples_default_to_empty_when_omitted() {
+        let conn = fresh_db();
+        let row = insert(
+            &conn,
+            &PromptDraft {
+                name: "no-examples".into(),
+                content: String::new(),
+                color: None,
+                short_description: None,
+                icon: None,
+                examples: Vec::new(),
+                token_count: None,
+            },
+        )
+        .unwrap();
+        assert!(row.examples.is_empty());
+        // And the on-disk column is NULL, not "[]" — the storage-parity
+        // contract.
+        let raw_payload: Option<String> = conn
+            .query_row(
+                "SELECT examples_json FROM prompts WHERE id = ?1",
+                params![row.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(raw_payload, None);
+    }
+
+    #[test]
+    fn update_can_set_replace_and_clear_examples() {
+        let conn = fresh_db();
+        let row = insert(&conn, &draft("p")).unwrap();
+        assert!(row.examples.is_empty());
+
+        // Set.
+        let after_set = update(
+            &conn,
+            &row.id,
+            &PromptPatch {
+                examples: Some(vec!["a".into(), "b".into()]),
+                ..PromptPatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(after_set.examples, vec!["a", "b"]);
+
+        // Replace.
+        let after_replace = update(
+            &conn,
+            &row.id,
+            &PromptPatch {
+                examples: Some(vec!["only".into()]),
+                ..PromptPatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(after_replace.examples, vec!["only"]);
+
+        // Clear via Some(empty Vec). The on-disk column flips back to NULL.
+        let after_clear = update(
+            &conn,
+            &row.id,
+            &PromptPatch {
+                examples: Some(Vec::new()),
+                ..PromptPatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert!(after_clear.examples.is_empty());
+        let raw_payload: Option<String> = conn
+            .query_row(
+                "SELECT examples_json FROM prompts WHERE id = ?1",
+                params![row.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(raw_payload, None, "empty Vec must round-trip as NULL");
+    }
+
+    #[test]
+    fn examples_leave_alone_when_patch_is_none() {
+        let conn = fresh_db();
+        let row = insert(
+            &conn,
+            &PromptDraft {
+                name: "keep-them".into(),
+                content: String::new(),
+                color: None,
+                short_description: None,
+                icon: None,
+                examples: vec!["keep".into()],
+                token_count: None,
+            },
+        )
+        .unwrap();
+        let after = update(
+            &conn,
+            &row.id,
+            &PromptPatch {
+                name: Some("renamed".into()),
+                ..PromptPatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(after.examples, vec!["keep"]);
+        assert_eq!(after.name, "renamed");
+    }
+
+    #[test]
+    fn malformed_examples_json_decodes_to_empty_vec() {
+        // Defensive: a hand-edited DB or an ancient migration could leave
+        // garbage in `examples_json`. The mapper must surface an empty
+        // Vec rather than panic — verify that contract.
+        let conn = fresh_db();
+        let row = insert(&conn, &draft("p")).unwrap();
+        // Force a malformed payload.
+        conn.execute(
+            "UPDATE prompts SET examples_json = ?1 WHERE id = ?2",
+            params!["{not a json array}", row.id],
+        )
+        .unwrap();
+        let got = get_by_id(&conn, &row.id).unwrap().unwrap();
+        assert!(got.examples.is_empty());
     }
 
     #[test]

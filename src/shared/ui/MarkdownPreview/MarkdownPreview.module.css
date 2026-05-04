@@ -63,7 +63,11 @@
 .ul,
 .ol {
   margin: 0 0 var(--space-12) 0;
-  padding-left: var(--space-24);
+  /* Outside markers (default for `list-style-position: outside`) sit
+   * just to the left of the LI content edge, so the padding-left has
+   * to leave room for the widest expected marker — `10.` and beyond
+   * need ~28 px to clear without clipping inside narrow containers. */
+  padding-left: var(--space-32);
 }
 
 .ul:last-child,
