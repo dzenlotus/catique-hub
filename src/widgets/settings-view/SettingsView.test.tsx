@@ -132,9 +132,14 @@ describe("SettingsView", () => {
     expect(todoButton).toBeDefined();
   });
 
-  it("Appearance section contains hint about the sidebar toggle", () => {
+  it("Appearance section exposes Light + Dark theme buttons", () => {
     setup();
-    expect(screen.getByText(/sidebar/i)).toBeInTheDocument();
+    expect(
+      screen.getByTestId("settings-theme-button-light"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("settings-theme-button-dark"),
+    ).toBeInTheDocument();
   });
 
   it("About section mentions Elastic-2.0 license", () => {
