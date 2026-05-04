@@ -145,7 +145,7 @@ describe("KanbanBoard", () => {
         if (listColumnsCalls === 1) throw new Error("network down");
         return [makeColumn()];
       }
-      if (cmd === "list_tasks_by_board") {
+      if (cmd === "list_tasks") {
         listTasksByBoardCalls += 1;
         if (listTasksByBoardCalls === 1) throw new Error("network down");
         return [makeTask()];
@@ -172,7 +172,7 @@ describe("KanbanBoard", () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_board") return makeBoard();
       if (cmd === "list_columns") return [];
-      if (cmd === "list_tasks_by_board") return [];
+      if (cmd === "list_tasks") return [];
       return null;
     });
     renderBoard();
@@ -191,8 +191,7 @@ describe("KanbanBoard", () => {
           makeColumn({ id: "c1", name: "Backlog" }),
           makeColumn({ id: "c2", name: "Doing", position: 2n }),
         ];
-      if (cmd === "list_tasks_by_board")
-        return [makeTask({ columnId: "c1" })];
+      if (cmd === "list_tasks") return [makeTask({ columnId: "c1" })];
       return null;
     });
     renderBoard();

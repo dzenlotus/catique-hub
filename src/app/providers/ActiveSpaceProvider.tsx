@@ -35,8 +35,12 @@ const LS_KEY = "catique:activeSpaceId";
  *   3. The first space in the list.
  *   4. `null` for an empty list.
  */
-function resolveActiveId(spaces: Space[], storedId: string | null): string | null {
-  if (spaces.length === 0) return null;
+function resolveActiveId(
+  spaces: Space[] | null | undefined,
+  storedId: string | null,
+): string | null {
+  // Defensive: callers can hand us undefined while a query is loading.
+  if (!spaces || spaces.length === 0) return null;
   if (storedId !== null && spaces.some((s) => s.id === storedId)) return storedId;
   return (spaces.find((s) => s.isDefault) ?? spaces[0]).id;
 }

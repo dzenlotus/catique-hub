@@ -139,8 +139,16 @@ export function KanbanBoard({
   const [isBoardEditorOpen, setIsBoardEditorOpen] = useState(false);
   const [taskColumnId, setTaskColumnId] = useState<string | null>(null);
 
-  const columns = columnsQuery.data ?? [];
-  const tasks = tasksQuery.data ?? [];
+  // Stabilise the empty-fallback references so `useMemo`s and downstream
+  // `useEffect`s don't see a fresh `[]` on every render while the queries
+  // are pending. Without this guard, the `serverItems` memo invalidates
+  // every render, which sets state inside `useEffect`, which triggers
+  // another render — infinite loop. Documented in `KanbanBoard.test.tsx`.
+  const columns = useMemo(
+    () => columnsQuery.data ?? [],
+    [columnsQuery.data],
+  );
+  const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
 
   const serverItems = useMemo(() => bucketTasks(columns, tasks), [columns, tasks]);
 
