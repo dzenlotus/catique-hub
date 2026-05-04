@@ -1,8 +1,8 @@
 /**
  * Nav-view label + icon map for the top bar breadcrumb.
  *
- * Копирует содержимое из main-pane-header/labels.ts — TopBar не импортирует
- * из удалённого виджета, чтобы избежать скрытой зависимости.
+ * Mirrored from `main-pane-header/labels.ts` — TopBar avoids importing
+ * the removed widget so the dependency stays explicit.
  */
 
 import type { FC, SVGProps } from "react";
