@@ -68,7 +68,12 @@ export function usePrompt(id: string): UseQueryResult<Prompt, Error> {
   });
 }
 
-/** `useCreatePromptMutation` — create a prompt, then invalidate the list cache. */
+/**
+ * `useCreatePromptMutation` — create a prompt, invalidate the list,
+ * then fire a fire-and-forget `recompute_prompt_token_count` so the new
+ * prompt's count is filled in without the user having to press
+ * "Recount" (round-19d).
+ */
 export function useCreatePromptMutation(): UseMutationResult<
   Prompt,
   Error,
@@ -77,13 +82,34 @@ export function useCreatePromptMutation(): UseMutationResult<
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createPrompt,
-    onSuccess: () => {
+    onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: promptsKeys.list() });
+      void recomputePromptTokenCount(created.id)
+        .then(() => {
+          void queryClient.invalidateQueries({
+            queryKey: promptsKeys.detail(created.id),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: promptsKeys.list(),
+          });
+        })
+        .catch(() => {
+          // Silent: count stays absent until the user clicks Recount.
+        });
     },
   });
 }
 
-/** `useUpdatePromptMutation` — partial update, invalidates list + detail on success. */
+/**
+ * `useUpdatePromptMutation` — partial update, invalidates list + detail
+ * on success.
+ *
+ * Round-19d: when the update touches `content`, fire a follow-up
+ * `recompute_prompt_token_count` so the displayed token count reflects
+ * the new body without the user having to press "Recount". The recount
+ * IPC is fire-and-forget — failures don't roll back the save, they just
+ * leave the count stale until the next manual recount.
+ */
 export function useUpdatePromptMutation(): UseMutationResult<
   Prompt,
   Error,
@@ -92,11 +118,25 @@ export function useUpdatePromptMutation(): UseMutationResult<
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: updatePrompt,
-    onSuccess: (updated) => {
+    onSuccess: (updated, vars) => {
       void queryClient.invalidateQueries({ queryKey: promptsKeys.list() });
       void queryClient.invalidateQueries({
         queryKey: promptsKeys.detail(updated.id),
       });
+      if (vars.content !== undefined) {
+        void recomputePromptTokenCount(updated.id)
+          .then(() => {
+            void queryClient.invalidateQueries({
+              queryKey: promptsKeys.detail(updated.id),
+            });
+            void queryClient.invalidateQueries({
+              queryKey: promptsKeys.list(),
+            });
+          })
+          .catch(() => {
+            // Silent: count stays stale, next manual recount fixes it.
+          });
+      }
     },
   });
 }

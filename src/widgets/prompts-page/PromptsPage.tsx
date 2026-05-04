@@ -1,7 +1,12 @@
-import { useCallback, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactElement } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { DragDropProvider } from "@dnd-kit/react";
-import type { DragEndEvent } from "@dnd-kit/react";
+import type {
+  DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
+} from "@dnd-kit/react";
+import { move } from "@dnd-kit/helpers";
 
 import {
   promptGroupsKeys,
@@ -10,6 +15,7 @@ import {
   useDeletePromptGroupMutation,
   usePromptGroups,
   useRemovePromptGroupMemberMutation,
+  useSetPromptGroupMembersMutation,
 } from "@entities/prompt-group";
 import { useToast } from "@app/providers/ToastProvider";
 import { Scrollable } from "@shared/ui";
@@ -42,6 +48,7 @@ export function PromptsPage(): ReactElement {
   const deleteGroup = useDeletePromptGroupMutation();
   const addMember = useAddPromptGroupMemberMutation();
   const removeMember = useRemovePromptGroupMemberMutation();
+  const setMembers = useSetPromptGroupMembersMutation();
   const { pushToast } = useToast();
 
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
@@ -49,6 +56,14 @@ export function PromptsPage(): ReactElement {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+
+  // Optimistic reorder state for `<InlineGroupView>` sortable cards.
+  // `reorderGroupId` is the group whose members are being dragged;
+  // `reorderItems` mirrors the @dnd-kit `move()` bucket shape so the
+  // helper can shuffle ids in-place during drag-over.
+  const [reorderGroupId, setReorderGroupId] = useState<string | null>(null);
+  const [reorderItems, setReorderItems] = useState<Record<string, string[]>>({});
+  const reorderItemsRef = useRef<Record<string, string[]>>({});
 
   // Per-group ordered member-id list (parallel queries).
   const memberQueries = useQueries({
@@ -88,11 +103,76 @@ export function PromptsPage(): ReactElement {
     });
   }
 
-  // Shared DnD handler — accepts both `group:<id>` and `group-content:<id>`.
+  // ── Drag start: open optimistic-reorder state for the source group ──
+  const handleDragStart = useCallback(
+    (event: DragStartEvent): void => {
+      const sourceType = event.operation.source?.type;
+      const sourceId = event.operation.source?.id;
+      if (sourceType !== "group-member-prompt") return;
+      if (typeof sourceId !== "string") return;
+      // Find the group that owns this prompt id.
+      const ownerGroupId = promptToGroup.get(sourceId);
+      if (!ownerGroupId) return;
+      const initialIds = (groupMembers[ownerGroupId] ?? []).slice();
+      const bucket = { [`group-members-${ownerGroupId}`]: initialIds };
+      reorderItemsRef.current = bucket;
+      setReorderItems(bucket);
+      setReorderGroupId(ownerGroupId);
+    },
+    [promptToGroup, groupMembers],
+  );
+
+  // ── Drag over: shuffle the bucket via @dnd-kit's `move()` helper ────
+  const handleDragOver = useCallback(
+    (event: DragOverEvent): void => {
+      if (reorderGroupId === null) return;
+      setReorderItems((current) => {
+        const next = move(current, event);
+        reorderItemsRef.current = next;
+        return next;
+      });
+    },
+    [reorderGroupId],
+  );
+
+  // ── Drag end: persist the new order OR add-to-group ────────────────
   const handleDragEnd = useCallback(
     (event: DragEndEvent): void => {
+      // Reorder branch — settle the drop into a `set_prompt_group_members`
+      // mutation against the captured group id.
+      if (reorderGroupId !== null) {
+        const groupKey = `group-members-${reorderGroupId}`;
+        const nextOrder = reorderItemsRef.current[groupKey] ?? [];
+        const initialOrder = groupMembers[reorderGroupId] ?? [];
+        const owningGroup = reorderGroupId;
+        // Always tear down the optimistic state before any side effects.
+        setReorderGroupId(null);
+        setReorderItems({});
+        reorderItemsRef.current = {};
+
+        if (event.canceled) return;
+        // No change → skip the IPC.
+        const sameOrder =
+          initialOrder.length === nextOrder.length &&
+          initialOrder.every((id, i) => id === nextOrder[i]);
+        if (sameOrder) return;
+
+        setMembers.mutate(
+          { groupId: owningGroup, orderedPromptIds: nextOrder },
+          {
+            onError: (err) =>
+              pushToast(
+                "error",
+                `Failed to reorder prompts: ${err.message}`,
+              ),
+          },
+        );
+        return;
+      }
+
       if (event.canceled) return;
 
+      // Add-to-group branch — sidebar prompt dropped onto a group target.
       const sourceId = event.operation.source?.id;
       const targetId = event.operation.target?.id;
       if (typeof sourceId !== "string" || typeof targetId !== "string") return;
@@ -137,7 +217,15 @@ export function PromptsPage(): ReactElement {
         },
       );
     },
-    [promptToGroup, groupMembers, addMember, removeMember, pushToast],
+    [
+      reorderGroupId,
+      groupMembers,
+      promptToGroup,
+      setMembers,
+      addMember,
+      removeMember,
+      pushToast,
+    ],
   );
 
   const renderRightPane = (): ReactElement => {
@@ -150,12 +238,17 @@ export function PromptsPage(): ReactElement {
       );
     }
     if (selectedGroupId !== null) {
+      const isReorderingThisGroup = reorderGroupId === selectedGroupId;
+      const orderOverride = isReorderingThisGroup
+        ? (reorderItems[`group-members-${selectedGroupId}`] ?? null)
+        : null;
       return (
         <InlineGroupView
           groupId={selectedGroupId}
           onSelectPrompt={(id) => setSelectedPromptId(id)}
           onRenameGroup={(id) => setEditingGroupId(id)}
           onDeleteGroup={handleDeleteGroup}
+          orderOverride={orderOverride}
         />
       );
     }
@@ -174,7 +267,11 @@ export function PromptsPage(): ReactElement {
   };
 
   return (
-    <DragDropProvider onDragEnd={handleDragEnd}>
+    <DragDropProvider
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+    >
       <section className={styles.root} data-testid="prompts-page-root">
         <div className={styles.sidebarSlot}>
           <PromptsSidebar

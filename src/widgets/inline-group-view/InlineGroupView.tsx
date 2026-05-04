@@ -1,21 +1,20 @@
 /**
- * InlineGroupView — right-pane prompt-group surface (round-19d).
+ * InlineGroupView — right-pane prompt-group surface.
  *
- * Shown by `<PromptsPage>` when a group is selected in the sidebar.
- * Hosts:
- *   - Group header (name, swatch, "Edit group" / "Delete" actions).
- *   - The group's member prompts as a card grid.
- *   - A droppable region: dragging a prompt from the sidebar onto this
- *     view adds it to the group (handled by the parent via the shared
- *     `<DragDropProvider>`). The droppable id is `group:<id>` — i.e.
- *     the same id as the sidebar group row, so the existing handler in
- *     `<PromptsSidebar>` already knows how to react. Both surfaces
- *     register the same id; @dnd-kit treats them as one logical drop
- *     target keyed by id.
+ * Round-19d (user-driven restructure):
+ *   - 2-column body. Left = vertical sortable list of prompt cards
+ *     (one card width); right = preview pane.
+ *   - Preview is Markdown by default (concatenated content of every
+ *     prompt in the group, rendered as a single document). While the
+ *     user is dragging a card to reorder, the preview swaps to the
+ *     XML representation that the agent will see in a task context.
+ *   - The droppable region (id `group-content:<id>`) still accepts
+ *     prompts dragged in from the sidebar — handled by `<PromptsPage>`.
  */
 
 import { useMemo, type ReactElement } from "react";
 import { useDroppable } from "@dnd-kit/react";
+import { useSortable } from "@dnd-kit/react/sortable";
 
 import {
   PromptCard,
@@ -40,6 +39,11 @@ export interface InlineGroupViewProps {
   onRenameGroup: (id: string) => void;
   /** Trigger group deletion. */
   onDeleteGroup: (id: string) => void;
+  /**
+   * Optimistic order of prompt ids during a drag. Falls back to the
+   * server order from `usePromptGroupMembers` when null.
+   */
+  orderOverride?: ReadonlyArray<string> | null;
 }
 
 export function InlineGroupView({
@@ -47,6 +51,7 @@ export function InlineGroupView({
   onSelectPrompt,
   onRenameGroup,
   onDeleteGroup,
+  orderOverride = null,
 }: InlineGroupViewProps): ReactElement {
   const groupQuery = usePromptGroup(groupId);
   const membersQuery = usePromptGroupMembers(groupId);
@@ -56,7 +61,7 @@ export function InlineGroupView({
 
   // Distinct id from the sidebar row droppable (`group:<id>`); the
   // shared `<DragDropProvider>` in `<PromptsPage>` routes both prefixes
-  // to the same membership mutation.
+  // to the same membership mutation when a sidebar prompt is dropped.
   const { ref, isDropTarget } = useDroppable({
     id: `group-content:${groupId}`,
     type: "group",
@@ -64,7 +69,7 @@ export function InlineGroupView({
   });
 
   const memberPrompts = useMemo<Prompt[]>(() => {
-    const ids = membersQuery.data ?? [];
+    const ids = orderOverride ?? membersQuery.data ?? [];
     const promptsById = new Map(
       (promptsQuery.data ?? []).map((p) => [p.id, p] as const),
     );
@@ -74,7 +79,7 @@ export function InlineGroupView({
       if (prompt) ordered.push(prompt);
     }
     return ordered;
-  }, [membersQuery.data, promptsQuery.data]);
+  }, [membersQuery.data, promptsQuery.data, orderOverride]);
 
   const handleRemoveFromGroup = (promptId: string): void => {
     removeMember.mutate(
@@ -133,6 +138,7 @@ export function InlineGroupView({
   }
 
   const group = groupQuery.data;
+  const groupSortableKey = `group-members-${groupId}`;
 
   return (
     <section
@@ -172,43 +178,177 @@ export function InlineGroupView({
         </div>
       </header>
 
-      <div
-        ref={(element) => ref(element)}
-        className={styles.dropZone}
-        data-drop-target={isDropTarget ? "true" : undefined}
-        data-testid="inline-group-view-drop-zone"
-      >
-        {memberPrompts.length === 0 ? (
-          <div className={styles.empty}>
-            <p className={styles.emptyTitle}>No prompts in this group yet</p>
-            <p className={styles.emptyHint}>
-              Drag prompts from the sidebar onto the group to add them.
-            </p>
+      <div className={styles.body}>
+        <div
+          ref={(element) => ref(element)}
+          className={styles.listColumn}
+          data-drop-target={isDropTarget ? "true" : undefined}
+          data-testid="inline-group-view-drop-zone"
+        >
+          {memberPrompts.length === 0 ? (
+            <div className={styles.empty}>
+              <p className={styles.emptyTitle}>No prompts in this group yet</p>
+              <p className={styles.emptyHint}>
+                Drag prompts from the sidebar onto the group to add them.
+              </p>
+            </div>
+          ) : (
+            memberPrompts.map((prompt, index) => (
+              <SortableMemberCard
+                key={prompt.id}
+                prompt={prompt}
+                index={index}
+                groupSortableKey={groupSortableKey}
+                onSelect={onSelectPrompt}
+                onRemove={handleRemoveFromGroup}
+                isRemoving={removeMember.isPending}
+              />
+            ))
+          )}
+        </div>
+
+        <div className={styles.previewColumn}>
+          <div className={styles.previewHeader}>
+            <span>Task XML preview</span>
+            <span
+              className={styles.tokenChip}
+              data-testid="inline-group-view-total-tokens"
+            >
+              {sumTokenCount(memberPrompts)}
+            </span>
           </div>
-        ) : (
-          <div
-            className={styles.grid}
-            data-testid="inline-group-view-grid"
-          >
-            {memberPrompts.map((prompt) => (
-              <div key={prompt.id} className={styles.cardCell}>
-                <PromptCard prompt={prompt} onSelect={onSelectPrompt} />
-                <div className={styles.cardActions}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onPress={() => handleRemoveFromGroup(prompt.id)}
-                    isPending={removeMember.isPending}
-                    data-testid={`inline-group-view-remove-${prompt.id}`}
-                  >
-                    Remove from group
-                  </Button>
-                </div>
-              </div>
-            ))}
+          <div className={styles.previewBody}>
+            {memberPrompts.length === 0 ? (
+              <p className={styles.previewEmpty}>
+                Add prompts to see how they'll render to an agent.
+              </p>
+            ) : (
+              <pre
+                className={styles.previewXml}
+                data-testid="inline-group-view-xml-preview"
+              >
+                {renderPromptsXml(memberPrompts, group.name)}
+              </pre>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </section>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sortable card row
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface SortableMemberCardProps {
+  prompt: Prompt;
+  index: number;
+  groupSortableKey: string;
+  onSelect: (id: string) => void;
+  onRemove: (id: string) => void;
+  isRemoving: boolean;
+}
+
+function SortableMemberCard({
+  prompt,
+  index,
+  groupSortableKey,
+  onSelect,
+  onRemove,
+  isRemoving,
+}: SortableMemberCardProps): ReactElement {
+  const { ref, handleRef, isDragging } = useSortable({
+    id: prompt.id,
+    index,
+    group: groupSortableKey,
+    type: "group-member-prompt",
+    accept: ["group-member-prompt"],
+  });
+
+  return (
+    <div
+      ref={(element) => ref(element)}
+      className={styles.cardCell}
+      data-dragging={isDragging ? "true" : undefined}
+      data-testid={`inline-group-view-card-${prompt.id}`}
+    >
+      <button
+        type="button"
+        ref={(element) => handleRef(element)}
+        className={styles.dragHandle}
+        aria-label={`Drag ${prompt.name}`}
+        data-testid={`inline-group-view-handle-${prompt.id}`}
+      >
+        <span aria-hidden="true">⋮⋮</span>
+      </button>
+      <button
+        type="button"
+        className={styles.removeButton}
+        onClick={() => onRemove(prompt.id)}
+        disabled={isRemoving}
+        aria-label={`Remove ${prompt.name} from group`}
+        data-testid={`inline-group-view-remove-${prompt.id}`}
+      >
+        <span aria-hidden="true">×</span>
+      </button>
+      <PromptCard
+        prompt={prompt}
+        onSelect={onSelect}
+        className={styles.cardInner}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Preview helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Sum the per-prompt `tokenCount` across all members, returning a
+ * formatted chip label. Prompts with `null` tokens are skipped (the
+ * count is unknown, not zero); when no prompt has a count we show
+ * "—" so the header still has a stable trailing label.
+ */
+function sumTokenCount(prompts: ReadonlyArray<Prompt>): string {
+  let total = 0n;
+  let any = false;
+  for (const p of prompts) {
+    if (p.tokenCount !== null) {
+      total += p.tokenCount;
+      any = true;
+    }
+  }
+  if (!any) return "— tokens";
+  return `≈${total.toString()} tokens`;
+}
+
+/** Render the group as the XML envelope an agent receives. Mirrors
+ * the layout that the task-context build will emit at runtime so the
+ * user can preview wire-format ordering as they reorder. */
+function renderPromptsXml(
+  prompts: ReadonlyArray<Prompt>,
+  groupName: string,
+): string {
+  const escape = (s: string): string =>
+    s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+
+  const lines = [`<prompts group="${escape(groupName)}">`];
+  for (const prompt of prompts) {
+    lines.push(`  <prompt id="${escape(prompt.id)}" name="${escape(prompt.name)}">`);
+    const indented = prompt.content
+      .split("\n")
+      .map((line) => `    ${line}`)
+      .join("\n");
+    lines.push(indented);
+    lines.push(`  </prompt>`);
+  }
+  lines.push(`</prompts>`);
+  return lines.join("\n");
+}
+

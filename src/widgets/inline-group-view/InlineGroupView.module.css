@@ -1,8 +1,12 @@
 /*
- * InlineGroupView — right-pane view of a prompt group.
+ * InlineGroupView — right-pane prompt-group surface.
  *
- * Replaces the modal `<PromptGroupEditor>` for in-page rendering when a
- * group is selected from the sidebar.
+ * Round-19d split:
+ *   - Header at the top.
+ *   - Body is a 2-column grid:
+ *     · `.list` — vertical sortable prompt cards (1-card width).
+ *     · `.preview` — Markdown preview of the concatenated group
+ *       content; swaps to XML preview while the user is reordering.
  */
 
 .root {
@@ -54,67 +58,215 @@
   gap: var(--space-8);
 }
 
-/* ── Drop zone wrapping the prompts grid ───────────────────────────── */
+/* ── 2-column body ────────────────────────────────────────────────── */
 
-.dropZone {
+.body {
   flex: 1 1 auto;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-12);
-  border-radius: var(--radius-md);
-  border: 1px dashed transparent;
-  transition: border-color 120ms ease-out, background-color 120ms ease-out;
+  display: grid;
+  /* Left column: ~220 px card content + 32 px gutters on each side
+   * (drag-handle + remove-button overlay) + listColumn padding. */
+  grid-template-columns: 308px 1fr;
+  gap: var(--space-16);
 }
 
-.dropZone[data-drop-target="true"] {
+.listColumn {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  background-color: var(--color-surface-canvas);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  overflow-y: auto;
+}
+
+.listColumn[data-drop-target="true"] {
   border-color: var(--color-border-focus);
   background-color: var(--color-overlay-hover);
 }
 
-.dropHint {
-  margin: 0;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-subtle);
-  font-style: italic;
-  padding: var(--space-8) var(--space-4);
-}
-
-/* ── Prompt grid ───────────────────────────────────────────────────── */
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--space-12);
-  align-content: flex-start;
-  overflow-y: auto;
-  padding: var(--space-4);
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border-strong) transparent;
-}
-
-.grid::-webkit-scrollbar {
-  width: 8px;
-}
-
-.grid::-webkit-scrollbar-thumb {
-  background: var(--color-border-strong);
-  border-radius: var(--radius-full, 9999px);
-}
-
-.cardCell {
+.previewColumn {
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  position: relative;
+  background-color: var(--color-surface-canvas);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
-.cardActions {
+.previewHeader {
+  flex: 0 0 auto;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-8) var(--space-12);
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background-color: var(--color-surface-raised);
 }
 
-/* ── Empty state ───────────────────────────────────────────────────── */
+/* Token-count chip on the trailing edge of the preview header. */
+.tokenChip {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-default);
+}
+
+.previewBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-16);
+}
+
+.previewMarkdown {
+  /* MarkdownPreview applies its own typography */
+}
+
+.previewXml {
+  margin: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-body-sm);
+  line-height: 1.55;
+  color: var(--color-text-default);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.previewEmpty {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ── Sortable cards ──────────────────────────────────────────────── */
+
+.cardCell {
+  position: relative;
+  /* The drag handle and remove button float over the card. */
+}
+
+/*
+ * Reserve left + right gutters on the inner PromptCard so the
+ * absolutely-positioned drag handle (left) and remove button (right)
+ * don't overlap with the card content. Token-driven so the padding
+ * scales with the rest of the design system.
+ */
+.cardInner {
+  padding-left: var(--space-32);
+  padding-right: var(--space-32);
+}
+
+.cardCell[data-dragging="true"] {
+  opacity: 0.4;
+}
+
+/*
+ * Drag handle: pinned to the top-LEFT of the card, revealed on hover.
+ * Sits on top of the PromptCard so the whole card rectangle remains
+ * activatable (PromptCard is a `<button>`); only the handle area
+ * starts a drag. `cursor: grab` signals the affordance.
+ */
+.dragHandle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: var(--color-surface-overlay);
+  color: var(--color-text-subtle);
+  cursor: grab;
+  border-radius: var(--radius-xs);
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 80ms ease-out;
+}
+
+.cardCell:hover .dragHandle,
+.dragHandle:focus-visible {
+  opacity: 1;
+}
+
+.dragHandle:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.dragHandle:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/*
+ * Close ("×") button: top-RIGHT corner of the card, removes the prompt
+ * from the group. Same opacity behaviour as the drag handle.
+ */
+.removeButton {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: var(--color-surface-overlay);
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0;
+  transition:
+    opacity 80ms ease-out,
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.cardCell:hover .removeButton,
+.removeButton:focus-visible {
+  opacity: 1;
+}
+
+.removeButton:hover {
+  background-color: var(--color-status-danger-soft);
+  color: var(--color-status-danger);
+}
+
+.removeButton:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.removeButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* ── Empty / async banners ───────────────────────────────────────── */
 
 .empty {
   flex: 1 1 auto;
@@ -141,6 +293,14 @@
   margin: 0;
   font-size: var(--font-size-body-sm);
   color: var(--color-text-muted);
+}
+
+.dropHint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
+  font-style: italic;
+  padding: var(--space-8) var(--space-4);
 }
 
 .errorBanner {
