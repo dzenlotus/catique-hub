@@ -106,7 +106,7 @@ describe("RolesList", () => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
     expect(screen.getByText(/transport down/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 
   it("calls onSelectRole with the role id when a card is activated", async () => {

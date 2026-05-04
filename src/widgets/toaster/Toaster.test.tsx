@@ -106,7 +106,7 @@ describe("Toaster", () => {
 
     expect(screen.getByText("Удалить меня")).toBeInTheDocument();
 
-    const dismissBtns = screen.getAllByRole("button", { name: /закрыть уведомление/i });
+    const dismissBtns = screen.getAllByRole("button", { name: /dismiss notification/i });
     await user.click(dismissBtns[0]);
 
     expect(screen.queryByText("Удалить меня")).not.toBeInTheDocument();

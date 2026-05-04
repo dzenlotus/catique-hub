@@ -58,7 +58,7 @@ describe("McpToolCard", () => {
 
   it("renders a color swatch when tool.color is set", () => {
     render(<McpToolCard tool={makeTool({ color: "#ff5733" })} />);
-    expect(screen.getByLabelText("Цвет: #ff5733")).toBeInTheDocument();
+    expect(screen.getByLabelText("Color: #ff5733")).toBeInTheDocument();
   });
 
   it("does not render a color swatch when tool.color is null", () => {

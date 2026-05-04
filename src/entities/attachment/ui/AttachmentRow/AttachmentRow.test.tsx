@@ -58,7 +58,7 @@ describe("AttachmentRow", () => {
   it("renders a delete button with accessible label", () => {
     render(<AttachmentRow attachment={makeAttachment()} />);
     expect(
-      screen.getByRole("button", { name: /удалить вложение report\.pdf/i }),
+      screen.getByRole("button", { name: /delete attachment report\.pdf/i }),
     ).toBeInTheDocument();
   });
 
@@ -84,7 +84,7 @@ describe("AttachmentRow", () => {
 
   it("disables the delete button and shows pending when isDeleting=true", () => {
     render(<AttachmentRow attachment={makeAttachment()} isDeleting />);
-    const btn = screen.getByRole("button", { name: /удалить вложение/i });
+    const btn = screen.getByRole("button", { name: /delete attachment/i });
     expect(btn).toBeDisabled();
     expect(screen.getByTestId("button-spinner")).toBeInTheDocument();
   });

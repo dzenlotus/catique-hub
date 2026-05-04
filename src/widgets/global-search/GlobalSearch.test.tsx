@@ -121,7 +121,7 @@ describe("GlobalSearch — idle hint", () => {
     invokeMock.mockResolvedValue([]);
     renderOpen();
     expect(screen.getByTestId("global-search-empty")).toBeInTheDocument();
-    expect(screen.getByText(/начните вводить/i)).toBeInTheDocument();
+    expect(screen.getByText(/start typing to find/i)).toBeInTheDocument();
   });
 
   it("does not fire IPC when query is empty", async () => {
@@ -196,7 +196,7 @@ describe("GlobalSearch — empty results", () => {
     await waitFor(() => {
       expect(screen.getByTestId("global-search-empty")).toBeInTheDocument();
     });
-    expect(screen.getByText(/ничего не найдено/i)).toBeInTheDocument();
+    expect(screen.getByText(/no results for/i)).toBeInTheDocument();
   });
 });
 
@@ -205,25 +205,25 @@ describe("GlobalSearch — empty results", () => {
 // ---------------------------------------------------------------------------
 
 describe("GlobalSearch — results rendering", () => {
-  it("renders task results under a 'Задачи' group header", async () => {
+  it("renders task results under a 'Tasks' group header", async () => {
     invokeMock.mockResolvedValue([TASK_RESULT]);
     const { user } = renderOpen();
     await user.type(screen.getByTestId("global-search-input"), "fix");
 
     await waitFor(() => {
-      expect(screen.getByText("Задачи")).toBeInTheDocument();
+      expect(screen.getByText("Tasks")).toBeInTheDocument();
     });
     expect(screen.getByText("Fix login bug")).toBeInTheDocument();
     expect(screen.getByText("Users cannot log in with Google OAuth")).toBeInTheDocument();
   });
 
-  it("renders agentReport results under an 'Отчёты агента' group header", async () => {
+  it("renders agentReport results under an 'Agent reports' group header", async () => {
     invokeMock.mockResolvedValue([REPORT_RESULT]);
     const { user } = renderOpen();
     await user.type(screen.getByTestId("global-search-input"), "report");
 
     await waitFor(() => {
-      expect(screen.getByText("Отчёты агента")).toBeInTheDocument();
+      expect(screen.getByText("Agent reports")).toBeInTheDocument();
     });
     expect(screen.getByText("Investigation report")).toBeInTheDocument();
   });
@@ -234,8 +234,8 @@ describe("GlobalSearch — results rendering", () => {
     await user.type(screen.getByTestId("global-search-input"), "q");
 
     await waitFor(() => {
-      expect(screen.getByText("Задачи")).toBeInTheDocument();
-      expect(screen.getByText("Отчёты агента")).toBeInTheDocument();
+      expect(screen.getByText("Tasks")).toBeInTheDocument();
+      expect(screen.getByText("Agent reports")).toBeInTheDocument();
     });
 
     const items = screen.getAllByRole("option");

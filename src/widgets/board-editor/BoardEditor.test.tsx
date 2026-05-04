@@ -168,7 +168,7 @@ describe("BoardEditor", () => {
     await waitFor(() => {
       expect(screen.getByTestId("board-editor-save-error")).toBeInTheDocument();
     });
-    expect(screen.getByText(/название не может быть пустым/i)).toBeInTheDocument();
+    expect(screen.getByText(/name cannot be empty/i)).toBeInTheDocument();
     // update_board should NOT have been called.
     const updateCall = invokeMock.mock.calls.find(([cmd]) => cmd === "update_board");
     expect(updateCall).toBeUndefined();
@@ -309,7 +309,7 @@ describe("BoardEditor", () => {
     await waitFor(() => {
       expect(screen.getByTestId("board-editor-save-error")).toBeInTheDocument();
     });
-    expect(screen.getByText(/не удалось сохранить/i)).toBeInTheDocument();
+    expect(screen.getByText(/failed to save:/i)).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 

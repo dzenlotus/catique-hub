@@ -72,7 +72,7 @@ describe("SettingsTokensView", () => {
     invokeMock.mockImplementation(() => new Promise(() => {}));
     renderWithClient(<SettingsTokensView />);
     expect(
-      screen.getByRole("heading", { name: /подсчёт токенов/i }),
+      screen.getByRole("heading", { name: /token counts/i }),
     ).toBeInTheDocument();
   });
 
@@ -85,7 +85,7 @@ describe("SettingsTokensView", () => {
       expect(screen.getByTestId("settings-tokens-view-error")).toBeInTheDocument();
     });
     expect(screen.getByText(/db error/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 
   // ── Empty state ────────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ describe("SettingsTokensView", () => {
     await waitFor(() => {
       expect(screen.getByTestId("settings-tokens-view-empty")).toBeInTheDocument();
     });
-    expect(screen.getByText(/промптов пока нет/i)).toBeInTheDocument();
+    expect(screen.getByText(/no prompts yet/i)).toBeInTheDocument();
   });
 
   // ── Loaded state ───────────────────────────────────────────────────────
@@ -237,7 +237,7 @@ describe("SettingsTokensView", () => {
     await waitFor(() => {
       expect(
         screen.getByTestId("settings-tokens-view-bulk-recount").textContent,
-      ).toMatch(/пересчитано/i);
+      ).toMatch(/recounted/i);
     });
   });
 

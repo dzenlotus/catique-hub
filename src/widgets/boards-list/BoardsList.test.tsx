@@ -137,7 +137,7 @@ describe("BoardsList", () => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
     expect(screen.getByText(/transport down/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 
   it("creates a board and invalidates the list cache (refetches)", async () => {

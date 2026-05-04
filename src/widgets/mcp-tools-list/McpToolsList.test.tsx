@@ -100,7 +100,7 @@ describe("McpToolsList", () => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
     expect(screen.getByText(/transport down/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 
   it("calls onSelectTool with the tool id when a card is activated", async () => {

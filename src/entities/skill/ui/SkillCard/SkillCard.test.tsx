@@ -48,17 +48,17 @@ describe("SkillCard", () => {
 
   it("always renders the skill badge", () => {
     render(<SkillCard skill={makeSkill()} />);
-    expect(screen.getByText("навык")).toBeInTheDocument();
+    expect(screen.getByText("skill")).toBeInTheDocument();
   });
 
   it("renders a color swatch when skill.color is set", () => {
     render(<SkillCard skill={makeSkill({ color: "#3b82f6" })} />);
-    expect(screen.getByLabelText("Цвет: #3b82f6")).toBeInTheDocument();
+    expect(screen.getByLabelText("Color: #3b82f6")).toBeInTheDocument();
   });
 
   it("does not render a color swatch when skill.color is null", () => {
     render(<SkillCard skill={makeSkill({ color: null })} />);
-    expect(screen.queryByLabelText(/цвет/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/color/i)).not.toBeInTheDocument();
   });
 
   it("uses a native <button> with implicit role=button (a11y)", () => {
