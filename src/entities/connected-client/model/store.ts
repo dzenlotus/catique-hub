@@ -10,6 +10,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
@@ -173,4 +174,51 @@ export function useSyncRolesToClientMutation(): UseMutationResult<
       });
     },
   });
+}
+
+/**
+ * `syncRolesToAllSupportingClients` — fire `sync_roles_to_client` for
+ * every persisted client where `enabled && supportsRoleSync` is true.
+ *
+ * Intended to be invoked from the role-mutation hooks
+ * (`useCreate/Update/DeleteRoleMutation`) so role lifecycle changes
+ * propagate to agent-managed files automatically. The function reads
+ * the live client list from the React Query cache (so callers don't
+ * need to feed it in), runs all syncs in parallel, and resolves once
+ * every per-client promise has settled. Per-client failures are
+ * swallowed here so one offline agent doesn't fail the whole batch —
+ * detailed error reporting is left to the manual "Sync roles" button
+ * on each `<ConnectedClientCard>`.
+ */
+export async function syncRolesToAllSupportingClients(
+  queryClient: QueryClient,
+): Promise<void> {
+  const cached = queryClient.getQueryData<ConnectedClient[]>(
+    connectedClientsKeys.list(),
+  );
+  // Fetch fresh if the cache is empty.
+  const clients: ConnectedClient[] =
+    cached ??
+    (await queryClient.fetchQuery({
+      queryKey: connectedClientsKeys.list(),
+      queryFn: listConnectedClients,
+    })) ??
+    [];
+
+  const targets = clients.filter((c) => c.enabled && c.supportsRoleSync);
+  if (targets.length === 0) return;
+
+  await Promise.allSettled(
+    targets.map(async (client) => {
+      try {
+        await syncRolesToClient(client.id);
+        queryClient.invalidateQueries({
+          queryKey: connectedClientsKeys.syncedRoles(client.id),
+        });
+      } catch {
+        // Silent: caller shows generic "saved" feedback; per-client
+        // errors are surfaced via the manual sync flow.
+      }
+    }),
+  );
 }

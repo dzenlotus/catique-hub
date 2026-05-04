@@ -140,9 +140,17 @@
 
 /* ── Footer ──────────────────────────────────────────────────────── */
 
-/* DialogFooter handles flex-pinning + border via shared Dialog styles. */
+/*
+ * DialogFooter handles flex-pinning + border. Keep flex-end alignment;
+ * the Delete button gets a margin-right: auto so it floats to the
+ * leading edge while Cancel/Save stay grouped on the trailing edge.
+ */
 .footer {
-  /* class kept for save-error layout sibling rule */
+  /* default: justify-content: flex-end (from shared Dialog.module.css) */
+}
+
+.deleteSpacer {
+  margin-right: auto;
 }
 
 .saveError {

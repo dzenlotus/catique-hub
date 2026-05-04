@@ -27,6 +27,7 @@ export {
   useWriteClientInstructionsMutation,
   useSyncedClientRoles,
   useSyncRolesToClientMutation,
+  syncRolesToAllSupportingClients,
 } from "./model";
 export type { ConnectedClient, WriteClientInstructionsArgs } from "./model";
 

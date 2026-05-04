@@ -7,7 +7,11 @@
  */
 
 import { useEffect, useState, type ReactElement } from "react";
-import { useRole, useUpdateRoleMutation } from "@entities/role";
+import {
+  useRole,
+  useUpdateRoleMutation,
+  useDeleteRoleMutation,
+} from "@entities/role";
 import { Dialog, DialogFooter, Button, Input, MarkdownField } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
@@ -63,6 +67,7 @@ function RoleEditorContent({
 }: RoleEditorContentProps): ReactElement {
   const query = useRole(roleId);
   const updateMutation = useUpdateRoleMutation();
+  const deleteMutation = useDeleteRoleMutation();
   const { pushToast } = useToast();
 
   // Local edit state — initialised from the loaded role.
@@ -230,6 +235,22 @@ function RoleEditorContent({
     onClose();
   };
 
+  const handleDelete = (): void => {
+    const ok = window.confirm(
+      `Delete role "${role.name}"? This will also remove the role from any connected agents that have it synced.`,
+    );
+    if (!ok) return;
+    deleteMutation.mutate(role.id, {
+      onSuccess: () => {
+        pushToast("success", "Role deleted");
+        onClose();
+      },
+      onError: (err) => {
+        pushToast("error", `Failed to delete role: ${err.message}`);
+      },
+    });
+  };
+
   return (
     <>
       {/* Name */}
@@ -289,6 +310,18 @@ function RoleEditorContent({
 
       {/* Footer */}
       <DialogFooter className={styles.footer}>
+        <span className={styles.deleteSpacer}>
+          <Button
+            variant="ghost"
+            size="md"
+            onPress={handleDelete}
+            isPending={deleteMutation.status === "pending"}
+            isDisabled={updateMutation.status === "pending"}
+            data-testid="role-editor-delete"
+          >
+            Delete
+          </Button>
+        </span>
         {saveError ? (
           <p
             className={styles.saveError}
@@ -302,6 +335,7 @@ function RoleEditorContent({
           variant="ghost"
           size="md"
           onPress={handleCancel}
+          isDisabled={deleteMutation.status === "pending"}
           data-testid="role-editor-cancel"
         >
           Cancel
@@ -310,6 +344,7 @@ function RoleEditorContent({
           variant="primary"
           size="md"
           isPending={updateMutation.status === "pending"}
+          isDisabled={deleteMutation.status === "pending"}
           onPress={handleSave}
           data-testid="role-editor-save"
         >
