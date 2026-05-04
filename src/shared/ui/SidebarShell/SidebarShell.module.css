@@ -167,9 +167,11 @@
   pointer-events: none;
 }
 
-/* Indented variant for nested rows (e.g. boards under a space). */
+/* Indented variant for nested rows (e.g. boards under a space, or
+ * settings TOC entries). 24 px via the design-system token so the
+ * gutter stays in sync with surrounding card spacing. */
 .navItemNested {
-  padding-left: 24px;
+  padding-left: var(--space-24);
 }
 
 .navItemNested .activeStrip {

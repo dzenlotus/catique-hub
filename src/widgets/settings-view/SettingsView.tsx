@@ -352,6 +352,7 @@ export function SettingsView(): ReactElement {
               <li key={section.id}>
                 <SidebarNavItem
                   isActive={isActive}
+                  level={1}
                   onClick={() => handleNavClick(section.id)}
                   testId={`settings-view-nav-${section.id}`}
                 >
