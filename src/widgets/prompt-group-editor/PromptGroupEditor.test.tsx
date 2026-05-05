@@ -119,9 +119,10 @@ describe("PromptGroupEditor", () => {
         ) as HTMLInputElement
       ).value,
     ).toBe("#ff0000");
+    // audit-#12: position field is no longer exposed in the form.
     expect(
-      screen.getByTestId("prompt-group-editor-position-input"),
-    ).toHaveValue("1");
+      screen.queryByTestId("prompt-group-editor-position-input"),
+    ).not.toBeInTheDocument();
   });
 
   it("name input is editable", async () => {

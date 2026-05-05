@@ -119,7 +119,8 @@ describe("ColumnEditor", () => {
     // Wait for loaded state.
     await screen.findByTestId("column-editor-name-input");
     expect(screen.getByTestId("column-editor-name-input")).toHaveValue("In Progress");
-    expect(screen.getByTestId("column-editor-position-input")).toHaveValue(2);
+    // audit-#12: position field is no longer exposed in the form.
+    expect(screen.queryByTestId("column-editor-position-input")).not.toBeInTheDocument();
     // Role listbox should be present.
     expect(screen.getByTestId("column-editor-role-select")).toBeInTheDocument();
     // "(no role)" option should appear (column has no role).

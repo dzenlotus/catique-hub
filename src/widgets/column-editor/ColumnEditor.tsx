@@ -1,10 +1,14 @@
 /**
- * ColumnEditor — modal for renaming a kanban column, setting its role,
- * and adjusting its position.
+ * ColumnEditor — modal for renaming a kanban column and setting its role.
  *
  * Props:
  *   - `columnId` — null → dialog closed; string → dialog open for that column.
  *   - `onClose`  — called on Cancel, successful Save, or Esc (via RAC).
+ *
+ * Audit-#12: the explicit `position` field was removed. Column ordering is
+ * driven by drag-reorder on the kanban; the entity still persists `position`
+ * server-side, but exposing it as a numeric form input was a vestigial
+ * escape hatch that confused users.
  */
 
 import { useEffect, useState, type ReactElement } from "react";
@@ -25,8 +29,7 @@ export interface ColumnEditorProps {
 }
 
 /**
- * `ColumnEditor` — modal for viewing and editing a column's name, role,
- * and position.
+ * `ColumnEditor` — modal for viewing and editing a column's name and role.
  *
  * Delegates open/close tracking to `columnId` — when null the `<Dialog>`
  * `isOpen` prop is false, so RAC handles exit animations and focus restoration.
@@ -77,7 +80,6 @@ function ColumnEditorContent({
   const [localName, setLocalName] = useState("");
   // "__none__" = no role selected, otherwise a role id string
   const [localRoleKey, setLocalRoleKey] = useState<string>(NO_ROLE_KEY);
-  const [localPosition, setLocalPosition] = useState<string>("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Sync local state when column data loads or columnId changes.
@@ -85,7 +87,6 @@ function ColumnEditorContent({
     if (query.data) {
       setLocalName(query.data.name);
       setLocalRoleKey(query.data.roleId ?? NO_ROLE_KEY);
-      setLocalPosition(String(query.data.position));
       setSaveError(null);
     }
   }, [query.data, columnId]);
@@ -201,14 +202,6 @@ function ColumnEditorContent({
       return;
     }
 
-    // Parse optional numeric position — empty string = skip.
-    const parsedPosition =
-      localPosition.trim() === "" ? undefined : Number(localPosition);
-    if (parsedPosition !== undefined && !Number.isFinite(parsedPosition)) {
-      setSaveError("Position must be a number.");
-      return;
-    }
-
     // Resolve the role selection: NO_ROLE_KEY → null (clear), id → string.
     const selectedRoleId: string | null =
       localRoleKey === NO_ROLE_KEY ? null : localRoleKey;
@@ -228,10 +221,6 @@ function ColumnEditorContent({
       mutationArgs.roleId = selectedRoleId;
     }
 
-    if (parsedPosition !== undefined && parsedPosition !== Number(column.position)) {
-      mutationArgs.position = parsedPosition;
-    }
-
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
         pushToast("success", "Column saved");
@@ -248,7 +237,6 @@ function ColumnEditorContent({
     // Reset local state back to column values before closing.
     setLocalName(column.name);
     setLocalRoleKey(column.roleId ?? NO_ROLE_KEY);
-    setLocalPosition(String(column.position));
     setSaveError(null);
     onClose();
   };
@@ -299,20 +287,6 @@ function ColumnEditorContent({
             ))}
           </Listbox>
         )}
-      </div>
-
-      {/* Position */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Position</p>
-        <input
-          type="number"
-          className={styles.numberInput}
-          value={localPosition}
-          onChange={(e) => setLocalPosition(e.target.value)}
-          placeholder="Optional"
-          aria-label="Position"
-          data-testid="column-editor-position-input"
-        />
       </div>
 
       {/* Footer */}

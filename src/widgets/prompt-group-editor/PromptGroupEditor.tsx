@@ -6,13 +6,17 @@
  *   - `onClose` — called on Cancel, successful Save, or Esc (via RAC).
  *
  * Sections:
- *   1. Metadata: name, color, position (saved via Save button).
+ *   1. Metadata: name, color (saved via Save button).
  *   2. Members: ordered prompt list with add/remove (immediate save on action).
  *
  * Member operations fire immediately without a Save gate — they use
  * useAddPromptGroupMemberMutation and useRemovePromptGroupMemberMutation
- * directly. Only the metadata fields (name/color/position) go through the
+ * directly. Only the metadata fields (name/color) go through the
  * Save/Cancel footer.
+ *
+ * Audit-#12: the explicit `position` field was removed. Group ordering is
+ * driven by drag-reorder in the prompts page; the entity still persists
+ * `position` server-side, but exposing a numeric input was vestigial.
  */
 
 import { useEffect, useState, useMemo, type ReactElement } from "react";
@@ -84,7 +88,6 @@ function PromptGroupEditorContent({
   // Local edit state — initialised from the loaded group.
   const [localName, setLocalName] = useState("");
   const [localColor, setLocalColor] = useState("");
-  const [localPosition, setLocalPosition] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Sync local state when group data loads or groupId changes.
@@ -92,7 +95,6 @@ function PromptGroupEditorContent({
     if (query.data) {
       setLocalName(query.data.name);
       setLocalColor(query.data.color ?? "");
-      setLocalPosition(query.data.position.toString());
       setSaveError(null);
     }
   }, [query.data, groupId]);
@@ -215,11 +217,6 @@ function PromptGroupEditorContent({
     if (resolvedColor !== group.color) {
       mutationArgs.color = resolvedColor;
     }
-    // Parse position only when changed.
-    const parsedPosition = BigInt(localPosition.trim() || "0");
-    if (parsedPosition !== group.position) {
-      mutationArgs.position = parsedPosition;
-    }
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
@@ -234,7 +231,6 @@ function PromptGroupEditorContent({
   const handleCancel = (): void => {
     setLocalName(group.name);
     setLocalColor(group.color ?? "");
-    setLocalPosition(group.position.toString());
     setSaveError(null);
     onClose();
   };
@@ -282,18 +278,6 @@ function PromptGroupEditorContent({
             </Button>
           )}
         </div>
-      </div>
-
-      {/* Position */}
-      <div className={styles.section}>
-        <Input
-          label="Position"
-          value={localPosition}
-          onChange={setLocalPosition}
-          placeholder="0"
-          className={styles.fullWidthInput}
-          data-testid="prompt-group-editor-position-input"
-        />
       </div>
 
       {/* Members */}
