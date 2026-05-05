@@ -147,17 +147,19 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                       console.info("[boards-list] select board:", id);
                     }}
                   />
-                  <button
-                    type="button"
-                    className={styles.editButton}
+                  {/* Audit-#22: shared `<Button variant="ghost">`
+                      replaces a raw `<button>` so all CTAs in this
+                      widget run through the design-system primitive. */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     aria-label="Edit board"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLocation(boardSettingsPath(board.id));
-                    }}
+                    className={styles.editButton}
+                    onPress={() => setLocation(boardSettingsPath(board.id))}
+                    data-testid={`boards-list-edit-${board.id}`}
                   >
                     <PixelInterfaceEssentialPencilEdit1 width={14} height={14} aria-hidden="true" />
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
