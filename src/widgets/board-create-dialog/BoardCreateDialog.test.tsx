@@ -134,7 +134,13 @@ describe("BoardCreateDialog", () => {
     expect(onCreated).toHaveBeenCalledWith(newBoard);
 
     const createCall = invokeMock.mock.calls.find(([cmd]) => cmd === "create_board");
-    expect(createCall?.[1]).toEqual({ name: "Спринт", spaceId: "spc-1" });
+    // Boards default to a neutral list glyph; the test asserts
+    // exactly what the dialog sends when the user only types a name.
+    expect(createCall?.[1]).toEqual({
+      name: "Спринт",
+      spaceId: "spc-1",
+      icon: "PixelInterfaceEssentialList",
+    });
   });
 
   it("closes on success without onCreated prop", async () => {

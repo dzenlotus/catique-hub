@@ -157,20 +157,8 @@ export function IconColorPicker({
               {filtered.length}
               {filtered.length >= MAX_VISIBLE ? "+" : ""} matches
             </span>
-            {value.icon !== null ? (
-              <button
-                type="button"
-                className={styles.iconClear}
-                onClick={() => setIcon(null)}
-                data-testid={
-                  testId !== undefined ? `${testId}-icon-clear` : undefined
-                }
-              >
-                Clear icon
-              </button>
-            ) : null}
           </div>
-          {filtered.length === 0 ? (
+          {filtered.length === 0 && query.trim().length > 0 ? (
             <div className={styles.empty}>No icons match “{query}”.</div>
           ) : (
             <div
@@ -179,6 +167,27 @@ export function IconColorPicker({
                 testId !== undefined ? `${testId}-grid` : undefined
               }
             >
+              {/* "None" cell — always rendered first so the user can pick
+                  "no icon" from the same surface as any other glyph. */}
+              <button
+                key="__none__"
+                type="button"
+                className={cn(
+                  styles.iconCell,
+                  styles.iconCellNone,
+                  value.icon === null && styles.iconCellActive,
+                )}
+                title="No icon"
+                aria-label="No icon"
+                onClick={() => setIcon(null)}
+                data-testid={
+                  testId !== undefined ? `${testId}-option-none` : undefined
+                }
+              >
+                <span className={styles.noneGlyph} aria-hidden="true">
+                  ∅
+                </span>
+              </button>
               {filtered.map((name) => (
                 <button
                   key={name}

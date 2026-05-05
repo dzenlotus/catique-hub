@@ -23,12 +23,6 @@
   min-width: 0;
 }
 
-.boardIcon {
-  flex: 0 0 auto;
-  align-self: center;
-  opacity: 0.75;
-}
-
 .boardHeading {
   flex: 0 0 auto;
   margin: 0;

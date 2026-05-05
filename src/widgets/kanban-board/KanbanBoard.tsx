@@ -11,7 +11,7 @@ import { useLocation } from "wouter";
 
 import { taskPath } from "@app/routes";
 import { useToast } from "@app/providers/ToastProvider";
-import { useBoard } from "@entities/board";
+import { useBoard, useUpdateBoardMutation } from "@entities/board";
 import type { Column } from "@entities/column";
 import {
   useColumns,
@@ -26,9 +26,8 @@ import {
   useMoveTaskMutation,
   useTasksByBoard,
 } from "@entities/task";
-import { Button, Scrollable } from "@shared/ui";
+import { Button, IconColorPicker, Scrollable } from "@shared/ui";
 import {
-  PixelCodingAppsWebsitesModule,
   PixelInterfaceEssentialSettingCog,
   PixelInterfaceEssentialPlus,
 } from "@shared/ui/Icon";
@@ -123,6 +122,7 @@ export function KanbanBoard({
   const moveTask = useMoveTaskMutation();
   const createTask = useCreateTaskMutation();
   const deleteTask = useDeleteTaskMutation();
+  const updateBoard = useUpdateBoardMutation();
   const taskSelection = useTaskSelection();
 
   const { pushToast } = useToast();
@@ -531,11 +531,21 @@ export function KanbanBoard({
     <div className={styles.root}>
       <header className={styles.boardHeader}>
         <div className={styles.boardTitle}>
-          <PixelCodingAppsWebsitesModule
-            width={20}
-            height={20}
-            aria-hidden="true"
-            className={styles.boardIcon}
+          <IconColorPicker
+            value={{
+              icon: boardQuery.data?.icon ?? null,
+              color: boardQuery.data?.color ?? null,
+            }}
+            onChange={(next) => {
+              if (boardQuery.data === undefined) return;
+              updateBoard.mutate({
+                id: boardQuery.data.id,
+                icon: next.icon,
+                color: next.color,
+              });
+            }}
+            ariaLabel="Board icon and color"
+            data-testid="kanban-board-appearance-picker"
           />
           <h1 className={styles.boardHeading}>
             {boardQuery.data?.name ?? boardId}

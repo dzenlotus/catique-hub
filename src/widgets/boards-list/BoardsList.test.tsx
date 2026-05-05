@@ -200,6 +200,7 @@ describe("BoardsList", () => {
     expect(createCall?.[1]).toEqual({
       name: "Sprint 14",
       spaceId: "spc-default",
+      icon: "PixelInterfaceEssentialList",
     });
 
     // The list should have been called at least twice (initial + after

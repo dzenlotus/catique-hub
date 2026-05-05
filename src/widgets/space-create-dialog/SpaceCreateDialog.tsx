@@ -38,8 +38,12 @@ export function SpaceCreateDialog({
   onCreated,
 }: SpaceCreateDialogProps): ReactElement {
   // Lifted icon/color so the dialog header picker drives the create
-  // payload (etalon: PromptCreateDialog / BoardCreateDialog).
-  const [icon, setIcon] = useState<string | null>(null);
+  // payload (etalon: PromptCreateDialog / BoardCreateDialog). Spaces
+  // are seeded with a neutral folder glyph so the sidebar entry has
+  // a baseline icon out of the box; the user can swap or clear it.
+  const [icon, setIcon] = useState<string | null>(
+    "PixelContentFilesFolderOpen",
+  );
   const [color, setColor] = useState<string>("");
 
   return (
@@ -59,7 +63,7 @@ export function SpaceCreateDialog({
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) {
-          setIcon(null);
+          setIcon("PixelContentFilesFolderOpen");
           setColor("");
           onClose();
         }
@@ -73,7 +77,7 @@ export function SpaceCreateDialog({
           icon={icon}
           color={color}
           onClose={() => {
-            setIcon(null);
+            setIcon("PixelContentFilesFolderOpen");
             setColor("");
             onClose();
           }}

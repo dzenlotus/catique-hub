@@ -46,8 +46,12 @@ export function BoardCreateDialog({
 }: BoardCreateDialogProps): ReactElement {
   const { activeSpaceId } = useActiveSpace();
   // Lifted icon/color so the dialog header picker drives the create
-  // payload directly (etalon: PromptCreateDialog).
-  const [icon, setIcon] = useState<string | null>(null);
+  // payload directly (etalon: PromptCreateDialog). Boards are seeded
+  // with a neutral list glyph so the sidebar/kanban-header entry has
+  // a baseline icon out of the box; the user can swap or clear it.
+  const [icon, setIcon] = useState<string | null>(
+    "PixelInterfaceEssentialList",
+  );
   const [color, setColor] = useState<string>("");
 
   return (
@@ -68,7 +72,7 @@ export function BoardCreateDialog({
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) {
-          setIcon(null);
+          setIcon("PixelInterfaceEssentialList");
           setColor("");
           onClose();
         }
@@ -81,7 +85,7 @@ export function BoardCreateDialog({
           icon={icon}
           color={color}
           onClose={() => {
-            setIcon(null);
+            setIcon("PixelInterfaceEssentialList");
             setColor("");
             onClose();
           }}
