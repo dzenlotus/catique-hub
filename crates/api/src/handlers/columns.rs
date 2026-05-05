@@ -76,6 +76,65 @@ pub async fn update_column(
     Ok(column)
 }
 
+/// IPC: atomically replace the full ordered prompt list for a column.
+/// ctq-108 / audit F-08 — bulk setter for MCP agents that prefer to
+/// publish the desired-state list rather than diffing add/remove
+/// pairs.
+///
+/// MCP description: "Replace every prompt currently attached to
+/// `column_id` with `prompt_ids` (in order). Pass an empty list to
+/// clear the attachment set. Atomic — partial failures roll back."
+///
+/// # Errors
+///
+/// Forwards every error from `ColumnsUseCase::set_column_prompts`.
+#[tauri::command]
+pub async fn set_column_prompts(
+    state: State<'_, AppState>,
+    column_id: String,
+    prompt_ids: Vec<String>,
+) -> Result<(), AppError> {
+    ColumnsUseCase::new(&state.pool).set_column_prompts(column_id.clone(), prompt_ids)?;
+    events::emit(
+        &state,
+        events::COLUMN_UPDATED,
+        json!({ "id": column_id }),
+    );
+    Ok(())
+}
+
+/// IPC: replace the full skill list for a column (ctq-120).
+///
+/// # Errors
+///
+/// Forwards every error from `ColumnsUseCase::set_skills`.
+#[tauri::command]
+pub async fn set_column_skills(
+    state: State<'_, AppState>,
+    column_id: String,
+    skill_ids: Vec<String>,
+) -> Result<(), AppError> {
+    ColumnsUseCase::new(&state.pool).set_skills(&column_id, &skill_ids)?;
+    events::emit(&state, events::COLUMN_UPDATED, json!({ "id": column_id }));
+    Ok(())
+}
+
+/// IPC: replace the full MCP-tool list for a column (ctq-120).
+///
+/// # Errors
+///
+/// Forwards every error from `ColumnsUseCase::set_mcp_tools`.
+#[tauri::command]
+pub async fn set_column_mcp_tools(
+    state: State<'_, AppState>,
+    column_id: String,
+    mcp_tool_ids: Vec<String>,
+) -> Result<(), AppError> {
+    ColumnsUseCase::new(&state.pool).set_mcp_tools(&column_id, &mcp_tool_ids)?;
+    events::emit(&state, events::COLUMN_UPDATED, json!({ "id": column_id }));
+    Ok(())
+}
+
 /// IPC: delete a column.
 ///
 /// # Errors

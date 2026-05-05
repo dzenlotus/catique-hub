@@ -202,3 +202,35 @@ pub async fn set_space_prompts(
     events::emit(&state, events::SPACE_UPDATED, json!({ "id": space_id }));
     Ok(())
 }
+
+/// IPC: replace the full skill list for a space (ctq-120).
+///
+/// # Errors
+///
+/// Forwards every error from `SpacesUseCase::set_skills`.
+#[tauri::command]
+pub async fn set_space_skills(
+    state: State<'_, AppState>,
+    space_id: String,
+    skill_ids: Vec<String>,
+) -> Result<(), AppError> {
+    SpacesUseCase::new(&state.pool).set_skills(&space_id, &skill_ids)?;
+    events::emit(&state, events::SPACE_UPDATED, json!({ "id": space_id }));
+    Ok(())
+}
+
+/// IPC: replace the full MCP-tool list for a space (ctq-120).
+///
+/// # Errors
+///
+/// Forwards every error from `SpacesUseCase::set_mcp_tools`.
+#[tauri::command]
+pub async fn set_space_mcp_tools(
+    state: State<'_, AppState>,
+    space_id: String,
+    mcp_tool_ids: Vec<String>,
+) -> Result<(), AppError> {
+    SpacesUseCase::new(&state.pool).set_mcp_tools(&space_id, &mcp_tool_ids)?;
+    events::emit(&state, events::SPACE_UPDATED, json!({ "id": space_id }));
+    Ok(())
+}

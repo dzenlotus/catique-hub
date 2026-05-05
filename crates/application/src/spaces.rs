@@ -12,6 +12,7 @@ use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::{
         boards::{self as boards_repo, BoardDraft},
+        inheritance::{self as inh, InheritanceScope},
         prompts::PromptRow,
         spaces::{self as repo, SpaceDraft, SpacePatch, SpaceRow},
         tasks::{
@@ -377,6 +378,37 @@ impl<'a> SpacesUseCase<'a> {
         }
         tx.commit().map_err(|e| map_db_err(e.into()))?;
         Ok(())
+    }
+
+    /// Replace the space's skill list with `skill_ids`. ctq-120.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn set_skills(&self, space_id: &str, skill_ids: &[String]) -> Result<(), AppError> {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        inh::set_skills(&mut conn, InheritanceScope::Space, space_id, skill_ids)
+            .map_err(map_db_err)
+    }
+
+    /// Replace the space's MCP-tool list. ctq-120.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn set_mcp_tools(
+        &self,
+        space_id: &str,
+        mcp_tool_ids: &[String],
+    ) -> Result<(), AppError> {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        inh::set_mcp_tools(
+            &mut conn,
+            InheritanceScope::Space,
+            space_id,
+            mcp_tool_ids,
+        )
+        .map_err(map_db_err)
     }
 }
 

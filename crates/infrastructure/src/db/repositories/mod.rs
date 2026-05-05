@@ -15,6 +15,7 @@ pub mod agent_reports;
 pub mod attachments;
 pub mod boards;
 pub mod columns;
+pub mod inheritance;
 pub mod mcp_servers;
 pub mod mcp_tools;
 pub mod prompt_groups;

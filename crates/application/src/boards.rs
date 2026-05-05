@@ -14,6 +14,8 @@ use catique_domain::Board;
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::boards::{self as repo, BoardDraft, BoardPatch, BoardRow},
+    repositories::inheritance::{self as inh, InheritanceScope},
+    repositories::tasks::{cascade_clear_scope, cascade_prompt_attachment, AttachScope},
 };
 
 use crate::{
@@ -257,6 +259,110 @@ impl<'a> BoardsUseCase<'a> {
                 id: id.to_owned(),
             }),
         }
+    }
+
+    /// Atomically replace the full ordered prompt list for a board.
+    /// Mirrors `SpacesUseCase::set_space_prompts` and the other ctq-108
+    /// bulk setters: single immediate transaction, FK violation rolls
+    /// everything back.
+    ///
+    /// ADR-0006: clears the join-table rows for `board_id`, wipes every
+    /// `task_prompts` row tagged with this scope's origin
+    /// (`board:<id>`), then re-INSERTs the new ordered list and
+    /// re-cascades each prompt onto every task in the board. Direct
+    /// attachments (`origin = 'direct'`) survive unchanged.
+    ///
+    /// `prompt_ids` may be empty: that clears the board's prompt
+    /// attachments in one round-trip.
+    ///
+    /// Position is INTEGER for `board_prompts` (per migration
+    /// `001_initial.sql:217`) — we assign `1..=N` so a follow-up DnD
+    /// reorder has clean slots to mid-point into.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::TransactionRolledBack` on FK violation (unknown
+    /// `board_id` or any prompt id).
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn set_board_prompts(
+        &self,
+        board_id: String,
+        prompt_ids: Vec<String>,
+    ) -> Result<(), AppError> {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+
+        tx.execute(
+            "DELETE FROM board_prompts WHERE board_id = ?1",
+            rusqlite::params![board_id],
+        )
+        .map_err(|e| map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e)))?;
+        let scope = AttachScope::Board(board_id.clone());
+        cascade_clear_scope(&tx, &scope).map_err(map_db_err)?;
+
+        for (idx, prompt_id) in prompt_ids.iter().enumerate() {
+            // Position column is INTEGER on `board_prompts`; the cast
+            // chain keeps the bound parameter type aligned with the
+            // column type. `try_from` first guards against the
+            // theoretical 32-bit-host edge case where `idx` could
+            // exceed `i64::MAX`; clamp via `unwrap_or` keeps the
+            // signature infallible without a panic path. `prompt_ids`
+            // comes from a single IPC payload so the actual length is
+            // bounded by Tauri's request budget — well below 2^63.
+            let position_i = i64::try_from(idx).unwrap_or(i64::MAX) + 1;
+            tx.execute(
+                "INSERT INTO board_prompts (board_id, prompt_id, position) \
+                 VALUES (?1, ?2, ?3)",
+                rusqlite::params![board_id, prompt_id, position_i],
+            )
+            .map_err(|e| map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e)))?;
+            #[allow(clippy::cast_precision_loss)]
+            let position_f = position_i as f64;
+            cascade_prompt_attachment(&tx, &scope, prompt_id, position_f).map_err(map_db_err)?;
+        }
+
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
+        Ok(())
+    }
+
+    /// Replace the board's skill list with `skill_ids`. Position in the
+    /// supplied slice becomes the row's `position` column. Empty input
+    /// clears the board.
+    ///
+    /// ctq-120.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors. FK violations on a missing skill
+    /// id roll the transaction back; the pre-call state survives.
+    pub fn set_skills(&self, board_id: &str, skill_ids: &[String]) -> Result<(), AppError> {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        inh::set_skills(&mut conn, InheritanceScope::Board, board_id, skill_ids)
+            .map_err(map_db_err)
+    }
+
+    /// Replace the board's MCP-tool list with `mcp_tool_ids`.
+    ///
+    /// ctq-120.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn set_mcp_tools(
+        &self,
+        board_id: &str,
+        mcp_tool_ids: &[String],
+    ) -> Result<(), AppError> {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        inh::set_mcp_tools(
+            &mut conn,
+            InheritanceScope::Board,
+            board_id,
+            mcp_tool_ids,
+        )
+        .map_err(map_db_err)
     }
 }
 
@@ -574,6 +680,53 @@ mod tests {
     // -----------------------------------------------------------------
 
     #[test]
+    fn set_board_owner_assigns_user_role_and_persists() {
+        // Happy path: assigning a non-system user role flips the
+        // owner_role_id, and a follow-up `get` reflects the new owner.
+        // Backs the ctq-101 IPC `set_board_owner` contract — the Tauri
+        // command itself is a thin wrapper, so the use-case test is the
+        // load-bearing contract.
+        let pool = fresh_pool_with_space("sp1", "abc");
+        let uc = BoardsUseCase::new(&pool);
+        let board = uc.create(args("B", "sp1")).unwrap();
+        assert_eq!(board.owner_role_id, "maintainer-system");
+
+        // Seed a user role to assign.
+        {
+            let conn = catique_infrastructure::db::pool::acquire(&pool).unwrap();
+            conn.execute(
+                "INSERT INTO roles (id, name, content, created_at, updated_at) \
+                 VALUES ('rl-owner','Owner','',0,0)",
+                [],
+            )
+            .unwrap();
+        }
+
+        let updated = uc.set_board_owner(&board.id, "rl-owner").unwrap();
+        assert_eq!(updated.owner_role_id, "rl-owner");
+
+        // Round-trip via get to confirm persistence.
+        let after = uc.get(&board.id).unwrap();
+        assert_eq!(after.owner_role_id, "rl-owner");
+    }
+
+    #[test]
+    fn set_board_owner_returns_not_found_for_missing_board() {
+        let pool = fresh_pool_with_space("sp1", "abc");
+        let uc = BoardsUseCase::new(&pool);
+        match uc
+            .set_board_owner("ghost", "maintainer-system")
+            .expect_err("nf")
+        {
+            AppError::NotFound { entity, id } => {
+                assert_eq!(entity, "board");
+                assert_eq!(id, "ghost");
+            }
+            other => panic!("expected NotFound, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn set_board_owner_rejects_dirizher() {
         // The board exists; the call must still be rejected up-front
         // before any DB write — Dirizher is the Pattern B coordinator
@@ -596,5 +749,136 @@ mod tests {
         // seeded `maintainer-system` default from migration 004.
         let after = uc.get(&board.id).unwrap();
         assert_eq!(after.owner_role_id, "maintainer-system");
+    }
+
+    // -----------------------------------------------------------------
+    // ctq-108 — set_board_prompts bulk setter.
+    // -----------------------------------------------------------------
+
+    /// Seeds three prompts and one task on the board so the cascade
+    /// helper has a target row to materialise into.
+    fn seed_board_prompts_fixture() -> (Pool, String) {
+        let pool = fresh_pool_with_space("sp1", "abc");
+        let board = BoardsUseCase::new(&pool).create(args("B", "sp1")).unwrap();
+        {
+            let conn = acquire(&pool).unwrap();
+            conn.execute_batch(
+                "INSERT INTO prompts (id, name, content, created_at, updated_at) VALUES \
+                     ('p1','P1','',0,0), \
+                     ('p2','P2','',0,0), \
+                     ('p3','P3','',0,0);",
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO columns (id, board_id, name, position, created_at) \
+                 VALUES ('c1',?1,'C',0,0)",
+                rusqlite::params![board.id],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES ('t1',?1,'c1','sp-1','T',0,0,0)",
+                rusqlite::params![board.id],
+            )
+            .unwrap();
+        }
+        (pool, board.id)
+    }
+
+    #[test]
+    fn set_board_prompts_replaces_ordering_and_cascades() {
+        let (pool, board_id) = seed_board_prompts_fixture();
+        let uc = BoardsUseCase::new(&pool);
+
+        uc.set_board_prompts(board_id.clone(), vec!["p1".into(), "p2".into()])
+            .unwrap();
+        uc.set_board_prompts(board_id.clone(), vec!["p3".into(), "p1".into()])
+            .unwrap();
+
+        let conn = acquire(&pool).unwrap();
+        let ordered: Vec<String> = conn
+            .prepare(
+                "SELECT prompt_id FROM board_prompts \
+                 WHERE board_id = ?1 ORDER BY position ASC",
+            )
+            .unwrap()
+            .query_map(rusqlite::params![board_id], |r| r.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(ordered, vec!["p3".to_string(), "p1".to_string()]);
+
+        let mat: Vec<String> = conn
+            .prepare(
+                "SELECT prompt_id FROM task_prompts \
+                 WHERE task_id = 't1' AND origin = ?1 ORDER BY prompt_id",
+            )
+            .unwrap()
+            .query_map(rusqlite::params![format!("board:{board_id}")], |r| {
+                r.get::<_, String>(0)
+            })
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(mat, vec!["p1".to_string(), "p3".to_string()]);
+    }
+
+    #[test]
+    fn set_board_prompts_with_empty_clears_all() {
+        let (pool, board_id) = seed_board_prompts_fixture();
+        let uc = BoardsUseCase::new(&pool);
+        uc.set_board_prompts(board_id.clone(), vec!["p1".into(), "p2".into()])
+            .unwrap();
+        uc.set_board_prompts(board_id.clone(), Vec::new()).unwrap();
+
+        let conn = acquire(&pool).unwrap();
+        let join_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM board_prompts WHERE board_id = ?1",
+                rusqlite::params![board_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(join_count, 0);
+        let mat_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_prompts WHERE origin = ?1",
+                rusqlite::params![format!("board:{board_id}")],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(mat_count, 0);
+    }
+
+    #[test]
+    fn set_board_prompts_atomic_on_fk_error() {
+        let (pool, board_id) = seed_board_prompts_fixture();
+        let uc = BoardsUseCase::new(&pool);
+        uc.set_board_prompts(board_id.clone(), vec!["p1".into()])
+            .unwrap();
+
+        let err = uc
+            .set_board_prompts(
+                board_id.clone(),
+                vec!["p2".into(), "ghost".into(), "p3".into()],
+            )
+            .expect_err("FK violation");
+        match err {
+            AppError::TransactionRolledBack { .. } => {}
+            other => panic!("expected TransactionRolledBack, got {other:?}"),
+        }
+
+        let conn = acquire(&pool).unwrap();
+        let ids: Vec<String> = conn
+            .prepare(
+                "SELECT prompt_id FROM board_prompts \
+                 WHERE board_id = ?1 ORDER BY position ASC",
+            )
+            .unwrap()
+            .query_map(rusqlite::params![board_id], |r| r.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(ids, vec!["p1".to_string()]);
     }
 }

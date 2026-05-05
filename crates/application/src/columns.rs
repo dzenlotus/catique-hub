@@ -8,6 +8,8 @@ use catique_domain::Column;
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::columns::{self as repo, ColumnDraft, ColumnPatch, ColumnRow},
+    repositories::inheritance::{self as inh, InheritanceScope},
+    repositories::tasks::{cascade_clear_scope, cascade_prompt_attachment, AttachScope},
 };
 
 use crate::{
@@ -136,6 +138,90 @@ impl<'a> ColumnsUseCase<'a> {
             })
         }
     }
+
+    /// Atomically replace the full ordered prompt list for a column.
+    /// ADR-0006 / ctq-108. Mirrors `BoardsUseCase::set_board_prompts`
+    /// — single immediate transaction wraps the join-table replace
+    /// plus the resolver-side cascade.
+    ///
+    /// `prompt_ids` may be empty: clears the column's prompts in one
+    /// round-trip. Position column is INTEGER on `column_prompts`
+    /// (migration `001_initial.sql:224`).
+    ///
+    /// # Errors
+    ///
+    /// `AppError::TransactionRolledBack` on FK violation.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn set_column_prompts(
+        &self,
+        column_id: String,
+        prompt_ids: Vec<String>,
+    ) -> Result<(), AppError> {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+
+        tx.execute(
+            "DELETE FROM column_prompts WHERE column_id = ?1",
+            rusqlite::params![column_id],
+        )
+        .map_err(|e| map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e)))?;
+        let scope = AttachScope::Column(column_id.clone());
+        cascade_clear_scope(&tx, &scope).map_err(map_db_err)?;
+
+        for (idx, prompt_id) in prompt_ids.iter().enumerate() {
+            // `try_from` guards against the theoretical 32-bit-host
+            // edge case where `idx` could exceed `i64::MAX`; clamp via
+            // `unwrap_or` keeps the signature infallible without a
+            // panic path. Mirrors the cast strategy in
+            // `BoardsUseCase::set_board_prompts`.
+            let position_i = i64::try_from(idx).unwrap_or(i64::MAX) + 1;
+            tx.execute(
+                "INSERT INTO column_prompts (column_id, prompt_id, position) \
+                 VALUES (?1, ?2, ?3)",
+                rusqlite::params![column_id, prompt_id, position_i],
+            )
+            .map_err(|e| map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e)))?;
+            #[allow(clippy::cast_precision_loss)]
+            let position_f = position_i as f64;
+            cascade_prompt_attachment(&tx, &scope, prompt_id, position_f).map_err(map_db_err)?;
+        }
+
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
+        Ok(())
+    }
+
+    /// Replace the column's skill list with `skill_ids`. ctq-120.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn set_skills(&self, column_id: &str, skill_ids: &[String]) -> Result<(), AppError> {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        inh::set_skills(&mut conn, InheritanceScope::Column, column_id, skill_ids)
+            .map_err(map_db_err)
+    }
+
+    /// Replace the column's MCP-tool list. ctq-120.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn set_mcp_tools(
+        &self,
+        column_id: &str,
+        mcp_tool_ids: &[String],
+    ) -> Result<(), AppError> {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        inh::set_mcp_tools(
+            &mut conn,
+            InheritanceScope::Column,
+            column_id,
+            mcp_tool_ids,
+        )
+        .map_err(map_db_err)
+    }
 }
 
 fn row_to_column(row: ColumnRow) -> Column {
@@ -214,5 +300,132 @@ mod tests {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "column"),
             other => panic!("got {other:?}"),
         }
+    }
+
+    // -----------------------------------------------------------------
+    // ctq-108 — set_column_prompts bulk setter.
+    // -----------------------------------------------------------------
+
+    /// Seeds three prompts and one task in a column on the existing
+    /// `bd1` board so the cascade has a target row to materialise into.
+    fn seed_column_prompts_fixture() -> (Pool, String) {
+        let pool = fresh_pool_with_board();
+        let column = ColumnsUseCase::new(&pool)
+            .create("bd1".into(), "Todo".into(), 1)
+            .unwrap();
+        {
+            let conn = catique_infrastructure::db::pool::acquire(&pool).unwrap();
+            conn.execute_batch(
+                "INSERT INTO prompts (id, name, content, created_at, updated_at) VALUES \
+                     ('p1','P1','',0,0), \
+                     ('p2','P2','',0,0), \
+                     ('p3','P3','',0,0);",
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES ('t1','bd1',?1,'sp-1','T',0,0,0)",
+                rusqlite::params![column.id],
+            )
+            .unwrap();
+        }
+        (pool, column.id)
+    }
+
+    #[test]
+    fn set_column_prompts_replaces_ordering_and_cascades() {
+        let (pool, column_id) = seed_column_prompts_fixture();
+        let uc = ColumnsUseCase::new(&pool);
+
+        uc.set_column_prompts(column_id.clone(), vec!["p1".into(), "p2".into()])
+            .unwrap();
+        uc.set_column_prompts(column_id.clone(), vec!["p3".into(), "p1".into()])
+            .unwrap();
+
+        let conn = catique_infrastructure::db::pool::acquire(&pool).unwrap();
+        let ordered: Vec<String> = conn
+            .prepare(
+                "SELECT prompt_id FROM column_prompts \
+                 WHERE column_id = ?1 ORDER BY position ASC",
+            )
+            .unwrap()
+            .query_map(rusqlite::params![column_id], |r| r.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(ordered, vec!["p3".to_string(), "p1".to_string()]);
+
+        let mat: Vec<String> = conn
+            .prepare(
+                "SELECT prompt_id FROM task_prompts \
+                 WHERE task_id = 't1' AND origin = ?1 ORDER BY prompt_id",
+            )
+            .unwrap()
+            .query_map(rusqlite::params![format!("column:{column_id}")], |r| {
+                r.get::<_, String>(0)
+            })
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(mat, vec!["p1".to_string(), "p3".to_string()]);
+    }
+
+    #[test]
+    fn set_column_prompts_with_empty_clears_all() {
+        let (pool, column_id) = seed_column_prompts_fixture();
+        let uc = ColumnsUseCase::new(&pool);
+        uc.set_column_prompts(column_id.clone(), vec!["p1".into(), "p2".into()])
+            .unwrap();
+        uc.set_column_prompts(column_id.clone(), Vec::new()).unwrap();
+
+        let conn = catique_infrastructure::db::pool::acquire(&pool).unwrap();
+        let join_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM column_prompts WHERE column_id = ?1",
+                rusqlite::params![column_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(join_count, 0);
+        let mat_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_prompts WHERE origin = ?1",
+                rusqlite::params![format!("column:{column_id}")],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(mat_count, 0);
+    }
+
+    #[test]
+    fn set_column_prompts_atomic_on_fk_error() {
+        let (pool, column_id) = seed_column_prompts_fixture();
+        let uc = ColumnsUseCase::new(&pool);
+        uc.set_column_prompts(column_id.clone(), vec!["p1".into()])
+            .unwrap();
+
+        let err = uc
+            .set_column_prompts(
+                column_id.clone(),
+                vec!["p2".into(), "ghost".into(), "p3".into()],
+            )
+            .expect_err("FK violation");
+        match err {
+            AppError::TransactionRolledBack { .. } => {}
+            other => panic!("expected TransactionRolledBack, got {other:?}"),
+        }
+
+        let conn = catique_infrastructure::db::pool::acquire(&pool).unwrap();
+        let ids: Vec<String> = conn
+            .prepare(
+                "SELECT prompt_id FROM column_prompts \
+                 WHERE column_id = ?1 ORDER BY position ASC",
+            )
+            .unwrap()
+            .query_map(rusqlite::params![column_id], |r| r.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(ids, vec!["p1".to_string()]);
     }
 }
