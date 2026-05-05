@@ -136,6 +136,69 @@ impl<'a> SkillsUseCase<'a> {
             })
         }
     }
+
+    /// List every skill attached to a role (cat), ordered by the
+    /// `role_skills.position` column. Returns an empty `Vec` for roles
+    /// with no attached skills — no `NotFound`, since the role-detail
+    /// view legitimately renders an empty section.
+    ///
+    /// ctq-117.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn list_for_role(&self, role_id: &str) -> Result<Vec<Skill>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let rows = repo::list_for_role(&conn, role_id).map_err(map_db_err)?;
+        Ok(rows.into_iter().map(row_to_skill).collect())
+    }
+
+    /// List every skill attached to a task, ordered by
+    /// `task_skills.position`. Includes both direct and inherited rows.
+    ///
+    /// ctq-117.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn list_for_task(&self, task_id: &str) -> Result<Vec<Skill>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let rows = repo::list_for_task(&conn, task_id).map_err(map_db_err)?;
+        Ok(rows.into_iter().map(row_to_skill).collect())
+    }
+
+    /// Attach a skill directly to a task. Idempotent: re-adding the
+    /// same skill is a no-op (does not bump position, does not error).
+    ///
+    /// ctq-127.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::TransactionRolledBack` on FK violation.
+    pub fn add_to_task(
+        &self,
+        task_id: &str,
+        skill_id: &str,
+        position: f64,
+    ) -> Result<(), AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        repo::add_task_skill(&conn, task_id, skill_id, position).map_err(map_db_err)
+    }
+
+    /// Detach a direct skill from a task. Returns `Ok(())` for idempotent
+    /// removes (no row matched is **not** an error — matches role/skill
+    /// detach semantics in the broader brief).
+    ///
+    /// ctq-127.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn remove_from_task(&self, task_id: &str, skill_id: &str) -> Result<(), AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let _ = repo::remove_task_skill(&conn, task_id, skill_id).map_err(map_db_err)?;
+        Ok(())
+    }
 }
 
 fn row_to_skill(row: SkillRow) -> Skill {
@@ -232,5 +295,97 @@ mod tests {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "skill"),
             other => panic!("got {other:?}"),
         }
+    }
+
+    /// ctq-117: list_for_role on a role with no attached skills returns
+    /// `Ok(empty_vec)` — the role-detail view legitimately renders an
+    /// empty section rather than surfacing NotFound.
+    #[test]
+    fn list_for_role_empty_role_returns_empty_vec() {
+        let pool = fresh_pool();
+        let conn = pool.get().unwrap();
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) \
+             VALUES ('r1','R1','',0,0)",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+        let uc = SkillsUseCase::new(&pool);
+        let list = uc.list_for_role("r1").unwrap();
+        assert!(list.is_empty());
+    }
+
+    /// ctq-117: a populated role exposes its skills in `role_skills`
+    /// position order via the use-case path.
+    #[test]
+    fn list_for_role_returns_attached_skills_in_position_order() {
+        let pool = fresh_pool();
+        let conn = pool.get().unwrap();
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) \
+             VALUES ('r1','R1','',0,0)",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+        let uc = SkillsUseCase::new(&pool);
+        let s1 = uc.create("Alpha".into(), None, None, 0.0).unwrap();
+        let s2 = uc.create("Bravo".into(), None, None, 0.0).unwrap();
+        // Wire join rows through a fresh conn so position is explicit.
+        let conn = pool.get().unwrap();
+        conn.execute(
+            "INSERT INTO role_skills (role_id, skill_id, position) VALUES ('r1', ?1, 5.0)",
+            rusqlite::params![s1.id],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO role_skills (role_id, skill_id, position) VALUES ('r1', ?1, 1.0)",
+            rusqlite::params![s2.id],
+        )
+        .unwrap();
+        drop(conn);
+        let list = uc.list_for_role("r1").unwrap();
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[0].name, "Bravo");
+        assert_eq!(list[1].name, "Alpha");
+    }
+
+    /// ctq-127: re-adding the same skill is idempotent — count stays at
+    /// one, position is **not** bumped.
+    #[test]
+    fn add_to_task_idempotent() {
+        let pool = fresh_pool();
+        let conn = pool.get().unwrap();
+        conn.execute_batch(
+            "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
+                 VALUES ('sp','Space','sp',0,0,0,0); \
+             INSERT INTO boards (id, name, space_id, position, created_at, updated_at) \
+                 VALUES ('bd','B','sp',0,0,0); \
+             INSERT INTO columns (id, board_id, name, position, created_at) \
+                 VALUES ('co','bd','C',0,0); \
+             INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES ('t1','bd','co','sp-1','T',0,0,0);",
+        )
+        .unwrap();
+        drop(conn);
+        let uc = SkillsUseCase::new(&pool);
+        let s = uc.create("Rust".into(), None, None, 0.0).unwrap();
+        uc.add_to_task("t1", &s.id, 1.0).unwrap();
+        uc.add_to_task("t1", &s.id, 999.0).unwrap();
+        let list = uc.list_for_task("t1").unwrap();
+        assert_eq!(list.len(), 1);
+    }
+
+    /// ctq-127: removing a skill that was never attached succeeds
+    /// silently (idempotent contract — frontend can call remove without
+    /// guarding on prior state).
+    #[test]
+    fn remove_from_task_missing_is_ok() {
+        let pool = fresh_pool();
+        let uc = SkillsUseCase::new(&pool);
+        // ghost → ghost: returns Ok(()), not NotFound — matches the
+        // "remove non-existent" line item in ctq-127.
+        uc.remove_from_task("ghost-task", "ghost-skill").unwrap();
     }
 }

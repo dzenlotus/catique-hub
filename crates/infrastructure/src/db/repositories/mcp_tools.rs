@@ -196,6 +196,97 @@ pub fn delete(conn: &Connection, id: &str) -> Result<bool, DbError> {
     Ok(n > 0)
 }
 
+/// List every MCP tool attached to `role_id`, ordered by
+/// `role_mcp_tools.position ASC`.
+///
+/// ctq-117.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn list_for_role(conn: &Connection, role_id: &str) -> Result<Vec<McpToolRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT m.id, m.name, m.description, m.schema_json, m.color, m.position, m.created_at, m.updated_at \
+         FROM role_mcp_tools rm \
+         JOIN mcp_tools m ON m.id = rm.mcp_tool_id \
+         WHERE rm.role_id = ?1 \
+         ORDER BY rm.position ASC, m.name ASC",
+    )?;
+    let rows = stmt.query_map(params![role_id], McpToolRow::from_row)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// List every MCP tool attached to `task_id`, ordered by
+/// `task_mcp_tools.position ASC`.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn list_for_task(conn: &Connection, task_id: &str) -> Result<Vec<McpToolRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT m.id, m.name, m.description, m.schema_json, m.color, m.position, m.created_at, m.updated_at \
+         FROM task_mcp_tools tm \
+         JOIN mcp_tools m ON m.id = tm.mcp_tool_id \
+         WHERE tm.task_id = ?1 \
+         ORDER BY tm.position ASC, m.name ASC",
+    )?;
+    let rows = stmt.query_map(params![task_id], McpToolRow::from_row)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// Attach an MCP tool directly to a task (origin = 'direct'). Idempotent
+/// on `(task_id, mcp_tool_id)`: re-insert silently no-ops via
+/// INSERT OR IGNORE.
+///
+/// ctq-127.
+///
+/// # Errors
+///
+/// FK violation surfaces as [`DbError::Sqlite`].
+pub fn add_task_mcp_tool(
+    conn: &Connection,
+    task_id: &str,
+    mcp_tool_id: &str,
+    position: f64,
+) -> Result<(), DbError> {
+    conn.execute(
+        "INSERT INTO task_mcp_tools (task_id, mcp_tool_id, origin, position) \
+         VALUES (?1, ?2, 'direct', ?3) \
+         ON CONFLICT(task_id, mcp_tool_id) DO NOTHING",
+        params![task_id, mcp_tool_id, position],
+    )?;
+    Ok(())
+}
+
+/// Detach a direct MCP tool from a task. Inherited rows (origin
+/// `role:…`, `board:…`, `column:…`) are not touched. Returns `true` if
+/// a row was removed.
+///
+/// ctq-127.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn remove_task_mcp_tool(
+    conn: &Connection,
+    task_id: &str,
+    mcp_tool_id: &str,
+) -> Result<bool, DbError> {
+    let n = conn.execute(
+        "DELETE FROM task_mcp_tools WHERE task_id = ?1 AND mcp_tool_id = ?2 AND origin = 'direct'",
+        params![task_id, mcp_tool_id],
+    )?;
+    Ok(n > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -341,5 +432,46 @@ mod tests {
             }
             other => panic!("got {other:?}"),
         }
+    }
+
+    /// ctq-127: add_task_mcp_tool is idempotent on
+    /// `(task_id, mcp_tool_id)`.
+    #[test]
+    fn add_task_mcp_tool_idempotent() {
+        let conn = fresh_db();
+        conn.execute_batch(
+            "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
+                 VALUES ('sp','Space','sp',0,0,0,0); \
+             INSERT INTO boards (id, name, space_id, position, created_at, updated_at) \
+                 VALUES ('bd','B','sp',0,0,0); \
+             INSERT INTO columns (id, board_id, name, position, created_at) \
+                 VALUES ('co','bd','C',0,0); \
+             INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES ('t1','bd','co','sp-1','T',0,0,0);",
+        )
+        .unwrap();
+        let m = insert(
+            &conn,
+            &McpToolDraft {
+                name: "bash".into(),
+                description: None,
+                schema_json: "{}".into(),
+                color: None,
+                position: 0.0,
+            },
+        )
+        .unwrap();
+        add_task_mcp_tool(&conn, "t1", &m.id, 1.0).unwrap();
+        add_task_mcp_tool(&conn, "t1", &m.id, 999.0).unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_mcp_tools WHERE task_id = 't1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+        assert!(remove_task_mcp_tool(&conn, "t1", &m.id).unwrap());
+        assert!(!remove_task_mcp_tool(&conn, "t1", &m.id).unwrap());
     }
 }

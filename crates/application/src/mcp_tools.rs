@@ -146,6 +146,65 @@ impl<'a> McpToolsUseCase<'a> {
             })
         }
     }
+
+    /// List every MCP tool attached to a role, ordered by
+    /// `role_mcp_tools.position`.
+    ///
+    /// ctq-117.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn list_for_role(&self, role_id: &str) -> Result<Vec<McpTool>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let rows = repo::list_for_role(&conn, role_id).map_err(map_db_err)?;
+        Ok(rows.into_iter().map(row_to_mcp_tool).collect())
+    }
+
+    /// List every MCP tool attached to a task, ordered by
+    /// `task_mcp_tools.position`.
+    ///
+    /// ctq-117.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn list_for_task(&self, task_id: &str) -> Result<Vec<McpTool>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let rows = repo::list_for_task(&conn, task_id).map_err(map_db_err)?;
+        Ok(rows.into_iter().map(row_to_mcp_tool).collect())
+    }
+
+    /// Attach an MCP tool directly to a task. Idempotent.
+    ///
+    /// ctq-127.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::TransactionRolledBack` on FK violation.
+    pub fn add_to_task(
+        &self,
+        task_id: &str,
+        mcp_tool_id: &str,
+        position: f64,
+    ) -> Result<(), AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        repo::add_task_mcp_tool(&conn, task_id, mcp_tool_id, position).map_err(map_db_err)
+    }
+
+    /// Detach a direct MCP tool from a task. Idempotent — no row matched
+    /// is not an error.
+    ///
+    /// ctq-127.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn remove_from_task(&self, task_id: &str, mcp_tool_id: &str) -> Result<(), AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let _ = repo::remove_task_mcp_tool(&conn, task_id, mcp_tool_id).map_err(map_db_err)?;
+        Ok(())
+    }
 }
 
 /// Validate that `s` is parseable JSON. Returns `AppError::Validation`
@@ -281,5 +340,35 @@ mod tests {
             AppError::Validation { field, .. } => assert_eq!(field, "schema_json"),
             other => panic!("got {other:?}"),
         }
+    }
+
+    /// ctq-127: idempotent re-add and idempotent remove of a missing row.
+    #[test]
+    fn add_and_remove_to_task_idempotent() {
+        let pool = fresh_pool();
+        let conn = pool.get().unwrap();
+        conn.execute_batch(
+            "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
+                 VALUES ('sp','Space','sp',0,0,0,0); \
+             INSERT INTO boards (id, name, space_id, position, created_at, updated_at) \
+                 VALUES ('bd','B','sp',0,0,0); \
+             INSERT INTO columns (id, board_id, name, position, created_at) \
+                 VALUES ('co','bd','C',0,0); \
+             INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES ('t1','bd','co','sp-1','T',0,0,0);",
+        )
+        .unwrap();
+        drop(conn);
+        let uc = McpToolsUseCase::new(&pool);
+        let m = uc
+            .create("bash".into(), None, "{}".into(), None, 0.0)
+            .unwrap();
+        uc.add_to_task("t1", &m.id, 1.0).unwrap();
+        uc.add_to_task("t1", &m.id, 999.0).unwrap();
+        let list = uc.list_for_task("t1").unwrap();
+        assert_eq!(list.len(), 1);
+        // Remove twice — second call must succeed silently.
+        uc.remove_from_task("t1", &m.id).unwrap();
+        uc.remove_from_task("t1", &m.id).unwrap();
     }
 }
