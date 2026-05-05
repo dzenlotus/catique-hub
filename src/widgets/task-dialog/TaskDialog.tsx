@@ -231,9 +231,28 @@ function AttachmentsSection({ taskId }: AttachmentsSectionProps): ReactElement {
 
   const handleUpload = (): void => {
     void (async () => {
+      // Tauri v2's `dialog` plugin does NOT treat `["*"]` as a wildcard:
+      // the picker filters by the literal extension `*` and ends up
+      // showing nothing selectable on macOS (audit F-13). Use an
+      // explicit set of doc/image attachment extensions — Tauri keeps
+      // the "All files" affordance available via the picker UI.
       const result = await open({
         multiple: false,
-        filters: [{ name: "Any file", extensions: ["*"] }],
+        filters: [
+          {
+            name: "Documents",
+            extensions: [
+              "md",
+              "png",
+              "jpg",
+              "jpeg",
+              "gif",
+              "webp",
+              "svg",
+              "pdf",
+            ],
+          },
+        ],
       });
       if (result === null) return;
       const sourcePath = typeof result === "string" ? result : result[0];

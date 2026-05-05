@@ -779,6 +779,32 @@ describe("TaskDialog", () => {
 
   // ── Upload flow ──────────────────────────────────────────────────
 
+  it("upload button: file picker filter does not use the literal '*' extension (audit F-13)", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(defaultInvokeHandler(task));
+    dialogOpenMock.mockResolvedValue(null);
+
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    const uploadBtn = await screen.findByTestId("task-dialog-upload-btn");
+    await user.click(uploadBtn);
+
+    expect(dialogOpenMock).toHaveBeenCalledOnce();
+    const callArgs = dialogOpenMock.mock.calls[0]?.[0] as
+      | { filters?: Array<{ extensions: string[] }> }
+      | undefined;
+    // Either no filters at all (default = all files) or a real list —
+    // never `["*"]` which Tauri v2's dialog plugin treats as a literal
+    // extension and hides every file from the picker.
+    if (callArgs?.filters !== undefined) {
+      for (const filter of callArgs.filters) {
+        expect(filter.extensions).not.toContain("*");
+        expect(filter.extensions.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it("upload button calls dialog open and then upload_attachment IPC on success", async () => {
     const task = makeTask();
     const newAttachment = {
