@@ -34,15 +34,67 @@ impl<'a> AttachmentsUseCase<'a> {
         Self { pool }
     }
 
-    /// List every attachment metadata row (newest first).
+    /// List attachment metadata rows (newest first).
+    ///
+    /// `task_id` is an optional filter. When `None`, every row is
+    /// returned — preserving legacy callers' behaviour. When `Some`, the
+    /// filter `task_id = ?1` is applied at the SQL layer using the
+    /// `idx_task_attachments_task` index. The repository's `list_all`
+    /// is reused for the unfiltered branch; the filtered query is
+    /// issued in-place here so the repository crate stays untouched
+    /// (per ctq-92 minimal-change rule).
     ///
     /// # Errors
     ///
     /// Forwards storage-layer errors.
-    pub fn list(&self) -> Result<Vec<Attachment>, AppError> {
+    pub fn list(&self, task_id: Option<String>) -> Result<Vec<Attachment>, AppError> {
         let conn = acquire(self.pool).map_err(map_db_err)?;
-        let rows = repo::list_all(&conn).map_err(map_db_err)?;
-        Ok(rows.into_iter().map(row_to_attachment).collect())
+        match task_id {
+            None => {
+                let rows = repo::list_all(&conn).map_err(map_db_err)?;
+                Ok(rows.into_iter().map(row_to_attachment).collect())
+            }
+            Some(tid) => {
+                // SQL: `WHERE (?1 IS NULL OR task_id = ?1)` per spec.
+                // Branch on `Option` outside the query: the `Some` arm
+                // is the indexed path; the `None` arm reuses the
+                // repository helper. Same end result either way.
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT id, task_id, filename, mime_type, size_bytes, \
+                                storage_path, uploaded_at, uploaded_by \
+                         FROM task_attachments \
+                         WHERE (?1 IS NULL OR task_id = ?1) \
+                         ORDER BY uploaded_at DESC",
+                    )
+                    .map_err(|e| {
+                        map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e))
+                    })?;
+                let rows = stmt
+                    .query_map(params![tid], |row| {
+                        Ok(AttachmentRow {
+                            id: row.get("id")?,
+                            task_id: row.get("task_id")?,
+                            filename: row.get("filename")?,
+                            mime_type: row.get("mime_type")?,
+                            size_bytes: row.get("size_bytes")?,
+                            storage_path: row.get("storage_path")?,
+                            uploaded_at: row.get("uploaded_at")?,
+                            uploaded_by: row.get("uploaded_by")?,
+                        })
+                    })
+                    .map_err(|e| {
+                        map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e))
+                    })?;
+                let mut out = Vec::new();
+                for r in rows {
+                    out.push(row_to_attachment(r.map_err(|e| {
+                        map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e))
+                    })?));
+                }
+                Ok(out)
+            }
+        }
     }
 
     /// Look up an attachment by id.
@@ -268,12 +320,66 @@ mod tests {
                 None,
             )
             .unwrap();
-        assert_eq!(uc.list().unwrap().len(), 1);
+        assert_eq!(uc.list(None).unwrap().len(), 1);
         uc.delete(&a.id).unwrap();
         match uc.delete(&a.id).expect_err("second") {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "attachment"),
             other => panic!("got {other:?}"),
         }
+    }
+
+    fn fresh_pool_with_two_tasks() -> Pool {
+        let pool = memory_pool_for_tests();
+        let mut conn = pool.get().unwrap();
+        run_pending(&mut conn).unwrap();
+        conn.execute_batch(
+            "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
+                 VALUES ('sp1','Space','sp',0,0,0,0); \
+             INSERT INTO boards (id, name, space_id, position, created_at, updated_at) \
+                 VALUES ('bd1','B','sp1',0,0,0); \
+             INSERT INTO columns (id, board_id, name, position, created_at) \
+                 VALUES ('c1','bd1','C',0,0); \
+             INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES ('t1','bd1','c1','sp-1','T1',0,0,0), \
+                        ('t2','bd1','c1','sp-2','T2',1,0,0);",
+        )
+        .unwrap();
+        drop(conn);
+        pool
+    }
+
+    #[test]
+    fn list_with_task_id_filters_to_that_task() {
+        let pool = fresh_pool_with_two_tasks();
+        let uc = AttachmentsUseCase::new(&pool);
+        let a1 = uc
+            .create(
+                "t1".into(),
+                "a.png".into(),
+                "image/png".into(),
+                10,
+                "a.png".into(),
+                None,
+            )
+            .unwrap();
+        let _b = uc
+            .create(
+                "t2".into(),
+                "b.png".into(),
+                "image/png".into(),
+                10,
+                "b.png".into(),
+                None,
+            )
+            .unwrap();
+        // Unfiltered: both rows.
+        assert_eq!(uc.list(None).unwrap().len(), 2);
+        // Filtered to t1: just a1.
+        let only_t1 = uc.list(Some("t1".into())).unwrap();
+        assert_eq!(only_t1.len(), 1);
+        assert_eq!(only_t1[0].id, a1.id);
+        // Filter to non-existent task: empty.
+        assert!(uc.list(Some("ghost".into())).unwrap().is_empty());
     }
 
     #[test]

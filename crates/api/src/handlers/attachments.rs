@@ -25,14 +25,22 @@ use crate::state::AppState;
 /// E2 will populate per-domain initialisation here.
 pub fn register() {}
 
-/// IPC: list every attachment metadata row.
+/// IPC: list attachment metadata rows.
+///
+/// `task_id` is an optional filter. When omitted (or explicitly `null`),
+/// every row is returned — preserving the legacy global-list behaviour.
+/// MCP agents working on a single task should always pass the filter to
+/// avoid loading the entire blob registry.
 ///
 /// # Errors
 ///
 /// Forwards every error from `AttachmentsUseCase::list`.
 #[tauri::command]
-pub async fn list_attachments(state: State<'_, AppState>) -> Result<Vec<Attachment>, AppError> {
-    AttachmentsUseCase::new(&state.pool).list()
+pub async fn list_attachments(
+    state: State<'_, AppState>,
+    task_id: Option<String>,
+) -> Result<Vec<Attachment>, AppError> {
+    AttachmentsUseCase::new(&state.pool).list(task_id)
 }
 
 /// IPC: look up an attachment by id.
