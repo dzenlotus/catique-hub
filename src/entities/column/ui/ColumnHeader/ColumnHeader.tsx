@@ -182,7 +182,6 @@ export function ColumnHeader({
           variant="ghost"
           size="sm"
           aria-label={`Column actions for ${name}`}
-          className={styles.moreButton}
         >
           <KebabIcon />
         </Button>

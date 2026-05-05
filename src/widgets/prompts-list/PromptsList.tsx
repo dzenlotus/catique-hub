@@ -1,6 +1,4 @@
 import { useState, useMemo, type ReactElement } from "react";
-import { PixelInterfaceEssentialPlus } from "@shared/ui/Icon";
-
 import { PromptCard, usePrompts, usePromptTagsMap } from "@entities/prompt";
 import { Button, EmptyState } from "@shared/ui";
 import { PixelInterfaceEssentialMessage } from "@shared/ui/Icon";
@@ -106,10 +104,7 @@ export function PromptsList({
             onPress={() => setIsCreateOpen(true)}
             data-testid="prompts-list-create-button"
           >
-            <span className={styles.btnLabel}>
-              <PixelInterfaceEssentialPlus width={12} height={12} aria-hidden="true" />
-              Create prompt
-            </span>
+            Create prompt
           </Button>
         </div>
       </header>
@@ -170,15 +165,7 @@ export function PromptsList({
                 size="md"
                 onPress={() => setIsCreateOpen(true)}
               >
-                {/*
-                 * Ctq-76 item 8: drop the duplicate "+ +" prefix and use
-                 * the pixel "+" icon instead of two stacked text
-                 * markers. One icon, one label.
-                 */}
-                <span className={styles.btnLabel}>
-                  <PixelInterfaceEssentialPlus width={12} height={12} aria-hidden="true" />
-                  Create prompt
-                </span>
+                Create prompt
               </Button>
             }
           />

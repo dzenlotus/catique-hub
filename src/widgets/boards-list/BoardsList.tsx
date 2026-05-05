@@ -1,14 +1,15 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
+import { useLocation } from "wouter";
 import { PixelInterfaceEssentialPencilEdit1 } from "@shared/ui/Icon";
 
 import { BoardCard, useBoards } from "@entities/board";
 import { useSpaces } from "@entities/space";
-import { Button, EmptyState } from "@shared/ui";
+import { Button, EmptyState, Scrollable } from "@shared/ui";
 import { PixelPetAnimalsCat, PixelCodingAppsWebsitesModule } from "@shared/ui/Icon";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
+import { boardSettingsPath } from "@app/routes";
 import { BoardCreateDialog } from "@widgets/board-create-dialog";
-import { BoardEditor } from "@widgets/board-editor";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 
 import styles from "./BoardsList.module.css";
@@ -36,9 +37,9 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
   const { activeSpaceId } = useActiveSpace();
   const boardsQuery = useBoards();
   const spacesQuery = useSpaces();
+  const [, setLocation] = useLocation();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSpaceCreateOpen, setIsSpaceCreateOpen] = useState(false);
-  const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
 
   const hasNoSpaces =
     spacesQuery.status === "success" && spacesQuery.data.length === 0;
@@ -51,6 +52,11 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
       : [];
 
   return (
+    <Scrollable
+      axis="y"
+      className={styles.scrollHost}
+      data-testid="boards-list-scroll"
+    >
     <section className={styles.root} aria-labelledby="boards-list-heading">
       <header className={styles.header}>
         <h2 id="boards-list-heading" className={styles.heading}>
@@ -63,10 +69,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
             onPress={() => setIsCreateOpen(true)}
             data-testid="boards-list-create-button"
           >
-            <span className={styles.btnLabel}>
-              <span aria-hidden="true">+</span>
-              Create board
-            </span>
+            Create board
           </Button>
         </div>
       </header>
@@ -108,10 +111,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                       onPress={() => setIsSpaceCreateOpen(true)}
                       data-testid="boards-list-create-space-button"
                     >
-                      <span className={styles.btnLabel}>
-                        <span aria-hidden="true">+</span>
-                        + Create space
-                      </span>
+                      Create space
                     </Button>
                   }
                 />
@@ -126,10 +126,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                       size="md"
                       onPress={() => setIsCreateOpen(true)}
                     >
-                      <span className={styles.btnLabel}>
-                        <span aria-hidden="true">+</span>
-                        + Create board
-                      </span>
+                      Create board
                     </Button>
                   }
                 />
@@ -156,7 +153,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                     aria-label="Edit board"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setEditingBoardId(board.id);
+                      setLocation(boardSettingsPath(board.id));
                     }}
                   >
                     <PixelInterfaceEssentialPencilEdit1 width={14} height={14} aria-hidden="true" />
@@ -178,10 +175,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
         onClose={() => setIsSpaceCreateOpen(false)}
       />
 
-      <BoardEditor
-        boardId={editingBoardId}
-        onClose={() => setEditingBoardId(null)}
-      />
     </section>
+    </Scrollable>
   );
 }

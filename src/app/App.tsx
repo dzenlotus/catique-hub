@@ -11,8 +11,8 @@ import { AgentReportsList } from "@widgets/agent-reports-list";
 import { SkillsList } from "@widgets/skills-list";
 import { McpToolsList } from "@widgets/mcp-tools-list";
 import { SettingsView } from "@widgets/settings-view";
-import { SpacesList } from "@widgets/spaces-list";
 import { SpaceSettings } from "@widgets/space-settings";
+import { BoardSettings } from "@widgets/board-settings";
 import { MainSidebar } from "@widgets/main-sidebar";
 import type { NavView } from "@widgets/main-sidebar";
 import { SpacesSidebar } from "@widgets/spaces-sidebar";
@@ -94,7 +94,12 @@ export default function App(): ReactElement {
             )}
           </Route>
 
-          {/* Board detail — boardId comes from URL params */}
+          {/* Board detail — boardId comes from URL params. The
+              settings sub-route must come BEFORE the parent so wouter
+              doesn't short-circuit. */}
+          <Route path={routes.boardSettings}>
+            <BoardSettings />
+          </Route>
           <Route path={routes.board}>
             {(params) => <KanbanBoard boardId={params.boardId} />}
           </Route>
@@ -127,9 +132,6 @@ export default function App(): ReactElement {
           </Route>
           <Route path={routes.spaceSettings}>
             <SpaceSettings />
-          </Route>
-          <Route path={routes.spaces}>
-            <SpacesList onSelectView={handleSelectView} />
           </Route>
           <Route path={routes.settings}>
             <SettingsView />

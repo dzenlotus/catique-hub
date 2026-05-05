@@ -9,13 +9,17 @@ import type { NavView } from "@widgets/main-sidebar";
 // "tags" and "reports" removed from sidebar nav but routes still exist
 // ---------------------------------------------------------------------------
 
+// Round-19e: "spaces" stays in the NavView union for deep-link
+// resolution but no longer round-trips through pathForView/viewForPath
+// — the standalone /spaces page was retired so /spaces resolves to
+// "boards" (sidebar visible, BoardHome content). The list omits it
+// from the round-trip table accordingly.
 const ALL_VIEWS: NavView[] = [
   "boards",
   "prompts",
   "agent-roles",
   "skills",
   "mcp-servers",
-  "spaces",
   "settings",
 ];
 
@@ -131,8 +135,8 @@ describe("viewForPath", () => {
     expect(viewForPath("/mcp-tools")).toBe("mcp-servers");
   });
 
-  it("maps /spaces → spaces", () => {
-    expect(viewForPath("/spaces")).toBe("spaces");
+  it("maps /spaces → boards (round-19e: standalone listing retired)", () => {
+    expect(viewForPath("/spaces")).toBe("boards");
   });
 
   it("maps /settings → settings", () => {

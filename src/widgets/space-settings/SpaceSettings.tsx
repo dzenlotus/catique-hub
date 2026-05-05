@@ -85,7 +85,7 @@ export function SpaceSettings(): ReactElement {
             <Button
               variant="secondary"
               size="sm"
-              onPress={() => setLocation(routes.spaces)}
+              onPress={() => setLocation(routes.boards)}
             >
               Back to spaces
             </Button>
@@ -309,7 +309,10 @@ function DangerZone({ spaceId, spaceName }: DangerZoneProps): ReactElement {
       onSuccess: () => {
         setConfirmOpen(false);
         pushToast("success", `Space "${spaceName}" deleted`);
-        setLocation(routes.spaces);
+        // Land on the home shell (boards + sidebar visible) rather
+        // than a standalone spaces page — round-19e: the sidebar-less
+        // "/spaces" listing was retired.
+        setLocation(routes.boards);
       },
       onError: (err) => {
         pushToast("error", `Failed to delete space: ${err.message}`);

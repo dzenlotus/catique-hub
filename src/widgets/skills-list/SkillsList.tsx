@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from "react";
 
 import { SkillCard, useSkills } from "@entities/skill";
-import { Button, EmptyState } from "@shared/ui";
+import { Button, EmptyState, Scrollable } from "@shared/ui";
 import { PixelDesignMagicWand } from "@shared/ui/Icon";
 import { SkillEditor } from "@widgets/skill-editor";
 import { SkillCreateDialog } from "@widgets/skill-create-dialog";
@@ -28,6 +28,11 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
   const skillsQuery = useSkills();
 
   return (
+    <Scrollable
+      axis="y"
+      className={styles.scrollHost}
+      data-testid="skills-list-scroll"
+    >
     <section className={styles.root} aria-labelledby="skills-list-heading">
       <header className={styles.header}>
         <div className={styles.headingGroup}>
@@ -53,10 +58,7 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
             onPress={() => setIsCreateOpen(true)}
             data-testid="skills-list-create-button"
           >
-            <span className={styles.btnLabel}>
-              <span aria-hidden="true">+</span>
-              + Create skill
-            </span>
+            Create skill
           </Button>
         </div>
       </header>
@@ -94,10 +96,7 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
                 size="md"
                 onPress={() => setIsCreateOpen(true)}
               >
-                <span className={styles.btnLabel}>
-                  <span aria-hidden="true">+</span>
-                  + Create skill
-                </span>
+                Create skill
               </Button>
             }
           />
@@ -127,5 +126,6 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
         onClose={() => setIsCreateOpen(false)}
       />
     </section>
+    </Scrollable>
   );
 }

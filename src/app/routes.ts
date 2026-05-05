@@ -20,6 +20,8 @@ import type { NavView } from "@widgets/main-sidebar";
 export const routes = {
   boards: "/",
   board: "/boards/:boardId",
+  /** Round-19e: per-board settings page (replaces BoardEditor modal). */
+  boardSettings: "/boards/:boardId/settings",
   task: "/tasks/:taskId",
   prompts: "/prompts",
   /** /roles — maps to "agent-roles" NavView */
@@ -54,6 +56,11 @@ export function taskPath(id: string): string {
 /** Build the concrete URL path for the per-space settings page. */
 export function spaceSettingsPath(id: string): string {
   return `/spaces/${id}/settings`;
+}
+
+/** Build the concrete URL path for the per-board settings page. */
+export function boardSettingsPath(id: string): string {
+  return `/boards/${id}/settings`;
 }
 
 /**
@@ -94,11 +101,16 @@ export function viewForPath(path: string): NavView {
   if (path === routes.roles) return "agent-roles";
   if (path === routes.skills) return "skills";
   if (path === routes.mcpTools) return "mcp-servers";
-  if (path === routes.spaces) return "spaces";
+  // Round-19e: standalone /spaces page was retired — the canonical
+  // home shell already shows the sidebar with every space. Keep the
+  // path resolvable so any old deep-link redirects to the home page
+  // (boards context with the sidebar visible).
+  if (path === routes.spaces) return "boards";
   // /spaces/:id/settings — per-space settings is reached from the SpacesSidebar
   // and renders inside the content pane, so it belongs to the "boards"
   // context (keeps SpacesSidebar visible alongside the settings form).
   if (/^\/spaces\/[^/]+\/settings$/.test(path)) return "boards";
+  if (/^\/boards\/[^/]+\/settings$/.test(path)) return "boards";
   if (path === routes.settings) return "settings";
   // Board detail: /boards/<id>
   if (path.startsWith("/boards/")) return "boards";

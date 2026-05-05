@@ -25,8 +25,16 @@ import {
   usePromptGroup,
   usePromptGroupMembers,
   useRemovePromptGroupMemberMutation,
+  useUpdatePromptGroupMutation,
 } from "@entities/prompt-group";
-import { Button, MenuTrigger, Menu, MenuItem, KebabIcon } from "@shared/ui";
+import {
+  Button,
+  IconColorPicker,
+  MenuTrigger,
+  Menu,
+  MenuItem,
+  KebabIcon,
+} from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -61,6 +69,7 @@ export function InlineGroupView({
   const membersQuery = usePromptGroupMembers(groupId);
   const promptsQuery = usePrompts();
   const removeMember = useRemovePromptGroupMemberMutation();
+  const updateGroup = useUpdatePromptGroupMutation();
   const { pushToast } = useToast();
 
   // Track hovered prompt card so the matching `<prompt>` block in the
@@ -161,12 +170,17 @@ export function InlineGroupView({
       data-testid="inline-group-view"
     >
       <header className={styles.header}>
-        <span
-          className={styles.swatch}
-          style={
-            group.color !== null ? { backgroundColor: group.color } : undefined
-          }
-          aria-hidden="true"
+        <IconColorPicker
+          value={{ icon: group.icon ?? null, color: group.color ?? null }}
+          onChange={(next) => {
+            updateGroup.mutate({
+              id: group.id,
+              icon: next.icon,
+              color: next.color,
+            });
+          }}
+          ariaLabel="Group icon and color"
+          data-testid="inline-group-view-appearance-picker"
         />
         <h2 className={styles.title}>{group.name}</h2>
         <div className={styles.actions}>

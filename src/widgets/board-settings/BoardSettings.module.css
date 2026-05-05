@@ -1,0 +1,187 @@
+/*
+ * BoardSettings — page-shell layout. Mirrors SpaceSettings so the
+ * two pages read as a matched pair.
+ */
+
+.scrollHost {
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: 24px 20px 28px;
+  box-sizing: border-box;
+  max-width: 720px;
+  width: 100%;
+}
+
+.backRow {
+  display: flex;
+  align-items: center;
+  padding-bottom: var(--space-4);
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+  padding-bottom: var(--space-12);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.pageHeaderText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.pageTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-headline-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-default);
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.02em;
+}
+
+.pageDescription {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-normal);
+}
+
+/* ── Card ─────────────────────────────────────────────────────────── */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-16);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+}
+
+.cardHeading {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.fieldLabelText {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.fieldHint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
+}
+
+.fieldTextarea {
+  width: 100%;
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-canvas);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  outline: none;
+  resize: vertical;
+  min-height: 70px;
+}
+
+.fieldTextarea:focus {
+  border-color: var(--color-border-focus);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-8);
+}
+
+.error {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+.savedHint {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-success, var(--color-text-muted));
+}
+
+/* ── Danger zone ──────────────────────────────────────────────────── */
+
+.dangerCard {
+  margin-top: var(--space-16);
+  padding: var(--space-16);
+  border: 1px solid var(--color-status-danger);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-danger-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.dangerHeading {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-status-danger);
+}
+
+.dangerHint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-status-danger);
+}
+
+/* ── Status panel ─────────────────────────────────────────────────── */
+
+.statusPanel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+  padding: var(--space-16);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+}
+
+.statusMessage {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-default);
+}

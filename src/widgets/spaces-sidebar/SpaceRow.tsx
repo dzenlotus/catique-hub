@@ -14,10 +14,8 @@ import { SidebarNavItem } from "@shared/ui/SidebarShell";
 import { booleanCodec, useLocalStorage } from "@shared/storage";
 import type { Space } from "@entities/space";
 import { type Board, useDeleteBoardMutation } from "@entities/board";
-import { spaceSettingsPath } from "@app/routes";
+import { boardSettingsPath, spaceSettingsPath } from "@app/routes";
 import { useToast } from "@app/providers/ToastProvider";
-import { BoardEditor } from "@widgets/board-editor";
-
 import { ChevronIcon } from "./ChevronIcon";
 import { KebabIcon } from "./KebabIcon";
 import { BoardIcon, SpaceIcon } from "./icons";
@@ -58,11 +56,8 @@ export function SpaceRow({
     booleanCodec,
     isDefaultExpanded,
   );
-  // ctq-76 item 3 — open BoardEditor when the user picks "Settings" from
-  // the per-board kebab. Round-19d: Delete now wired to the existing
-  // `delete_board` IPC; the mutation invalidates `useBoards()` so the
-  // row disappears once the backend confirms.
-  const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
+  // Round-19e: "Settings" from the per-board kebab navigates to the
+  // /boards/:id/settings route (replaces the modal-based BoardEditor).
   // Replaces the old `window.confirm` flow — modal shows up via the
   // `<ConfirmDialog>` rendered at the bottom of this row.
   const [boardPendingDelete, setBoardPendingDelete] =
@@ -151,7 +146,6 @@ export function SpaceRow({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className={styles.boardKebabBtn}
                         aria-label={`Actions for board ${board.name}`}
                         data-testid={`spaces-sidebar-board-kebab-${board.id}`}
                       >
@@ -159,7 +153,7 @@ export function SpaceRow({
                       </Button>
                       <Menu
                         onAction={(key) => {
-                          if (key === "settings") setEditingBoardId(board.id);
+                          if (key === "settings") setLocation(boardSettingsPath(board.id));
                           else if (key === "delete") handleDeleteBoard(board);
                         }}
                       >
@@ -193,11 +187,6 @@ export function SpaceRow({
           })}
         </ul>
       )}
-
-      <BoardEditor
-        boardId={editingBoardId}
-        onClose={() => setEditingBoardId(null)}
-      />
 
       <ConfirmDialog
         isOpen={boardPendingDelete !== null}

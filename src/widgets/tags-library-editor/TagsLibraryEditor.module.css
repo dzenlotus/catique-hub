@@ -1,0 +1,60 @@
+/*
+ * TagsLibraryEditor — wrapping list of TagChips with rename + delete.
+ *
+ * Mirrors the wrapping-row layout used by `<PromptTagsField>` so the
+ * tag UI reads identically across the app: same pill, same in-chip ×.
+ */
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The chip is wrapped in a button so the user can click it to rename.
+ * The chip's own in-pill `×` (via TagChip.onRemove) routes the delete
+ * action separately — it stops propagation, so the wrapping button
+ * never fires during a delete click. */
+.editBtn {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--radius-xl);
+}
+
+.editBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.renameInput {
+  padding: var(--space-2) var(--space-8);
+  border: 1px solid var(--color-border-focus);
+  border-radius: var(--radius-xl);
+  background-color: var(--color-surface-canvas);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-caption);
+  outline: none;
+  min-width: 100px;
+}
+
+.empty {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
+  font-style: italic;
+}

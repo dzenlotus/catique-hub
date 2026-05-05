@@ -127,34 +127,9 @@
   white-space: nowrap;
 }
 
-.groupKebabBtn {
-  position: absolute;
-  top: 50%;
-  right: var(--space-8);
-  transform: translateY(-50%);
-  width: 24px;
-  height: 24px;
-  min-width: 0;
-  padding: 0;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-subtle);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease-out;
-  z-index: 3;
-}
-
-.groupItem:hover .groupKebabBtn,
-.groupItem:focus-within .groupKebabBtn,
-.groupKebabBtn[aria-expanded="true"] {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.groupKebabBtn:hover {
-  background-color: var(--color-overlay-active);
-  color: var(--color-text-default);
-}
+/* Kebab trigger sits in the row's trailing slot — round-19e brought
+ * every kebab to a single canonical look (Button variant="ghost"
+ * size="sm"), no extra opacity-on-hover or fixed-size override. */
 
 /* "All prompts" pseudo-row — first entry in the groups list. */
 .allPromptsRow {

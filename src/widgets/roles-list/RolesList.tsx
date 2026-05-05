@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from "react";
 
 import { RoleCard, useRoles } from "@entities/role";
-import { Button, EmptyState } from "@shared/ui";
+import { Button, EmptyState, Scrollable } from "@shared/ui";
 import { PixelBusinessProductsNetworkUser } from "@shared/ui/Icon";
 import { RoleEditor } from "@widgets/role-editor";
 import { RoleCreateDialog } from "@widgets/role-create-dialog";
@@ -31,6 +31,11 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
   const rolesQuery = useRoles();
 
   return (
+    <Scrollable
+      axis="y"
+      className={styles.scrollHost}
+      data-testid="roles-list-scroll"
+    >
     <section className={styles.root} aria-labelledby="roles-list-heading">
       <header className={styles.header}>
         <div className={styles.headingGroup}>
@@ -56,10 +61,7 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
             onPress={() => setIsCreateOpen(true)}
             data-testid="roles-list-create-button"
           >
-            <span className={styles.btnLabel}>
-              <span aria-hidden="true">+</span>
-              + Create role
-            </span>
+            Create role
           </Button>
         </div>
       </header>
@@ -99,10 +101,7 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
                     size="md"
                     onPress={() => setIsCreateOpen(true)}
                   >
-                    <span className={styles.btnLabel}>
-                      <span aria-hidden="true">+</span>
-                      + Create role
-                    </span>
+                    Create role
                   </Button>
                 }
               />
@@ -134,5 +133,6 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
         onClose={() => setIsCreateOpen(false)}
       />
     </section>
+    </Scrollable>
   );
 }

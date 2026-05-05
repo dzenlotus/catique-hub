@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from "react";
 
 import { McpToolCard, useMcpTools } from "@entities/mcp-tool";
-import { Button, EmptyState } from "@shared/ui";
+import { Button, EmptyState, Scrollable } from "@shared/ui";
 import { PixelCodingAppsWebsitesDatabase } from "@shared/ui/Icon";
 import { McpToolEditor } from "@widgets/mcp-tool-editor";
 import { McpToolCreateDialog } from "@widgets/mcp-tool-create-dialog";
@@ -28,6 +28,11 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
   const toolsQuery = useMcpTools();
 
   return (
+    <Scrollable
+      axis="y"
+      className={styles.scrollHost}
+      data-testid="mcp-tools-list-scroll"
+    >
     <section className={styles.root} aria-labelledby="mcp-tools-list-heading">
       <header className={styles.header}>
         <div className={styles.headingGroup}>
@@ -53,10 +58,7 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
             onPress={() => setIsCreateOpen(true)}
             data-testid="mcp-tools-list-create-button"
           >
-            <span className={styles.btnLabel}>
-              <span aria-hidden="true">+</span>
-              + Create server
-            </span>
+            Create server
           </Button>
         </div>
       </header>
@@ -94,10 +96,7 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
                 size="md"
                 onPress={() => setIsCreateOpen(true)}
               >
-                <span className={styles.btnLabel}>
-                  <span aria-hidden="true">+</span>
-                  + Create server
-                </span>
+                Create server
               </Button>
             }
           />
@@ -127,5 +126,6 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
         onClose={() => setIsCreateOpen(false)}
       />
     </section>
+    </Scrollable>
   );
 }

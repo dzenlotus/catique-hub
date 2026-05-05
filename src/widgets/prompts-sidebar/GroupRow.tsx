@@ -92,7 +92,6 @@ export function GroupRow({
           <Button
             variant="ghost"
             size="sm"
-            className={styles.groupKebabBtn}
             aria-label={`Actions for group ${group.name}`}
             data-testid={`prompts-sidebar-group-kebab-${group.id}`}
           >

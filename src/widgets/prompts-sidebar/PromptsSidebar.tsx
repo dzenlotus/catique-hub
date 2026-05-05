@@ -52,6 +52,8 @@ export interface PromptsSidebarProps {
   onGroupSettings: (groupId: string) => void;
   /** Called when the user picks "Delete" on a group's kebab. */
   onDeleteGroup: (groupId: string) => void;
+  /** Called when the user picks the settings cog next to PROMPTS. */
+  onOpenSettings: () => void;
   /**
    * Pre-loaded ordered member ids per group. Currently unused inside
    * the sidebar (the parent uses it to compute `promptToGroup`), but
@@ -68,6 +70,7 @@ export function PromptsSidebar({
   onRenameGroup,
   onGroupSettings,
   onDeleteGroup,
+  onOpenSettings,
 }: PromptsSidebarProps): ReactElement {
   const promptsQuery = usePrompts();
   const groupsQuery = usePromptGroups();
@@ -247,7 +250,7 @@ export function PromptsSidebar({
                 selectedTagIds={filterTagIds}
                 onChange={setFilterTagIds}
               />
-              <PromptsSettingsButton />
+              <PromptsSettingsButton onPress={onOpenSettings} />
             </span>
           }
         >

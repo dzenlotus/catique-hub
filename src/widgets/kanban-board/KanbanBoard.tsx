@@ -9,7 +9,7 @@ import type {
 import { move } from "@dnd-kit/helpers";
 import { useLocation } from "wouter";
 
-import { taskPath } from "@app/routes";
+import { boardSettingsPath, taskPath } from "@app/routes";
 import { useToast } from "@app/providers/ToastProvider";
 import { useBoard, useUpdateBoardMutation } from "@entities/board";
 import type { Column } from "@entities/column";
@@ -34,7 +34,6 @@ import {
 import { cn } from "@shared/lib";
 import { TaskCreateDialog } from "@widgets/task-create-dialog";
 import { ColumnCreateDialog } from "@widgets/column-create-dialog";
-import { BoardEditor } from "@widgets/board-editor";
 import { lastBoardStore } from "@shared/storage";
 
 import { KanbanColumn } from "./KanbanColumn";
@@ -136,7 +135,6 @@ export function KanbanBoard({
   // Ctq-76 item 4: column creation now lives in `ColumnCreateDialog`,
   // not in an inline form. We track only the dialog visibility here.
   const [isColumnDialogOpen, setIsColumnDialogOpen] = useState(false);
-  const [isBoardEditorOpen, setIsBoardEditorOpen] = useState(false);
   const [taskColumnId, setTaskColumnId] = useState<string | null>(null);
 
   // Stabilise the empty-fallback references so `useMemo`s and downstream
@@ -560,7 +558,7 @@ export function KanbanBoard({
           type="button"
           className={styles.iconButton}
           aria-label="Board options"
-          onClick={() => setIsBoardEditorOpen(true)}
+          onClick={() => setLocation(boardSettingsPath(boardId))}
           data-testid="kanban-board-options-button"
         >
           <PixelInterfaceEssentialSettingCog
@@ -635,11 +633,6 @@ export function KanbanBoard({
         onClose={() => setIsColumnDialogOpen(false)}
         boardId={boardId}
         nextPosition={nextColumnPosition}
-      />
-
-      <BoardEditor
-        boardId={isBoardEditorOpen ? boardId : null}
-        onClose={() => setIsBoardEditorOpen(false)}
       />
 
       <BulkActionsBar

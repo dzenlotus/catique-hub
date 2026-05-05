@@ -123,22 +123,6 @@
   }
 }
 
-.moreButton {
-  /*
-   * Round 19b: paired with `.columnDragHandle` in
-   * widgets/kanban-board/KanbanColumn.module.css so the column header's
-   * left/right icon buttons share identical 22 × 22 dimensions and
-   * radius-xs corners. Override the Button primitive's default sm
-   * sizing here.
-   */
-  padding: 0;
-  min-width: 22px;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-xs);
-  flex: 0 0 auto;
-}
-
 /* ---------- Inline rename + delete dialogs ---------- */
 
 .renameForm {
