@@ -20,6 +20,9 @@ import { invoke } from "@shared/api";
 import { AppErrorInstance } from "@entities/board";
 import type { AppError } from "@bindings/AppError";
 import type { Role } from "@bindings/Role";
+import type { Prompt } from "@bindings/Prompt";
+import type { Skill } from "@bindings/Skill";
+import type { McpTool } from "@bindings/McpTool";
 
 /** Same `AppError` discriminator used in `boardsApi` / `columnsApi`. */
 function isAppErrorShape(value: unknown): value is AppError {
@@ -120,4 +123,129 @@ export async function addRolePrompt(args: AddRolePromptArgs): Promise<void> {
     promptId: args.promptId,
     position: args.position,
   });
+}
+
+export interface RemoveRolePromptArgs {
+  roleId: string;
+  promptId: string;
+}
+
+/**
+ * `remove_role_prompt` — detach a prompt from a role.
+ * Throws AppError `notFound` when the join row is absent.
+ */
+export async function removeRolePrompt(
+  args: RemoveRolePromptArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("remove_role_prompt", {
+    roleId: args.roleId,
+    promptId: args.promptId,
+  });
+}
+
+/**
+ * `list_role_prompts` — prompts attached to a role, ordered by position.
+ *
+ * TODO(ctq-117): backend handler not yet implemented. Until it lands,
+ * the IPC call will reject — `useRolePrompts` surfaces an empty list on
+ * error so the UI degrades gracefully.
+ */
+export async function listRolePrompts(roleId: string): Promise<Prompt[]> {
+  return invokeWithAppError<Prompt[]>("list_role_prompts", { roleId });
+}
+
+/**
+ * `set_role_prompts` — replace the role's full prompt ordering with the
+ * provided id list. Used by drag-reorder.
+ *
+ * TODO(ctq-108): backend handler not yet implemented. Frontend uses this
+ * for optimistic reorder + rollback; expect a transient error toast
+ * until the bulk setter ships.
+ */
+export async function setRolePrompts(
+  roleId: string,
+  promptIds: string[],
+): Promise<void> {
+  return invokeWithAppError<void>("set_role_prompts", {
+    roleId,
+    promptIds,
+  });
+}
+
+export interface AddRoleSkillArgs {
+  roleId: string;
+  skillId: string;
+  position: number;
+}
+
+/** `add_role_skill` — attach a skill to a role at the given position. */
+export async function addRoleSkill(args: AddRoleSkillArgs): Promise<void> {
+  return invokeWithAppError<void>("add_role_skill", {
+    roleId: args.roleId,
+    skillId: args.skillId,
+    position: args.position,
+  });
+}
+
+export interface RemoveRoleSkillArgs {
+  roleId: string;
+  skillId: string;
+}
+
+/** `remove_role_skill` — detach a skill from a role. */
+export async function removeRoleSkill(
+  args: RemoveRoleSkillArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("remove_role_skill", {
+    roleId: args.roleId,
+    skillId: args.skillId,
+  });
+}
+
+/**
+ * `list_role_skills` — skills attached to a role, ordered by position.
+ *
+ * TODO(ctq-117): backend handler not yet implemented.
+ */
+export async function listRoleSkills(roleId: string): Promise<Skill[]> {
+  return invokeWithAppError<Skill[]>("list_role_skills", { roleId });
+}
+
+export interface AddRoleMcpToolArgs {
+  roleId: string;
+  mcpToolId: string;
+  position: number;
+}
+
+/** `add_role_mcp_tool` — attach an MCP tool to a role at the given position. */
+export async function addRoleMcpTool(args: AddRoleMcpToolArgs): Promise<void> {
+  return invokeWithAppError<void>("add_role_mcp_tool", {
+    roleId: args.roleId,
+    mcpToolId: args.mcpToolId,
+    position: args.position,
+  });
+}
+
+export interface RemoveRoleMcpToolArgs {
+  roleId: string;
+  mcpToolId: string;
+}
+
+/** `remove_role_mcp_tool` — detach an MCP tool from a role. */
+export async function removeRoleMcpTool(
+  args: RemoveRoleMcpToolArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("remove_role_mcp_tool", {
+    roleId: args.roleId,
+    mcpToolId: args.mcpToolId,
+  });
+}
+
+/**
+ * `list_role_mcp_tools` — MCP tools attached to a role, ordered by position.
+ *
+ * TODO(ctq-117): backend handler not yet implemented.
+ */
+export async function listRoleMcpTools(roleId: string): Promise<McpTool[]> {
+  return invokeWithAppError<McpTool[]>("list_role_mcp_tools", { roleId });
 }

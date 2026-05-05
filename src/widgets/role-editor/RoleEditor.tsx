@@ -16,6 +16,7 @@ import { Dialog, DialogFooter, Button, Input, MarkdownField } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
+import { RoleAttachmentsSections } from "./RoleAttachmentsSections";
 import styles from "./RoleEditor.module.css";
 
 export interface RoleEditorProps {
@@ -307,6 +308,9 @@ function RoleEditorContent({
           data-testid="role-editor-content-textarea"
         />
       </div>
+
+      {/* Attached prompts / skills / MCP tools (ctq-103, ctq-116). */}
+      <RoleAttachmentsSections roleId={role.id} />
 
       {/* Footer */}
       <DialogFooter className={styles.footer}>

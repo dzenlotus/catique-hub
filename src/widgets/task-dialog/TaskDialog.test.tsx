@@ -873,4 +873,29 @@ describe("TaskDialog", () => {
     });
     expect(screen.getByText(/disk full/i)).toBeInTheDocument();
   });
+
+  // ── Attach prompt action (ctq-102) ─────────────────────────────────
+
+  it("opens AttachPromptDialog with locked task target on Attach prompt", async () => {
+    const task = makeTask();
+    invokeMock.mockImplementation(defaultInvokeHandler(task));
+    const onClose = vi.fn();
+    const { user } = renderWithClient(
+      <TaskDialog taskId="tsk-1" onClose={onClose} />,
+    );
+
+    const attachBtn = await screen.findByTestId("task-dialog-prompts-attach");
+    await user.click(attachBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("attach-prompt-dialog")).toBeInTheDocument();
+    });
+    // Locked target — kind/target pickers suppressed.
+    expect(
+      screen.getByTestId("attach-prompt-dialog-locked-target"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("attach-prompt-dialog-target-kind"),
+    ).not.toBeInTheDocument();
+  });
 });

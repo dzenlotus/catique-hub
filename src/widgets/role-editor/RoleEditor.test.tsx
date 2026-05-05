@@ -277,4 +277,189 @@ describe("RoleEditor", () => {
     expect(screen.getByText(/сервер недоступен/i)).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  // ── Attached prompts section (ctq-103) ───────────────────────────
+
+  describe("attached prompts section", () => {
+    type Prompt = {
+      id: string;
+      name: string;
+      content: string;
+      color: string | null;
+      shortDescription: string | null;
+      icon: string | null;
+      examples: string[];
+      tokenCount: bigint | null;
+      createdAt: bigint;
+      updatedAt: bigint;
+    };
+
+    const makePrompt = (id: string, name: string): Prompt => ({
+      id,
+      name,
+      content: "",
+      color: null,
+      shortDescription: null,
+      icon: null,
+      examples: [],
+      tokenCount: null,
+      createdAt: 0n,
+      updatedAt: 0n,
+    });
+
+    it("renders N attached prompts", async () => {
+      const prompts = [
+        makePrompt("prm-1", "Codestyle"),
+        makePrompt("prm-2", "Examples"),
+      ];
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "get_role") return makeRole();
+        if (cmd === "list_role_prompts") return prompts;
+        if (cmd === "list_role_skills") return [];
+        if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "list_connected_clients") return [];
+        return undefined;
+      });
+      const onClose = vi.fn();
+      renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+      await screen.findByTestId("role-editor-prompt-row-prm-1");
+      expect(
+        screen.getByTestId("role-editor-prompt-row-prm-2"),
+      ).toBeInTheDocument();
+      // Empty state must not render when prompts exist.
+      expect(
+        screen.queryByTestId("role-editor-prompts-empty"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the empty state when no prompts attached", async () => {
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "get_role") return makeRole();
+        if (cmd === "list_role_prompts") return [];
+        if (cmd === "list_role_skills") return [];
+        if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "list_connected_clients") return [];
+        return undefined;
+      });
+      const onClose = vi.fn();
+      renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+      const empty = await screen.findByTestId("role-editor-prompts-empty");
+      expect(empty).toHaveTextContent(/no prompts attached/i);
+    });
+
+    it("attach button opens AttachPromptDialog with locked role target", async () => {
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "get_role") return makeRole();
+        if (cmd === "list_role_prompts") return [makePrompt("prm-1", "First")];
+        if (cmd === "list_role_skills") return [];
+        if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "list_prompts") return [];
+        if (cmd === "list_roles") return [makeRole()];
+        if (cmd === "list_boards") return [];
+        if (cmd === "list_connected_clients") return [];
+        return undefined;
+      });
+      const onClose = vi.fn();
+      const { user } = renderWithClient(
+        <RoleEditor roleId="role-1" onClose={onClose} />,
+      );
+
+      await screen.findByTestId("role-editor-prompt-row-prm-1");
+      await user.click(screen.getByTestId("role-editor-prompts-attach"));
+
+      // Locked-target dialog — picker steps suppressed, summary visible.
+      await screen.findByTestId("attach-prompt-dialog");
+      expect(
+        screen.getByTestId("attach-prompt-dialog-locked-target"),
+      ).toBeInTheDocument();
+      // List of N is unchanged before save fires.
+      expect(
+        screen.getByTestId("role-editor-prompt-row-prm-1"),
+      ).toBeInTheDocument();
+    });
+
+    it("growing the list to N+1 reflects after the cache invalidates", async () => {
+      let attachedPrompts: Prompt[] = [makePrompt("prm-1", "First")];
+      invokeMock.mockImplementation(async (cmd, args) => {
+        if (cmd === "get_role") return makeRole();
+        if (cmd === "list_role_prompts") return attachedPrompts;
+        if (cmd === "list_role_skills") return [];
+        if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "add_role_prompt") {
+          const promptId = (args as { promptId: string }).promptId;
+          attachedPrompts = [...attachedPrompts, makePrompt(promptId, "Second")];
+          return undefined;
+        }
+        if (cmd === "list_connected_clients") return [];
+        return undefined;
+      });
+      const { client } = renderWithClient(
+        <RoleEditor roleId="role-1" onClose={vi.fn()} />,
+      );
+
+      await screen.findByTestId("role-editor-prompt-row-prm-1");
+
+      // Drive the mutation directly via the queryClient-aware mock IPC,
+      // then invalidate the role-prompts query so the section re-fetches.
+      await invokeMock("add_role_prompt", {
+        roleId: "role-1",
+        promptId: "prm-2",
+        position: 1,
+      });
+      await client.invalidateQueries({
+        queryKey: ["roles", "prompts", "role-1"],
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("role-editor-prompt-row-prm-2"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("detach shrinks the list to N-1", async () => {
+      let attachedPrompts: Prompt[] = [
+        makePrompt("prm-1", "First"),
+        makePrompt("prm-2", "Second"),
+      ];
+      invokeMock.mockImplementation(async (cmd, args) => {
+        if (cmd === "get_role") return makeRole();
+        if (cmd === "list_role_prompts") return attachedPrompts;
+        if (cmd === "list_role_skills") return [];
+        if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "remove_role_prompt") {
+          const promptId = (args as { promptId: string }).promptId;
+          attachedPrompts = attachedPrompts.filter((p) => p.id !== promptId);
+          return undefined;
+        }
+        if (cmd === "list_connected_clients") return [];
+        return undefined;
+      });
+      const onClose = vi.fn();
+      const { user } = renderWithClient(
+        <RoleEditor roleId="role-1" onClose={onClose} />,
+      );
+
+      await screen.findByTestId("role-editor-prompt-row-prm-1");
+      expect(
+        screen.getByTestId("role-editor-prompt-row-prm-2"),
+      ).toBeInTheDocument();
+
+      await user.click(
+        screen.getByTestId("role-editor-prompt-remove-prm-1"),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("role-editor-prompt-row-prm-1"),
+        ).not.toBeInTheDocument();
+      });
+      // The other row stays.
+      expect(
+        screen.getByTestId("role-editor-prompt-row-prm-2"),
+      ).toBeInTheDocument();
+    });
+  });
 });

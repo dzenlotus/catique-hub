@@ -235,3 +235,81 @@
     animation: none;
   }
 }
+
+/* ── Attachment sections (prompts / skills / MCP tools) ──────────── */
+
+.attachmentSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.attachmentSectionActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.attachmentList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.attachmentRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+}
+
+.attachmentRowDragging {
+  opacity: 0.6;
+}
+
+.attachmentDragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: grab;
+  font-size: var(--font-size-body);
+  line-height: 1;
+}
+
+.attachmentDragHandle:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.attachmentDragHandle:active {
+  cursor: grabbing;
+}
+
+.attachmentName {
+  flex: 1 1 auto;
+  font-size: var(--font-size-body);
+  color: var(--color-text-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachmentEmptyHint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
+}

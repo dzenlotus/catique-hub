@@ -5,9 +5,23 @@ export {
   updateRole,
   deleteRole,
   addRolePrompt,
+  removeRolePrompt,
+  listRolePrompts,
+  setRolePrompts,
+  addRoleSkill,
+  removeRoleSkill,
+  listRoleSkills,
+  addRoleMcpTool,
+  removeRoleMcpTool,
+  listRoleMcpTools,
 } from "./rolesApi";
 export type {
   CreateRoleArgs,
   UpdateRoleArgs,
   AddRolePromptArgs,
+  RemoveRolePromptArgs,
+  AddRoleSkillArgs,
+  RemoveRoleSkillArgs,
+  AddRoleMcpToolArgs,
+  RemoveRoleMcpToolArgs,
 } from "./rolesApi";

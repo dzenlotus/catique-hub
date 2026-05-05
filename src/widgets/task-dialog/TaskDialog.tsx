@@ -46,6 +46,7 @@ import {
 } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
+import { AttachPromptDialog } from "@widgets/attach-prompt-dialog";
 import { useToast } from "@app/providers/ToastProvider";
 
 import styles from "./TaskDialog.module.css";
@@ -91,6 +92,27 @@ interface PromptsSectionProps {
 
 function PromptsSection({ taskId }: PromptsSectionProps): ReactElement {
   const query = useTaskPrompts(taskId);
+  const [isAttachOpen, setIsAttachOpen] = useState(false);
+
+  const attachAction = (
+    <Button
+      variant="secondary"
+      size="sm"
+      onPress={() => setIsAttachOpen(true)}
+      data-testid="task-dialog-prompts-attach"
+    >
+      Attach prompt
+    </Button>
+  );
+
+  const dialog = (
+    <AttachPromptDialog
+      isOpen={isAttachOpen}
+      onClose={() => setIsAttachOpen(false)}
+      defaultTarget={{ kind: "task", id: taskId }}
+      lockedTarget
+    />
+  );
 
   if (query.status === "pending") {
     return (
@@ -121,30 +143,38 @@ function PromptsSection({ taskId }: PromptsSectionProps): ReactElement {
 
   if (prompts.length === 0) {
     return (
-      <div className={styles.sectionEmptyState}>
-        <p className={styles.sectionEmptyHint}>No prompts attached</p>
-      </div>
+      <>
+        <div className={styles.sectionEmptyState}>
+          <p className={styles.sectionEmptyHint}>No prompts attached</p>
+          {attachAction}
+        </div>
+        {dialog}
+      </>
     );
   }
 
   return (
-    <div className={styles.promptChipWrap}>
-      {prompts.map((p) => (
-        <span
-          key={p.id}
-          className={styles.promptChip}
-          style={
-            p.color
-              ? { backgroundColor: `${p.color}22`, borderColor: `${p.color}66`, color: p.color }
-              : undefined
-          }
-          title={p.shortDescription ?? p.name}
-          data-testid={`task-dialog-prompt-chip-${p.id}`}
-        >
-          {p.name}
-        </span>
-      ))}
-    </div>
+    <>
+      <div className={styles.promptChipWrap}>
+        {prompts.map((p) => (
+          <span
+            key={p.id}
+            className={styles.promptChip}
+            style={
+              p.color
+                ? { backgroundColor: `${p.color}22`, borderColor: `${p.color}66`, color: p.color }
+                : undefined
+            }
+            title={p.shortDescription ?? p.name}
+            data-testid={`task-dialog-prompt-chip-${p.id}`}
+          >
+            {p.name}
+          </span>
+        ))}
+        {attachAction}
+      </div>
+      {dialog}
+    </>
   );
 }
 
