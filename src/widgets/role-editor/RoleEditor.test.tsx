@@ -491,4 +491,24 @@ describe("RoleEditor", () => {
       });
     });
   });
+
+  // ── Sticky footer (audit-#7) ─────────────────────────────────────
+
+  it("Cancel + Save buttons are wrapped in a sticky-footer container", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") return makeRole();
+      if (cmd === "list_connected_clients") return [];
+      return undefined;
+    });
+    renderWithClient(<RoleEditor roleId="role-1" onClose={vi.fn()} />);
+
+    const save = await screen.findByTestId("role-editor-save");
+    const cancel = screen.getByTestId("role-editor-cancel");
+    // Both buttons share the same parent — the EditorShell.Footer
+    // wrapper. The wrapper carries the sticky-bottom layout class
+    // (matched by name prefix to stay resilient to CSS-modules hashes).
+    expect(save.parentElement).toBe(cancel.parentElement);
+    const footerClass = save.parentElement?.getAttribute("class") ?? "";
+    expect(footerClass).toMatch(/footer/);
+  });
 });

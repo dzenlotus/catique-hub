@@ -12,7 +12,13 @@ import {
   useUpdateRoleMutation,
   useDeleteRoleMutation,
 } from "@entities/role";
-import { Dialog, DialogFooter, Button, Input, MarkdownField } from "@shared/ui";
+import {
+  Dialog,
+  EditorShell,
+  Button,
+  Input,
+  MarkdownField,
+} from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -100,7 +106,7 @@ function RoleEditorContent({
           <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
           <div className={styles.skeletonBlock} />
         </div>
-        <DialogFooter className={styles.footer}>
+        <EditorShell.Footer className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -117,7 +123,7 @@ function RoleEditorContent({
           >
             Save
           </Button>
-        </DialogFooter>
+        </EditorShell.Footer>
       </>
     );
   }
@@ -143,7 +149,7 @@ function RoleEditorContent({
             Retry
           </Button>
         </div>
-        <DialogFooter className={styles.footer}>
+        <EditorShell.Footer className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -152,7 +158,7 @@ function RoleEditorContent({
           >
             Close
           </Button>
-        </DialogFooter>
+        </EditorShell.Footer>
       </>
     );
   }
@@ -171,7 +177,7 @@ function RoleEditorContent({
             Role not found.
           </p>
         </div>
-        <DialogFooter className={styles.footer}>
+        <EditorShell.Footer className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -180,7 +186,7 @@ function RoleEditorContent({
           >
             Close
           </Button>
-        </DialogFooter>
+        </EditorShell.Footer>
       </>
     );
   }
@@ -313,7 +319,7 @@ function RoleEditorContent({
       <RoleAttachmentsSections roleId={role.id} />
 
       {/* Footer */}
-      <DialogFooter className={styles.footer}>
+      <EditorShell.Footer className={styles.footer}>
         <span className={styles.deleteSpacer}>
           <Button
             variant="ghost"
@@ -354,7 +360,7 @@ function RoleEditorContent({
         >
           Save
         </Button>
-      </DialogFooter>
+      </EditorShell.Footer>
     </>
   );
 }

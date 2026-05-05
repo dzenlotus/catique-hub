@@ -37,7 +37,7 @@ import { useRoles } from "@entities/role";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import {
   Dialog,
-  DialogFooter,
+  EditorShell,
   Button,
   Input,
   MarkdownField,
@@ -442,7 +442,7 @@ export function TaskDialogContent({
           <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
           <div className={styles.skeletonBlock} />
         </div>
-        <DialogFooter className={styles.footer}>
+        <EditorShell.Footer className={styles.footer}>
           <div className={styles.footerActions}>
             <Button
               variant="secondary"
@@ -461,7 +461,7 @@ export function TaskDialogContent({
               Save changes
             </Button>
           </div>
-        </DialogFooter>
+        </EditorShell.Footer>
       </>
     );
   }
@@ -487,7 +487,7 @@ export function TaskDialogContent({
             Retry
           </Button>
         </div>
-        <DialogFooter className={styles.footer}>
+        <EditorShell.Footer className={styles.footer}>
           <div className={styles.footerActions}>
             <Button
               variant="secondary"
@@ -498,7 +498,7 @@ export function TaskDialogContent({
               Close
             </Button>
           </div>
-        </DialogFooter>
+        </EditorShell.Footer>
       </>
     );
   }
@@ -515,7 +515,7 @@ export function TaskDialogContent({
         >
           <p className={styles.notFoundBannerMessage}>Task not found.</p>
         </div>
-        <DialogFooter className={styles.footer}>
+        <EditorShell.Footer className={styles.footer}>
           <div className={styles.footerActions}>
             <Button
               variant="secondary"
@@ -526,7 +526,7 @@ export function TaskDialogContent({
               Close
             </Button>
           </div>
-        </DialogFooter>
+        </EditorShell.Footer>
       </>
     );
   }
@@ -721,7 +721,7 @@ export function TaskDialogContent({
       </Scrollable>
 
       {/* Footer */}
-      <DialogFooter className={styles.footer}>
+      <EditorShell.Footer className={styles.footer}>
         {/* Delete (trash) button — left side */}
         {confirmDelete ? (
           <div className={styles.deleteConfirm} data-testid="task-dialog-delete-confirm">
@@ -786,7 +786,7 @@ export function TaskDialogContent({
             Save changes
           </Button>
         </div>
-      </DialogFooter>
+      </EditorShell.Footer>
     </>
   );
 }

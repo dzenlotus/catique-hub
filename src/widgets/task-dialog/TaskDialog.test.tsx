@@ -1013,4 +1013,26 @@ describe("TaskDialog", () => {
       });
     });
   });
+
+  // ── Sticky footer (audit-#7) ─────────────────────────────────────
+
+  describe("EditorShell.Footer", () => {
+    it("Cancel + Save changes share an EditorShell.Footer ancestor", async () => {
+      const task = makeTask();
+      invokeMock.mockImplementation(defaultInvokeHandler(task));
+      renderWithClient(<TaskDialog taskId="tsk-1" onClose={vi.fn()} />);
+
+      const save = await screen.findByTestId("task-dialog-save");
+      const cancel = screen.getByTestId("task-dialog-cancel");
+      // Cancel and Save sit inside `.footerActions` which itself sits
+      // inside the EditorShell.Footer wrapper. Walk up two levels and
+      // assert the same sticky-footer container is shared.
+      const saveFooter = save.parentElement?.parentElement ?? null;
+      const cancelFooter = cancel.parentElement?.parentElement ?? null;
+      expect(saveFooter).not.toBeNull();
+      expect(saveFooter).toBe(cancelFooter);
+      const footerClass = saveFooter?.getAttribute("class") ?? "";
+      expect(footerClass).toMatch(/footer/);
+    });
+  });
 });

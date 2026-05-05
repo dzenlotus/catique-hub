@@ -10,7 +10,7 @@ import { useEffect, useState, type ReactElement } from "react";
 import { usePrompt, useUpdatePromptMutation } from "@entities/prompt";
 import {
   Dialog,
-  DialogFooter,
+  EditorShell,
   Button,
   Input,
   MarkdownField,
@@ -150,7 +150,7 @@ function PromptEditorContent({
           <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
           <div className={styles.skeletonBlock} />
         </div>
-        <DialogFooter className={styles.footer}>
+        <EditorShell.Footer className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -167,7 +167,7 @@ function PromptEditorContent({
           >
             Save
           </Button>
-        </DialogFooter>
+        </EditorShell.Footer>
       </>
     );
   }
@@ -193,7 +193,7 @@ function PromptEditorContent({
             Retry
           </Button>
         </div>
-        <DialogFooter className={styles.footer}>
+        <EditorShell.Footer className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -202,7 +202,7 @@ function PromptEditorContent({
           >
             Close
           </Button>
-        </DialogFooter>
+        </EditorShell.Footer>
       </>
     );
   }
@@ -221,7 +221,7 @@ function PromptEditorContent({
             Prompt not found.
           </p>
         </div>
-        <DialogFooter className={styles.footer}>
+        <EditorShell.Footer className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -230,7 +230,7 @@ function PromptEditorContent({
           >
             Close
           </Button>
-        </DialogFooter>
+        </EditorShell.Footer>
       </>
     );
   }
@@ -359,7 +359,7 @@ function PromptEditorContent({
       </div>
 
       {/* Footer */}
-      <DialogFooter className={styles.footer}>
+      <EditorShell.Footer className={styles.footer}>
         {saveError ? (
           <p
             className={styles.saveError}
@@ -386,7 +386,7 @@ function PromptEditorContent({
         >
           Save
         </Button>
-      </DialogFooter>
+      </EditorShell.Footer>
     </>
   );
 }

@@ -82,6 +82,14 @@ export type { EmptyStateProps } from "./EmptyState";
 export { Scrollable } from "./Scrollable";
 export type { ScrollableProps } from "./Scrollable";
 
+export { EditorShell } from "./EditorShell";
+export type {
+  EditorShellProps,
+  EditorShellHeaderProps,
+  EditorShellBodyProps,
+  EditorShellFooterProps,
+} from "./EditorShell";
+
 export {
   SidebarShell,
   SidebarSectionLabel,

@@ -311,4 +311,23 @@ describe("PromptEditor", () => {
     expect(textarea).toHaveValue("## Заголовок\n\nАбзац");
   });
 
+  // ── Sticky footer (audit-#7) ─────────────────────────────────────
+
+  it("Cancel + Save buttons live in the sticky-footer container", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_prompt") return makePrompt();
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    renderWithClient(<PromptEditor promptId="prm-1" onClose={vi.fn()} />);
+
+    const save = await screen.findByTestId("prompt-editor-save");
+    const cancel = screen.getByTestId("prompt-editor-cancel");
+    // Both buttons share the same EditorShell.Footer parent — the
+    // sticky-bottom wrapper. The wrapper carries the layout class
+    // matched by name prefix (resilient to CSS-modules hashes).
+    expect(save.parentElement).toBe(cancel.parentElement);
+    const footerClass = save.parentElement?.getAttribute("class") ?? "";
+    expect(footerClass).toMatch(/footer/);
+  });
+
 });

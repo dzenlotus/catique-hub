@@ -300,6 +300,33 @@ describe("BoardSettings — board prompts MultiSelect (audit-#8)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders inside the EditorShell page-shell wrapper (audit-#7)", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_board") return makeBoard();
+      if (cmd === "list_spaces") return [makeSpace()];
+      if (cmd === "list_roles") return defaultRoles();
+      if (cmd === "list_prompts") return [];
+      if (cmd === "list_boards") return [makeBoard()];
+      if (cmd === "list_columns") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+
+    renderSettings();
+
+    // The BoardSettings root now lives inside an EditorShell. The
+    // shell exposes the body via `board-settings-scroll` (preserved
+    // from the round-19g rework) and the Save button still lives
+    // inside it — the `audit-F12-followup` TODO will lift it into a
+    // sticky footer slot once page-level Cancel/Save UX is settled.
+    const shell = await screen.findByTestId("board-settings-shell");
+    expect(shell).toBeInTheDocument();
+    const body = screen.getByTestId("board-settings-scroll");
+    expect(shell).toContainElement(body);
+    expect(body).toContainElement(
+      await screen.findByTestId("board-settings-save"),
+    );
+  });
+
   it("calls set_board_prompts when a prompt is added via MultiSelect", async () => {
     const setCalls: Array<[string, unknown]> = [];
     invokeMock.mockImplementation(async (cmd, args) => {

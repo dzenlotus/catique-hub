@@ -1,12 +1,29 @@
 /*
  * BoardSettings — page-shell layout. Mirrors SpaceSettings so the
  * two pages read as a matched pair.
+ *
+ * Round-19g (audit-#7): the page-shell wrapping moved from a bespoke
+ * `<Scrollable>` + `.scrollHost` pair to `<EditorShell>` so the body
+ * scroll, sticky header and (forthcoming) sticky footer obey the
+ * shared editor-surface contract. The classes below keep the inner
+ * `.root` column unchanged — only the outer scroll/host wrappers
+ * shifted to the shell primitive.
  */
 
-.scrollHost {
+.shell {
   height: 100%;
   width: 100%;
   min-height: 0;
+}
+
+/*
+ * Reset the shell body's intrinsic padding (`var(--space-12)
+ * var(--space-4)` from EditorShell.module.css) — this page already
+ * pays for its own gutter via `.root` so we want a flush scroll
+ * surface here.
+ */
+.shellBody {
+  padding: 0;
 }
 
 .root {

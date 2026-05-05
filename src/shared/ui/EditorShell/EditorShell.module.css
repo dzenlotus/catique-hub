@@ -1,0 +1,89 @@
+/*
+ * EditorShell — sticky header / scrollable body / sticky footer primitive.
+ *
+ * Used by editor surfaces (RoleEditor, PromptEditor, TaskDialog,
+ * BoardSettings) to guarantee Cancel / Save Changes footers stay
+ * pinned to the bottom edge while the body scrolls. Also used as a
+ * page shell when the editor surface is not inside a Dialog.
+ *
+ * Layout:
+ *   - Root: flex column, fills its container.
+ *   - Header: flex-shrink: 0, intrinsic height, optional bottom border.
+ *   - Body: flex: 1 1 auto, min-height: 0, owns vertical scroll.
+ *   - Footer: flex-shrink: 0, sticky-to-bottom via flex layout, top
+ *     border separates it from the body.
+ *
+ * When `<EditorShell>` is rendered inside a `<Dialog>`, the dialog's
+ * `splitFooter` lifts the `<EditorShell.Footer>` out of the body wrap
+ * (the footer is tagged with the same `Symbol.for("catique.DialogFooter")`
+ * key) so the footer becomes a flex sibling of the dialog's `.body`.
+ * In that case the EditorShell root simply hosts header + body and the
+ * dialog owns the bottom-pinning. The CSS below covers the standalone
+ * (non-dialog) case where EditorShell is the layout owner.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-16) var(--space-4) var(--space-12);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: visible;
+  overflow-y: auto;
+  padding: var(--space-12) var(--space-4);
+
+  /* Thin native scrollbar with token-driven thumb so it reads as a
+   * peer to `<Scrollable>`-themed surfaces elsewhere in the app. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.body::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: var(--radius-full, 9999px);
+}
+
+.body::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-subtle);
+}
+
+/*
+ * Footer — sticky-to-bottom via flex layout. Lives as a flex sibling of
+ * `.body`, NOT inside it, so it stays pinned at the shell's bottom edge
+ * regardless of the body's scroll position. The `flex: 0 0 auto` keeps
+ * it at intrinsic height when the body claims the rest of the column.
+ */
+.footer {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-12) var(--space-4) var(--space-4);
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  background-color: var(--color-surface-overlay);
+}

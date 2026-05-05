@@ -30,12 +30,12 @@ import { invoke } from "@shared/api";
 import {
   Button,
   ConfirmDialog,
+  EditorShell,
   IconColorPicker,
   Input,
   Listbox,
   ListboxItem,
   MultiSelect,
-  Scrollable,
 } from "@shared/ui";
 import { useToast } from "@app/providers/ToastProvider";
 import { boardPath, routes } from "@app/routes";
@@ -54,70 +54,78 @@ export function BoardSettings(): ReactElement {
 
   if (boardQuery.status === "pending") {
     return (
-      <Scrollable
-        axis="y"
-        className={styles.scrollHost}
-        data-testid="board-settings-scroll"
-      >
-        <div className={styles.root} data-testid="board-settings">
-          <div className={styles.statusPanel} role="status">
-            <p className={styles.statusMessage}>Loading board…</p>
+      <EditorShell testId="board-settings-shell" className={styles.shell}>
+        <EditorShell.Body
+          testId="board-settings-scroll"
+          className={styles.shellBody}
+        >
+          <div className={styles.root} data-testid="board-settings">
+            <div className={styles.statusPanel} role="status">
+              <p className={styles.statusMessage}>Loading board…</p>
+            </div>
           </div>
-        </div>
-      </Scrollable>
+        </EditorShell.Body>
+      </EditorShell>
     );
   }
 
   if (boardQuery.status === "error" || !boardQuery.data) {
     return (
-      <Scrollable
-        axis="y"
-        className={styles.scrollHost}
-        data-testid="board-settings-scroll"
-      >
-        <div className={styles.root} data-testid="board-settings">
-          <div className={styles.statusPanel} role="alert">
-            <p className={styles.statusMessage}>
-              {boardQuery.status === "error"
-                ? `Failed to load board: ${boardQuery.error.message}`
-                : "Board not found."}
-            </p>
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={() => setLocation(routes.boards)}
-            >
-              Back to boards
-            </Button>
+      <EditorShell testId="board-settings-shell" className={styles.shell}>
+        <EditorShell.Body
+          testId="board-settings-scroll"
+          className={styles.shellBody}
+        >
+          <div className={styles.root} data-testid="board-settings">
+            <div className={styles.statusPanel} role="alert">
+              <p className={styles.statusMessage}>
+                {boardQuery.status === "error"
+                  ? `Failed to load board: ${boardQuery.error.message}`
+                  : "Board not found."}
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                onPress={() => setLocation(routes.boards)}
+              >
+                Back to boards
+              </Button>
+            </div>
           </div>
-        </div>
-      </Scrollable>
+        </EditorShell.Body>
+      </EditorShell>
     );
   }
 
   const board = boardQuery.data;
 
+  // TODO(audit-F12-followup): BoardSettings keeps its `Save` button
+  // inside the General card's `.actions` row. Once the page-level
+  // dirty-check / Cancel-and-Save UX lands, lift those buttons into a
+  // dedicated `<EditorShell.Footer>` so they pin to the bottom of the
+  // page surface like the other editor surfaces do.
   return (
-    <Scrollable
-      axis="y"
-      className={styles.scrollHost}
-      data-testid="board-settings-scroll"
-    >
-      <div className={styles.root} data-testid="board-settings">
-        <BoardSettingsForm
-          key={board.id}
-          boardId={board.id}
-          initialName={board.name}
-          initialDescription={board.description ?? ""}
-          initialIcon={board.icon ?? null}
-          initialColor={board.color ?? ""}
-          initialSpaceId={board.spaceId}
-          initialPosition={String(board.position)}
-          initialOwnerRoleId={board.ownerRoleId}
-          isDefault={board.isDefault}
-        />
-      </div>
-    </Scrollable>
+    <EditorShell testId="board-settings-shell" className={styles.shell}>
+      <EditorShell.Body
+        testId="board-settings-scroll"
+        className={styles.shellBody}
+      >
+        <div className={styles.root} data-testid="board-settings">
+          <BoardSettingsForm
+            key={board.id}
+            boardId={board.id}
+            initialName={board.name}
+            initialDescription={board.description ?? ""}
+            initialIcon={board.icon ?? null}
+            initialColor={board.color ?? ""}
+            initialSpaceId={board.spaceId}
+            initialPosition={String(board.position)}
+            initialOwnerRoleId={board.ownerRoleId}
+            isDefault={board.isDefault}
+          />
+        </div>
+      </EditorShell.Body>
+    </EditorShell>
   );
 }
 
