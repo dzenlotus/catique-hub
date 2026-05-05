@@ -112,16 +112,29 @@ pub async fn update_attachment(
     Ok(attachment)
 }
 
-/// IPC: delete an attachment metadata row.
+/// IPC: delete an attachment metadata row **and** the on-disk blob.
+///
+/// Resolves the blob root (`$APPLOCALDATA/catique/attachments`) and
+/// hands it to `AttachmentsUseCase::delete_with_blob` so the file is
+/// removed in lock-step with the row. A missing file is logged but
+/// does not fail the call — see the use-case doc for the idempotency
+/// rationale.
 ///
 /// # Errors
 ///
-/// Forwards every error from `AttachmentsUseCase::delete`.
+/// Forwards every error from `AttachmentsUseCase::delete_with_blob`.
+/// `AppError::Validation` if the platform's app-data dir cannot be
+/// resolved.
 #[tauri::command]
 pub async fn delete_attachment(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
     let uc = AttachmentsUseCase::new(&state.pool);
     let attachment = uc.get(&id)?;
-    uc.delete(&id)?;
+    let data_root = app_data_dir().map_err(|reason| AppError::Validation {
+        field: "target_data_dir".into(),
+        reason: reason.to_owned(),
+    })?;
+    let blob_root = data_root.join("attachments");
+    uc.delete_with_blob(&id, &blob_root)?;
     events::emit(
         &state,
         events::ATTACHMENT_DELETED,

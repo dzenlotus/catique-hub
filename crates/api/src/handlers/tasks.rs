@@ -7,6 +7,7 @@
 
 use catique_application::{tasks::TasksUseCase, AppError};
 use catique_domain::{Prompt, Task, TaskRating};
+use catique_infrastructure::paths::app_data_dir;
 use serde_json::json;
 use tauri::State;
 
@@ -121,16 +122,30 @@ pub async fn update_task(
 
 /// IPC: delete a task.
 ///
+/// Performs the FK cascade on `task_attachments` rows AND removes the
+/// per-task on-disk attachment directory under
+/// `$APPLOCALDATA/catique/attachments/<task_id>/`. Both halves are
+/// best-effort on the FS side: if the directory is missing or removal
+/// fails, the IPC call still succeeds (warn-and-continue) — see
+/// `TasksUseCase::delete_with_attachments` for the rationale.
+///
 /// # Errors
 ///
-/// Forwards every error from `TasksUseCase::delete`.
+/// Forwards every error from `TasksUseCase::delete_with_attachments`.
+/// `AppError::Validation` if the platform's app-data dir cannot be
+/// resolved.
 #[tauri::command]
 pub async fn delete_task(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
     // GET first to obtain `(column_id, board_id)` for the event
     // payload. Same trade-off as `delete_column`.
     let uc = TasksUseCase::new(&state.pool);
     let task = uc.get(&id)?;
-    uc.delete(&id)?;
+    let data_root = app_data_dir().map_err(|reason| AppError::Validation {
+        field: "target_data_dir".into(),
+        reason: reason.to_owned(),
+    })?;
+    let attachments_root = data_root.join("attachments");
+    uc.delete_with_attachments(&id, &attachments_root)?;
     events::emit(
         &state,
         events::TASK_DELETED,

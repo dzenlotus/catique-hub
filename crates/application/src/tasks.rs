@@ -177,6 +177,12 @@ impl<'a> TasksUseCase<'a> {
 
     /// Delete a task.
     ///
+    /// **Metadata-only.** `task_attachments` rows are cascaded by the
+    /// `ON DELETE CASCADE` clause on the FK (`001_initial.sql:292`), but
+    /// the on-disk directory `<app_data>/attachments/<task_id>/` is
+    /// *not* touched. Use [`TasksUseCase::delete_with_attachments`] from
+    /// the IPC layer so blobs are reaped in lock-step with the cascade.
+    ///
     /// # Errors
     ///
     /// `AppError::NotFound` if id is unknown.
@@ -191,6 +197,42 @@ impl<'a> TasksUseCase<'a> {
                 id: id.to_owned(),
             })
         }
+    }
+
+    /// Delete a task **and** unlink its on-disk attachment directory.
+    ///
+    /// `attachments_root` is `$APPLOCALDATA/catique/attachments`. The
+    /// per-task subdirectory is `<root>/<task_id>/`. After the row +
+    /// FK-cascaded metadata are removed, the on-disk directory is
+    /// removed via `std::fs::remove_dir_all` if it exists. Failures
+    /// during the directory removal are logged but never bubble — the
+    /// row delete is the source of truth and a half-cleaned attachments
+    /// dir is the same orphan-state the per-attachment delete handles
+    /// via `delete_with_blob`.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound` if id is unknown.
+    pub fn delete_with_attachments(
+        &self,
+        id: &str,
+        attachments_root: &std::path::Path,
+    ) -> Result<(), AppError> {
+        // Order: DB delete first (row + FK cascade) → FS cleanup. If we
+        // tried it the other way and the DB delete failed, we'd have an
+        // entry that points at a missing directory.
+        self.delete(id)?;
+        let task_dir = attachments_root.join(id);
+        if task_dir.exists() {
+            if let Err(e) = std::fs::remove_dir_all(&task_dir) {
+                eprintln!(
+                    "[catique-hub] delete_task: failed to remove attachment dir {}: {}",
+                    task_dir.display(),
+                    e
+                );
+            }
+        }
+        Ok(())
     }
 
     /// Append one step-log line to `task_id`. Cat-as-Agent Phase 1 —
@@ -602,5 +644,52 @@ mod tests {
         // Round-trip: get should return the same role_id.
         let got = uc.get(&task.id).unwrap();
         assert_eq!(got.role_id.as_deref(), Some("rl-x"));
+    }
+
+    #[test]
+    fn delete_task_removes_attachment_directory() {
+        // Cascade contract: deleting a task must remove the
+        // `<root>/<task_id>/` directory and everything inside it.
+        let pool = fresh_pool();
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .unwrap();
+        let attachments_root = tempfile::tempdir().unwrap();
+        let task_dir = attachments_root.path().join(&task.id);
+        std::fs::create_dir_all(&task_dir).unwrap();
+        let blob_path = task_dir.join("file.bin");
+        std::fs::write(&blob_path, b"x").unwrap();
+
+        uc.delete_with_attachments(&task.id, attachments_root.path())
+            .unwrap();
+
+        assert!(!task_dir.exists(), "task attachment dir should be gone");
+        match uc.get(&task.id).expect_err("nf") {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "task"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn delete_task_succeeds_when_attachment_dir_missing() {
+        // Idempotency: a task that never had attachments (no directory
+        // on disk) must still delete cleanly.
+        let pool = fresh_pool();
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .unwrap();
+        let attachments_root = tempfile::tempdir().unwrap();
+        let task_dir = attachments_root.path().join(&task.id);
+        assert!(!task_dir.exists(), "precondition: dir absent");
+
+        uc.delete_with_attachments(&task.id, attachments_root.path())
+            .expect("delete should succeed when dir is missing");
+
+        match uc.get(&task.id).expect_err("nf") {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "task"),
+            other => panic!("got {other:?}"),
+        }
     }
 }
