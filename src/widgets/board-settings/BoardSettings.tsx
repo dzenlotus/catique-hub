@@ -19,9 +19,11 @@ import {
   boardsKeys,
   useBoard,
   useDeleteBoardMutation,
+  useSetBoardPromptsMutation,
   useUpdateBoardMutation,
 } from "@entities/board";
 import type { Board } from "@entities/board";
+import { usePrompts } from "@entities/prompt";
 import { useRoles } from "@entities/role";
 import { useSpaces } from "@entities/space";
 import { invoke } from "@shared/api";
@@ -32,11 +34,11 @@ import {
   Input,
   Listbox,
   ListboxItem,
+  MultiSelect,
   Scrollable,
 } from "@shared/ui";
 import { useToast } from "@app/providers/ToastProvider";
 import { boardPath, routes } from "@app/routes";
-import { AttachPromptDialog } from "@widgets/attach-prompt-dialog";
 
 import styles from "./BoardSettings.module.css";
 
@@ -167,9 +169,16 @@ function BoardSettingsForm({
   // for the rendered <select> value and rolls back on IPC error.
   const [ownerRoleId, setOwnerRoleId] = useState<string>(initialOwnerRoleId);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [attachPromptOpen, setAttachPromptOpen] = useState(false);
+  // Local prompt-list state for the Board prompts MultiSelect.
+  // No `list_board_prompts` IPC exists yet (TODO ctq-117) so the chip
+  // rail starts empty and `set_board_prompts` is destructive — the
+  // multiselect canonically replaces the attached list each call.
+  const [boardPromptIds, setBoardPromptIds] = useState<string[]>([]);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const promptsQuery = usePrompts();
+  const setBoardPromptsMutation = useSetBoardPromptsMutation();
 
   /**
    * Owner-cat reassignment. Optimistically writes the new id into the
@@ -487,27 +496,37 @@ function BoardSettingsForm({
         <p className={styles.fieldHint}>
           Prompts attached at the board level cascade to every task on
           this board.
-          {/* TODO(ctq-117): once `list_board_prompts` ships, render the
-              attached list here with detach + drag-reorder rows. */}
         </p>
-        <div className={styles.actions}>
-          <Button
-            variant="secondary"
-            size="md"
-            onPress={() => setAttachPromptOpen(true)}
-            data-testid="board-settings-prompts-attach"
-          >
-            Attach prompt
-          </Button>
-        </div>
+        {/* TODO(ctq-117): seed `values` from `list_board_prompts` once
+            the IPC ships. Until then the chip rail starts empty and
+            `set_board_prompts` canonically replaces the attached list. */}
+        <MultiSelect<string>
+          label="Board prompts"
+          values={boardPromptIds}
+          options={(promptsQuery.data ?? []).map((p) =>
+            p.shortDescription != null && p.shortDescription.length > 0
+              ? { id: p.id, name: p.name, description: p.shortDescription }
+              : { id: p.id, name: p.name },
+          )}
+          onChange={(next) => {
+            setBoardPromptIds(next);
+            setBoardPromptsMutation.mutate(
+              { boardId, promptIds: next },
+              {
+                onError: (err) => {
+                  pushToast(
+                    "error",
+                    `Failed to update board prompts: ${err.message}`,
+                  );
+                },
+              },
+            );
+          }}
+          placeholder="Search prompts…"
+          emptyText="No prompts available"
+          testId="board-settings-prompts-select"
+        />
       </section>
-
-      <AttachPromptDialog
-        isOpen={attachPromptOpen}
-        onClose={() => setAttachPromptOpen(false)}
-        defaultTarget={{ kind: "board", id: boardId }}
-        lockedTarget
-      />
 
       {!isDefault ? (
         <section

@@ -20,9 +20,11 @@ export {
   addRoleSkill,
   removeRoleSkill,
   listRoleSkills,
+  setRoleSkills,
   addRoleMcpTool,
   removeRoleMcpTool,
   listRoleMcpTools,
+  setRoleMcpTools,
 } from "./api";
 export type {
   CreateRoleArgs,
@@ -50,11 +52,19 @@ export {
   useRoleSkills,
   useAddRoleSkillMutation,
   useRemoveRoleSkillMutation,
+  useSetRoleSkillsMutation,
   useRoleMcpTools,
   useAddRoleMcpToolMutation,
   useRemoveRoleMcpToolMutation,
+  useSetRoleMcpToolsMutation,
 } from "./model";
-export type { Role, UseRolesOptions, SetRolePromptsArgs } from "./model";
+export type {
+  Role,
+  UseRolesOptions,
+  SetRolePromptsArgs,
+  SetRoleSkillsArgs,
+  SetRoleMcpToolsArgs,
+} from "./model";
 
 // UI
 export { RoleCard } from "./ui";

@@ -14,6 +14,7 @@ export {
   updateBoard,
   deleteBoard,
   addBoardPrompt,
+  setBoardPrompts,
   AppErrorInstance,
 } from "./api";
 export type { CreateBoardArgs, UpdateBoardArgs, AddBoardPromptArgs } from "./api";
@@ -27,8 +28,9 @@ export {
   useUpdateBoardMutation,
   useDeleteBoardMutation,
   useAddBoardPromptMutation,
+  useSetBoardPromptsMutation,
 } from "./model";
-export type { Board } from "./model";
+export type { Board, SetBoardPromptsArgs } from "./model";
 
 // UI
 export { BoardCard } from "./ui";

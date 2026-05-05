@@ -49,6 +49,9 @@ export type {
   MultiTagInputItem,
 } from "./MultiTagInput";
 
+export { MultiSelect } from "./MultiSelect";
+export type { MultiSelectProps, MultiSelectOption } from "./MultiSelect";
+
 export { Tooltip, TooltipTrigger } from "./Tooltip";
 export type { TooltipProps, TooltipTriggerProps } from "./Tooltip";
 

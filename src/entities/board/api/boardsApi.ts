@@ -242,3 +242,18 @@ export async function addBoardPrompt(args: AddBoardPromptArgs): Promise<void> {
     position: args.position,
   });
 }
+
+/**
+ * `set_board_prompts` — replace the board's prompt list with `promptIds`
+ * in the supplied order. Backed by the ctq-108 bulk handler. Used by the
+ * BoardSettings `<MultiSelect>` (audit-#8).
+ */
+export async function setBoardPrompts(
+  boardId: string,
+  promptIds: ReadonlyArray<string>,
+): Promise<void> {
+  return invokeWithAppError<void>("set_board_prompts", {
+    boardId,
+    promptIds,
+  });
+}

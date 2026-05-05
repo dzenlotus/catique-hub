@@ -588,14 +588,22 @@ describe("TaskDialog", () => {
     expect(screen.getByText("Agent reports")).toBeInTheDocument();
   });
 
-  it("prompts section shows empty-state hint when no prompts attached", async () => {
-    invokeMock.mockImplementation(defaultInvokeHandler(makeTask()));
+  it("prompts section renders the inline MultiSelect (audit-#8)", async () => {
+    invokeMock.mockImplementation(
+      defaultInvokeHandler(makeTask(), { list_prompts: [] }),
+    );
     const onClose = vi.fn();
     renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
     await waitFor(() => {
-      expect(screen.getByText("No prompts attached")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("task-dialog-prompts-select"),
+      ).toBeInTheDocument();
     });
+    // Old "Attach prompt" button is gone with the dialog migration.
+    expect(
+      screen.queryByTestId("task-dialog-prompts-attach"),
+    ).not.toBeInTheDocument();
   });
 
   it("attachments section shows empty state with enabled upload button when no attachments", async () => {
@@ -900,28 +908,109 @@ describe("TaskDialog", () => {
     expect(screen.getByText(/disk full/i)).toBeInTheDocument();
   });
 
-  // ── Attach prompt action (ctq-102) ─────────────────────────────────
+  // ── MultiSelect prompts (audit-#8) ─────────────────────────────────
 
-  it("opens AttachPromptDialog with locked task target on Attach prompt", async () => {
+  it("attaches a prompt by clicking an option in the MultiSelect", async () => {
     const task = makeTask();
-    invokeMock.mockImplementation(defaultInvokeHandler(task));
+    const promptCalls: Array<[string, unknown]> = [];
+    invokeMock.mockImplementation(async (cmd, args) => {
+      promptCalls.push([cmd, args]);
+      if (cmd === "get_task") return task;
+      if (cmd === "list_attachments") return [];
+      if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return [];
+      if (cmd === "list_prompts")
+        return [
+          {
+            id: "prm-1",
+            name: "Codestyle",
+            content: "",
+            color: null,
+            shortDescription: null,
+            icon: null,
+            examples: [],
+            tokenCount: null,
+            createdAt: 0n,
+            updatedAt: 0n,
+          },
+        ];
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
+      if (cmd === "add_task_prompt") return undefined;
+      throw new Error(`unexpected: ${cmd}`);
+    });
     const onClose = vi.fn();
     const { user } = renderWithClient(
       <TaskDialog taskId="tsk-1" onClose={onClose} />,
     );
 
-    const attachBtn = await screen.findByTestId("task-dialog-prompts-attach");
-    await user.click(attachBtn);
+    const field = await screen.findByTestId("task-dialog-prompts-select-input");
+    await user.click(field);
+    const option = await screen.findByTestId(
+      "task-dialog-prompts-select-option-prm-1",
+    );
+    await user.click(option);
 
     await waitFor(() => {
-      expect(screen.getByTestId("attach-prompt-dialog")).toBeInTheDocument();
+      const addCall = promptCalls.find(([cmd]) => cmd === "add_task_prompt");
+      expect(addCall).toBeDefined();
+      expect(addCall?.[1]).toMatchObject({
+        taskId: "tsk-1",
+        promptId: "prm-1",
+      });
     });
-    // Locked target — kind/target pickers suppressed.
-    expect(
-      screen.getByTestId("attach-prompt-dialog-locked-target"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("attach-prompt-dialog-target-kind"),
-    ).not.toBeInTheDocument();
+  });
+
+  it("removes a prompt chip via the X button", async () => {
+    const task = makeTask();
+    const initial = [
+      {
+        id: "prm-1",
+        name: "Codestyle",
+        content: "",
+        color: null,
+        shortDescription: null,
+        icon: null,
+        examples: [],
+        tokenCount: null,
+        createdAt: 0n,
+        updatedAt: 0n,
+      },
+    ];
+    const promptCalls: Array<[string, unknown]> = [];
+    invokeMock.mockImplementation(async (cmd, args) => {
+      promptCalls.push([cmd, args]);
+      if (cmd === "get_task") return task;
+      if (cmd === "list_attachments") return [];
+      if (cmd === "list_agent_reports") return [];
+      if (cmd === "list_task_prompts") return initial;
+      if (cmd === "list_prompts") return initial;
+      if (cmd === "list_boards") return [makeBoard("brd-1", "Sprint Board")];
+      if (cmd === "list_columns") return [makeColumn("col-1", "Todo", "brd-1")];
+      if (cmd === "list_roles") return [];
+      if (cmd === "list_spaces") return [makeSpace()];
+      if (cmd === "remove_task_prompt") return undefined;
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(
+      <TaskDialog taskId="tsk-1" onClose={onClose} />,
+    );
+
+    await screen.findByTestId("task-dialog-prompts-select-chip-prm-1");
+    await user.click(
+      screen.getByTestId("task-dialog-prompts-select-chip-remove-prm-1"),
+    );
+
+    await waitFor(() => {
+      const rmCall = promptCalls.find(([cmd]) => cmd === "remove_task_prompt");
+      expect(rmCall).toBeDefined();
+      expect(rmCall?.[1]).toMatchObject({
+        taskId: "tsk-1",
+        promptId: "prm-1",
+      });
+    });
   });
 });

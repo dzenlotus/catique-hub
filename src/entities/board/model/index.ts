@@ -7,4 +7,6 @@ export {
   useUpdateBoardMutation,
   useDeleteBoardMutation,
   useAddBoardPromptMutation,
+  useSetBoardPromptsMutation,
 } from "./store";
+export type { SetBoardPromptsArgs } from "./store";

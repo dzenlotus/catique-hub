@@ -276,8 +276,8 @@ describe("BoardSettings — owner cat picker (ctq-106)", () => {
   });
 });
 
-describe("BoardSettings — board prompts section (ctq-102)", () => {
-  it("opens AttachPromptDialog with locked board target on Attach", async () => {
+describe("BoardSettings — board prompts MultiSelect (audit-#8)", () => {
+  it("renders the prompts MultiSelect inline (no Attach button)", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_board") return makeBoard();
       if (cmd === "list_spaces") return [makeSpace()];
@@ -288,20 +288,63 @@ describe("BoardSettings — board prompts section (ctq-102)", () => {
       throw new Error(`unexpected: ${cmd}`);
     });
 
+    renderSettings();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("board-settings-prompts-select"),
+      ).toBeInTheDocument();
+    });
+    // The legacy "Attach prompt" button is gone with the dialog migration.
+    expect(
+      screen.queryByTestId("board-settings-prompts-attach"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("calls set_board_prompts when a prompt is added via MultiSelect", async () => {
+    const setCalls: Array<[string, unknown]> = [];
+    invokeMock.mockImplementation(async (cmd, args) => {
+      setCalls.push([cmd, args]);
+      if (cmd === "get_board") return makeBoard();
+      if (cmd === "list_spaces") return [makeSpace()];
+      if (cmd === "list_roles") return defaultRoles();
+      if (cmd === "list_prompts")
+        return [
+          {
+            id: "prm-1",
+            name: "Codestyle",
+            content: "",
+            color: null,
+            shortDescription: null,
+            icon: null,
+            examples: [],
+            tokenCount: null,
+            createdAt: 0n,
+            updatedAt: 0n,
+          },
+        ];
+      if (cmd === "list_boards") return [makeBoard()];
+      if (cmd === "list_columns") return [];
+      if (cmd === "set_board_prompts") return undefined;
+      throw new Error(`unexpected: ${cmd}`);
+    });
+
     const { user } = renderSettings();
-    const attachBtn = await screen.findByTestId(
-      "board-settings-prompts-attach",
+    const field = await screen.findByTestId(
+      "board-settings-prompts-select-input",
     );
-    await user.click(attachBtn);
+    await user.click(field);
+    const option = await screen.findByTestId(
+      "board-settings-prompts-select-option-prm-1",
+    );
+    await user.click(option);
 
     await waitFor(() => {
-      expect(screen.getByTestId("attach-prompt-dialog")).toBeInTheDocument();
+      const call = setCalls.find(([cmd]) => cmd === "set_board_prompts");
+      expect(call).toBeDefined();
+      expect(call?.[1]).toMatchObject({
+        boardId: "brd-1",
+        promptIds: ["prm-1"],
+      });
     });
-    expect(
-      screen.getByTestId("attach-prompt-dialog-locked-target"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("attach-prompt-dialog-target-kind"),
-    ).not.toBeInTheDocument();
   });
 });

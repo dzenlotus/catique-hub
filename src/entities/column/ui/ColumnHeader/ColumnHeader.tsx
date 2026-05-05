@@ -32,12 +32,6 @@ export interface ColumnHeaderProps {
   /** Callback for the "Delete" menu action — receives `id`. Dialog confirms first. */
   onDelete?: (id: string) => void;
   /**
-   * Callback for the "Attach prompt" menu action — receives `id`.
-   * Higher layers (widgets) mount the dialog; entities never reach
-   * upward in FSD. When omitted the menu item is hidden.
-   */
-  onAttachPrompt?: (id: string) => void;
-  /**
    * Render-prop slot for a drag handle. The widget layer
    * (`widgets/kanban-board`) injects a draggable `<button>` here when
    * the column is part of a sortable list. Entity slice doesn't know
@@ -104,7 +98,6 @@ export function ColumnHeader({
   taskCount,
   onRename,
   onDelete,
-  onAttachPrompt,
   dragHandle,
   onAddTask,
   className,
@@ -113,14 +106,16 @@ export function ColumnHeader({
   const [renameValue, setRenameValue] = useState(name);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
+  // TODO(audit-F14): the column overflow menu loses "Attach prompt"
+  // until the column edit page lands a `<MultiSelect>` for column-
+  // attached prompts (audit-#8 + audit-F14). The widget is intentionally
+  // stripped down here to remove the broken dialog wiring.
   const handleMenuAction = (key: React.Key): void => {
     if (key === "rename") {
       setRenameValue(name);
       setIsRenaming(true);
     } else if (key === "delete") {
       setIsConfirmingDelete(true);
-    } else if (key === "attach-prompt") {
-      onAttachPrompt?.(id);
     }
   };
 
@@ -196,9 +191,6 @@ export function ColumnHeader({
         </Button>
         <Menu onAction={handleMenuAction} placement="bottom end">
           <MenuItem id="rename">Rename</MenuItem>
-          {onAttachPrompt ? (
-            <MenuItem id="attach-prompt">Attach prompt</MenuItem>
-          ) : null}
           <MenuItem id="delete" variant="danger">
             Delete
           </MenuItem>

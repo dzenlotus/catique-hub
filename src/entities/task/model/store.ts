@@ -27,6 +27,7 @@ import {
   listTasksByColumn,
   updateTask,
   addTaskPrompt,
+  setTaskPrompts,
   listTaskPrompts,
   type CreateTaskArgs,
   type UpdateTaskArgs,
@@ -223,6 +224,36 @@ export function useAddTaskPromptMutation(): UseMutationResult<
   return useMutation({
     mutationFn: addTaskPrompt,
     onSuccess: (_void, vars) => {
+      void queryClient.invalidateQueries({
+        queryKey: tasksKeys.prompts(vars.taskId),
+      });
+    },
+  });
+}
+
+export interface SetTaskPromptsArgs {
+  taskId: string;
+  /** Prompts currently attached, in render order. */
+  previous: ReadonlyArray<string>;
+  /** Desired prompt list, in render order. */
+  next: ReadonlyArray<string>;
+}
+
+/**
+ * `useSetTaskPromptsMutation` — bulk set the directly-attached prompts
+ * of a task. Used by the inline `<MultiSelect>` in TaskDialog
+ * (audit-#8). Diffs internally via `setTaskPrompts`.
+ */
+export function useSetTaskPromptsMutation(): UseMutationResult<
+  void,
+  Error,
+  SetTaskPromptsArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, previous, next }) =>
+      setTaskPrompts(taskId, previous, next),
+    onSettled: (_void, _err, vars) => {
       void queryClient.invalidateQueries({
         queryKey: tasksKeys.prompts(vars.taskId),
       });

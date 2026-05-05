@@ -211,6 +211,32 @@ export async function listRoleSkills(roleId: string): Promise<Skill[]> {
   return invokeWithAppError<Skill[]>("list_role_skills", { roleId });
 }
 
+/**
+ * `setRoleSkills` — bulk set the skill list for a role via diff.
+ *
+ * No `set_role_skills` IPC exists yet (audit-#8) so this composite
+ * computes a diff against `previous` and dispatches the existing
+ * `add_role_skill` / `remove_role_skill` commands.
+ */
+export async function setRoleSkills(
+  roleId: string,
+  previous: ReadonlyArray<string>,
+  next: ReadonlyArray<string>,
+): Promise<void> {
+  const previousSet = new Set(previous);
+  const nextSet = new Set(next);
+  const toRemove = previous.filter((id) => !nextSet.has(id));
+  const toAdd = next.filter((id) => !previousSet.has(id));
+  for (const skillId of toRemove) {
+    await removeRoleSkill({ roleId, skillId });
+  }
+  let position = previous.length - toRemove.length;
+  for (const skillId of toAdd) {
+    await addRoleSkill({ roleId, skillId, position });
+    position += 1;
+  }
+}
+
 export interface AddRoleMcpToolArgs {
   roleId: string;
   mcpToolId: string;
@@ -248,4 +274,28 @@ export async function removeRoleMcpTool(
  */
 export async function listRoleMcpTools(roleId: string): Promise<McpTool[]> {
   return invokeWithAppError<McpTool[]>("list_role_mcp_tools", { roleId });
+}
+
+/**
+ * `setRoleMcpTools` — bulk set the MCP-tool list for a role via diff.
+ * Same shape as {@link setRoleSkills} — no bulk IPC, walk the difference
+ * against the per-row commands.
+ */
+export async function setRoleMcpTools(
+  roleId: string,
+  previous: ReadonlyArray<string>,
+  next: ReadonlyArray<string>,
+): Promise<void> {
+  const previousSet = new Set(previous);
+  const nextSet = new Set(next);
+  const toRemove = previous.filter((id) => !nextSet.has(id));
+  const toAdd = next.filter((id) => !previousSet.has(id));
+  for (const mcpToolId of toRemove) {
+    await removeRoleMcpTool({ roleId, mcpToolId });
+  }
+  let position = previous.length - toRemove.length;
+  for (const mcpToolId of toAdd) {
+    await addRoleMcpTool({ roleId, mcpToolId, position });
+    position += 1;
+  }
 }

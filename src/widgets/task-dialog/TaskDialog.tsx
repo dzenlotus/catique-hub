@@ -15,15 +15,16 @@
  * Footer: trash-icon delete button (left) + Cancel + Save (right).
  */
 
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   useTask,
   useTaskPrompts,
   useUpdateTaskMutation,
   useDeleteTaskMutation,
+  useSetTaskPromptsMutation,
 } from "@entities/task";
-import type { Prompt } from "@bindings/Prompt";
+import { usePrompts } from "@entities/prompt";
 import {
   useAttachmentsByTask,
   useDeleteAttachmentMutation,
@@ -40,13 +41,13 @@ import {
   Button,
   Input,
   MarkdownField,
+  MultiSelect,
   Scrollable,
   Select,
   SelectItem,
 } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
-import { AttachPromptDialog } from "@widgets/attach-prompt-dialog";
 import { useToast } from "@app/providers/ToastProvider";
 
 import styles from "./TaskDialog.module.css";
@@ -91,30 +92,27 @@ interface PromptsSectionProps {
 }
 
 function PromptsSection({ taskId }: PromptsSectionProps): ReactElement {
-  const query = useTaskPrompts(taskId);
-  const [isAttachOpen, setIsAttachOpen] = useState(false);
+  const attachedQuery = useTaskPrompts(taskId);
+  const allQuery = usePrompts();
+  const setMutation = useSetTaskPromptsMutation();
+  const { pushToast } = useToast();
 
-  const attachAction = (
-    <Button
-      variant="secondary"
-      size="sm"
-      onPress={() => setIsAttachOpen(true)}
-      data-testid="task-dialog-prompts-attach"
-    >
-      Attach prompt
-    </Button>
+  const attachedIds = useMemo(
+    () => (attachedQuery.data ?? []).map((p) => p.id),
+    [attachedQuery.data],
   );
 
-  const dialog = (
-    <AttachPromptDialog
-      isOpen={isAttachOpen}
-      onClose={() => setIsAttachOpen(false)}
-      defaultTarget={{ kind: "task", id: taskId }}
-      lockedTarget
-    />
+  const options = useMemo(
+    () =>
+      (allQuery.data ?? []).map((p) =>
+        p.shortDescription != null && p.shortDescription.length > 0
+          ? { id: p.id, name: p.name, description: p.shortDescription }
+          : { id: p.id, name: p.name },
+      ),
+    [allQuery.data],
   );
 
-  if (query.status === "pending") {
+  if (attachedQuery.status === "pending") {
     return (
       <div className={styles.attachmentSkeletonStack} aria-busy="true">
         <div className={styles.attachmentSkeletonRow} />
@@ -122,16 +120,16 @@ function PromptsSection({ taskId }: PromptsSectionProps): ReactElement {
     );
   }
 
-  if (query.status === "error") {
+  if (attachedQuery.status === "error") {
     return (
       <div className={styles.attachmentErrorBanner} role="alert">
         <p className={styles.attachmentErrorMessage}>
-          Failed to load prompts: {query.error.message}
+          Failed to load prompts: {attachedQuery.error.message}
         </p>
         <Button
           variant="secondary"
           size="sm"
-          onPress={() => void query.refetch()}
+          onPress={() => void attachedQuery.refetch()}
         >
           Retry
         </Button>
@@ -139,42 +137,27 @@ function PromptsSection({ taskId }: PromptsSectionProps): ReactElement {
     );
   }
 
-  const prompts: Prompt[] = query.data;
-
-  if (prompts.length === 0) {
-    return (
-      <>
-        <div className={styles.sectionEmptyState}>
-          <p className={styles.sectionEmptyHint}>No prompts attached</p>
-          {attachAction}
-        </div>
-        {dialog}
-      </>
+  const handleChange = (next: string[]): void => {
+    setMutation.mutate(
+      { taskId, previous: attachedIds, next },
+      {
+        onError: (err) => {
+          pushToast("error", `Failed to update prompts: ${err.message}`);
+        },
+      },
     );
-  }
+  };
 
   return (
-    <>
-      <div className={styles.promptChipWrap}>
-        {prompts.map((p) => (
-          <span
-            key={p.id}
-            className={styles.promptChip}
-            style={
-              p.color
-                ? { backgroundColor: `${p.color}22`, borderColor: `${p.color}66`, color: p.color }
-                : undefined
-            }
-            title={p.shortDescription ?? p.name}
-            data-testid={`task-dialog-prompt-chip-${p.id}`}
-          >
-            {p.name}
-          </span>
-        ))}
-        {attachAction}
-      </div>
-      {dialog}
-    </>
+    <MultiSelect<string>
+      label="Task prompts"
+      values={attachedIds}
+      options={options}
+      onChange={handleChange}
+      placeholder="Search prompts…"
+      emptyText="No prompts available"
+      testId="task-dialog-prompts-select"
+    />
   );
 }
 

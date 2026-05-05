@@ -11,9 +11,11 @@ export {
   addRoleSkill,
   removeRoleSkill,
   listRoleSkills,
+  setRoleSkills,
   addRoleMcpTool,
   removeRoleMcpTool,
   listRoleMcpTools,
+  setRoleMcpTools,
 } from "./rolesApi";
 export type {
   CreateRoleArgs,

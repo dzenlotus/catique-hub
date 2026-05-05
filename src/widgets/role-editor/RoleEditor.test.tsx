@@ -278,9 +278,9 @@ describe("RoleEditor", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  // ── Attached prompts section (ctq-103) ───────────────────────────
+  // ── Attached prompts/skills/mcp_tools (audit-#8 MultiSelect) ────────
 
-  describe("attached prompts section", () => {
+  describe("role attachments — MultiSelect", () => {
     type Prompt = {
       id: string;
       name: string;
@@ -307,7 +307,49 @@ describe("RoleEditor", () => {
       updatedAt: 0n,
     });
 
-    it("renders N attached prompts", async () => {
+    type Skill = {
+      id: string;
+      name: string;
+      description: string | null;
+      color: string | null;
+      position: number;
+      createdAt: bigint;
+      updatedAt: bigint;
+    };
+
+    const makeSkill = (id: string, name: string): Skill => ({
+      id,
+      name,
+      description: null,
+      color: null,
+      position: 0,
+      createdAt: 0n,
+      updatedAt: 0n,
+    });
+
+    type McpTool = {
+      id: string;
+      name: string;
+      description: string | null;
+      schemaJson: string;
+      color: string | null;
+      position: number;
+      createdAt: bigint;
+      updatedAt: bigint;
+    };
+
+    const makeMcp = (id: string, name: string): McpTool => ({
+      id,
+      name,
+      description: null,
+      schemaJson: "{}",
+      color: null,
+      position: 0,
+      createdAt: 0n,
+      updatedAt: 0n,
+    });
+
+    it("renders attached prompts as chips inside the prompts MultiSelect", async () => {
       const prompts = [
         makePrompt("prm-1", "Codestyle"),
         makePrompt("prm-2", "Examples"),
@@ -317,149 +359,136 @@ describe("RoleEditor", () => {
         if (cmd === "list_role_prompts") return prompts;
         if (cmd === "list_role_skills") return [];
         if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "list_prompts") return prompts;
+        if (cmd === "list_skills") return [];
+        if (cmd === "list_mcp_tools") return [];
         if (cmd === "list_connected_clients") return [];
         return undefined;
       });
-      const onClose = vi.fn();
-      renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+      renderWithClient(<RoleEditor roleId="role-1" onClose={vi.fn()} />);
 
-      await screen.findByTestId("role-editor-prompt-row-prm-1");
+      await screen.findByTestId(
+        "role-editor-prompts-select-chip-prm-1",
+      );
       expect(
-        screen.getByTestId("role-editor-prompt-row-prm-2"),
+        screen.getByTestId("role-editor-prompts-select-chip-prm-2"),
       ).toBeInTheDocument();
-      // Empty state must not render when prompts exist.
-      expect(
-        screen.queryByTestId("role-editor-prompts-empty"),
-      ).not.toBeInTheDocument();
     });
 
-    it("shows the empty state when no prompts attached", async () => {
-      invokeMock.mockImplementation(async (cmd) => {
+    it("attaches a skill via the skills MultiSelect", async () => {
+      const skillCalls: Array<[string, unknown]> = [];
+      invokeMock.mockImplementation(async (cmd, args) => {
+        skillCalls.push([cmd, args]);
         if (cmd === "get_role") return makeRole();
         if (cmd === "list_role_prompts") return [];
         if (cmd === "list_role_skills") return [];
         if (cmd === "list_role_mcp_tools") return [];
-        if (cmd === "list_connected_clients") return [];
-        return undefined;
-      });
-      const onClose = vi.fn();
-      renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
-
-      const empty = await screen.findByTestId("role-editor-prompts-empty");
-      expect(empty).toHaveTextContent(/no prompts attached/i);
-    });
-
-    it("attach button opens AttachPromptDialog with locked role target", async () => {
-      invokeMock.mockImplementation(async (cmd) => {
-        if (cmd === "get_role") return makeRole();
-        if (cmd === "list_role_prompts") return [makePrompt("prm-1", "First")];
-        if (cmd === "list_role_skills") return [];
-        if (cmd === "list_role_mcp_tools") return [];
         if (cmd === "list_prompts") return [];
-        if (cmd === "list_roles") return [makeRole()];
-        if (cmd === "list_boards") return [];
+        if (cmd === "list_skills") return [makeSkill("skl-1", "Refactoring")];
+        if (cmd === "list_mcp_tools") return [];
+        if (cmd === "add_role_skill") return undefined;
         if (cmd === "list_connected_clients") return [];
         return undefined;
       });
-      const onClose = vi.fn();
       const { user } = renderWithClient(
-        <RoleEditor roleId="role-1" onClose={onClose} />,
-      );
-
-      await screen.findByTestId("role-editor-prompt-row-prm-1");
-      await user.click(screen.getByTestId("role-editor-prompts-attach"));
-
-      // Locked-target dialog — picker steps suppressed, summary visible.
-      await screen.findByTestId("attach-prompt-dialog");
-      expect(
-        screen.getByTestId("attach-prompt-dialog-locked-target"),
-      ).toBeInTheDocument();
-      // List of N is unchanged before save fires.
-      expect(
-        screen.getByTestId("role-editor-prompt-row-prm-1"),
-      ).toBeInTheDocument();
-    });
-
-    it("growing the list to N+1 reflects after the cache invalidates", async () => {
-      let attachedPrompts: Prompt[] = [makePrompt("prm-1", "First")];
-      invokeMock.mockImplementation(async (cmd, args) => {
-        if (cmd === "get_role") return makeRole();
-        if (cmd === "list_role_prompts") return attachedPrompts;
-        if (cmd === "list_role_skills") return [];
-        if (cmd === "list_role_mcp_tools") return [];
-        if (cmd === "add_role_prompt") {
-          const promptId = (args as { promptId: string }).promptId;
-          attachedPrompts = [...attachedPrompts, makePrompt(promptId, "Second")];
-          return undefined;
-        }
-        if (cmd === "list_connected_clients") return [];
-        return undefined;
-      });
-      const { client } = renderWithClient(
         <RoleEditor roleId="role-1" onClose={vi.fn()} />,
       );
 
-      await screen.findByTestId("role-editor-prompt-row-prm-1");
-
-      // Drive the mutation directly via the queryClient-aware mock IPC,
-      // then invalidate the role-prompts query so the section re-fetches.
-      await invokeMock("add_role_prompt", {
-        roleId: "role-1",
-        promptId: "prm-2",
-        position: 1,
-      });
-      await client.invalidateQueries({
-        queryKey: ["roles", "prompts", "role-1"],
-      });
+      const skillsField = await screen.findByTestId(
+        "role-editor-skills-select-input",
+      );
+      await user.click(skillsField);
+      const option = await screen.findByTestId(
+        "role-editor-skills-select-option-skl-1",
+      );
+      await user.click(option);
 
       await waitFor(() => {
-        expect(
-          screen.getByTestId("role-editor-prompt-row-prm-2"),
-        ).toBeInTheDocument();
+        const addCall = skillCalls.find(([cmd]) => cmd === "add_role_skill");
+        expect(addCall).toBeDefined();
+        expect(addCall?.[1]).toMatchObject({
+          roleId: "role-1",
+          skillId: "skl-1",
+        });
       });
     });
 
-    it("detach shrinks the list to N-1", async () => {
-      let attachedPrompts: Prompt[] = [
-        makePrompt("prm-1", "First"),
-        makePrompt("prm-2", "Second"),
-      ];
+    it("attaches an MCP tool via the MCP tools MultiSelect", async () => {
+      const mcpCalls: Array<[string, unknown]> = [];
       invokeMock.mockImplementation(async (cmd, args) => {
+        mcpCalls.push([cmd, args]);
         if (cmd === "get_role") return makeRole();
-        if (cmd === "list_role_prompts") return attachedPrompts;
+        if (cmd === "list_role_prompts") return [];
         if (cmd === "list_role_skills") return [];
         if (cmd === "list_role_mcp_tools") return [];
-        if (cmd === "remove_role_prompt") {
-          const promptId = (args as { promptId: string }).promptId;
-          attachedPrompts = attachedPrompts.filter((p) => p.id !== promptId);
-          return undefined;
-        }
+        if (cmd === "list_prompts") return [];
+        if (cmd === "list_skills") return [];
+        if (cmd === "list_mcp_tools") return [makeMcp("mcp-1", "Search")];
+        if (cmd === "add_role_mcp_tool") return undefined;
         if (cmd === "list_connected_clients") return [];
         return undefined;
       });
-      const onClose = vi.fn();
       const { user } = renderWithClient(
-        <RoleEditor roleId="role-1" onClose={onClose} />,
+        <RoleEditor roleId="role-1" onClose={vi.fn()} />,
       );
 
-      await screen.findByTestId("role-editor-prompt-row-prm-1");
-      expect(
-        screen.getByTestId("role-editor-prompt-row-prm-2"),
-      ).toBeInTheDocument();
+      const mcpField = await screen.findByTestId(
+        "role-editor-mcp-tools-select-input",
+      );
+      await user.click(mcpField);
+      const option = await screen.findByTestId(
+        "role-editor-mcp-tools-select-option-mcp-1",
+      );
+      await user.click(option);
 
+      await waitFor(() => {
+        const addCall = mcpCalls.find(
+          ([cmd]) => cmd === "add_role_mcp_tool",
+        );
+        expect(addCall).toBeDefined();
+        expect(addCall?.[1]).toMatchObject({
+          roleId: "role-1",
+          mcpToolId: "mcp-1",
+        });
+      });
+    });
+
+    it("removes a prompt chip via the X button", async () => {
+      const initial = [
+        makePrompt("prm-1", "First"),
+        makePrompt("prm-2", "Second"),
+      ];
+      const promptCalls: Array<[string, unknown]> = [];
+      invokeMock.mockImplementation(async (cmd, args) => {
+        promptCalls.push([cmd, args]);
+        if (cmd === "get_role") return makeRole();
+        if (cmd === "list_role_prompts") return initial;
+        if (cmd === "list_role_skills") return [];
+        if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "list_prompts") return initial;
+        if (cmd === "list_skills") return [];
+        if (cmd === "list_mcp_tools") return [];
+        if (cmd === "set_role_prompts") return undefined;
+        if (cmd === "list_connected_clients") return [];
+        return undefined;
+      });
+      const { user } = renderWithClient(
+        <RoleEditor roleId="role-1" onClose={vi.fn()} />,
+      );
+
+      await screen.findByTestId("role-editor-prompts-select-chip-prm-1");
       await user.click(
-        screen.getByTestId("role-editor-prompt-remove-prm-1"),
+        screen.getByTestId("role-editor-prompts-select-chip-remove-prm-1"),
       );
 
       await waitFor(() => {
-        expect(
-          screen.queryByTestId("role-editor-prompt-row-prm-1"),
-        ).not.toBeInTheDocument();
+        const setCall = promptCalls.find(([cmd]) => cmd === "set_role_prompts");
+        expect(setCall).toBeDefined();
+        expect(setCall?.[1]).toMatchObject({
+          roleId: "role-1",
+          promptIds: ["prm-2"],
+        });
       });
-      // The other row stays.
-      expect(
-        screen.getByTestId("role-editor-prompt-row-prm-2"),
-      ).toBeInTheDocument();
     });
   });
 });

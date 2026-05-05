@@ -5,6 +5,7 @@ export {
   updateBoard,
   deleteBoard,
   addBoardPrompt,
+  setBoardPrompts,
   AppErrorInstance,
 } from "./boardsApi";
 export type { CreateBoardArgs, UpdateBoardArgs, AddBoardPromptArgs } from "./boardsApi";

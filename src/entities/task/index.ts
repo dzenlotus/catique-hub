@@ -14,12 +14,15 @@ export {
   updateTask,
   deleteTask,
   addTaskPrompt,
+  removeTaskPrompt,
+  setTaskPrompts,
   listTaskPrompts,
 } from "./api";
 export type {
   CreateTaskArgs,
   UpdateTaskArgs,
   AddTaskPromptArgs,
+  RemoveTaskPromptArgs,
 } from "./api";
 
 // Model
@@ -34,8 +37,14 @@ export {
   useUpdateTaskMutation,
   useDeleteTaskMutation,
   useAddTaskPromptMutation,
+  useSetTaskPromptsMutation,
 } from "./model";
-export type { Task, MoveTaskVars, UpdateTaskVars } from "./model";
+export type {
+  Task,
+  MoveTaskVars,
+  UpdateTaskVars,
+  SetTaskPromptsArgs,
+} from "./model";
 
 // UI
 export { TaskCard } from "./ui";
