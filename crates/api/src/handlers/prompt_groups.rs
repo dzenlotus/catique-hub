@@ -45,9 +45,10 @@ pub async fn create_prompt_group(
     state: State<'_, AppState>,
     name: String,
     color: Option<String>,
+    icon: Option<String>,
     position: Option<i64>,
 ) -> Result<PromptGroup, AppError> {
-    let group = PromptGroupsUseCase::new(&state.pool).create(name, color, position)?;
+    let group = PromptGroupsUseCase::new(&state.pool).create(name, color, icon, position)?;
     events::emit(
         &state,
         events::PROMPT_GROUP_CREATED,
@@ -67,9 +68,11 @@ pub async fn update_prompt_group(
     id: String,
     name: Option<String>,
     color: Option<Option<String>>,
+    icon: Option<Option<String>>,
     position: Option<i64>,
 ) -> Result<PromptGroup, AppError> {
-    let group = PromptGroupsUseCase::new(&state.pool).update(id, name, color, position)?;
+    let group =
+        PromptGroupsUseCase::new(&state.pool).update(id, name, color, icon, position)?;
     events::emit(
         &state,
         events::PROMPT_GROUP_UPDATED,

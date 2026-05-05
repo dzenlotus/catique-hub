@@ -67,6 +67,7 @@ impl<'a> PromptGroupsUseCase<'a> {
         &self,
         name: String,
         color: Option<String>,
+        icon: Option<String>,
         position: Option<i64>,
     ) -> Result<PromptGroup, AppError> {
         let trimmed = validate_non_empty("name", &name)?;
@@ -77,6 +78,7 @@ impl<'a> PromptGroupsUseCase<'a> {
             &PromptGroupDraft {
                 name: trimmed,
                 color,
+                icon,
                 position: position.unwrap_or(0),
             },
         )
@@ -91,11 +93,13 @@ impl<'a> PromptGroupsUseCase<'a> {
     /// `AppError::NotFound` if the id is absent.
     /// `AppError::Validation` for empty name or bad colour.
     #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &self,
         id: String,
         name: Option<String>,
         color: Option<Option<String>>,
+        icon: Option<Option<String>>,
         position: Option<i64>,
     ) -> Result<PromptGroup, AppError> {
         if let Some(n) = name.as_deref() {
@@ -108,6 +112,7 @@ impl<'a> PromptGroupsUseCase<'a> {
         let patch = PromptGroupPatch {
             name: name.map(|n| n.trim().to_owned()),
             color,
+            icon,
             position,
         };
         match repo::update(&conn, &id, &patch).map_err(map_db_err)? {
@@ -213,6 +218,7 @@ fn row_to_group(row: PromptGroupRow) -> PromptGroup {
         id: row.id,
         name: row.name,
         color: row.color,
+        icon: row.icon,
         position: row.position,
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -248,7 +254,7 @@ mod tests {
     fn create_then_get() {
         let pool = fresh_pool();
         let uc = PromptGroupsUseCase::new(&pool);
-        let group = uc.create("Grp".into(), None, None).unwrap();
+        let group = uc.create("Grp".into(), None, None, None).unwrap();
         let got = uc.get(&group.id).unwrap();
         assert_eq!(group, got);
     }
@@ -257,7 +263,7 @@ mod tests {
     fn create_with_empty_name_returns_validation() {
         let pool = fresh_pool();
         let uc = PromptGroupsUseCase::new(&pool);
-        match uc.create("  ".into(), None, None).expect_err("v") {
+        match uc.create("  ".into(), None, None, None).expect_err("v") {
             AppError::Validation { field, .. } => assert_eq!(field, "name"),
             other => panic!("got {other:?}"),
         }
@@ -268,7 +274,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = PromptGroupsUseCase::new(&pool);
         match uc
-            .create("G".into(), Some("not-a-color".into()), None)
+            .create("G".into(), Some("not-a-color".into()), None, None)
             .expect_err("v")
         {
             AppError::Validation { field, .. } => assert_eq!(field, "color"),
@@ -280,17 +286,67 @@ mod tests {
     fn create_then_list() {
         let pool = fresh_pool();
         let uc = PromptGroupsUseCase::new(&pool);
-        uc.create("G1".into(), None, Some(0)).unwrap();
-        uc.create("G2".into(), None, Some(1)).unwrap();
+        uc.create("G1".into(), None, None, Some(0)).unwrap();
+        uc.create("G2".into(), None, None, Some(1)).unwrap();
         let list = uc.list().unwrap();
         assert_eq!(list.len(), 2);
+    }
+
+    #[test]
+    fn create_with_icon_round_trips() {
+        let pool = fresh_pool();
+        let uc = PromptGroupsUseCase::new(&pool);
+        let group = uc
+            .create("G".into(), None, Some("star".into()), None)
+            .unwrap();
+        assert_eq!(group.icon.as_deref(), Some("star"));
+        let got = uc.get(&group.id).unwrap();
+        assert_eq!(got.icon.as_deref(), Some("star"));
+    }
+
+    #[test]
+    fn update_can_set_clear_and_change_icon() {
+        let pool = fresh_pool();
+        let uc = PromptGroupsUseCase::new(&pool);
+        let group = uc.create("G".into(), None, None, None).unwrap();
+        assert_eq!(group.icon, None);
+
+        let after_set = uc
+            .update(
+                group.id.clone(),
+                None,
+                None,
+                Some(Some("bolt".into())),
+                None,
+            )
+            .unwrap();
+        assert_eq!(after_set.icon.as_deref(), Some("bolt"));
+
+        let after_change = uc
+            .update(
+                group.id.clone(),
+                None,
+                None,
+                Some(Some("heart".into())),
+                None,
+            )
+            .unwrap();
+        assert_eq!(after_change.icon.as_deref(), Some("heart"));
+
+        let after_clear = uc
+            .update(group.id.clone(), None, None, Some(None), None)
+            .unwrap();
+        assert_eq!(after_clear.icon, None);
     }
 
     #[test]
     fn update_returns_not_found_for_missing_id() {
         let pool = fresh_pool();
         let uc = PromptGroupsUseCase::new(&pool);
-        match uc.update("ghost".into(), None, None, None).expect_err("nf") {
+        match uc
+            .update("ghost".into(), None, None, None, None)
+            .expect_err("nf")
+        {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "prompt_group"),
             other => panic!("got {other:?}"),
         }
@@ -312,7 +368,7 @@ mod tests {
         seed_prompt(&pool, "p1");
         seed_prompt(&pool, "p2");
         let uc = PromptGroupsUseCase::new(&pool);
-        let group = uc.create("G".into(), None, None).unwrap();
+        let group = uc.create("G".into(), None, None, None).unwrap();
 
         uc.add_member(group.id.clone(), "p1".into(), 1).unwrap();
         uc.add_member(group.id.clone(), "p2".into(), 2).unwrap();
@@ -329,7 +385,7 @@ mod tests {
     fn remove_member_not_found() {
         let pool = fresh_pool();
         let uc = PromptGroupsUseCase::new(&pool);
-        let group = uc.create("G".into(), None, None).unwrap();
+        let group = uc.create("G".into(), None, None, None).unwrap();
         match uc.remove_member(group.id, "ghost".into()).expect_err("nf") {
             AppError::NotFound { entity, .. } => {
                 assert_eq!(entity, "prompt_group_member");
@@ -345,7 +401,7 @@ mod tests {
         seed_prompt(&pool, "p2");
         seed_prompt(&pool, "p3");
         let uc = PromptGroupsUseCase::new(&pool);
-        let group = uc.create("G".into(), None, None).unwrap();
+        let group = uc.create("G".into(), None, None, None).unwrap();
 
         uc.add_member(group.id.clone(), "p1".into(), 1).unwrap();
         uc.set_members(group.id.clone(), vec!["p3".into(), "p2".into()])

@@ -54,22 +54,24 @@
 /* ─────────────────────────────────────────────────────────────────── */
 
 .popover {
-  width: 320px;
-  max-height: 380px;
+  width: 280px;
+  max-height: 280px;
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
   background-color: var(--color-surface-overlay);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   outline: none;
+  overflow: hidden;
 }
 
 .dialog {
   display: flex;
   flex-direction: column;
-  gap: var(--space-12);
-  padding: var(--space-12);
+  gap: var(--space-8);
+  padding: var(--space-8);
   outline: none;
   max-height: inherit;
+  overflow-x: hidden;
 }
 
 /* ── Color row ────────────────────────────────────────────────────── */
@@ -164,10 +166,13 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  /* Fixed-width cells so the row never stretches and the popover
+   * stays narrow enough to clear `overflow-x: hidden` on the dialog. */
+  grid-template-columns: repeat(auto-fill, 28px);
+  justify-content: space-between;
   gap: var(--space-4);
   overflow-y: auto;
-  padding-right: var(--space-4);
+  overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-strong) transparent;
 }
@@ -176,9 +181,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 4px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-xs);
   background: transparent;

@@ -58,6 +58,9 @@ export type {
   IconColorValue,
 } from "./IconColorPicker";
 
+export { KebabIcon } from "./KebabIcon";
+export type { KebabIconProps } from "./KebabIcon";
+
 export { MarqueeText } from "./MarqueeText";
 export type { MarqueeTextProps } from "./MarqueeText";
 

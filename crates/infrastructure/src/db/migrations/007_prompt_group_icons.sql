@@ -1,0 +1,12 @@
+-- 007_prompt_group_icons.sql — add an optional `icon` identifier to prompt groups.
+--
+-- Mirrors `005_prompt_icons.sql` for `prompt_groups`. The TS layer maps
+-- the identifier (e.g. "star", "bolt", "heart") onto a pixel-icon React
+-- component sourced from `src/shared/ui/Icon/`. Storing the identifier
+-- as plain TEXT keeps the backend agnostic to the icon set: rename a
+-- sprite on the frontend without a migration.
+--
+-- Nullable so existing rows keep their "no icon" behaviour. The
+-- application layer treats `NULL` and an empty/unknown identifier the
+-- same way (no icon rendered).
+ALTER TABLE prompt_groups ADD COLUMN icon TEXT NULL;

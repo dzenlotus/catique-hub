@@ -26,7 +26,7 @@ import {
   usePromptGroupMembers,
   useRemovePromptGroupMemberMutation,
 } from "@entities/prompt-group";
-import { Button, MenuTrigger, Menu, MenuItem } from "@shared/ui";
+import { Button, MenuTrigger, Menu, MenuItem, KebabIcon } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -38,6 +38,8 @@ export interface InlineGroupViewProps {
   onSelectPrompt: (id: string) => void;
   /** Open the rename modal for this group. */
   onRenameGroup: (id: string) => void;
+  /** Open the inline group-settings page for this group. */
+  onGroupSettings: (id: string) => void;
   /** Trigger group deletion. */
   onDeleteGroup: (id: string) => void;
   /**
@@ -51,6 +53,7 @@ export function InlineGroupView({
   groupId,
   onSelectPrompt,
   onRenameGroup,
+  onGroupSettings,
   onDeleteGroup,
   orderOverride = null,
 }: InlineGroupViewProps): ReactElement {
@@ -174,15 +177,17 @@ export function InlineGroupView({
               aria-label="Group actions"
               data-testid="inline-group-view-menu"
             >
-              ⋯
+              <KebabIcon />
             </Button>
             <Menu
               onAction={(key) => {
                 if (key === "rename") onRenameGroup(group.id);
+                else if (key === "settings") onGroupSettings(group.id);
                 else if (key === "delete") onDeleteGroup(group.id);
               }}
             >
               <MenuItem id="rename">Rename</MenuItem>
+              <MenuItem id="settings">Settings</MenuItem>
               <MenuItem id="delete">Delete</MenuItem>
             </Menu>
           </MenuTrigger>

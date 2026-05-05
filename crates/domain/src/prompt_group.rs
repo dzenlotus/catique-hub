@@ -14,6 +14,10 @@ pub struct PromptGroup {
     pub id: String,
     pub name: String,
     pub color: Option<String>,
+    /// Optional pixel-icon identifier. The TS layer maps this string onto
+    /// a React component from `src/shared/ui/Icon/`. `None` (and any
+    /// identifier the frontend doesn't recognise) renders no icon.
+    pub icon: Option<String>,
     pub position: i64,
     pub created_at: i64,
     pub updated_at: i64,

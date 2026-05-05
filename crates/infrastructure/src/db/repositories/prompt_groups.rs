@@ -25,6 +25,10 @@ pub struct PromptGroupRow {
     pub id: String,
     pub name: String,
     pub color: Option<String>,
+    /// Optional pixel-icon identifier (migration `007_prompt_group_icons.sql`).
+    /// The frontend maps this string onto a React component from
+    /// `src/shared/ui/Icon/`.
+    pub icon: Option<String>,
     pub position: i64,
     pub created_at: i64,
     pub updated_at: i64,
@@ -36,6 +40,7 @@ impl PromptGroupRow {
             id: row.get("id")?,
             name: row.get("name")?,
             color: row.get("color")?,
+            icon: row.get("icon")?,
             position: row.get("position")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
@@ -48,17 +53,22 @@ impl PromptGroupRow {
 pub struct PromptGroupDraft {
     pub name: String,
     pub color: Option<String>,
+    /// Pixel-icon identifier (`None` means no icon).
+    pub icon: Option<String>,
     pub position: i64,
 }
 
 /// Partial update payload.
 ///
-/// `color` is `Option<Option<String>>` — `None` = leave unchanged,
-/// `Some(None)` = set to NULL, `Some(Some(c))` = set to a new value.
+/// `color` and `icon` are `Option<Option<String>>` — `None` = leave
+/// unchanged, `Some(None)` = set to NULL, `Some(Some(s))` = set to a
+/// new value.
 #[derive(Debug, Clone, Default)]
 pub struct PromptGroupPatch {
     pub name: Option<String>,
     pub color: Option<Option<String>>,
+    /// `None` = leave alone; `Some(None)` = clear; `Some(Some(s))` = set.
+    pub icon: Option<Option<String>>,
     pub position: Option<i64>,
 }
 
@@ -69,7 +79,7 @@ pub struct PromptGroupPatch {
 /// Surfaces rusqlite errors.
 pub fn list(conn: &Connection) -> Result<Vec<PromptGroupRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, color, position, created_at, updated_at \
+        "SELECT id, name, color, icon, position, created_at, updated_at \
          FROM prompt_groups ORDER BY position ASC, name ASC",
     )?;
     let rows = stmt.query_map([], PromptGroupRow::from_row)?;
@@ -87,7 +97,7 @@ pub fn list(conn: &Connection) -> Result<Vec<PromptGroupRow>, DbError> {
 /// Surfaces rusqlite errors.
 pub fn get(conn: &Connection, id: &str) -> Result<Option<PromptGroupRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, color, position, created_at, updated_at \
+        "SELECT id, name, color, icon, position, created_at, updated_at \
          FROM prompt_groups WHERE id = ?1",
     )?;
     Ok(stmt
@@ -104,14 +114,23 @@ pub fn insert(conn: &Connection, draft: &PromptGroupDraft) -> Result<PromptGroup
     let id = new_id();
     let now = now_millis();
     conn.execute(
-        "INSERT INTO prompt_groups (id, name, color, position, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
-        params![id, draft.name, draft.color, draft.position, now],
+        "INSERT INTO prompt_groups \
+            (id, name, color, icon, position, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+        params![
+            id,
+            draft.name,
+            draft.color,
+            draft.icon,
+            draft.position,
+            now
+        ],
     )?;
     Ok(PromptGroupRow {
         id,
         name: draft.name.clone(),
         color: draft.color.clone(),
+        icon: draft.icon.clone(),
         position: draft.position,
         created_at: now,
         updated_at: now,
@@ -120,8 +139,10 @@ pub fn insert(conn: &Connection, draft: &PromptGroupDraft) -> Result<PromptGroup
 
 /// Partial update. Bumps `updated_at` regardless.
 ///
-/// Uses `COALESCE` for non-nullable `name` and `position`.
-/// `color` is handled via a conditional branch because it is nullable.
+/// Uses `COALESCE` for the non-nullable `name` and `position` columns.
+/// `color` and `icon` are nullable, so they are appended to the SQL
+/// only when the patch carries an explicit `Some(_)` — `Some(None)`
+/// clears the column, `Some(Some(s))` sets it.
 ///
 /// # Errors
 ///
@@ -131,26 +152,39 @@ pub fn update(
     id: &str,
     patch: &PromptGroupPatch,
 ) -> Result<Option<PromptGroupRow>, DbError> {
+    use std::fmt::Write as _;
     let now = now_millis();
-    let updated = match &patch.color {
-        Some(new_color) => conn.execute(
-            "UPDATE prompt_groups SET \
-                 name = COALESCE(?1, name), \
-                 color = ?2, \
-                 position = COALESCE(?3, position), \
-                 updated_at = ?4 \
-             WHERE id = ?5",
-            params![patch.name, new_color, patch.position, now, id],
-        )?,
-        None => conn.execute(
-            "UPDATE prompt_groups SET \
-                 name = COALESCE(?1, name), \
-                 position = COALESCE(?2, position), \
-                 updated_at = ?3 \
-             WHERE id = ?4",
-            params![patch.name, patch.position, now, id],
-        )?,
-    };
+    let color_new = patch.color.as_ref();
+    let icon_new = patch.icon.as_ref();
+
+    let mut sql = String::from(
+        "UPDATE prompt_groups SET name = COALESCE(?1, name), \
+         position = COALESCE(?2, position)",
+    );
+    let mut next_param = 3_usize;
+    let mut params_vec: Vec<rusqlite::types::Value> = vec![
+        patch.name.clone().into(),
+        patch.position.into(),
+    ];
+    if let Some(c) = color_new {
+        let _ = write!(sql, ", color = ?{next_param}");
+        params_vec.push(rusqlite::types::Value::from(c.clone()));
+        next_param += 1;
+    }
+    if let Some(i) = icon_new {
+        let _ = write!(sql, ", icon = ?{next_param}");
+        params_vec.push(rusqlite::types::Value::from(i.clone()));
+        next_param += 1;
+    }
+    let _ = write!(
+        sql,
+        ", updated_at = ?{next_param} WHERE id = ?{}",
+        next_param + 1
+    );
+    params_vec.push(rusqlite::types::Value::from(now));
+    params_vec.push(rusqlite::types::Value::from(id.to_owned()));
+
+    let updated = conn.execute(&sql, rusqlite::params_from_iter(params_vec.iter()))?;
     if updated == 0 {
         return Ok(None);
     }
@@ -286,6 +320,7 @@ mod tests {
         PromptGroupDraft {
             name: name.into(),
             color: Some("#abcdef".into()),
+            icon: None,
             position: 0,
         }
     }
@@ -321,6 +356,7 @@ mod tests {
             &PromptGroupDraft {
                 name: "B".into(),
                 color: None,
+                icon: None,
                 position: 1,
             },
         )
@@ -330,6 +366,7 @@ mod tests {
             &PromptGroupDraft {
                 name: "A".into(),
                 color: None,
+                icon: None,
                 position: 0,
             },
         )
@@ -339,6 +376,7 @@ mod tests {
             &PromptGroupDraft {
                 name: "C".into(),
                 color: None,
+                icon: None,
                 position: 0,
             },
         )
@@ -521,5 +559,83 @@ mod tests {
         // Original member should still be there (rollback).
         let members = list_members(&conn, &row.id).unwrap();
         assert_eq!(members, vec!["p1"]);
+    }
+
+    // ------------------------------------------------------------------
+    // Icon round-trip — mirror of the `prompts` icon coverage.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn icon_round_trips_through_insert_get_and_list() {
+        let conn = fresh_db();
+        let row = insert(
+            &conn,
+            &PromptGroupDraft {
+                name: "iconic".into(),
+                color: None,
+                icon: Some("star".into()),
+                position: 0,
+            },
+        )
+        .unwrap();
+        assert_eq!(row.icon.as_deref(), Some("star"));
+        let got = get(&conn, &row.id).unwrap().unwrap();
+        assert_eq!(got.icon.as_deref(), Some("star"));
+        let all = list(&conn).unwrap();
+        let listed = all.iter().find(|r| r.id == row.id).unwrap();
+        assert_eq!(listed.icon.as_deref(), Some("star"));
+    }
+
+    #[test]
+    fn icon_defaults_to_none_when_omitted() {
+        let conn = fresh_db();
+        let row = insert(&conn, &draft("no-icon")).unwrap();
+        assert_eq!(row.icon, None);
+    }
+
+    #[test]
+    fn update_can_set_clear_and_change_icon() {
+        let conn = fresh_db();
+        let row = insert(&conn, &draft("g")).unwrap();
+        assert_eq!(row.icon, None);
+
+        // Set.
+        let after_set = update(
+            &conn,
+            &row.id,
+            &PromptGroupPatch {
+                icon: Some(Some("bolt".into())),
+                ..PromptGroupPatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(after_set.icon.as_deref(), Some("bolt"));
+
+        // Change.
+        let after_change = update(
+            &conn,
+            &row.id,
+            &PromptGroupPatch {
+                icon: Some(Some("heart".into())),
+                ..PromptGroupPatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(after_change.icon.as_deref(), Some("heart"));
+
+        // Clear.
+        let after_clear = update(
+            &conn,
+            &row.id,
+            &PromptGroupPatch {
+                icon: Some(None),
+                ..PromptGroupPatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(after_clear.icon, None);
     }
 }

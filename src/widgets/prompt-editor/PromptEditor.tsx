@@ -284,9 +284,9 @@ function PromptEditorContent({
         />
       </div>
 
-      {/* Combined icon + color picker (round-19d). */}
+      {/* Combined icon + color picker (round-19d). Bare — the picker
+          itself reads as a self-contained appearance affordance. */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Appearance</p>
         <IconColorPicker
           value={{
             icon: localIcon,

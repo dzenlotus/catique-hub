@@ -34,7 +34,8 @@ export interface MarqueeTextProps {
   className?: string;
   /** Optional class merged onto each copy span (typography overrides). */
   textClassName?: string;
-  /** Pixels-per-second scroll speed. Default 50. */
+  /** Pixels-per-second scroll speed. Default 25 (slower than the
+   *  initial 50 px/s — long names should be readable, not racy). */
   speedPxPerSecond?: number;
 }
 
@@ -42,7 +43,7 @@ export function MarqueeText({
   text,
   className,
   textClassName,
-  speedPxPerSecond = 50,
+  speedPxPerSecond = 25,
 }: MarqueeTextProps): ReactElement {
   const viewportRef = useRef<HTMLSpanElement | null>(null);
   const copyRef = useRef<HTMLSpanElement | null>(null);

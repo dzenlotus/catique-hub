@@ -18,6 +18,12 @@
   gap: var(--space-12);
 }
 
+.backRow {
+  display: flex;
+  align-items: center;
+  padding-bottom: var(--space-4);
+}
+
 .header {
   display: flex;
   align-items: center;

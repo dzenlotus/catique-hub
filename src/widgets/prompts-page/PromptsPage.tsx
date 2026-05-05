@@ -332,6 +332,10 @@ export function PromptsPage(): ReactElement {
           groupId={selectedGroupId}
           onSelectPrompt={(id) => setSelectedPromptId(id)}
           onRenameGroup={(id) => setEditingGroupId(id)}
+          onGroupSettings={(id) => {
+            setGroupSettingsId(id);
+            setSelectedPromptId(null);
+          }}
           onDeleteGroup={handleDeleteGroup}
           orderOverride={orderOverride}
         />
@@ -363,16 +367,24 @@ export function PromptsPage(): ReactElement {
             selectedPromptId={selectedPromptId}
             selectedGroupId={selectedGroupId}
             onSelectGroup={(groupId) => {
+              // Switching tabs in the sidebar always exits the
+              // group-settings page and the prompt editor.
               setSelectedGroupId(groupId);
               setSelectedPromptId(null);
+              setGroupSettingsId(null);
             }}
             onSelectPrompt={(id) => {
               setSelectedPromptId(id);
               setSelectedGroupId(null);
+              setGroupSettingsId(null);
             }}
             onRenameGroup={(id) => setEditingGroupId(id)}
             onGroupSettings={(id) => {
+              // Open settings AND highlight the group in the sidebar.
+              // Back from settings drops to the group view (selectedGroupId
+              // stays set, groupSettingsId clears).
               setGroupSettingsId(id);
+              setSelectedGroupId(id);
               setSelectedPromptId(null);
             }}
             onDeleteGroup={handleDeleteGroup}

@@ -142,7 +142,7 @@ export function InlineGroupSettings({
       aria-label={`Settings for ${group.name}`}
       data-testid="inline-group-settings"
     >
-      <header className={styles.header}>
+      <div className={styles.backRow}>
         <Button
           variant="ghost"
           size="sm"
@@ -151,6 +151,8 @@ export function InlineGroupSettings({
         >
           ← Back
         </Button>
+      </div>
+      <header className={styles.header}>
         <h2 className={styles.title}>{group.name} · Settings</h2>
       </header>
 

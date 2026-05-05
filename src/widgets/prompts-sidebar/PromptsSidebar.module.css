@@ -298,15 +298,27 @@
   border-radius: var(--radius-xs);
 }
 
-.promptSwatch {
+/*
+ * Swatch + icon share a 16-square box so the rest of the row layout
+ * stays put when the user switches between "color only" and "icon"
+ * appearances. The 8 px dot centres inside its box.
+ */
+.promptIndicator {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.promptSwatch {
   width: 8px;
   height: 8px;
   border-radius: var(--radius-full);
 }
 
 .promptIcon {
-  flex: 0 0 auto;
   color: var(--color-text-muted);
 }
 

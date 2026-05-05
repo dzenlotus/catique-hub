@@ -2,7 +2,7 @@ import { type ReactElement } from "react";
 import { useSortable } from "@dnd-kit/react/sortable";
 
 import { cn } from "@shared/lib";
-import { IconRenderer } from "@shared/ui";
+import { IconRenderer, MarqueeText } from "@shared/ui";
 import type { Prompt } from "@entities/prompt";
 
 import styles from "./PromptsSidebar.module.css";
@@ -70,23 +70,24 @@ export function PromptRow({
       >
         <span aria-hidden="true">⋮⋮</span>
       </button>
-      {prompt.icon !== null ? (
-        <IconRenderer
-          name={prompt.icon}
-          width={16}
-          height={16}
-          className={styles.promptIcon}
-          {...(prompt.color !== null
-            ? { style: { color: prompt.color } }
-            : {})}
-        />
-      ) : prompt.color !== null ? (
-        <span
-          className={styles.promptSwatch}
-          style={{ backgroundColor: prompt.color }}
-          aria-hidden="true"
-        />
-      ) : null}
+      <span className={styles.promptIndicator} aria-hidden="true">
+        {prompt.icon !== null ? (
+          <IconRenderer
+            name={prompt.icon}
+            width={14}
+            height={14}
+            className={styles.promptIcon}
+            {...(prompt.color !== null
+              ? { style: { color: prompt.color } }
+              : {})}
+          />
+        ) : prompt.color !== null ? (
+          <span
+            className={styles.promptSwatch}
+            style={{ backgroundColor: prompt.color }}
+          />
+        ) : null}
+      </span>
       <button
         type="button"
         className={styles.promptName}
@@ -95,7 +96,7 @@ export function PromptRow({
         aria-label={prompt.name}
         data-testid={`prompts-sidebar-prompt-select-${prompt.id}`}
       >
-        {prompt.name}
+        <MarqueeText text={prompt.name} />
       </button>
     </li>
   );

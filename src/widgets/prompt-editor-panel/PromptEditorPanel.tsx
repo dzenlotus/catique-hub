@@ -275,8 +275,8 @@ export function PromptEditorPanel({
       aria-label="Prompt editor"
       data-testid="prompt-editor-panel"
     >
-      <header className={styles.header}>
-        {onBack !== undefined ? (
+      {onBack !== undefined ? (
+        <div className={styles.backRow}>
           <Button
             variant="ghost"
             size="sm"
@@ -285,7 +285,21 @@ export function PromptEditorPanel({
           >
             ← Back
           </Button>
-        ) : null}
+        </div>
+      ) : null}
+      <header className={styles.header}>
+        <IconColorPicker
+          value={{
+            icon: localIcon,
+            color: localColor === "" ? null : localColor,
+          }}
+          onChange={(next) => {
+            setLocalIcon(next.icon);
+            setLocalColor(next.color ?? "");
+          }}
+          ariaLabel="Prompt icon and color"
+          data-testid="prompt-editor-panel-appearance-picker"
+        />
         <h2 className={styles.title}>{prompt.name}</h2>
       </header>
       <div className={styles.scrollArea}>
@@ -310,25 +324,6 @@ export function PromptEditorPanel({
             placeholder="Optional short description…"
             className={styles.fullWidthInput}
             data-testid="prompt-editor-panel-shortdesc-input"
-          />
-        </div>
-
-        {/* Combined icon + color picker (round-19d). One affordance for
-            both axes — fallback is a colored circle when only color is
-            set, "+" when nothing is set. */}
-        <div className={styles.section}>
-          <p className={styles.sectionLabel}>Appearance</p>
-          <IconColorPicker
-            value={{
-              icon: localIcon,
-              color: localColor === "" ? null : localColor,
-            }}
-            onChange={(next) => {
-              setLocalIcon(next.icon);
-              setLocalColor(next.color ?? "");
-            }}
-            ariaLabel="Prompt icon and color"
-            data-testid="prompt-editor-panel-appearance-picker"
           />
         </div>
 
