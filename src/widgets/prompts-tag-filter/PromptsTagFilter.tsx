@@ -1,18 +1,17 @@
 /**
  * PromptsTagFilter — multi-select tag filter for the prompts grid.
  *
- * Round-19f: rebuilt on top of the shared `<MultiTagInput>` primitive
- * (react-aria TagGroup + ComboBox). Filter is read-only — no
- * `onCreate` callback, so the dropdown shows only existing tags.
- *
- * Filter semantics: a prompt passes when it carries EVERY selected
- * tag (intersection). Empty selection = "All" — same as before.
+ * audit-C: migrated from `<MultiTagInput>` to the canonical
+ * `<MultiSelect>` primitive. The single-select-feeling list is gone;
+ * users add multiple tag chips via combobox + dropdown, and the parent
+ * filters prompts in OR-mode (audit-C: AND-mode toggle is a separate
+ * audit item, out of scope here).
  */
 
 import { useMemo, type ReactElement } from "react";
 
 import { useTags } from "@entities/tag";
-import { MultiTagInput, type MultiTagInputItem } from "@shared/ui";
+import { MultiSelect, type MultiSelectOption } from "@shared/ui";
 
 export interface PromptsTagFilterProps {
   selectedTagIds: ReadonlyArray<string>;
@@ -25,24 +24,23 @@ export function PromptsTagFilter({
 }: PromptsTagFilterProps): ReactElement {
   const tagsQuery = useTags();
 
-  const items = useMemo<MultiTagInputItem[]>(
+  const options = useMemo<MultiSelectOption<string>[]>(
     () =>
       (tagsQuery.data ?? []).map((t) => ({
         id: t.id,
-        label: t.name,
-        color: t.color,
+        name: t.name,
       })),
     [tagsQuery.data],
   );
 
   return (
-    <MultiTagInput
+    <MultiSelect<string>
       label="Filter prompts by tag"
-      items={items}
-      selectedIds={selectedTagIds}
-      onChange={onChange}
+      values={selectedTagIds}
+      options={options}
+      onChange={(next) => onChange(next)}
       placeholder="Filter by tag…"
-      data-testid="prompts-tag-filter"
+      testId="prompts-tag-filter"
     />
   );
 }

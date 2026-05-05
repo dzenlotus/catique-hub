@@ -55,8 +55,9 @@ export function PromptsList({
   const promptsQuery = usePrompts();
   const tagMapQuery = usePromptTagsMap();
 
-  // Filter: prompts that carry EVERY selected tag (intersection). Mirrors
-  // the sidebar's TagsFilterButton semantics so the two surfaces match.
+  // audit-C: OR-mode by default — a prompt passes when it carries ANY
+  // of the selected tags. AND-mode (intersection) is a separate audit
+  // item; toggle UI is out of scope here.
   const filteredPrompts = useMemo(() => {
     const allPrompts = promptsQuery.data ?? [];
     if (activeTagIds.length === 0) return allPrompts;
@@ -68,7 +69,7 @@ export function PromptsList({
     return allPrompts.filter((p) => {
       const tagSet = promptToTags.get(p.id);
       if (!tagSet) return false;
-      return activeTagIds.every((id) => tagSet.has(id));
+      return activeTagIds.some((id) => tagSet.has(id));
     });
   }, [promptsQuery.data, tagMapQuery.data, activeTagIds]);
 

@@ -193,6 +193,49 @@ describe("PromptsList", () => {
     expect(screen.queryByText("Beta")).not.toBeInTheDocument();
   });
 
+  it("audit-C: OR-mode filter — shows prompts that have ANY selected tag", async () => {
+    activeTagStore.set(["t1", "t2"]);
+    mockInvoke({
+      prompts: [
+        makePrompt({ id: "prm-a", name: "Alpha" }),
+        makePrompt({ id: "prm-b", name: "Beta" }),
+        makePrompt({ id: "prm-c", name: "Gamma" }),
+      ],
+      tags: [
+        { id: "t1", name: "rust", color: null, createdAt: 0n, updatedAt: 0n },
+        { id: "t2", name: "ts", color: null, createdAt: 0n, updatedAt: 0n },
+      ],
+      tagMap: [
+        { promptId: "prm-a", tagIds: ["t1"] }, // matches via t1
+        { promptId: "prm-b", tagIds: ["t2"] }, // matches via t2
+        { promptId: "prm-c", tagIds: [] }, // matches nothing
+      ],
+    });
+    renderWithClient(<PromptsList />);
+    await waitFor(() => {
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+    expect(screen.queryByText("Gamma")).not.toBeInTheDocument();
+  });
+
+  it("audit-C: empty selection restores the full list", async () => {
+    // No tags persisted = no filter active.
+    mockInvoke({
+      prompts: [
+        makePrompt({ id: "prm-a", name: "Alpha" }),
+        makePrompt({ id: "prm-b", name: "Beta" }),
+      ],
+      tags: [],
+      tagMap: [],
+    });
+    renderWithClient(<PromptsList />);
+    await waitFor(() => {
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+  });
+
   it('shows filter-empty state with "Clear filter" CTA when filter yields no results', async () => {
     activeTagStore.set(["t1"]);
     mockInvoke({
