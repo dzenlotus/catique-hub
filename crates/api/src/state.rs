@@ -30,7 +30,7 @@ use std::path::PathBuf;
 use catique_infrastructure::db::pool::Pool;
 use catique_sidecar::SidecarManager;
 use once_cell::sync::OnceCell;
-use tauri::AppHandle;
+use tauri::{AppHandle, Wry};
 
 /// Shared, send+sync state. r2d2's [`Pool`] is `Clone` (Arc-internal),
 /// so cloning the wrapper is the cheap way to hand a pool reference to
@@ -47,7 +47,7 @@ pub struct AppState {
     pub pool: Pool,
     /// Tauri AppHandle slot. Set exactly once during shell startup;
     /// read by [`crate::events::emit`] to publish realtime events.
-    pub app_handle: OnceCell<AppHandle>,
+    pub app_handle: OnceCell<AppHandle<Wry>>,
     /// ADR-0002 spike: sidecar lifecycle manager.
     pub sidecar: SidecarManager,
     /// ADR-0002 spike: resolved path to the sidecar directory.
@@ -80,7 +80,7 @@ impl AppState {
     /// OnceCell, which we collapse — startup-phase contract is "set
     /// once" so a second call is a programmer error we don't want to
     /// panic over).
-    pub fn set_app_handle(&self, handle: AppHandle) {
+    pub fn set_app_handle(&self, handle: AppHandle<Wry>) {
         // Discarding the `Err(handle)` returned on a second set is
         // intentional — we don't panic on startup-phase double-init
         // (NFR §3.1). Logging is via the shell's eprintln! convention.
