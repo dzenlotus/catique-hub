@@ -210,7 +210,13 @@ export function SidebarNavItem({
   const buttonProps =
     testId !== undefined ? { "data-testid": testId } : {};
   return (
-    <div className={cn(styles.navItemRow, className)}>
+    <div
+      className={cn(
+        styles.navItemRow,
+        isActive && styles.navItemRowActive,
+        className,
+      )}
+    >
       {isActive ? (
         <span className={styles.activeStrip} aria-hidden="true" />
       ) : null}

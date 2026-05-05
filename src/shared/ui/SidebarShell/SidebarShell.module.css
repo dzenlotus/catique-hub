@@ -146,12 +146,12 @@
  *     contrast selection marker. The strip extends 4 px to the LEFT
  *     of the row (`left: -4px`) so it visually anchors to the
  *     sidebar's outer gutter, not the row's own padding.
+ *
+ * Round-19f: hover + active backgrounds moved up to `.navItemRow`
+ * (the flex row, parent of button + kebab) so the highlight covers
+ * the WHOLE row width — including the trailing kebab — instead of
+ * stopping at the inner button's right edge.
  */
-
-.navItem:hover:not(.navItemActive) {
-  background-color: var(--color-overlay-hover);
-  color: var(--color-text-default);
-}
 
 .navItem:focus-visible {
   outline: 2px solid var(--color-border-focus);
@@ -159,25 +159,12 @@
 }
 
 .navItemActive {
-  background-color: transparent;
   color: var(--color-text-default);
   font-weight: var(--font-weight-semibold);
 }
 
-.navItemActive::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 4px;
-  right: 0;
-  background-color: var(--color-accent-soft);
-  border-radius: var(--radius-sm);
-  z-index: 0;
-}
-
 /* Children sit above the inset-background pseudo. */
-.navItem > * {
+.navItemRow > * {
   position: relative;
   z-index: 1;
 }
@@ -207,10 +194,6 @@
   padding-left: var(--space-24);
 }
 
-.navItemNested.navItemActive::before {
-  left: 16px;
-}
-
 .navItemRow:has(.navItemNested) .activeStrip {
   left: 12px;
 }
@@ -224,14 +207,46 @@
 }
 
 /* Container that pairs the row button with a trailing kebab/menu trigger.
- * Round-19e: was `position: relative` block — that forced any non-
- * absolutely-positioned trailing element below the button. Switched to
- * flex-row so the trigger sits inline. */
+ * Round-19f: row owns the hover + active background so the highlight
+ * extends across the WHOLE row including the trailing kebab area. */
+.navItemRow:hover:not(.navItemRowActive) {
+  background-color: var(--color-overlay-hover);
+}
+
+.navItemRow:hover:not(.navItemRowActive) .navItem {
+  color: var(--color-text-default);
+}
+
+.navItemRowActive {
+  /* Round-19f: accent-soft inset background lives here (was on
+   * .navItemActive::before). Inset 4 px from the left so the red
+   * activeStrip can anchor at the row's leading gutter. */
+}
+
+.navItemRowActive::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  right: 0;
+  background-color: var(--color-accent-soft);
+  border-radius: var(--radius-sm);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.navItemRowActive:has(.navItemNested)::before {
+  left: 16px;
+}
+
 .navItemRow {
   position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  border-radius: var(--radius-md);
+  transition: background-color 80ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
