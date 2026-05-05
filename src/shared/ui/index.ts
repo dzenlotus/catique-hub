@@ -43,6 +43,12 @@ export type {
 export { Combobox } from "./Combobox";
 export type { ComboboxProps, ComboboxItem } from "./Combobox";
 
+export { MultiTagInput } from "./MultiTagInput";
+export type {
+  MultiTagInputProps,
+  MultiTagInputItem,
+} from "./MultiTagInput";
+
 export { Tooltip, TooltipTrigger } from "./Tooltip";
 export type { TooltipProps, TooltipTriggerProps } from "./Tooltip";
 

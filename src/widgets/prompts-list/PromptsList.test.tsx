@@ -173,6 +173,12 @@ describe("PromptsList", () => {
   });
 
   it("filters the grid to prompts that have the selected tag", async () => {
+    // Pre-seed the persisted filter so the grid mounts with t1 active —
+    // round-19f swapped the chip-row UI for a react-aria ComboBox, so
+    // driving the filter via clicks would fight the popover lifecycle
+    // in jsdom. The persisted-state path exercises the same selector
+    // logic without coupling to the new combobox internals.
+    activeTagStore.set(["t1"]);
     mockInvoke({
       prompts: [
         makePrompt({ id: "prm-a", name: "Alpha" }),
@@ -181,14 +187,7 @@ describe("PromptsList", () => {
       tags: [{ id: "t1", name: "rust", color: null, createdAt: 0n, updatedAt: 0n }],
       tagMap: [{ promptId: "prm-a", tagIds: ["t1"] }],
     });
-    const user = userEvent.setup();
     renderWithClient(<PromptsList />);
-    await waitFor(() => {
-      expect(screen.getByTestId("prompts-list-grid")).toBeInTheDocument();
-    });
-    // Click the "rust" tag chip.
-    await user.click(screen.getByTestId("prompts-tag-filter-chip-t1"));
-    // Only Alpha (prm-a) should be visible; Beta has no t1 tag.
     await waitFor(() => {
       expect(screen.getByText("Alpha")).toBeInTheDocument();
     });
@@ -196,17 +195,13 @@ describe("PromptsList", () => {
   });
 
   it('shows filter-empty state with "Clear filter" CTA when filter yields no results', async () => {
+    activeTagStore.set(["t1"]);
     mockInvoke({
       prompts: [makePrompt({ id: "prm-a", name: "Alpha" })],
       tags: [{ id: "t1", name: "rust", color: null, createdAt: 0n, updatedAt: 0n }],
       tagMap: [], // no prompt has this tag
     });
-    const user = userEvent.setup();
     renderWithClient(<PromptsList />);
-    await waitFor(() => {
-      expect(screen.getByTestId("prompts-list-grid")).toBeInTheDocument();
-    });
-    await user.click(screen.getByTestId("prompts-tag-filter-chip-t1"));
     await waitFor(() => {
       expect(
         screen.getByTestId("prompts-list-filter-empty"),

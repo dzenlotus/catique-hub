@@ -1,0 +1,219 @@
+/*
+ * MultiTagInput — react-aria multi-select tags input.
+ *
+ * Layout: vertical stack of [chip row?] + [text input]. Combobox owns
+ * the input + dropdown; TagGroup owns the chip row above it. Both
+ * surfaces share token-driven visuals so they read as one widget.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Chip row (TagGroup) ──────────────────────────────────────────── */
+
+.tagGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-6) var(--space-2) var(--space-8);
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-xl);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+  cursor: default;
+  outline: none;
+}
+
+.tag[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.tagSwatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tagLabel {
+  font-weight: var(--font-weight-medium);
+}
+
+.tagRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: var(--space-2);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  transition: background-color 80ms ease-out, color 80ms ease-out;
+  outline: none;
+}
+
+.tagRemove:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-status-danger);
+}
+
+.tagRemove[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ── ComboBox input + popover ─────────────────────────────────────── */
+
+.combobox {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-6) var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-canvas);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  outline: none;
+  transition: border-color 80ms ease-out;
+}
+
+.input:focus {
+  border-color: var(--color-border-focus);
+}
+
+.popover {
+  width: var(--trigger-width);
+  max-height: 280px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-overlay);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  outline: none;
+  overflow: hidden;
+}
+
+.listbox {
+  max-height: inherit;
+  overflow-y: auto;
+  outline: none;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  cursor: pointer;
+  outline: none;
+}
+
+.option[data-focused] {
+  background-color: var(--color-overlay-hover);
+}
+
+.option[data-selected] {
+  background-color: var(--color-accent-soft);
+}
+
+.optionSwatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.optionLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionCreate {
+  border-top: 1px dashed var(--color-border-subtle);
+  margin-top: var(--space-4);
+  padding-top: var(--space-8);
+  color: var(--color-text-default);
+}
+
+.optionPlus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-accent-soft);
+  color: var(--color-cta-bg);
+  font-weight: var(--font-weight-bold);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.empty {
+  padding: var(--space-12);
+  text-align: center;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
+}
