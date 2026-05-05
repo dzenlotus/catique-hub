@@ -10,6 +10,9 @@ export type {
   DialogFooterProps,
 } from "./Dialog";
 
+export { ConfirmDialog } from "./ConfirmDialog";
+export type { ConfirmDialogProps } from "./ConfirmDialog";
+
 export { Input } from "./Input";
 export type { InputProps } from "./Input";
 

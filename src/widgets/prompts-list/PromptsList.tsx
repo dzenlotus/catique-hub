@@ -4,14 +4,18 @@ import { PixelInterfaceEssentialPlus } from "@shared/ui/Icon";
 import { PromptCard, usePrompts, usePromptTagsMap } from "@entities/prompt";
 import { Button, EmptyState } from "@shared/ui";
 import { PixelInterfaceEssentialMessage } from "@shared/ui/Icon";
-import { stringCodec, useLocalStorage } from "@shared/storage";
+import { jsonCodec, useLocalStorage } from "@shared/storage";
 import { PromptEditor } from "@widgets/prompt-editor";
 import { PromptCreateDialog } from "@widgets/prompt-create-dialog";
 import { PromptsTagFilter } from "@widgets/prompts-tag-filter";
 
 import styles from "./PromptsList.module.css";
 
-const ACTIVE_TAG_STORAGE_KEY = "catique:prompts:active-tag";
+// Round-19e: storage shape changed from a single tag id (string) to a
+// list (string[]) so the grid filter is multi-select. Bumping the key
+// avoids reading a stale single-id payload from older versions.
+const ACTIVE_TAG_IDS_STORAGE_KEY = "catique:prompts:active-tag-ids";
+const tagIdsCodec = jsonCodec<string[]>();
 
 export interface PromptsListProps {
   /** Called when the user activates a prompt card. */
@@ -43,40 +47,36 @@ export function PromptsList({
 }: PromptsListProps = {}): ReactElement {
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  // Persisted via @shared/storage — the hook handles restricted-environment
-  // fallback and cross-tab sync.
-  const [activeTagId, setActiveTagIdRaw, clearActiveTagId] = useLocalStorage(
-    ACTIVE_TAG_STORAGE_KEY,
-    stringCodec,
+  // Persisted via @shared/storage — list of selected tag ids.
+  const [activeTagIds, setActiveTagIds] = useLocalStorage<string[]>(
+    ACTIVE_TAG_IDS_STORAGE_KEY,
+    tagIdsCodec,
+    [],
   );
-
-  const setActiveTagId = (next: string | null): void => {
-    if (next === null) {
-      clearActiveTagId();
-    } else {
-      setActiveTagIdRaw(next);
-    }
-  };
 
   const promptsQuery = usePrompts();
   const tagMapQuery = usePromptTagsMap();
 
-  // Derive the filtered prompt list from the full list + tag-map.
+  // Filter: prompts that carry EVERY selected tag (intersection). Mirrors
+  // the sidebar's TagsFilterButton semantics so the two surfaces match.
   const filteredPrompts = useMemo(() => {
     const allPrompts = promptsQuery.data ?? [];
-    if (activeTagId === null) return allPrompts;
+    if (activeTagIds.length === 0) return allPrompts;
     const tagMap = tagMapQuery.data ?? [];
-    const taggedPromptIds = new Set(
-      tagMap
-        .filter((entry) => entry.tagIds.includes(activeTagId))
-        .map((entry) => entry.promptId),
-    );
-    return allPrompts.filter((p) => taggedPromptIds.has(p.id));
-  }, [promptsQuery.data, tagMapQuery.data, activeTagId]);
+    const promptToTags = new Map<string, Set<string>>();
+    for (const entry of tagMap) {
+      promptToTags.set(entry.promptId, new Set(entry.tagIds));
+    }
+    return allPrompts.filter((p) => {
+      const tagSet = promptToTags.get(p.id);
+      if (!tagSet) return false;
+      return activeTagIds.every((id) => tagSet.has(id));
+    });
+  }, [promptsQuery.data, tagMapQuery.data, activeTagIds]);
 
   // Whether the filter produced an empty result for a non-empty prompt list.
   const isFilterEmpty =
-    activeTagId !== null &&
+    activeTagIds.length > 0 &&
     filteredPrompts.length === 0 &&
     (promptsQuery.data?.length ?? 0) > 0;
 
@@ -114,10 +114,10 @@ export function PromptsList({
         </div>
       </header>
 
-      {/* Tag filter row — shown when tags are available or loading */}
+      {/* Tag filter row — multi-select. */}
       <PromptsTagFilter
-        selectedTagId={activeTagId}
-        onChange={setActiveTagId}
+        selectedTagIds={activeTagIds}
+        onChange={(next) => setActiveTagIds([...next])}
       />
 
       {promptsQuery.status === "pending" ? (
@@ -151,7 +151,7 @@ export function PromptsList({
               <Button
                 variant="secondary"
                 size="md"
-                onPress={() => setActiveTagId(null)}
+                onPress={() => setActiveTagIds([])}
               >
                 Clear filter
               </Button>

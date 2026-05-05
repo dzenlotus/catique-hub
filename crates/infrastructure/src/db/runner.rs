@@ -479,21 +479,32 @@ mod tests {
         );
         assert_eq!(applied[0].name, "004_cat_as_agent_phase1");
 
-        // Every board's owner_role_id must be maintainer-system.
+        // Every seeded board's owner_role_id must be maintainer-system.
+        // Scope to the original ids (b1/b2/b3) so migration 010's
+        // default-board backfill — which lands a 4th board for the
+        // seeded space — does not perturb this 004-specific invariant.
         let owner_row_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM boards WHERE owner_role_id = 'maintainer-system'",
+                "SELECT COUNT(*) FROM boards \
+                 WHERE id IN ('b1','b2','b3') AND owner_role_id = 'maintainer-system'",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
         assert_eq!(owner_row_count, 3, "all boards must point at Maintainer");
 
-        // No data lost.
-        let board_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM boards", [], |r| r.get(0))
+        // No data lost from the 001-003 seed (the three original
+        // boards survive the 004 table rebuild). Migration 010 adds
+        // one more default board for the bare seed-space; assert the
+        // pre-seeded triple is still intact rather than the total.
+        let seeded_board_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM boards WHERE id IN ('b1','b2','b3')",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
-        assert_eq!(board_count, 3);
+        assert_eq!(seeded_board_count, 3);
         let task_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
             .unwrap();
@@ -511,6 +522,162 @@ mod tests {
             })
             .unwrap();
         assert_eq!(nonempty_step_logs, 0);
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn backfill_default_boards_round_trip() {
+        // Migration `010_backfill_default_boards.sql` retroactively
+        // gives every space a default board if it does not already have
+        // one. Strategy: hand-apply 001..009 with their SHAs registered
+        // in `_migrations`, seed three fixture spaces (two without any
+        // default board, one with one already in place), then call
+        // `run_pending` so only 010 runs. Verify:
+        //   * each of the two bare spaces gets exactly one new board
+        //     with `is_default = 1`
+        //   * the third space still has only its original default
+        //     board (idempotency — no duplicate row added)
+        //   * the new boards point at the seeded `maintainer-system`
+        //     row (memo Q1 contract; mirror of `SpacesUseCase::create`).
+        let mut conn = open_mem();
+
+        ensure_migrations_table(&conn).unwrap();
+        let now = now_millis();
+        for name in [
+            "001_initial",
+            "002_skills_mcp_tools",
+            "003_board_description",
+            "004_cat_as_agent_phase1",
+            "005_prompt_icons",
+            "006_prompt_examples",
+            "007_prompt_group_icons",
+            "008_space_board_icons_colors",
+            "009_default_boards",
+        ] {
+            let file = MIGRATIONS
+                .files()
+                .find(|f| f.path().file_stem().and_then(|s| s.to_str()) == Some(name))
+                .expect("migration present in embedded set");
+            let body = file.contents_utf8().unwrap();
+            let sha = hex_sha256(body.as_bytes());
+            // Each migration body runs in its own toggling of FK
+            // enforcement (see `apply_one`). We mirror that here so
+            // the table-rebuild dance in 004 does not collide with
+            // child-table FKs.
+            conn.execute_batch("PRAGMA foreign_keys = OFF;").unwrap();
+            conn.execute_batch(body).unwrap();
+            conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+            conn.execute(
+                "INSERT INTO _migrations (name, applied_at, applied_sha) VALUES (?1, ?2, ?3)",
+                rusqlite::params![name, now, sha],
+            )
+            .unwrap();
+        }
+
+        // Seed three spaces. `bare1` and `bare2` have no boards.
+        // `seeded` already owns one default board — proves the
+        // migration is idempotent (no duplicate insert).
+        conn.execute_batch(
+            "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
+                 VALUES \
+                 ('bare1','Bare1','b1',0,0,0,0), \
+                 ('bare2','Bare2','b2',0,0,0,0), \
+                 ('seeded','Seeded','sd',0,0,0,0); \
+             INSERT INTO boards \
+                 (id, name, space_id, role_id, position, description, color, icon, \
+                  is_default, created_at, updated_at, owner_role_id) \
+                 VALUES \
+                 ('preexisting-default','Existing','seeded',NULL,0,NULL,NULL,NULL, \
+                  1,0,0,'maintainer-system');",
+        )
+        .unwrap();
+
+        // Sanity: pre-010 state.
+        let before_total: i64 = conn
+            .query_row("SELECT COUNT(*) FROM boards", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(before_total, 1, "fixture seeds exactly one board");
+
+        // Run pending — only 010 should fire.
+        let applied = run_pending(&mut conn).expect("post-009 pending");
+        assert_eq!(applied.len(), 1, "only 010 should be pending");
+        assert_eq!(applied[0].name, "010_backfill_default_boards");
+
+        // Every space must now have ≥ 1 default board.
+        let zero_default_spaces: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM spaces s WHERE NOT EXISTS \
+                   (SELECT 1 FROM boards b WHERE b.space_id = s.id AND b.is_default = 1)",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            zero_default_spaces, 0,
+            "post-migration: every space must own at least one default board"
+        );
+
+        // Per-space counts: bare1/bare2 → exactly 1 default; seeded → still 1.
+        for sid in ["bare1", "bare2", "seeded"] {
+            let n: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM boards WHERE space_id = ?1 AND is_default = 1",
+                    rusqlite::params![sid],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(n, 1, "space {sid} must have exactly one default board");
+        }
+
+        // Idempotency: the seeded space's pre-existing default board
+        // survived untouched (its id was not overwritten by the insert).
+        let seeded_default_id: String = conn
+            .query_row(
+                "SELECT id FROM boards WHERE space_id = 'seeded' AND is_default = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            seeded_default_id, "preexisting-default",
+            "the migration must not duplicate or replace an existing default board"
+        );
+
+        // The two backfilled boards point at maintainer-system per
+        // memo Q1, with name='Main' and the canonical pixel icon.
+        let backfilled: Vec<(String, String, Option<String>, String)> = conn
+            .prepare(
+                "SELECT space_id, name, icon, owner_role_id FROM boards \
+                 WHERE space_id IN ('bare1','bare2') ORDER BY space_id",
+            )
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(
+            backfilled,
+            vec![
+                (
+                    "bare1".to_owned(),
+                    "Main".to_owned(),
+                    Some("PixelInterfaceEssentialList".to_owned()),
+                    "maintainer-system".to_owned(),
+                ),
+                (
+                    "bare2".to_owned(),
+                    "Main".to_owned(),
+                    Some("PixelInterfaceEssentialList".to_owned()),
+                    "maintainer-system".to_owned(),
+                ),
+            ]
+        );
+
+        // Final shape: 3 boards total (2 backfilled + 1 pre-existing).
+        let after_total: i64 = conn
+            .query_row("SELECT COUNT(*) FROM boards", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(after_total, 3);
     }
 
     #[test]

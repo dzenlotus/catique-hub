@@ -50,6 +50,57 @@
   outline-offset: 2px;
 }
 
+/* ---------- Body (inner activation button on the interactive variant) ---------- */
+
+.bodyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: inherit;
+}
+
+.bodyBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* ---------- Inline remove (×) ---------- */
+
+.removeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  margin-left: var(--space-2);
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  transition: background-color 80ms ease-out, color 80ms ease-out;
+}
+
+.removeBtn:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-status-danger);
+}
+
+.removeBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
 /* ---------- Colour swatch ---------- */
 
 .swatch {

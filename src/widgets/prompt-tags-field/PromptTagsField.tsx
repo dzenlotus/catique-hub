@@ -250,16 +250,7 @@ function ChipRow({
       <ul className={styles.chipRow} role="list">
         {attachedTags.map((tag) => (
           <li key={tag.id} className={styles.chipItem}>
-            <TagChip tag={tag} />
-            <button
-              type="button"
-              className={styles.removeBtn}
-              onClick={() => onRemove(tag.id)}
-              aria-label={`Remove tag ${tag.name}`}
-              data-testid={`prompt-tags-field-remove-${tag.id}`}
-            >
-              <span aria-hidden="true">×</span>
-            </button>
+            <TagChip tag={tag} onRemove={onRemove} />
           </li>
         ))}
         <li className={styles.addItem}>

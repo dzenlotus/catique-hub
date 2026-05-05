@@ -12,6 +12,7 @@ import {
   useDeleteTagMutation,
   useUpdateTagMutation,
 } from "@entities/tag";
+import type { Tag } from "@entities/tag";
 import {
   PROMPT_TEMPLATE_STORAGE_KEY,
   promptTemplateCodec,
@@ -19,6 +20,7 @@ import {
 } from "@entities/prompt";
 import { useLocalStorage } from "@shared/storage";
 import { useToast } from "@app/providers/ToastProvider";
+import { ConfirmDialog } from "@shared/ui";
 import { PixelInterfaceEssentialSettingCog } from "@shared/ui/Icon";
 
 import styles from "./PromptsSettingsButton.module.css";
@@ -74,6 +76,7 @@ function TagsSection(): ReactElement {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
+  const [tagPendingDelete, setTagPendingDelete] = useState<Tag | null>(null);
 
   const beginRename = (id: string, name: string): void => {
     setEditingId(id);
@@ -97,14 +100,17 @@ function TagsSection(): ReactElement {
     );
   };
 
-  const handleDelete = (id: string, name: string): void => {
-    const ok = window.confirm(
-      `Delete tag "${name}"? It will be removed from every prompt that carries it.`,
-    );
-    if (!ok) return;
-    deleteMutation.mutate(id, {
+  const handleDelete = (tag: Tag): void => {
+    setTagPendingDelete(tag);
+  };
+
+  const confirmDelete = (): void => {
+    if (!tagPendingDelete) return;
+    deleteMutation.mutate(tagPendingDelete.id, {
+      onSuccess: () => setTagPendingDelete(null),
       onError: (err) => {
         pushToast("error", `Failed to delete tag: ${err.message}`);
+        setTagPendingDelete(null);
       },
     });
   };
@@ -161,7 +167,7 @@ function TagsSection(): ReactElement {
               <button
                 type="button"
                 className={styles.tagDeleteBtn}
-                onClick={() => handleDelete(tag.id, tag.name)}
+                onClick={() => handleDelete(tag)}
                 aria-label={`Delete tag ${tag.name}`}
                 data-testid={`prompts-settings-tag-delete-${tag.id}`}
               >
@@ -171,6 +177,22 @@ function TagsSection(): ReactElement {
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        isOpen={tagPendingDelete !== null}
+        title={
+          tagPendingDelete
+            ? `Delete tag "${tagPendingDelete.name}"?`
+            : "Delete tag?"
+        }
+        description="The tag is removed from every prompt that carries it. This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        isPending={deleteMutation.status === "pending"}
+        onConfirm={confirmDelete}
+        onCancel={() => setTagPendingDelete(null)}
+        data-testid="prompts-settings-tag-delete-confirm"
+      />
     </section>
   );
 }

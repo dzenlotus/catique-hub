@@ -8,11 +8,12 @@ import type { Prompt } from "@entities/prompt";
 import type { Tag } from "@entities/tag";
 import type { PromptTagMapEntry } from "@bindings/PromptTagMapEntry";
 import { ToastProvider } from "@app/providers/ToastProvider";
-import { LocalStorageStore, stringCodec } from "@shared/storage";
+import { LocalStorageStore, jsonCodec } from "@shared/storage";
 
-const activeTagStore = new LocalStorageStore<string>({
-  key: "catique:prompts:active-tag",
-  codec: stringCodec,
+// Round-19e: storage shape switched to a list of tag ids; key follows.
+const activeTagStore = new LocalStorageStore<string[]>({
+  key: "catique:prompts:active-tag-ids",
+  codec: jsonCodec<string[]>(),
 });
 
 // Mock the Tauri invoke wrapper at the shared/api boundary so all four

@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { cn } from "@shared/lib";
 import {
   Button,
+  ConfirmDialog,
   Menu,
   MenuItem,
   MarqueeText,
@@ -62,20 +63,27 @@ export function SpaceRow({
   // `delete_board` IPC; the mutation invalidates `useBoards()` so the
   // row disappears once the backend confirms.
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
+  // Replaces the old `window.confirm` flow — modal shows up via the
+  // `<ConfirmDialog>` rendered at the bottom of this row.
+  const [boardPendingDelete, setBoardPendingDelete] =
+    useState<Board | null>(null);
   const deleteBoardMutation = useDeleteBoardMutation();
   const { pushToast } = useToast();
 
   function handleDeleteBoard(board: Board): void {
-    const ok = window.confirm(
-      `Delete board "${board.name}"? Tasks and columns under it will go with it.`,
-    );
-    if (!ok) return;
-    deleteBoardMutation.mutate(board.id, {
+    setBoardPendingDelete(board);
+  }
+
+  function confirmDeleteBoard(): void {
+    if (!boardPendingDelete) return;
+    deleteBoardMutation.mutate(boardPendingDelete.id, {
       onSuccess: () => {
         pushToast("success", "Board deleted");
+        setBoardPendingDelete(null);
       },
       onError: (err) => {
         pushToast("error", `Failed to delete board: ${err.message}`);
+        setBoardPendingDelete(null);
       },
     });
   }
@@ -189,6 +197,22 @@ export function SpaceRow({
       <BoardEditor
         boardId={editingBoardId}
         onClose={() => setEditingBoardId(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={boardPendingDelete !== null}
+        title={
+          boardPendingDelete
+            ? `Delete board "${boardPendingDelete.name}"?`
+            : "Delete board?"
+        }
+        description="Tasks and columns under this board will be removed too. This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        isPending={deleteBoardMutation.status === "pending"}
+        onConfirm={confirmDeleteBoard}
+        onCancel={() => setBoardPendingDelete(null)}
+        data-testid="spaces-sidebar-board-delete-confirm"
       />
     </li>
   );

@@ -247,10 +247,9 @@ impl<'a> SpacesUseCase<'a> {
             });
         }
 
-        tx.commit()
-            .map_err(|e| AppError::TransactionRolledBack {
-                reason: e.to_string(),
-            })?;
+        tx.commit().map_err(|e| AppError::TransactionRolledBack {
+            reason: e.to_string(),
+        })?;
         Ok(())
     }
 }

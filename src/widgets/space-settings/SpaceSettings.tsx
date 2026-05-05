@@ -20,8 +20,19 @@ import { useParams, useLocation } from "wouter";
 
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { routes } from "@app/routes";
-import { useSpace, useUpdateSpaceMutation } from "@entities/space";
-import { Button, IconColorPicker, Input, Scrollable } from "@shared/ui";
+import {
+  useDeleteSpaceMutation,
+  useSpace,
+  useUpdateSpaceMutation,
+} from "@entities/space";
+import {
+  Button,
+  ConfirmDialog,
+  IconColorPicker,
+  Input,
+  Scrollable,
+} from "@shared/ui";
+import { useToast } from "@app/providers/ToastProvider";
 
 import styles from "./SpaceSettings.module.css";
 
@@ -272,6 +283,83 @@ function SpaceSettingsForm({
         </div>
       </div>
       </section>
+
+      <DangerZone spaceId={spaceId} spaceName={initialName} />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Danger zone — destructive actions for the space.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface DangerZoneProps {
+  spaceId: string;
+  spaceName: string;
+}
+
+function DangerZone({ spaceId, spaceName }: DangerZoneProps): ReactElement {
+  const [, setLocation] = useLocation();
+  const deleteMutation = useDeleteSpaceMutation();
+  const { pushToast } = useToast();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const handleDelete = (): void => {
+    deleteMutation.mutate(spaceId, {
+      onSuccess: () => {
+        setConfirmOpen(false);
+        pushToast("success", `Space "${spaceName}" deleted`);
+        setLocation(routes.spaces);
+      },
+      onError: (err) => {
+        pushToast("error", `Failed to delete space: ${err.message}`);
+        setConfirmOpen(false);
+      },
+    });
+  };
+
+  return (
+    <>
+      <section
+        className={styles.dangerCard}
+        aria-labelledby="space-settings-danger"
+      >
+        <h3 id="space-settings-danger" className={styles.dangerHeading}>
+          Danger zone
+        </h3>
+        <p className={styles.dangerHint}>
+          Deleting a space removes every board it owns and every task,
+          column, and prompt-attachment those boards carry. This cannot
+          be undone.
+        </p>
+        <div>
+          <Button
+            variant="secondary"
+            size="md"
+            onPress={() => setConfirmOpen(true)}
+            data-testid="space-settings-delete"
+          >
+            Delete space
+          </Button>
+        </div>
+      </section>
+
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        title={`Delete space "${spaceName}"?`}
+        description={
+          <p>
+            Every board inside this space, plus the columns and tasks
+            those boards own, will be removed. This cannot be undone.
+          </p>
+        }
+        confirmLabel="Delete space"
+        destructive
+        isPending={deleteMutation.status === "pending"}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmOpen(false)}
+        data-testid="space-settings-delete-confirm"
+      />
     </>
   );
 }
