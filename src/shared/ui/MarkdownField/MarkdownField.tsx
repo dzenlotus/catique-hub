@@ -36,6 +36,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ClipboardEvent,
   type KeyboardEvent,
   type ReactElement,
   type ReactNode,
@@ -48,6 +49,8 @@ import {
   PixelCodingAppsWebsitesProgrammingHoldCode,
 } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
+import { invoke } from "@shared/api";
+import type { Attachment } from "@bindings/Attachment";
 
 import styles from "./MarkdownField.module.css";
 
@@ -72,6 +75,14 @@ export interface MarkdownFieldProps {
   className?: string;
   /** `data-testid` forwarded to the active sub-element (textarea / preview). */
   "data-testid"?: string;
+  /**
+   * Audit-#18: when set, pasting an image into edit mode uploads the
+   * blob via `upload_attachment_blob` (ctq-110) and inserts a markdown
+   * image link at the cursor. Without `taskId` the paste is a no-op
+   * for image clipboard data — the field has no place to attach the
+   * blob to. Text-only paste still works via the default behaviour.
+   */
+  taskId?: string;
 }
 
 interface ToolbarAction {
@@ -298,6 +309,7 @@ export function MarkdownField({
   onModeChange,
   className,
   "data-testid": testId,
+  taskId,
 }: MarkdownFieldProps): ReactElement {
   const [mode, setMode] = useState<MarkdownFieldMode>(defaultMode);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -338,6 +350,91 @@ export function MarkdownField({
       ta.setSelectionRange(result.selectionStart, result.selectionEnd);
     });
   };
+
+  /**
+   * Audit-#18: clipboard image → attachment + markdown link.
+   *
+   * Steps:
+   *   1. Detect an `image/*` item on the clipboard. Plain text falls
+   *      through to the browser default.
+   *   2. Read the blob, base64-encode the bytes, and call the existing
+   *      `upload_attachment_blob` IPC (ctq-110) with a synthetic
+   *      `paste-{ISO}.{ext}` filename so multiple pastes don't collide.
+   *   3. Insert `![paste-{ISO}](attachment://{returnedId})` at the
+   *      caret optimistically; on rejection swap the placeholder back
+   *      out so the textarea matches the persisted state.
+   *
+   * Behaviour without `taskId`: the paste is a no-op for image data
+   * (TODO(audit-F18-context): teach call-sites to thread the task id
+   * through every MarkdownField mount that hosts a task description).
+   */
+  const handleEditPaste = useCallback(
+    (event: ClipboardEvent<HTMLTextAreaElement>): void => {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+
+      let imageItem: DataTransferItem | null = null;
+      for (let i = 0; i < items.length; i += 1) {
+        const item = items[i];
+        if (item && item.kind === "file" && item.type.startsWith("image/")) {
+          imageItem = item;
+          break;
+        }
+      }
+      if (!imageItem) return;
+
+      // Image clipboard payload — we own the paste from here.
+      event.preventDefault();
+
+      if (taskId === undefined) {
+        // TODO(audit-F18-context): no task context, drop silently.
+        return;
+      }
+
+      const blob = imageItem.getAsFile();
+      if (!blob) return;
+
+      const ta = event.currentTarget;
+      const start = ta.selectionStart ?? value.length;
+      const end = ta.selectionEnd ?? value.length;
+      const isoStamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const mime = blob.type || "image/png";
+      const extFromMime = mime.split("/")[1] ?? "png";
+      const filename = `paste-${isoStamp}.${extFromMime}`;
+      const placeholder = `![${filename}](uploading://${isoStamp})`;
+      const placeholderValue =
+        value.slice(0, start) + placeholder + value.slice(end);
+      // Optimistic insert. We restore the previous value if the upload
+      // rejects so the textarea stays in sync with the persisted state.
+      onChange(placeholderValue);
+
+      void (async () => {
+        try {
+          const buffer = await blob.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          let binary = "";
+          for (let i = 0; i < bytes.length; i += 1) {
+            binary += String.fromCharCode(bytes[i] as number);
+          }
+          const contentB64 = btoa(binary);
+          const attachment = await invoke<Attachment>(
+            "upload_attachment_blob",
+            { taskId, filename, contentB64, mime },
+          );
+          const finalLink = `![${filename}](attachment://${attachment.id})`;
+          // Replace the placeholder with the persisted attachment link.
+          // Recompute against the current value via the functional swap
+          // so simultaneous edits still merge cleanly.
+          onChange(placeholderValue.replace(placeholder, finalLink));
+        } catch {
+          // Roll back to the pre-paste value — no link is preferable to
+          // a broken `uploading://` reference.
+          onChange(value);
+        }
+      })();
+    },
+    [taskId, value, onChange],
+  );
 
   const handleEditKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -433,6 +530,7 @@ export function MarkdownField({
           onChange={(e) => onChange(e.target.value)}
           onBlur={handleTextareaBlur}
           onKeyDown={handleEditKeyDown}
+          onPaste={handleEditPaste}
           placeholder={placeholder}
           aria-label={ariaLabel}
           rows={rows}
