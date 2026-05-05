@@ -18,6 +18,7 @@ import {
 } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
+import { PromptTagsField } from "@widgets/prompt-tags-field";
 
 import styles from "./PromptEditor.module.css";
 
@@ -329,6 +330,12 @@ function PromptEditorContent({
 
       {/* Appearance picker now lives in the dialog's `titleLeading`
           slot, not the body — same pattern as `<PromptEditorPanel>`. */}
+
+      {/* Tags — live mutations against the existing prompt. */}
+      <div className={styles.section}>
+        <p className={styles.sectionLabel}>Tags</p>
+        <PromptTagsField promptId={prompt.id} />
+      </div>
 
       {/* Content — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}
       <div className={styles.section}>

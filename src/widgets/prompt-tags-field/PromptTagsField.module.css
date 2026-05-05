@@ -1,0 +1,183 @@
+/*
+ * PromptTagsField — chip row + add-tag popover.
+ *
+ * Layout: a flex-wrap row of `<TagChip>`s (each with a trailing remove
+ * `×`) followed by a "+ Add tag" trigger that opens a popover with a
+ * multi-select tag list. Visual treatment matches `<TagsFilterButton>`
+ * so the same affordance reads consistently across the app.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.chipRow {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.chipItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.removeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin-left: -2px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  transition: background-color 80ms ease-out, color 80ms ease-out;
+}
+
+.removeBtn:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.removeBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.addItem {
+  display: inline-flex;
+}
+
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-8);
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-xl);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-caption);
+  cursor: pointer;
+  transition: background-color 80ms ease-out, color 80ms ease-out, border-color 80ms ease-out;
+}
+
+.addBtn:hover {
+  background-color: var(--color-overlay-hover);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-default);
+}
+
+.addBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+
+.popover {
+  width: 240px;
+  max-height: 320px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-overlay);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  outline: none;
+  overflow: hidden;
+}
+
+.popoverDialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-8);
+  outline: none;
+  max-height: inherit;
+  overflow-x: hidden;
+}
+
+.empty {
+  padding: var(--space-12);
+  text-align: center;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
+}
+
+.optionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.optionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  padding: 6px var(--space-8);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 80ms ease-out, color 80ms ease-out;
+}
+
+.optionRow:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.optionRow:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.optionRowChecked {
+  background-color: var(--color-accent-soft);
+  color: var(--color-text-default);
+}
+
+.optionSwatch {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-text-subtle);
+  border: 1px solid var(--color-border-default);
+}
+
+.optionName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionCheck {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--color-cta-bg);
+}

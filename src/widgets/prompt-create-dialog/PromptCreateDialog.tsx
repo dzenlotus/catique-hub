@@ -16,6 +16,7 @@ import { useCreatePromptMutation } from "@entities/prompt";
 import type { Prompt } from "@entities/prompt";
 import { useAddPromptTagMutation } from "@entities/tag";
 import { Dialog, Button, Input, IconColorPicker } from "@shared/ui";
+import { PromptTagsField } from "@widgets/prompt-tags-field";
 
 import styles from "./PromptCreateDialog.module.css";
 
@@ -120,6 +121,13 @@ function PromptCreateDialogContent({
   const [content, setContent] = useState("");
   const [shortDescription, setShortDescription] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Tags are tracked locally in draft mode — the prompt doesn't exist
+  // yet, so we can't fire `add_prompt_tag` on each toggle. The set is
+  // seeded with the parent's `inheritedTagIds` (sidebar filter) so the
+  // user lands inside the same filter without an extra click.
+  const [tagIds, setTagIds] = useState<ReadonlyArray<string>>(
+    () => inheritedTagIds ?? [],
+  );
 
   const canSubmit = name.trim().length > 0 && content.trim().length > 0;
 
@@ -146,15 +154,12 @@ function PromptCreateDialogContent({
 
     createMutation.mutate(args, {
       onSuccess: (prompt) => {
-        // Inherit the parent's active tag filter — fire-and-forget per-tag
-        // attachments so the new prompt lands inside the same filter
-        // the user was browsing. Failures fall through to the React-Query
-        // event channel and surface as ordinary toasts; we don't block
-        // the dialog close on them.
-        if (inheritedTagIds && inheritedTagIds.length > 0) {
-          for (const tagId of inheritedTagIds) {
-            addPromptTag.mutate({ promptId: prompt.id, tagId });
-          }
+        // Apply the user's chosen tags (which were seeded from the
+        // sidebar filter via `inheritedTagIds`). Fire-and-forget per
+        // tag so a single attach-failure doesn't block the dialog
+        // close — failures surface through React-Query toasts.
+        for (const tagId of tagIds) {
+          addPromptTag.mutate({ promptId: prompt.id, tagId });
         }
         onCreated?.(prompt);
         onClose();
@@ -198,6 +203,14 @@ function PromptCreateDialogContent({
 
       {/* Appearance picker now lives in the dialog header
           (`titleLeading` slot), so no in-body Appearance section. */}
+
+      {/* Tags — draft-mode (no IPC) since the prompt isn't created
+          yet. Seeded from `inheritedTagIds` (sidebar filter) so the
+          new prompt lands inside the same filter automatically. */}
+      <div className={styles.section}>
+        <p className={styles.sectionLabel}>Tags</p>
+        <PromptTagsField mode="draft" value={tagIds} onChange={setTagIds} />
+      </div>
 
       {/* Content */}
       <div className={styles.section}>

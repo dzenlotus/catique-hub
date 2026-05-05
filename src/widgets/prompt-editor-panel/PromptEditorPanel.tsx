@@ -24,6 +24,7 @@ import {
 import { PixelInterfaceEssentialBin } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
+import { PromptTagsField } from "@widgets/prompt-tags-field";
 
 import styles from "./PromptEditorPanel.module.css";
 
@@ -325,6 +326,14 @@ export function PromptEditorPanel({
             className={styles.fullWidthInput}
             data-testid="prompt-editor-panel-shortdesc-input"
           />
+        </div>
+
+        {/* Tags — live-mutating (no draft state). The IPC writes through
+            on each toggle; the prompts→tags map invalidation refreshes
+            the chip row + sidebar filter together. */}
+        <div className={styles.section}>
+          <p className={styles.sectionLabel}>Tags</p>
+          <PromptTagsField promptId={prompt.id} />
         </div>
 
         {/* Content */}

@@ -47,6 +47,13 @@ function makePrompt(overrides: Partial<Prompt> = {}): Prompt {
 
 beforeEach(() => {
   invokeMock.mockReset();
+  // Default: every IPC call other than `create_prompt` returns []
+  // (covers `list_tags` from the in-dialog `<PromptTagsField>`).
+  // Individual tests override this with their own implementation.
+  invokeMock.mockImplementation((command: string) => {
+    if (command === "list_tags") return Promise.resolve([]);
+    return new Promise(() => {});
+  });
 });
 
 afterEach(() => {
@@ -115,7 +122,11 @@ describe("PromptCreateDialog", () => {
 
   it("calls create_prompt with correct required payload (no optional fields)", async () => {
     const newPrompt = makePrompt({ id: "prm-new", name: "Тестовый" });
-    invokeMock.mockResolvedValue(newPrompt);
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "list_tags") return Promise.resolve([]);
+      if (command === "create_prompt") return Promise.resolve(newPrompt);
+      return Promise.resolve(newPrompt);
+    });
 
     const onCreated = vi.fn();
     const onClose = vi.fn();
@@ -152,7 +163,11 @@ describe("PromptCreateDialog", () => {
 
   it("includes optional shortDescription in payload when filled", async () => {
     const newPrompt = makePrompt();
-    invokeMock.mockResolvedValue(newPrompt);
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "list_tags") return Promise.resolve([]);
+      if (command === "create_prompt") return Promise.resolve(newPrompt);
+      return Promise.resolve(newPrompt);
+    });
 
     const { user } = renderWithClient(
       <PromptCreateDialog isOpen onClose={() => undefined} />,
@@ -181,7 +196,10 @@ describe("PromptCreateDialog", () => {
   });
 
   it("shows inline error on mutation failure", async () => {
-    invokeMock.mockRejectedValue(new Error("сбой базы данных"));
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "list_tags") return Promise.resolve([]);
+      return Promise.reject(new Error("сбой базы данных"));
+    });
 
     const { user } = renderWithClient(
       <PromptCreateDialog isOpen onClose={() => undefined} />,
