@@ -99,6 +99,7 @@ pub fn run() {
             handlers::tasks::delete_task,
             handlers::tasks::get_step_log,
             handlers::tasks::get_task,
+            handlers::tasks::get_task_bundle,
             handlers::tasks::get_task_rating,
             handlers::tasks::list_task_prompts,
             handlers::tasks::list_tasks,
@@ -142,6 +143,13 @@ pub fn run() {
             handlers::mcp_tools::get_mcp_tool,
             handlers::mcp_tools::list_mcp_tools,
             handlers::mcp_tools::update_mcp_tool,
+            // ---------------- mcp servers (ctq-115, ADR-0007) ----------------
+            handlers::mcp_servers::create_mcp_server,
+            handlers::mcp_servers::delete_mcp_server,
+            handlers::mcp_servers::get_mcp_server,
+            handlers::mcp_servers::get_mcp_server_connection_hint,
+            handlers::mcp_servers::list_mcp_servers,
+            handlers::mcp_servers::update_mcp_server,
             // ---------------- tags (E2.4) ----------------
             handlers::tags::add_prompt_tag,
             handlers::tags::create_tag,
@@ -264,5 +272,18 @@ fn init_state(sidecar_dir: PathBuf) -> Result<AppState, String> {
         let names: Vec<&str> = applied.iter().map(|m| m.name.as_str()).collect();
         eprintln!("[catique-hub] applied migrations: {names:?}");
     }
+
+    // ADR-0006 (resolver-backfill): on first boot post-ctq-98, walk
+    // every existing role/board/column/space attachment and materialise
+    // origin-tagged rows in `task_prompts`. Idempotent + chunked — see
+    // `resolver_backfill::run_if_pending` for the strategy. Failure
+    // here is non-fatal: the resolver still works for any new
+    // attachments going forward, and the next boot retries the walker.
+    match catique_application::resolver_backfill::run_if_pending(&pool) {
+        Ok(0) => {}
+        Ok(n) => eprintln!("[catique-hub] resolver backfill materialised {n} rows"),
+        Err(e) => eprintln!("[catique-hub] resolver backfill skipped: {e}"),
+    }
+
     Ok(AppState::new(pool, sidecar_dir))
 }
