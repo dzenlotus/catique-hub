@@ -5,12 +5,15 @@
 //! `repositories::tasks`). The use case validates inputs and pre-checks
 //! parent existence so `NotFound` is typed.
 
-use catique_domain::{Prompt, Task, TaskRating};
+use catique_domain::{
+    OriginRef, Prompt, PromptWithOrigin, Role, Task, TaskBundle, TaskRating,
+};
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::prompts::PromptRow,
+    repositories::roles::RoleRow,
     repositories::task_ratings::{self as ratings_repo, TaskRatingRow},
-    repositories::tasks::{self as repo, TaskDraft, TaskPatch, TaskRow},
+    repositories::tasks::{self as repo, ResolvedPromptRow, TaskDraft, TaskPatch, TaskRow},
 };
 use rusqlite::params;
 
@@ -173,6 +176,43 @@ impl<'a> TasksUseCase<'a> {
         let conn = acquire(self.pool).map_err(map_db_err)?;
         let rows = repo::list_task_prompts(&conn, task_id).map_err(map_db_err)?;
         Ok(rows.into_iter().map(prompt_row_to_prompt).collect())
+    }
+
+    /// Resolve the full agent bundle for one task: the task row, its
+    /// active role (task > column > board fallback), and the
+    /// deduplicated, origin-tagged prompt set ready for assembly into
+    /// the LLM payload.
+    ///
+    /// This is the head consumer of ADR-0006's write-time materialisation
+    /// strategy — every prompt seen here was already INSERTed into
+    /// `task_prompts` at attach-time by the corresponding scope's
+    /// cascade helper. The hot path is a single index seek on
+    /// `idx_task_prompts_task` plus a primary-key join into `prompts`;
+    /// the override rule ("direct beats inherited") is applied in Rust
+    /// after the fetch so the SQL plan stays trivial.
+    ///
+    /// # Override semantics
+    ///
+    /// If the same `prompt_id` appears under multiple origins (e.g. a
+    /// prompt was attached directly AND inherited from the role), only
+    /// the highest-precedence row is returned. Precedence: `Direct >
+    /// Role > Column > Board > Space`.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound` if `task_id` does not exist; storage-layer
+    /// errors as usual.
+    pub fn resolve_task_bundle(&self, task_id: &str) -> Result<TaskBundle, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let row = repo::get_by_id(&conn, task_id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "task".into(),
+                id: task_id.to_owned(),
+            })?;
+        let role_row = repo::resolve_active_role(&conn, task_id).map_err(map_db_err)?;
+        let prompt_rows = repo::resolve_task_prompts(&conn, task_id).map_err(map_db_err)?;
+        Ok(assemble_bundle(row, role_row, prompt_rows))
     }
 
     /// Delete a task.
@@ -373,6 +413,94 @@ fn row_to_task_rating(row: TaskRatingRow) -> TaskRating {
         task_id: row.task_id,
         rating: row.rating,
         rated_at: row.rated_at,
+    }
+}
+
+fn role_row_to_role(row: RoleRow) -> Role {
+    Role {
+        id: row.id,
+        name: row.name,
+        content: row.content,
+        color: row.color,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        is_system: row.is_system,
+    }
+}
+
+/// Assemble a [`TaskBundle`] from the raw rows the resolver returned.
+/// Performs the override-rule de-duplication: when the same `prompt_id`
+/// appears under multiple origins, the highest-precedence row wins
+/// (Direct > Role > Column > Board > Space). Within each origin bucket
+/// the relative order from the SQL ORDER BY clause is preserved.
+///
+/// Malformed origin strings (the row's `origin` column does not match
+/// any known scope) are treated as `Direct` — the only safe fallback
+/// that doesn't lose user data; the resolver pre-amble logs the
+/// occurrence so debugging is still tractable.
+fn assemble_bundle(
+    task_row: TaskRow,
+    role_row: Option<RoleRow>,
+    prompt_rows: Vec<ResolvedPromptRow>,
+) -> TaskBundle {
+    use std::collections::HashMap;
+
+    // First pass: group rows by `prompt_id`, keeping the
+    // highest-precedence origin per prompt. We track the index into the
+    // original `prompt_rows` so we can re-sort by precedence + position
+    // afterwards.
+    //
+    // The `(precedence, idx)` tuple is the comparison key — higher
+    // precedence wins; ties broken by position-order arrival.
+    let mut best_per_prompt: HashMap<String, (u8, usize)> = HashMap::new();
+    for (idx, row) in prompt_rows.iter().enumerate() {
+        let origin =
+            OriginRef::parse(&row.origin_raw).unwrap_or(OriginRef::Direct);
+        let prec = origin.precedence();
+        match best_per_prompt.get(&row.prompt.id) {
+            Some(&(existing_prec, _)) if existing_prec >= prec => {
+                // Existing row has higher (or equal) precedence — keep it.
+            }
+            _ => {
+                best_per_prompt.insert(row.prompt.id.clone(), (prec, idx));
+            }
+        }
+    }
+
+    // Second pass: collect winners + sort by precedence DESC, position ASC.
+    let mut winners: Vec<(u8, f64, PromptWithOrigin)> = prompt_rows
+        .into_iter()
+        .enumerate()
+        .filter_map(|(idx, row)| {
+            let kept_idx = best_per_prompt.get(&row.prompt.id)?.1;
+            if kept_idx != idx {
+                return None;
+            }
+            let origin = OriginRef::parse(&row.origin_raw).unwrap_or(OriginRef::Direct);
+            let prec = origin.precedence();
+            let position = row.position;
+            Some((
+                prec,
+                position,
+                PromptWithOrigin {
+                    prompt: prompt_row_to_prompt(row.prompt),
+                    origin,
+                },
+            ))
+        })
+        .collect();
+
+    winners.sort_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then_with(|| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+    });
+
+    let prompts = winners.into_iter().map(|(_, _, p)| p).collect();
+
+    TaskBundle {
+        task: row_to_task(task_row),
+        role: role_row.map(role_row_to_role),
+        prompts,
     }
 }
 
@@ -691,5 +819,167 @@ mod tests {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "task"),
             other => panic!("got {other:?}"),
         }
+    }
+
+    // -----------------------------------------------------------------
+    // ADR-0006 — `resolve_task_bundle` use-case wiring.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn resolve_task_bundle_returns_not_found_for_missing_task() {
+        let pool = fresh_pool();
+        let uc = TasksUseCase::new(&pool);
+        match uc.resolve_task_bundle("ghost").expect_err("nf") {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "task"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn resolve_task_bundle_includes_role_when_task_has_role() {
+        let pool = fresh_pool();
+        {
+            let conn = pool.get().unwrap();
+            conn.execute(
+                "INSERT INTO roles (id, name, content, created_at, updated_at) \
+                 VALUES ('rl', 'My Role', '', 0, 0)",
+                [],
+            )
+            .unwrap();
+        }
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create(
+                "bd1".into(),
+                "c1".into(),
+                "T".into(),
+                None,
+                1.0,
+                Some("rl".into()),
+            )
+            .unwrap();
+
+        let bundle = uc.resolve_task_bundle(&task.id).unwrap();
+        assert_eq!(bundle.task.id, task.id);
+        let role = bundle.role.expect("active role resolved");
+        assert_eq!(role.id, "rl");
+        assert!(bundle.prompts.is_empty(), "no prompts attached yet");
+    }
+
+    #[test]
+    fn resolve_task_bundle_dedups_direct_over_inherited() {
+        // ADR-0006 AC-5: when a prompt is both attached directly to a
+        // task and inherited from its role, the bundle returns it once
+        // tagged `Direct`.
+        use catique_domain::OriginRef;
+        use catique_infrastructure::db::repositories::tasks as repo;
+
+        let pool = fresh_pool();
+        {
+            let conn = pool.get().unwrap();
+            conn.execute_batch(
+                "INSERT INTO roles (id, name, content, created_at, updated_at) \
+                     VALUES ('rl', 'R', '', 0, 0); \
+                 INSERT INTO prompts (id, name, content, created_at, updated_at) \
+                     VALUES ('p-shared', 'shared', '', 0, 0);",
+            )
+            .unwrap();
+        }
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create(
+                "bd1".into(),
+                "c1".into(),
+                "T".into(),
+                None,
+                1.0,
+                Some("rl".into()),
+            )
+            .unwrap();
+
+        // Direct attachment first.
+        {
+            let conn = pool.get().unwrap();
+            repo::add_task_prompt(&conn, &task.id, "p-shared", 1.0).unwrap();
+            // Then a role-cascade for the same prompt — must NOT
+            // overwrite the direct row (the cascade uses ON CONFLICT
+            // DO NOTHING).
+            repo::cascade_prompt_attachment(
+                &conn,
+                &repo::AttachScope::Role("rl".into()),
+                "p-shared",
+                2.0,
+            )
+            .unwrap();
+        }
+
+        let bundle = uc.resolve_task_bundle(&task.id).unwrap();
+        assert_eq!(bundle.prompts.len(), 1, "direct + role dedup to one");
+        assert_eq!(bundle.prompts[0].origin, OriginRef::Direct);
+        assert_eq!(bundle.prompts[0].prompt.id, "p-shared");
+    }
+
+    #[test]
+    fn resolve_task_bundle_orders_by_precedence() {
+        // Direct first, then Role > Column > Board > Space within their
+        // own buckets. Three different prompts so dedup doesn't apply.
+        use catique_domain::OriginRef;
+        use catique_infrastructure::db::repositories::tasks as repo;
+
+        let pool = fresh_pool();
+        {
+            let conn = pool.get().unwrap();
+            conn.execute_batch(
+                "INSERT INTO roles (id, name, content, created_at, updated_at) \
+                     VALUES ('rl', 'R', '', 0, 0); \
+                 INSERT INTO prompts (id, name, content, created_at, updated_at) VALUES \
+                     ('p-d','direct','',0,0), \
+                     ('p-r','role','',0,0), \
+                     ('p-b','board','',0,0);",
+            )
+            .unwrap();
+        }
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create(
+                "bd1".into(),
+                "c1".into(),
+                "T".into(),
+                None,
+                1.0,
+                Some("rl".into()),
+            )
+            .unwrap();
+        {
+            let conn = pool.get().unwrap();
+            // Reverse order on purpose so we know the resolver isn't
+            // relying on insertion order.
+            repo::cascade_prompt_attachment(
+                &conn,
+                &repo::AttachScope::Board("bd1".into()),
+                "p-b",
+                3.0,
+            )
+            .unwrap();
+            repo::cascade_prompt_attachment(
+                &conn,
+                &repo::AttachScope::Role("rl".into()),
+                "p-r",
+                2.0,
+            )
+            .unwrap();
+            repo::add_task_prompt(&conn, &task.id, "p-d", 1.0).unwrap();
+        }
+
+        let bundle = uc.resolve_task_bundle(&task.id).unwrap();
+        let origins: Vec<&OriginRef> = bundle.prompts.iter().map(|p| &p.origin).collect();
+        assert_eq!(
+            origins,
+            vec![
+                &OriginRef::Direct,
+                &OriginRef::Role("rl".into()),
+                &OriginRef::Board("bd1".into()),
+            ]
+        );
     }
 }

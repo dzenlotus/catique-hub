@@ -14,6 +14,9 @@ use catique_infrastructure::db::{
         boards::{self as boards_repo, BoardDraft},
         prompts::PromptRow,
         spaces::{self as repo, SpaceDraft, SpacePatch, SpaceRow},
+        tasks::{
+            cascade_clear_scope, cascade_prompt_attachment, cascade_prompt_detachment, AttachScope,
+        },
     },
 };
 
@@ -279,6 +282,10 @@ impl<'a> SpacesUseCase<'a> {
     /// already exists (matches `add_board_prompt` / `add_column_prompt`
     /// semantics).
     ///
+    /// ADR-0006 (write-time materialisation): immediately after the
+    /// join-table insert, every task whose board lives in this space
+    /// gets a `task_prompts` row tagged `origin = 'space:<space_id>'`.
+    ///
     /// # Errors
     ///
     /// `AppError::TransactionRolledBack` on FK violation (unknown space
@@ -289,20 +296,43 @@ impl<'a> SpacesUseCase<'a> {
         prompt_id: &str,
         position: Option<f64>,
     ) -> Result<(), AppError> {
-        let conn = acquire(self.pool).map_err(map_db_err)?;
-        repo::add_space_prompt(&conn, space_id, prompt_id, position).map_err(map_db_err)
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+        repo::add_space_prompt(&tx, space_id, prompt_id, position).map_err(map_db_err)?;
+        let pos = position.unwrap_or(0.0);
+        cascade_prompt_attachment(
+            &tx,
+            &AttachScope::Space(space_id.to_owned()),
+            prompt_id,
+            pos,
+        )
+        .map_err(map_db_err)?;
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
+        Ok(())
     }
 
     /// Detach a prompt from a space.
+    ///
+    /// Symmetric to [`Self::add_space_prompt`]: strips both the
+    /// join-table row and every materialised `task_prompts` row tagged
+    /// `origin = 'space:<space_id>'`. Direct attachments survive.
     ///
     /// # Errors
     ///
     /// `AppError::NotFound { entity: "space_prompt", … }` when no row
     /// matched the `(space_id, prompt_id)` pair.
     pub fn remove_space_prompt(&self, space_id: &str, prompt_id: &str) -> Result<(), AppError> {
-        let conn = acquire(self.pool).map_err(map_db_err)?;
-        let removed = repo::remove_space_prompt(&conn, space_id, prompt_id).map_err(map_db_err)?;
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+        let removed = repo::remove_space_prompt(&tx, space_id, prompt_id).map_err(map_db_err)?;
         if removed {
+            cascade_prompt_detachment(&tx, &AttachScope::Space(space_id.to_owned()), prompt_id)
+                .map_err(map_db_err)?;
+            tx.commit().map_err(|e| map_db_err(e.into()))?;
             Ok(())
         } else {
             Err(AppError::NotFound {
@@ -316,6 +346,10 @@ impl<'a> SpacesUseCase<'a> {
     /// Mirrors `prompt_groups::set_members` — single round-trip,
     /// savepoint-wrapped, FK violation rolls back.
     ///
+    /// ADR-0006: clears every space-origin row, then re-cascades the new
+    /// set. The whole operation runs in one immediate transaction so the
+    /// resolver never observes a partial sync.
+    ///
     /// # Errors
     ///
     /// `AppError::TransactionRolledBack` on FK violation (unknown space
@@ -326,8 +360,23 @@ impl<'a> SpacesUseCase<'a> {
         space_id: String,
         ordered_prompt_ids: Vec<String>,
     ) -> Result<(), AppError> {
-        let conn = acquire(self.pool).map_err(map_db_err)?;
-        repo::set_space_prompts(&conn, &space_id, &ordered_prompt_ids).map_err(map_db_err)
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+        repo::set_space_prompts(&tx, &space_id, &ordered_prompt_ids).map_err(map_db_err)?;
+        let scope = AttachScope::Space(space_id.clone());
+        // Wipe the scope's prior contributions, then re-cascade the new
+        // ordered list with `position = idx + 1.0` (mirrors the
+        // repository's `set_space_prompts` numbering).
+        cascade_clear_scope(&tx, &scope).map_err(map_db_err)?;
+        for (idx, pid) in ordered_prompt_ids.iter().enumerate() {
+            #[allow(clippy::cast_precision_loss)]
+            let pos = (idx + 1) as f64;
+            cascade_prompt_attachment(&tx, &scope, pid, pos).map_err(map_db_err)?;
+        }
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
+        Ok(())
     }
 }
 
