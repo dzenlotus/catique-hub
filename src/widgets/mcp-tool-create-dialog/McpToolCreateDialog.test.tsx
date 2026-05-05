@@ -144,7 +144,36 @@ describe("McpToolCreateDialog", () => {
     const createCall = invokeMock.mock.calls.find(
       ([cmd]) => cmd === "create_mcp_tool",
     );
-    expect(createCall?.[1]).toEqual({ name: "Аналитик", schemaJson: "{}" });
+    // `position` is required by the Rust handler; its exact value is a
+    // `Date.now()` snapshot, so just assert the shape.
+    expect(createCall?.[1]).toMatchObject({ name: "Аналитик", schemaJson: "{}" });
+    const payload = createCall?.[1] as Record<string, unknown>;
+    expect(typeof payload.position).toBe("number");
+    expect(payload.position).toBeGreaterThan(0);
+  });
+
+  it("sends `position` (number) on create_mcp_tool — Rust handler requires it (audit F-02)", async () => {
+    const newTool = makeTool();
+    invokeMock.mockResolvedValue(newTool);
+
+    const { user } = renderWithClient(
+      <McpToolCreateDialog isOpen onClose={() => undefined} />,
+    );
+
+    await user.type(
+      screen.getByTestId("mcp-tool-create-dialog-name-input"),
+      "Search",
+    );
+    setInputValue(screen.getByTestId("mcp-tool-create-dialog-schema-input"), "{}");
+    await user.click(screen.getByTestId("mcp-tool-create-dialog-save"));
+
+    await waitFor(() => {
+      const createCall = invokeMock.mock.calls.find(
+        ([cmd]) => cmd === "create_mcp_tool",
+      );
+      const payload = createCall?.[1] as Record<string, unknown>;
+      expect(typeof payload.position).toBe("number");
+    });
   });
 
   it("includes description in payload when filled", async () => {

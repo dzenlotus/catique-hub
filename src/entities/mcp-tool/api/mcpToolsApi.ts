@@ -67,6 +67,15 @@ export interface CreateMcpToolArgs {
   description?: string;
   schemaJson: string;
   color?: string;
+  /**
+   * Sort rank assigned to the new tool.  Required by the Rust handler
+   * (`crates/api/src/handlers/mcp_tools.rs::create_mcp_tool` takes a
+   * non-optional `position: f64`); omitting it triggers a serde error
+   * before the handler body runs.  Callers default to a monotonically-
+   * increasing value (`Date.now()`) so each new row lands at the end
+   * of the list.
+   */
+  position: number;
 }
 
 /** `create_mcp_tool` — create a new MCP tool. */
@@ -74,6 +83,7 @@ export async function createMcpTool(args: CreateMcpToolArgs): Promise<McpTool> {
   const payload: Record<string, unknown> = {
     name: args.name,
     schemaJson: args.schemaJson,
+    position: args.position,
   };
   if (args.description !== undefined) payload.description = args.description;
   if (args.color !== undefined) payload.color = args.color;
