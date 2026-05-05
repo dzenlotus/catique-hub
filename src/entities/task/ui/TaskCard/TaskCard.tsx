@@ -11,56 +11,6 @@ import type { Task } from "../../model/types";
 
 import styles from "./TaskCard.module.css";
 
-// ---------------------------------------------------------------------------
-// Relative-time helper (no date-fns dependency)
-// ---------------------------------------------------------------------------
-
-/**
- * Format a Unix timestamp (seconds as bigint) as a human-readable relative
- * string: "just now", "5m ago", "2h ago", "yesterday", or "Mon".
- */
-function formatRelativeTime(createdAtSeconds: bigint): string {
-  const nowMs = Date.now();
-  const createdMs = Number(createdAtSeconds) * 1000;
-  const diffMs = nowMs - createdMs;
-
-  // Negative diff (clock skew) — just show "just now".
-  if (diffMs < 0) return "just now";
-
-  const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 60) return "just now";
-
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${String(diffMin)}m ago`;
-
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${String(diffHr)}h ago`;
-
-  const diffDays = Math.floor(diffHr / 24);
-  if (diffDays === 1) return "yesterday";
-
-  // More than 2 days ago — show weekday abbreviation.
-  const d = new Date(createdMs);
-  return d.toLocaleDateString("en-US", { weekday: "short" });
-}
-
-/**
- * Format a Unix timestamp (seconds as bigint) as an absolute ISO-like string
- * suitable for a tooltip title attribute.
- */
-function formatAbsoluteDate(createdAtSeconds: bigint): string {
-  const d = new Date(Number(createdAtSeconds) * 1000);
-  return d.toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-// ---------------------------------------------------------------------------
-
 export interface TaskCardProps {
   /** Task to render. Omitted (or with `isPending`) renders a skeleton. */
   task?: Task;
@@ -374,12 +324,6 @@ function CardBody({
       ? { backgroundColor: `${roleColor}22`, color: roleColor }
       : undefined;
 
-  // Age indicator — relative time from createdAt (Unix seconds as bigint).
-  // Skip when createdAt is 0 (placeholder / test data).
-  const showAge = task.createdAt !== 0n;
-  const relativeTime = showAge ? formatRelativeTime(task.createdAt) : null;
-  const absoluteDate = showAge ? formatAbsoluteDate(task.createdAt) : null;
-
   return (
     <>
       {/* Top row: done checkmark (top-right only, no slug here) */}
@@ -404,21 +348,9 @@ function CardBody({
         <span className={styles.description}>{task.description}</span>
       ) : null}
 
-      {/* Bottom meta row: age (left) + role badge + attachments + slug chip (right) */}
+      {/* Bottom meta row: role badge + attachments + slug chip (right) */}
       <div className={styles.bottomRow}>
         <span className={styles.meta}>
-          {/* Age indicator — far-left of the meta row */}
-          {relativeTime !== null ? (
-            <time
-              className={styles.age}
-              title={absoluteDate ?? undefined}
-              dateTime={new Date(Number(task.createdAt) * 1000).toISOString()}
-              data-testid="task-card-age"
-            >
-              {relativeTime}
-            </time>
-          ) : null}
-
           {/* Role badge: show resolved name, tinted by role colour when present */}
           {task.roleId ? (
             <span

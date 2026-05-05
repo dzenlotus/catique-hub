@@ -137,14 +137,20 @@ impl<'a> PromptsUseCase<'a> {
     ///
     /// ## Heuristic
     ///
-    /// `token_count = (content_chars + 3) / 4`
+    /// `token_count = (payload_chars + 3) / 4`
     ///
-    /// NOTE: this is a coarse approximation — roughly 1 token per 4 UTF-8
-    /// characters, which holds reasonably well for English/mixed Latin text.
-    /// It is intentionally kept dependency-free (no `tiktoken-rs`). If accurate
-    /// per-model counts are ever needed, replace the single expression below
-    /// and wire the real tokeniser here; the repository and handler require no
-    /// further changes.
+    /// where `payload = content + "\n\n" + examples.join("\n\n")`. Examples
+    /// are part of the wire payload an agent receives (the FE wraps each one
+    /// in `<example index="N">…</example>`), so they must be counted too.
+    /// We use the simple newline-joined form rather than the exact XML
+    /// envelope — the count is a coarse approximation anyway (~1 token per 4
+    /// UTF-8 chars), and the few extra chars introduced by tags do not
+    /// materially change the order of magnitude.
+    ///
+    /// NOTE: intentionally kept dependency-free (no `tiktoken-rs`). If
+    /// accurate per-model counts are ever needed, replace the expression
+    /// below and wire the real tokeniser here; the repository and handler
+    /// require no further changes.
     ///
     /// # Errors
     ///
@@ -163,7 +169,7 @@ impl<'a> PromptsUseCase<'a> {
         // `chars().count()` is at most `usize::MAX`; realistic prompts fit
         // well inside `i64::MAX`, so saturating is fine here.
         #[allow(clippy::cast_possible_wrap)]
-        let char_count = row.content.chars().count() as i64;
+        let char_count = tokenisable_payload_chars(&row.content, &row.examples) as i64;
         let count = (char_count + 3) / 4;
         // 3. Persist.
         repo::set_token_count(&conn, &id, count).map_err(map_db_err)?;
@@ -194,6 +200,20 @@ impl<'a> PromptsUseCase<'a> {
             })
         }
     }
+}
+
+/// Count `char`s of the canonical "what the agent receives" payload:
+/// `content` followed by every example, separated by blank lines. Centralised
+/// so the heuristic stays in one place and is straightforward to test.
+fn tokenisable_payload_chars(content: &str, examples: &[String]) -> usize {
+    let mut total = content.chars().count();
+    for example in examples {
+        // "\n\n" between segments — two ASCII chars, two `char`s.
+        total = total
+            .saturating_add(2)
+            .saturating_add(example.chars().count());
+    }
+    total
 }
 
 fn row_to_prompt(row: PromptRow) -> Prompt {
@@ -344,6 +364,78 @@ mod tests {
             .update(p.id, None, None, None, None, None, Some(Vec::new()))
             .unwrap();
         assert!(after.examples.is_empty());
+    }
+
+    #[test]
+    fn recompute_token_count_includes_examples_in_payload() {
+        let pool = fresh_pool();
+        let uc = PromptsUseCase::new(&pool);
+        // Same content as `recompute_token_count_stores_heuristic_value`
+        // ("Hello", 5 chars → 2 tokens) but with two examples appended.
+        // payload chars = 5 + (2 + 5) + (2 + 7) = 21
+        // tokens = (21 + 3) / 4 = 6
+        let p = uc
+            .create(
+                "TC_EX".into(),
+                "Hello".into(),
+                None,
+                None,
+                None,
+                vec!["world".into(), "goodbye".into()],
+            )
+            .unwrap();
+        let updated = uc.recompute_token_count(p.id).unwrap();
+        assert_eq!(updated.token_count, Some(6));
+    }
+
+    #[test]
+    fn recompute_token_count_grows_when_examples_added() {
+        let pool = fresh_pool();
+        let uc = PromptsUseCase::new(&pool);
+        let p = uc
+            .create(
+                "TC_GROW".into(),
+                "body".into(),
+                None,
+                None,
+                None,
+                Vec::new(),
+            )
+            .unwrap();
+        let baseline = uc
+            .recompute_token_count(p.id.clone())
+            .unwrap()
+            .token_count
+            .expect("baseline count");
+        // Append a non-empty example.
+        uc.update(
+            p.id.clone(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(vec!["a much longer example body".into()]),
+        )
+        .unwrap();
+        let after = uc
+            .recompute_token_count(p.id)
+            .unwrap()
+            .token_count
+            .expect("updated count");
+        assert!(
+            after > baseline,
+            "expected examples to bump token count: baseline={baseline}, after={after}"
+        );
+    }
+
+    #[test]
+    fn tokenisable_payload_chars_counts_separators() {
+        // "ab" + "\n\n" + "cd" + "\n\n" + "ef" = 2 + 2 + 2 + 2 + 2 = 10
+        let n = tokenisable_payload_chars("ab", &["cd".to_owned(), "ef".to_owned()]);
+        assert_eq!(n, 10);
+        // Empty examples vec keeps content-only behaviour.
+        assert_eq!(tokenisable_payload_chars("hello", &[]), 5);
     }
 
     #[test]

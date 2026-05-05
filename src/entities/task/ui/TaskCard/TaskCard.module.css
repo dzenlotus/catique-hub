@@ -313,16 +313,6 @@
   white-space: nowrap;
 }
 
-/* Age indicator — far-left of bottom meta row */
-.age {
-  display: inline-flex;
-  align-items: center;
-  font-size: var(--font-size-caption);
-  color: var(--color-text-subtle);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
 .attachments {
   display: inline-flex;
   align-items: center;
