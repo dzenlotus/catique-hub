@@ -167,6 +167,53 @@ impl<'a> BoardsUseCase<'a> {
         }
     }
 
+    /// Reassign a board's owning cat (Maintainer-style role).
+    ///
+    /// Cat-as-Agent Phase 1 (ctq-88, audit F-07) guards against
+    /// assigning the seeded `dirizher-system` row as a board owner:
+    /// Dirizher is the Pattern B coordinator (memo Q3) and only
+    /// orchestrates Cats — it never owns work itself. Maintainer
+    /// (`maintainer-system`) is a valid owner; user-defined cats are
+    /// also fine. The repository-level FK does not encode this
+    /// distinction, hence the application-layer guard.
+    ///
+    /// The companion Tauri command lands separately as ctq-101 — this
+    /// use-case method is in place ahead of time so the command will be
+    /// already protected when wired.
+    ///
+    /// # Errors
+    ///
+    /// * `AppError::BadRequest` when `role_id == "dirizher-system"`.
+    /// * `AppError::NotFound` if the board id is unknown.
+    /// * `AppError::TransactionRolledBack` if the role id does not
+    ///   exist (FK violation surfaces from the repository).
+    pub fn set_board_owner(&self, board_id: &str, role_id: &str) -> Result<Board, AppError> {
+        // Guard: Dirizher is a coordinator-only role. Refuse before
+        // hitting the DB so the rejection is immediate and audit-safe.
+        if role_id == "dirizher-system" {
+            return Err(AppError::BadRequest {
+                reason: "Dirizher cannot own boards".into(),
+            });
+        }
+
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let updated = repo::set_owner(&conn, board_id, role_id).map_err(map_db_err)?;
+        if !updated {
+            return Err(AppError::NotFound {
+                entity: "board".into(),
+                id: board_id.to_owned(),
+            });
+        }
+        // Re-read so the caller gets the post-update timestamps.
+        match repo::get_by_id(&conn, board_id).map_err(map_db_err)? {
+            Some(row) => Ok(row_to_board(row)),
+            None => Err(AppError::NotFound {
+                entity: "board".into(),
+                id: board_id.to_owned(),
+            }),
+        }
+    }
+
     /// Delete a board.
     ///
     /// Refuses to delete the auto-created default board for a space
@@ -520,5 +567,34 @@ mod tests {
         let board = uc.create(args("X", "sp1")).unwrap();
         assert!(!board.is_default);
         uc.delete(&board.id).expect("non-default board deletes");
+    }
+
+    // -----------------------------------------------------------------
+    // ctq-88 — set_board_owner refuses Dirizher (coordinator-only).
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn set_board_owner_rejects_dirizher() {
+        // The board exists; the call must still be rejected up-front
+        // before any DB write — Dirizher is the Pattern B coordinator
+        // and never owns work.
+        let pool = fresh_pool_with_space("sp1", "abc");
+        let uc = BoardsUseCase::new(&pool);
+        let board = uc.create(args("B", "sp1")).unwrap();
+
+        match uc
+            .set_board_owner(&board.id, "dirizher-system")
+            .expect_err("must refuse")
+        {
+            AppError::BadRequest { reason } => {
+                assert!(reason.contains("Dirizher"), "unexpected reason: {reason}");
+            }
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+
+        // Confirm the owner was NOT changed — should still be the
+        // seeded `maintainer-system` default from migration 004.
+        let after = uc.get(&board.id).unwrap();
+        assert_eq!(after.owner_role_id, "maintainer-system");
     }
 }

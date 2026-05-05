@@ -91,4 +91,12 @@ pub enum AppError {
     /// different affordance (lock icon vs. inline form error).
     #[error("forbidden: {reason}")]
     Forbidden { reason: String },
+
+    /// Request payload is structurally valid but semantically rejected
+    /// at the use-case layer — e.g. supplying a coordinator role where
+    /// only an owner role is allowed. Distinct from `Validation` (which
+    /// targets a single `field`) and `Conflict` (which is a state-level
+    /// collision, not a request-shape issue).
+    #[error("bad request: {reason}")]
+    BadRequest { reason: String },
 }
