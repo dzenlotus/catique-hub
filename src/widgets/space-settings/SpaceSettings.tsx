@@ -6,13 +6,17 @@
  * "Space settings" from the kebab menu.
  *
  * Surface:
- *   - Editable: name, description.
+ *   - Editable: name, icon, color.
  *   - Read-only: prefix (immutable per Rust `update_space` contract).
  *   - "Save" button fires `useUpdateSpaceMutation` and surfaces success /
  *     error inline.
  *
  * On mount the page sets `activeSpaceId` so the rest of the shell stays
  * aligned with the URL.
+ *
+ * Audit-#13: the `description` form field was removed. `Space.description`
+ * is never rendered anywhere in the space view, so the input was dead.
+ * Schema column kept; field can return when a rendering surface needs it.
  */
 
 import { useEffect, useState, type ReactElement } from "react";
@@ -106,7 +110,6 @@ export function SpaceSettings(): ReactElement {
           key={spaceQuery.data.id}
           spaceId={spaceQuery.data.id}
           initialName={spaceQuery.data.name}
-          initialDescription={spaceQuery.data.description ?? ""}
           initialIcon={spaceQuery.data.icon ?? null}
           initialColor={spaceQuery.data.color ?? ""}
           prefix={spaceQuery.data.prefix}
@@ -124,7 +127,6 @@ export function SpaceSettings(): ReactElement {
 interface SpaceSettingsFormProps {
   spaceId: string;
   initialName: string;
-  initialDescription: string;
   /** Pixel-icon identifier or `null` if unset. */
   initialIcon: string | null;
   /** Hex color or `""` if unset. */
@@ -135,7 +137,6 @@ interface SpaceSettingsFormProps {
 function SpaceSettingsForm({
   spaceId,
   initialName,
-  initialDescription,
   initialIcon,
   initialColor,
   prefix,
@@ -143,20 +144,17 @@ function SpaceSettingsForm({
   const updateMutation = useUpdateSpaceMutation();
 
   const [name, setName] = useState(initialName);
-  const [description, setDescription] = useState(initialDescription);
   const [icon, setIcon] = useState<string | null>(initialIcon);
   const [color, setColor] = useState<string>(initialColor);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const trimmedName = name.trim();
-  const trimmedDescription = description.trim();
   const resolvedColor = color === "" ? null : color;
   const initialResolvedColor = initialColor === "" ? null : initialColor;
 
   const isDirty =
     trimmedName !== initialName.trim() ||
-    trimmedDescription !== initialDescription.trim() ||
     icon !== initialIcon ||
     resolvedColor !== initialResolvedColor;
 
@@ -174,11 +172,6 @@ function SpaceSettingsForm({
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
     const args: MutationArgs = { id: spaceId };
     if (trimmedName !== initialName) args.name = trimmedName;
-    // `description` is `Option<Option<String>>` on the Rust side: pass
-    // `null` to clear, the trimmed string to set, omit to leave alone.
-    if (trimmedDescription !== initialDescription.trim()) {
-      args.description = trimmedDescription.length > 0 ? trimmedDescription : null;
-    }
     if (icon !== initialIcon) args.icon = icon;
     if (resolvedColor !== initialResolvedColor) args.color = resolvedColor;
 
@@ -230,14 +223,6 @@ function SpaceSettingsForm({
             onChange={setName}
             placeholder="Space name"
             data-testid="space-settings-name-input"
-          />
-
-          <Input
-            label="Description"
-            value={description}
-            onChange={setDescription}
-            placeholder="Optional description…"
-            data-testid="space-settings-description-input"
           />
 
           <div className={styles.readOnlyRow}>

@@ -1,5 +1,5 @@
 /*
- * CatMigrationReviewModal — one-shot review of board owner-cats after
+ * BoardOwnershipReviewModal — one-shot review of board owner-roles after
  * the migration-004 auto-assignment to `maintainer-system`.
  *
  * Layout: scrollable list of board rows with a Combobox per row, plus a

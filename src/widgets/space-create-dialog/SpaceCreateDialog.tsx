@@ -6,12 +6,17 @@
  *   - `onClose`    — called on Cancel, successful Save, or Esc.
  *   - `onCreated`  — optional callback with the newly-created Space.
  *
- * Required fields: name, prefix. Optional: description.
- * Optional fields are omitted from the payload when empty — never sent as
- * empty strings. Matches `CreateSpaceArgs`.
+ * Required fields: name, prefix. Optional fields are omitted from the
+ * payload when empty — never sent as empty strings. Matches
+ * `CreateSpaceArgs`.
  *
  * On success: closes the dialog, calls `onCreated`, and sets the new space
  * as the active space via `useActiveSpace()` context.
+ *
+ * Audit-#13: the `description` form field was removed. `Space.description`
+ * is never rendered anywhere in the space view, so the input was dead. The
+ * schema column stays so the field can be re-introduced if a rendering
+ * surface ever consumes it.
  */
 
 import { useState, type ReactElement } from "react";
@@ -110,7 +115,6 @@ function SpaceCreateDialogContent({
 
   const [name, setName] = useState("");
   const [prefix, setPrefix] = useState("");
-  const [description, setDescription] = useState("");
   const [prefixError, setPrefixError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -143,8 +147,6 @@ function SpaceCreateDialogContent({
 
     type MutationArgs = Parameters<typeof createMutation.mutate>[0];
     const args: MutationArgs = { name: trimmedName, prefix: trimmedPrefix };
-    const trimmedDesc = description.trim();
-    if (trimmedDesc !== "") args.description = trimmedDesc;
     if (color !== "") args.color = color;
     if (icon !== null) args.icon = icon;
 
@@ -198,18 +200,6 @@ function SpaceCreateDialogContent({
             {prefixError}
           </p>
         ) : null}
-      </div>
-
-      {/* Description (optional) */}
-      <div className={styles.section}>
-        <Input
-          label="Description"
-          value={description}
-          onChange={setDescription}
-          placeholder="Optional description…"
-          className={styles.fullWidthInput}
-          data-testid="space-create-dialog-description-input"
-        />
       </div>
 
       {/* Footer */}

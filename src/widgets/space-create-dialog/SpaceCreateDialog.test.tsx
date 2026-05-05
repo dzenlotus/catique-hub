@@ -78,7 +78,10 @@ describe("SpaceCreateDialog", () => {
     renderWithProviders(<SpaceCreateDialog isOpen onClose={() => undefined} />);
     expect(screen.getByTestId("space-create-dialog-name-input")).toBeInTheDocument();
     expect(screen.getByTestId("space-create-dialog-prefix-input")).toBeInTheDocument();
-    expect(screen.getByTestId("space-create-dialog-description-input")).toBeInTheDocument();
+    // audit-#13: description field is no longer exposed in the form.
+    expect(
+      screen.queryByTestId("space-create-dialog-description-input"),
+    ).not.toBeInTheDocument();
   });
 
   it("Save button is disabled when required fields are empty", () => {
@@ -174,31 +177,9 @@ describe("SpaceCreateDialog", () => {
     expect(createCall?.[1]).not.toHaveProperty("description");
   });
 
-  it("includes optional description in payload when filled", async () => {
-    const newSpace = makeSpace();
-    invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === "list_spaces") return new Promise(() => {});
-      if (cmd === "create_space") return Promise.resolve(newSpace);
-      return Promise.resolve(undefined);
-    });
-
-    const { user } = renderWithProviders(
-      <SpaceCreateDialog isOpen onClose={() => undefined} />,
-    );
-
-    await user.type(screen.getByTestId("space-create-dialog-name-input"), "Alpha");
-    await user.type(screen.getByTestId("space-create-dialog-prefix-input"), "alp");
-    await user.type(
-      screen.getByTestId("space-create-dialog-description-input"),
-      "Some description",
-    );
-    await user.click(screen.getByTestId("space-create-dialog-save"));
-
-    await waitFor(() => {
-      const createCall = invokeMock.mock.calls.find(([cmd]) => cmd === "create_space");
-      expect(createCall?.[1]).toMatchObject({ description: "Some description" });
-    });
-  });
+  // audit-#13: the description field was removed from the form (the
+  // backing column stays). The "fills description" test was retired
+  // along with the input.
 
   it("sets active space id on success", async () => {
     const newSpace = makeSpace({ id: "spc-created" });

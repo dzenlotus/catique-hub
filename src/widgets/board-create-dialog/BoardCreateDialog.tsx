@@ -245,7 +245,7 @@ function BoardCreateDialogContent({
       return;
     }
     if (ownerRoleId.trim().length === 0) {
-      setSubmitError("Pick an owner cat.");
+      setSubmitError("Pick an owner role.");
       return;
     }
     const trimmedDescription = description.trim();
@@ -309,15 +309,15 @@ function BoardCreateDialogContent({
         </label>
       </div>
 
-      {/* Owner cat picker — required (`boards.owner_role_id NOT NULL`). */}
+      {/* Owner role picker — required (`boards.owner_role_id NOT NULL`). */}
       <div className={styles.section}>
         <label className={styles.selectField}>
-          <span className={styles.selectLabel}>Owner cat</span>
+          <span className={styles.selectLabel}>Owner role</span>
           <select
             className={styles.select}
             value={ownerRoleId}
             onChange={(e) => setOwnerRoleId(e.target.value)}
-            aria-label="Owner cat"
+            aria-label="Owner role"
             data-testid="board-create-dialog-owner-select"
           >
             {rolesQuery.status === "success"

@@ -29,7 +29,7 @@ export const WORKSPACE_ITEMS: WorkspaceItem[] = [
   },
   {
     view: "agent-roles",
-    label: "Cats",
+    label: "Roles",
     icon: <PixelPetAnimalsCat width={18} height={18} aria-hidden />,
   },
   {

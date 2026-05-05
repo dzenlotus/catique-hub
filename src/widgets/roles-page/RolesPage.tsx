@@ -34,14 +34,14 @@ export function RolesPage(): ReactElement {
     <section className={shellStyles.root} data-testid="roles-page-root">
       <div className={shellStyles.sidebarSlot}>
         <EntityListSidebar
-          title="CATS"
-          ariaLabel="Cats navigation"
+          title="ROLES"
+          ariaLabel="Roles navigation"
           items={items}
           selectedId={selectedId}
           onSelect={setSelectedId}
-          addLabel="Add cat"
+          addLabel="Add role"
           onAdd={() => setIsCreateOpen(true)}
-          emptyText="No cats yet."
+          emptyText="No roles yet."
           testIdPrefix="roles-sidebar"
           isLoading={rolesQuery.status === "pending"}
           errorMessage={

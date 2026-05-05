@@ -1,5 +1,5 @@
 /**
- * CatMigrationReviewModal — unit tests for ctq-82 (P1-T4).
+ * BoardOwnershipReviewModal — unit tests for ctq-82 (P1-T4).
  *
  * Surface under test:
  *   - Mount-side guard renders the modal only while
@@ -25,7 +25,7 @@ import type { Board } from "@entities/board";
 import type { Role } from "@entities/role";
 import type { Space } from "@entities/space";
 import { ToastProvider } from "@app/providers/ToastProvider";
-import { CatMigrationReviewMount } from "@app/providers/CatMigrationReviewMount";
+import { BoardOwnershipReviewMount } from "@app/providers/BoardOwnershipReviewMount";
 
 vi.mock("@shared/api", () => ({
   invoke: vi.fn(),
@@ -111,7 +111,7 @@ function renderMount(): { user: ReturnType<typeof userEvent.setup> } {
   const tree: ReactElement = (
     <QueryClientProvider client={client}>
       <ToastProvider>
-        <CatMigrationReviewMount />
+        <BoardOwnershipReviewMount />
       </ToastProvider>
     </QueryClientProvider>
   );
@@ -172,7 +172,7 @@ afterEach(() => {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("CatMigrationReviewMount — boot-time flag gating", () => {
+describe("BoardOwnershipReviewMount — boot-time flag gating", () => {
   it("renders the modal when cat_migration_reviewed === 'false'", async () => {
     setupFreshDbMocks();
     renderMount();
@@ -212,7 +212,7 @@ describe("CatMigrationReviewMount — boot-time flag gating", () => {
   });
 });
 
-describe("CatMigrationReviewModal — board list contents", () => {
+describe("BoardOwnershipReviewModal — board list contents", () => {
   it("lists all boards once the modal is open", async () => {
     setupFreshDbMocks({
       boards: [
@@ -238,7 +238,7 @@ describe("CatMigrationReviewModal — board list contents", () => {
   });
 });
 
-describe("CatMigrationReviewModal — confirmation flow", () => {
+describe("BoardOwnershipReviewModal — confirmation flow", () => {
   it("'Looks good' writes 'true' via set_setting and tears the modal down", async () => {
     setupFreshDbMocks();
     const { user } = renderMount();
@@ -267,7 +267,7 @@ describe("CatMigrationReviewModal — confirmation flow", () => {
   });
 });
 
-describe("CatMigrationReviewModal — per-row reassignment", () => {
+describe("BoardOwnershipReviewModal — per-row reassignment", () => {
   it("calls set_board_owner with the picked roleId on selection change", async () => {
     setupFreshDbMocks();
     const { user } = renderMount();

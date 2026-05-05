@@ -31,9 +31,11 @@ import {
   addRoleSkill,
   removeRoleSkill,
   listRoleSkills,
+  setRoleSkills,
   addRoleMcpTool,
   removeRoleMcpTool,
   listRoleMcpTools,
+  setRoleMcpTools,
   type CreateRoleArgs,
   type UpdateRoleArgs,
   type AddRolePromptArgs,
@@ -83,7 +85,7 @@ export interface UseRolesOptions {
  * Returns the standard react-query result. Consumers should branch on
  * `result.status` (`'pending' | 'error' | 'success'`).
  *
- * Pass `{ excludeSystem: true }` for owner-cat pickers (board create /
+ * Pass `{ excludeSystem: true }` for owner-role pickers (board create /
  * settings) where the Dirizher coordinator must not appear. The
  * underlying query is shared between filtered and unfiltered callers
  * — react-query keys on `["roles"]` and the filter is a pure derived
@@ -322,6 +324,36 @@ export function useRemoveRoleSkillMutation(): UseMutationResult<
   });
 }
 
+export interface SetRoleSkillsArgs {
+  roleId: string;
+  /** Skills currently attached, in render order. */
+  previous: ReadonlyArray<string>;
+  /** Desired skill list, in render order. */
+  next: ReadonlyArray<string>;
+}
+
+/**
+ * `useSetRoleSkillsMutation` — bulk set the skill list of a role by
+ * dispatching add/remove diffs against the existing per-row IPCs.
+ * Used by the role-editor MultiSelect (audit-#8).
+ */
+export function useSetRoleSkillsMutation(): UseMutationResult<
+  void,
+  Error,
+  SetRoleSkillsArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ roleId, previous, next }) =>
+      setRoleSkills(roleId, previous, next),
+    onSettled: (_void, _err, vars) => {
+      void queryClient.invalidateQueries({
+        queryKey: rolesKeys.skills(vars.roleId),
+      });
+    },
+  });
+}
+
 /**
  * `useRoleMcpTools` — MCP tools attached to a role, ordered by position.
  *
@@ -364,6 +396,35 @@ export function useRemoveRoleMcpToolMutation(): UseMutationResult<
   return useMutation({
     mutationFn: removeRoleMcpTool,
     onSuccess: (_void, vars) => {
+      void queryClient.invalidateQueries({
+        queryKey: rolesKeys.mcpTools(vars.roleId),
+      });
+    },
+  });
+}
+
+export interface SetRoleMcpToolsArgs {
+  roleId: string;
+  /** MCP tools currently attached, in render order. */
+  previous: ReadonlyArray<string>;
+  /** Desired MCP-tool list, in render order. */
+  next: ReadonlyArray<string>;
+}
+
+/**
+ * `useSetRoleMcpToolsMutation` — bulk set the MCP-tool list of a role
+ * via diff-and-dispatch. Mirrors {@link useSetRoleSkillsMutation}.
+ */
+export function useSetRoleMcpToolsMutation(): UseMutationResult<
+  void,
+  Error,
+  SetRoleMcpToolsArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ roleId, previous, next }) =>
+      setRoleMcpTools(roleId, previous, next),
+    onSettled: (_void, _err, vars) => {
       void queryClient.invalidateQueries({
         queryKey: rolesKeys.mcpTools(vars.roleId),
       });

@@ -129,7 +129,7 @@ interface BoardSettingsFormProps {
   initialColor: string;
   initialSpaceId: string;
   initialPosition: string;
-  /** Cat that owns this board (`boards.owner_role_id`, ctq-105/106). */
+  /** Role that owns this board (`boards.owner_role_id`, ctq-105/106). */
   initialOwnerRoleId: string;
   isDefault: boolean;
 }
@@ -220,7 +220,7 @@ function BoardSettingsForm({
         queryClient.setQueryData(boardsKeys.detail(boardId), ctx.previous);
       }
       if (ctx !== undefined) setOwnerRoleId(ctx.previousLocal);
-      pushToast("error", `Failed to update owner cat: ${err.message}`);
+      pushToast("error", `Failed to update owner role: ${err.message}`);
     },
     onSuccess: (updated) => {
       // Re-sync detail entry with server-authoritative timestamps,
@@ -228,7 +228,7 @@ function BoardSettingsForm({
       // info pick up the change.
       queryClient.setQueryData(boardsKeys.detail(boardId), updated);
       void queryClient.invalidateQueries({ queryKey: boardsKeys.list() });
-      pushToast("success", "Owner cat updated");
+      pushToast("success", "Owner role updated");
     },
   });
 
@@ -365,11 +365,11 @@ function BoardSettingsForm({
             data-testid="board-settings-name-input"
           />
 
-          {/* Owner cat — required (`boards.owner_role_id NOT NULL`).
+          {/* Owner role — required (`boards.owner_role_id NOT NULL`).
               Saves immediately on change with optimistic cache update;
               the General `Save` button below covers the other fields. */}
           <label className={styles.fieldLabel}>
-            <span className={styles.fieldLabelText}>Owner cat</span>
+            <span className={styles.fieldLabelText}>Owner role</span>
             <select
               className={styles.fieldSelect}
               value={ownerRoleId}
@@ -381,7 +381,7 @@ function BoardSettingsForm({
               disabled={
                 rolesQuery.status !== "success" || setOwnerMutation.isPending
               }
-              aria-label="Owner cat"
+              aria-label="Owner role"
               data-testid="board-settings-owner-select"
             >
               {rolesQuery.status === "success"

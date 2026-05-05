@@ -1,12 +1,12 @@
 /**
- * CatMigrationReviewMount — boot-time guard that conditionally renders
+ * BoardOwnershipReviewMount — boot-time guard that conditionally renders
  * the one-shot post-migration review modal (ctq-82, P1-T4).
  *
  * Migration `004_cat_as_agent_phase1.sql` seeds
  * `settings.cat_migration_reviewed = 'false'`. This mount reads the
  * flag via `get_setting` once on boot (react-query cache, key
  * `["settings", "cat_migration_reviewed"]`) and renders
- * `<CatMigrationReviewModal>` while the value is `'false'`. The modal
+ * `<BoardOwnershipReviewModal>` while the value is `'false'`. The modal
  * itself owns the "Looks good" → `set_setting('…','true')` write; on
  * success we invalidate the same query key so this mount drops the
  * modal without a page refresh.
@@ -30,9 +30,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { invoke } from "@shared/api";
 import {
-  CatMigrationReviewModal,
+  BoardOwnershipReviewModal,
   CAT_MIGRATION_REVIEWED_KEY,
-} from "@widgets/cat-migration-review-modal";
+} from "@widgets/board-ownership-review-modal";
 
 /** React-query key for the migration-review flag. Local — only this
  *  mount and its companion modal touch it, so no entity-level surface
@@ -40,11 +40,11 @@ import {
 const REVIEW_FLAG_KEY = ["settings", CAT_MIGRATION_REVIEWED_KEY] as const;
 
 /**
- * `CatMigrationReviewMount` — renders nothing when the flag is missing,
- * `'true'`, or still loading; renders `<CatMigrationReviewModal>` when
+ * `BoardOwnershipReviewMount` — renders nothing when the flag is missing,
+ * `'true'`, or still loading; renders `<BoardOwnershipReviewModal>` when
  * the flag is `'false'`.
  */
-export function CatMigrationReviewMount(): ReactElement | null {
+export function BoardOwnershipReviewMount(): ReactElement | null {
   const queryClient = useQueryClient();
   // Local "user closed without confirming" latch. Resets every time the
   // component remounts (i.e. next app boot), so the modal still re-opens
@@ -79,7 +79,7 @@ export function CatMigrationReviewMount(): ReactElement | null {
   if (!shouldShow) return null;
 
   return (
-    <CatMigrationReviewModal
+    <BoardOwnershipReviewModal
       isOpen
       onDismiss={() => {
         // User closed without confirming → keep the flag at `'false'`,

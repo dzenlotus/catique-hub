@@ -48,10 +48,10 @@ export function RolesList({
           />
           <div className={styles.headingText}>
             <h2 id="roles-list-heading" className={styles.heading}>
-              Cats
+              Roles
             </h2>
             <p className={styles.description}>
-              The cats — personas your AI agents adopt for a task.
+              Roles — personas your AI agents adopt for a task.
             </p>
           </div>
         </div>
@@ -62,7 +62,7 @@ export function RolesList({
             onPress={() => onCreate?.()}
             data-testid="roles-list-create-button"
           >
-            Create cat
+            Create role
           </Button>
         </div>
       </header>
@@ -94,15 +94,15 @@ export function RolesList({
             <div className={styles.empty} data-testid="roles-list-empty">
               <EmptyState
                 icon={<PixelPetAnimalsCat width={64} height={64} />}
-                title="No cats yet"
-                description="The cats your AI agents adopt for tasks."
+                title="No roles yet"
+                description="Personas your AI agents adopt for tasks."
                 action={
                   <Button
                     variant="primary"
                     size="md"
                     onPress={() => onCreate?.()}
                   >
-                    Create cat
+                    Create role
                   </Button>
                 }
               />

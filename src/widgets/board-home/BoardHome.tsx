@@ -75,7 +75,7 @@ export function BoardHome(): ReactElement {
           All quiet here
         </h2>
         <p className={styles.caption}>
-          The cat has settled in. Open a board from the sidebar to get going.
+          All set up. Open a board from the sidebar to get going.
         </p>
       </div>
     </section>

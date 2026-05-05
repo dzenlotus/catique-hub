@@ -1,6 +1,6 @@
 /**
- * CatMigrationReviewModal — one-shot post-migration review of board
- * owner-cats (ctq-82, P1-T4).
+ * BoardOwnershipReviewModal — one-shot post-migration review of board
+ * owner-roles (ctq-82, P1-T4).
  *
  * Migration `004_cat_as_agent_phase1.sql` auto-assigned every existing
  * board to `maintainer-system` and seeded
@@ -10,12 +10,12 @@
  *
  * Behaviour summary:
  *   - Reads the flag via `get_setting('cat_migration_reviewed')`. The
- *     mount-side `<CatMigrationReviewMount>` decides whether to render
+ *     mount-side `<BoardOwnershipReviewMount>` decides whether to render
  *     this component at all — the modal itself assumes "open".
  *   - Renders one row per board (across every space) with a per-row
- *     Combobox of selectable cats. Source: `useRoles({excludeSystem})`
+ *     Combobox of selectable roles. Source: `useRoles({excludeSystem})`
  *     which drops the coordinator-only `dirizher-system` row (ctq-88
- *     guard). Maintainer + every user-defined cat stay visible.
+ *     guard). Maintainer + every user-defined role stay visible.
  *   - On selection change → optimistically writes the new owner into
  *     the `["boards", id]` cache, fires `set_board_owner`, and rolls
  *     back + toasts on error.
@@ -48,12 +48,15 @@ import {
 } from "@shared/ui";
 import { useToast } from "@app/providers/ToastProvider";
 
-import styles from "./CatMigrationReviewModal.module.css";
+import styles from "./BoardOwnershipReviewModal.module.css";
 
-/** Settings key — must match the migration seed (`migrations/004_…`). */
+/**
+ * Settings key — must match the migration seed (`migrations/004_…`).
+ * Kept as `cat_migration_reviewed` for DB compatibility — see migration 004.
+ */
 export const CAT_MIGRATION_REVIEWED_KEY = "cat_migration_reviewed";
 
-export interface CatMigrationReviewModalProps {
+export interface BoardOwnershipReviewModalProps {
   /** Controls modal visibility. */
   isOpen: boolean;
   /**
@@ -70,15 +73,15 @@ export interface CatMigrationReviewModalProps {
   onConfirmed: () => void;
 }
 
-export function CatMigrationReviewModal({
+export function BoardOwnershipReviewModal({
   isOpen,
   onDismiss,
   onConfirmed,
-}: CatMigrationReviewModalProps): ReactElement {
+}: BoardOwnershipReviewModalProps): ReactElement {
   return (
     <Dialog
-      title="Review your boards' cats"
-      description="Migration auto-assigned the Maintainer cat to every existing board. Pick a different cat for any board you want, then confirm."
+      title="Review board ownership"
+      description="Migration auto-assigned the Maintainer role to every existing board. Pick a different role for any board you want, then confirm."
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onDismiss();
@@ -86,25 +89,25 @@ export function CatMigrationReviewModal({
       isDismissable
       data-testid="cat-migration-review-modal"
     >
-      <CatMigrationReviewBody onConfirmed={onConfirmed} />
+      <BoardOwnershipReviewBody onConfirmed={onConfirmed} />
     </Dialog>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface CatMigrationReviewBodyProps {
+interface BoardOwnershipReviewBodyProps {
   onConfirmed: () => void;
 }
 
-function CatMigrationReviewBody({
+function BoardOwnershipReviewBody({
   onConfirmed,
-}: CatMigrationReviewBodyProps): ReactElement {
+}: BoardOwnershipReviewBodyProps): ReactElement {
   const boardsQuery = useBoards();
   const spacesQuery = useSpaces();
-  // Owner-cat picker source. `excludeSystem: true` drops the
+  // Owner-role picker source. `excludeSystem: true` drops the
   // coordinator-only `dirizher-system` row (ctq-88 guard) but keeps
-  // `maintainer-system` and every user-defined cat — Maintainer is the
+  // `maintainer-system` and every user-defined role — Maintainer is the
   // pre-assigned owner from migration 004 and must stay selectable.
   const rolesQuery = useRoles({ excludeSystem: true });
   const { pushToast } = useToast();
@@ -260,7 +263,7 @@ function BoardRow({
       if (ctx?.previousList !== undefined) {
         queryClient.setQueryData(boardsKeys.list(), ctx.previousList);
       }
-      pushToast("error", `Failed to update owner cat: ${err.message}`);
+      pushToast("error", `Failed to update owner role: ${err.message}`);
     },
     onSuccess: (updated) => {
       // Re-sync detail with server-authoritative timestamps, then bump
@@ -283,7 +286,7 @@ function BoardRow({
   };
 
   // Combobox is fully controlled by `selectedKey` to keep the visible
-  // cat in lock-step with the optimistic `board.ownerRoleId` reads
+  // role in lock-step with the optimistic `board.ownerRoleId` reads
   // (which the parent re-renders from the react-query cache).
   return (
     <li
@@ -297,7 +300,7 @@ function BoardRow({
         ) : null}
       </div>
       <Combobox
-        label="Owner cat"
+        label="Owner role"
         items={items}
         selectedKey={board.ownerRoleId}
         onSelectionChange={onSelectionChange}
