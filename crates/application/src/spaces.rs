@@ -198,23 +198,60 @@ impl<'a> SpacesUseCase<'a> {
         }
     }
 
-    /// Delete a space.
+    /// Delete a space and every board it owns (cascading down to
+    /// columns + tasks via the existing FK rules).
+    ///
+    /// Migration `001_initial.sql` declares `boards.space_id` as a
+    /// plain `REFERENCES spaces(id)` without `ON DELETE CASCADE`, so a
+    /// raw `DELETE FROM spaces` returns SQLITE_CONSTRAINT once any
+    /// board exists for the space. Migration `009_default_boards.sql`
+    /// makes that universal: every newly-created space owns one
+    /// auto-provisioned default board, so without this in-use-case
+    /// cascade no new space could ever be deleted.
+    ///
+    /// We sidestep both problems by walking the cascade in a single
+    /// transaction: drop the boards (their child columns + tasks
+    /// cascade naturally — those FKs DO carry `ON DELETE CASCADE`),
+    /// then drop the space.
     ///
     /// # Errors
     ///
-    /// `AppError::NotFound` if id is unknown; FK violation (boards
-    /// still in this space) surfaces as `AppError::Conflict`.
+    /// `AppError::NotFound` if id is unknown; transactional failure
+    /// during the cascade surfaces as `AppError::TransactionRolledBack`.
     pub fn delete(&self, id: &str) -> Result<(), AppError> {
-        let conn = acquire(self.pool).map_err(map_db_err)?;
-        let removed = repo::delete(&conn, id).map_err(|e| map_db_err_unique(e, "space"))?;
-        if removed {
-            Ok(())
-        } else {
-            Err(AppError::NotFound {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction()
+            .map_err(|e| AppError::TransactionRolledBack {
+                reason: e.to_string(),
+            })?;
+
+        // Tear down owned boards first; FKs from columns/tasks/etc.
+        // back to boards already cascade.
+        tx.execute("DELETE FROM boards WHERE space_id = ?1", [id])
+            .map_err(|e| AppError::TransactionRolledBack {
+                reason: e.to_string(),
+            })?;
+
+        let removed = tx
+            .execute("DELETE FROM spaces WHERE id = ?1", [id])
+            .map_err(|e| AppError::TransactionRolledBack {
+                reason: e.to_string(),
+            })?;
+
+        if removed == 0 {
+            // Nothing to commit — the space wasn't there to begin with.
+            return Err(AppError::NotFound {
                 entity: "space".into(),
                 id: id.to_owned(),
-            })
+            });
         }
+
+        tx.commit()
+            .map_err(|e| AppError::TransactionRolledBack {
+                reason: e.to_string(),
+            })?;
+        Ok(())
     }
 }
 
