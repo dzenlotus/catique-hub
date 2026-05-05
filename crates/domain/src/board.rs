@@ -17,6 +17,11 @@ use ts_rs::TS;
 /// presentation hints — see migration `008_space_board_icons_colors.sql`.
 /// `None` means "use the default rendering"; the TS layer maps the icon
 /// string onto a React component from `src/shared/ui/Icon/`.
+///
+/// `is_default` (migration `009_default_boards.sql`) flags the
+/// auto-created default board that every newly created space gets. The
+/// IPC `delete_board` refuses to remove a default board — the only way
+/// to drop one is to delete the owning space.
 #[derive(TS, Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
@@ -34,6 +39,10 @@ pub struct Board {
     /// onto a React component from `src/shared/ui/Icon/`. `None` (and
     /// any identifier the frontend doesn't recognise) renders no icon.
     pub icon: Option<String>,
+    /// `true` when this board is the auto-created default for its
+    /// owning space. Default boards cannot be deleted via the IPC; the
+    /// only way to remove them is to delete the owning space.
+    pub is_default: bool,
     pub created_at: i64,
     pub updated_at: i64,
     /// Owning cat (a row in `roles`). NOT NULL at the schema level.

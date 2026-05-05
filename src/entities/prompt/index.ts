@@ -28,8 +28,10 @@ export {
   useUpdatePromptMutation,
   useDeletePromptMutation,
   useRecomputePromptTokenCountMutation,
+  PROMPT_TEMPLATE_STORAGE_KEY,
+  promptTemplateCodec,
 } from "./model";
-export type { Prompt } from "./model";
+export type { Prompt, PromptTemplate } from "./model";
 
 // UI
 export { PromptCard } from "./ui";

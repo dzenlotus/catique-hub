@@ -156,7 +156,16 @@ export function SpaceRow({
                         }}
                       >
                         <MenuItem id="settings">Settings</MenuItem>
-                        <MenuItem id="delete">Delete</MenuItem>
+                        {/*
+                         * Default boards are auto-created with their
+                         * owning space and cannot be deleted via the IPC
+                         * (use-case returns Validation { is_default }).
+                         * Hide the affordance entirely so the user never
+                         * fires a doomed delete.
+                         */}
+                        {board.isDefault ? null : (
+                          <MenuItem id="delete">Delete</MenuItem>
+                        )}
                       </Menu>
                     </MenuTrigger>
                   }

@@ -44,10 +44,16 @@ pub async fn get_board(state: State<'_, AppState>, id: String) -> Result<Board, 
 
 /// IPC: insert a new board into `space_id`.
 ///
+/// `is_default` is exposed for symmetry with the IPC contract but the
+/// only legitimate caller that flips it is `create_space`, which runs
+/// in-process. Auto-defaults to `false` so a frontend that omits the
+/// argument never accidentally minted an undeletable board.
+///
 /// # Errors
 ///
 /// Forwards every error from `BoardsUseCase::create`.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn create_board(
     state: State<'_, AppState>,
     name: String,
@@ -55,6 +61,7 @@ pub async fn create_board(
     description: Option<String>,
     color: Option<String>,
     icon: Option<String>,
+    is_default: Option<bool>,
 ) -> Result<Board, AppError> {
     let board = BoardsUseCase::new(&state.pool).create(CreateBoardArgs {
         name,
@@ -62,6 +69,7 @@ pub async fn create_board(
         description,
         color,
         icon,
+        is_default: is_default.unwrap_or(false),
     })?;
     events::emit(&state, events::BOARD_CREATED, json!({ "id": board.id }));
     Ok(board)

@@ -17,6 +17,7 @@ import { PromptCreateDialog } from "@widgets/prompt-create-dialog";
 
 import { GroupRow } from "./GroupRow";
 import { PromptRow } from "./PromptRow";
+import { PromptsSettingsButton } from "./PromptsSettingsButton";
 import { TagsFilterButton } from "./TagsFilterButton";
 import styles from "./PromptsSidebar.module.css";
 
@@ -241,10 +242,13 @@ export function PromptsSidebar({
         <SidebarSectionLabel
           ariaLabel="Prompts"
           trailing={
-            <TagsFilterButton
-              selectedTagIds={filterTagIds}
-              onChange={setFilterTagIds}
-            />
+            <span className={styles.sectionLabelActions}>
+              <TagsFilterButton
+                selectedTagIds={filterTagIds}
+                onChange={setFilterTagIds}
+              />
+              <PromptsSettingsButton />
+            </span>
           }
         >
           PROMPTS

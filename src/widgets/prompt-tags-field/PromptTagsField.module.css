@@ -101,11 +101,28 @@
 .popoverDialog {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-8);
   padding: var(--space-8);
   outline: none;
   max-height: inherit;
   overflow-x: hidden;
+}
+
+.searchInput {
+  width: 100%;
+  padding: var(--space-6) var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-canvas);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  outline: none;
+  flex-shrink: 0;
+}
+
+.searchInput:focus {
+  border-color: var(--color-border-focus);
 }
 
 .empty {
@@ -180,4 +197,29 @@
   flex: 0 0 auto;
   font-size: 12px;
   color: var(--color-cta-bg);
+}
+
+/* "Create '<query>'" affordance — visually distinct from regular tag
+ * rows so the action of minting a new tag reads as different from
+ * toggling an existing one. */
+.optionCreate {
+  border-top: 1px dashed var(--color-border-subtle);
+  margin-top: var(--space-2);
+  padding-top: var(--space-6);
+  color: var(--color-text-default);
+}
+
+.optionPlus {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-accent-soft);
+  color: var(--color-cta-bg);
+  font-weight: var(--font-weight-bold);
+  font-size: 12px;
+  line-height: 1;
 }

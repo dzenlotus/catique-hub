@@ -12,13 +12,21 @@
 
 import { useState, type ReactElement } from "react";
 
-import { useCreatePromptMutation } from "@entities/prompt";
+import {
+  PROMPT_TEMPLATE_STORAGE_KEY,
+  promptTemplateCodec,
+  useCreatePromptMutation,
+  type PromptTemplate,
+} from "@entities/prompt";
 import type { Prompt } from "@entities/prompt";
 import { useAddPromptTagMutation } from "@entities/tag";
+import { useLocalStorage } from "@shared/storage";
 import { Dialog, Button, Input, IconColorPicker } from "@shared/ui";
 import { PromptTagsField } from "@widgets/prompt-tags-field";
 
 import styles from "./PromptCreateDialog.module.css";
+
+const EMPTY_TEMPLATE: PromptTemplate = { shortDescription: "", content: "" };
 
 export interface PromptCreateDialogProps {
   isOpen: boolean;
@@ -116,10 +124,21 @@ function PromptCreateDialogContent({
 }: PromptCreateDialogContentProps): ReactElement {
   const createMutation = useCreatePromptMutation();
   const addPromptTag = useAddPromptTagMutation();
+  // Seed name/content/shortDescription from the user's saved template
+  // (PROMPTS sidebar settings). The template is read once on mount so
+  // the user can still type freely without their input being clobbered
+  // by a re-render. Empty template fields fall back to "".
+  const [template] = useLocalStorage<PromptTemplate>(
+    PROMPT_TEMPLATE_STORAGE_KEY,
+    promptTemplateCodec,
+    EMPTY_TEMPLATE,
+  );
 
   const [name, setName] = useState("");
-  const [content, setContent] = useState("");
-  const [shortDescription, setShortDescription] = useState("");
+  const [content, setContent] = useState(() => template.content);
+  const [shortDescription, setShortDescription] = useState(
+    () => template.shortDescription,
+  );
   const [saveError, setSaveError] = useState<string | null>(null);
   // Tags are tracked locally in draft mode — the prompt doesn't exist
   // yet, so we can't fire `add_prompt_tag` on each toggle. The set is

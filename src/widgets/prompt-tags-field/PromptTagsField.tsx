@@ -20,7 +20,7 @@
  * tag (or removes it from the draft set).
  */
 
-import { useMemo, type ReactElement } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import {
   Button as AriaButton,
   Dialog as AriaDialog,
@@ -32,11 +32,13 @@ import {
   TagChip,
   useTags,
   useAddPromptTagMutation,
+  useCreateTagMutation,
   useRemovePromptTagMutation,
 } from "@entities/tag";
 import { usePromptTagsMap } from "@entities/prompt";
 import { cn } from "@shared/lib";
 import { PixelInterfaceEssentialPlus } from "@shared/ui/Icon";
+import { useToast } from "@app/providers/ToastProvider";
 
 import styles from "./PromptTagsField.module.css";
 
@@ -74,6 +76,8 @@ function PersistentField({ promptId }: { promptId: string }): ReactElement {
   const tagsMapQuery = usePromptTagsMap();
   const addMutation = useAddPromptTagMutation();
   const removeMutation = useRemovePromptTagMutation();
+  const createMutation = useCreateTagMutation();
+  const { pushToast } = useToast();
 
   const tags = tagsQuery.data ?? [];
   const tagMap = tagsMapQuery.data;
@@ -96,6 +100,23 @@ function PersistentField({ promptId }: { promptId: string }): ReactElement {
     removeMutation.mutate({ promptId, tagId });
   };
 
+  const handleCreate = (name: string): void => {
+    createMutation.mutate(
+      { name },
+      {
+        onSuccess: (tag) => {
+          // Auto-attach the freshly-created tag to this prompt so the
+          // user gets the round-trip outcome they expect from the
+          // "Create + add" affordance.
+          addMutation.mutate({ promptId, tagId: tag.id });
+        },
+        onError: (err) => {
+          pushToast("error", `Failed to create tag: ${err.message}`);
+        },
+      },
+    );
+  };
+
   return (
     <ChipRow
       attachedIds={attachedIds}
@@ -103,6 +124,7 @@ function PersistentField({ promptId }: { promptId: string }): ReactElement {
       isLoading={tagsMapQuery.status === "pending" || tagsQuery.status === "pending"}
       onToggle={handleToggle}
       onRemove={handleRemove}
+      onCreate={handleCreate}
     />
   );
 }
@@ -119,6 +141,8 @@ function DraftField({
   onChange: (next: ReadonlyArray<string>) => void;
 }): ReactElement {
   const tagsQuery = useTags();
+  const createMutation = useCreateTagMutation();
+  const { pushToast } = useToast();
   const tags = tagsQuery.data ?? [];
 
   const handleToggle = (tagId: string): void => {
@@ -133,6 +157,24 @@ function DraftField({
     onChange(value.filter((id) => id !== tagId));
   };
 
+  const handleCreate = (name: string): void => {
+    // Draft mode still creates the tag globally — there's no other
+    // way to address a tag without an id. The freshly-minted id gets
+    // pushed onto the local draft set so it lands on the prompt when
+    // create_prompt resolves.
+    createMutation.mutate(
+      { name },
+      {
+        onSuccess: (tag) => {
+          onChange([...value, tag.id]);
+        },
+        onError: (err) => {
+          pushToast("error", `Failed to create tag: ${err.message}`);
+        },
+      },
+    );
+  };
+
   return (
     <ChipRow
       attachedIds={value}
@@ -140,6 +182,7 @@ function DraftField({
       isLoading={tagsQuery.status === "pending"}
       onToggle={handleToggle}
       onRemove={handleRemove}
+      onCreate={handleCreate}
     />
   );
 }
@@ -154,6 +197,8 @@ interface ChipRowProps {
   isLoading: boolean;
   onToggle: (tagId: string) => void;
   onRemove: (tagId: string) => void;
+  /** Create a new tag with the given name, then attach it. */
+  onCreate: (name: string) => void;
 }
 
 function ChipRow({
@@ -162,7 +207,10 @@ function ChipRow({
   isLoading,
   onToggle,
   onRemove,
+  onCreate,
 }: ChipRowProps): ReactElement {
+  const [query, setQuery] = useState("");
+
   const tagById = useMemo(() => {
     const map = new Map<string, NonNullable<typeof tags>[number]>();
     for (const t of tags ?? []) map.set(t.id, t);
@@ -172,6 +220,30 @@ function ChipRow({
   const attachedTags = attachedIds
     .map((id) => tagById.get(id))
     .filter((t): t is NonNullable<typeof tags>[number] => t !== undefined);
+
+  const trimmedQuery = query.trim();
+  const lowerQuery = trimmedQuery.toLowerCase();
+  const filteredTags = useMemo(() => {
+    if (lowerQuery.length === 0) return tags ?? [];
+    return (tags ?? []).filter((t) =>
+      t.name.toLowerCase().includes(lowerQuery),
+    );
+  }, [tags, lowerQuery]);
+
+  // Show the "Create '<query>'" affordance only when the user typed
+  // something that doesn't already match a tag name exactly. Substring
+  // matches don't block creation — the user's query may be a more
+  // specific tag they want to add alongside an existing fuzzy match.
+  const exactMatch = (tags ?? []).some(
+    (t) => t.name.toLowerCase() === lowerQuery,
+  );
+  const canCreate = trimmedQuery.length > 0 && !exactMatch;
+
+  const handleCreate = (): void => {
+    if (!canCreate) return;
+    onCreate(trimmedQuery);
+    setQuery("");
+  };
 
   return (
     <div className={styles.root} data-testid="prompt-tags-field">
@@ -209,13 +281,33 @@ function ChipRow({
                 className={styles.popoverDialog}
                 aria-label="Pick tags to attach"
               >
+                <input
+                  type="text"
+                  className={styles.searchInput}
+                  placeholder="Search or type a new tag…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && canCreate) {
+                      e.preventDefault();
+                      handleCreate();
+                    }
+                  }}
+                  aria-label="Search tags"
+                  data-testid="prompt-tags-field-search"
+                />
+
                 {isLoading ? (
                   <div className={styles.empty}>Loading tags…</div>
-                ) : (tags ?? []).length === 0 ? (
-                  <div className={styles.empty}>No tags yet.</div>
+                ) : filteredTags.length === 0 && !canCreate ? (
+                  <div className={styles.empty}>
+                    {(tags ?? []).length === 0
+                      ? "No tags yet."
+                      : `No tags match “${trimmedQuery}”.`}
+                  </div>
                 ) : (
                   <ul className={styles.optionList} role="list">
-                    {(tags ?? []).map((tag) => {
+                    {filteredTags.map((tag) => {
                       const checked = attachedIds.includes(tag.id);
                       return (
                         <li key={tag.id}>
@@ -253,6 +345,26 @@ function ChipRow({
                         </li>
                       );
                     })}
+                    {canCreate ? (
+                      <li>
+                        <button
+                          type="button"
+                          className={cn(styles.optionRow, styles.optionCreate)}
+                          onClick={handleCreate}
+                          data-testid="prompt-tags-field-create"
+                        >
+                          <span
+                            className={styles.optionPlus}
+                            aria-hidden="true"
+                          >
+                            +
+                          </span>
+                          <span className={styles.optionName}>
+                            Create &ldquo;{trimmedQuery}&rdquo;
+                          </span>
+                        </button>
+                      </li>
+                    ) : null}
                   </ul>
                 )}
               </AriaDialog>

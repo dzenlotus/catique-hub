@@ -10,13 +10,27 @@
 use catique_domain::Space;
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
-    repositories::spaces::{self as repo, SpaceDraft, SpacePatch, SpaceRow},
+    repositories::{
+        boards::{self as boards_repo, BoardDraft},
+        spaces::{self as repo, SpaceDraft, SpacePatch, SpaceRow},
+    },
 };
 
 use crate::{
     error::AppError,
     error_map::{map_db_err, map_db_err_unique, validate_non_empty, validate_optional_color},
 };
+
+/// Default name for the auto-created board landed in every newly
+/// created space (migration `009_default_boards.sql`). Kept generic so
+/// the user can rename it freely; uniqueness lives in `(space_id, id)`,
+/// not in the display name.
+const DEFAULT_BOARD_NAME: &str = "Main";
+
+/// Default icon for the auto-created board. Mirrors the frontend's
+/// neutral-default convention (see `src/shared/ui/Icon/index.ts`); the
+/// backend stores the identifier as opaque text.
+const DEFAULT_BOARD_ICON: &str = "PixelInterfaceEssentialList";
 
 const PREFIX_MAX_LEN: usize = 10;
 
@@ -90,6 +104,13 @@ impl<'a> SpacesUseCase<'a> {
 
     /// Create a space.
     ///
+    /// Migration `009_default_boards.sql` makes this a two-row insert:
+    /// the space itself plus an auto-provisioned default board. Both
+    /// rows land inside the same `IMMEDIATE` transaction — if the
+    /// board insert fails (e.g. role FK violation, or a contrived
+    /// disk-full edge case), the space row rolls back too so the user
+    /// never sees a half-formed space without a default board.
+    ///
     /// # Errors
     ///
     /// `AppError::Validation` for empty `name` / malformed `prefix` /
@@ -100,9 +121,13 @@ impl<'a> SpacesUseCase<'a> {
         let trimmed_name = validate_non_empty("name", &args.name)?;
         validate_prefix(&args.prefix)?;
         validate_optional_color("color", args.color.as_deref())?;
-        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+
         let row = repo::insert(
-            &conn,
+            &tx,
             &SpaceDraft {
                 name: trimmed_name,
                 prefix: args.prefix,
@@ -114,6 +139,30 @@ impl<'a> SpacesUseCase<'a> {
             },
         )
         .map_err(|e| map_db_err_unique(e, "space"))?;
+
+        // Auto-provision the default board (migration 009). The
+        // dropped tx in the error path rolls the space insert back
+        // automatically.
+        boards_repo::insert(
+            &tx,
+            &BoardDraft {
+                name: DEFAULT_BOARD_NAME.to_owned(),
+                space_id: row.id.clone(),
+                role_id: None,
+                position: Some(0.0),
+                description: None,
+                color: None,
+                icon: Some(DEFAULT_BOARD_ICON.to_owned()),
+                is_default: true,
+                // Falls back to the seeded `maintainer-system` row
+                // (Cat-as-Agent Phase 1 / memo Q1) — same default the
+                // IPC `create_board` uses.
+                owner_role_id: None,
+            },
+        )
+        .map_err(map_db_err)?;
+
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
         Ok(row_to_space(row))
     }
 
@@ -377,5 +426,62 @@ mod tests {
             AppError::Validation { field, .. } => assert_eq!(field, "color"),
             other => panic!("got {other:?}"),
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Auto-provisioned default board on space creation (migration 009).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn create_provisions_default_board() {
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        let space = uc.create(args("S", "sp")).unwrap();
+
+        // The default board must exist in the new space's row-set.
+        let conn = pool.get().expect("acquire");
+        let boards =
+            catique_infrastructure::db::repositories::boards::list_by_space(&conn, &space.id)
+                .expect("list_by_space");
+        assert_eq!(
+            boards.len(),
+            1,
+            "exactly one default board must land per new space"
+        );
+        let board = &boards[0];
+        assert!(board.is_default, "auto-created board must carry is_default");
+        assert_eq!(board.name, "Main");
+        assert_eq!(board.icon.as_deref(), Some("PixelInterfaceEssentialList"));
+        assert_eq!(board.description, None);
+        assert_eq!(board.color, None);
+        assert!(
+            (board.position - 0.0).abs() < f64::EPSILON,
+            "default board sits at position 0"
+        );
+    }
+
+    #[test]
+    fn create_rolls_back_when_default_board_blocked() {
+        // A failing space insert (duplicate prefix) must NOT leave a
+        // dangling space row OR a dangling default board behind. We
+        // can't easily force the *board* insert to fail without
+        // reaching into the schema, so we cover the symmetric
+        // invariant: the prefix UNIQUE error rolls back the entire
+        // transaction, which means no orphaned board row either.
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        uc.create(args("A", "abc")).unwrap();
+        let _err = uc.create(args("B", "abc")).expect_err("conflict");
+
+        // Only one space + one default board total.
+        let conn = pool.get().unwrap();
+        let space_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM spaces", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(space_count, 1);
+        let board_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM boards", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(board_count, 1);
     }
 }

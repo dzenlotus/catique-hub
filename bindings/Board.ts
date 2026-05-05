@@ -11,7 +11,13 @@ color: string | null,
  * onto a React component from `src/shared/ui/Icon/`. `None` (and
  * any identifier the frontend doesn't recognise) renders no icon.
  */
-icon: string | null, createdAt: bigint, updatedAt: bigint, 
+icon: string | null, 
+/**
+ * `true` when this board is the auto-created default for its
+ * owning space. Default boards cannot be deleted via the IPC; the
+ * only way to remove them is to delete the owning space.
+ */
+isDefault: boolean, createdAt: bigint, updatedAt: bigint, 
 /**
  * Owning cat (a row in `roles`). NOT NULL at the schema level.
  */

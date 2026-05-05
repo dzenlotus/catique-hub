@@ -38,6 +38,7 @@ function stubBoard(overrides?: Partial<Board>): Board {
     description: null,
     color: null,
     icon: null,
+    isDefault: false,
     ownerRoleId: "maintainer-system",
     createdAt: 0n,
     updatedAt: 0n,

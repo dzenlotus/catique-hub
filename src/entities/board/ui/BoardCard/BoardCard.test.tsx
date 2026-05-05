@@ -15,6 +15,7 @@ function makeBoard(overrides: Partial<Board> = {}): Board {
     description: null,
     color: null,
     icon: null,
+    isDefault: false,
     ownerRoleId: "maintainer-system",
     // ts-rs emits BigInt for i64 — bindings/Board.ts uses bigint
     createdAt: 0n,

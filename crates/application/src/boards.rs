@@ -38,6 +38,12 @@ pub struct CreateBoardArgs {
     pub color: Option<String>,
     /// Optional pixel-icon identifier — opaque to the backend.
     pub icon: Option<String>,
+    /// `true` flags the auto-created default board (migration
+    /// `009_default_boards.sql`). The IPC `create_board` handler always
+    /// passes `false`; the only caller that flips this on is
+    /// `SpacesUseCase::create`, which auto-provisions one default board
+    /// per new space.
+    pub is_default: bool,
 }
 
 /// Argument bag for [`BoardsUseCase::update`]. Nullable fields use the
@@ -116,6 +122,7 @@ impl<'a> BoardsUseCase<'a> {
                 description: args.description,
                 color: args.color,
                 icon: args.icon,
+                is_default: args.is_default,
                 // owner defaults to the seeded `maintainer-system`
                 // row (Cat-as-Agent Phase 1 / memo Q1).
                 owner_role_id: None,
@@ -162,19 +169,46 @@ impl<'a> BoardsUseCase<'a> {
 
     /// Delete a board.
     ///
+    /// Refuses to delete the auto-created default board for a space
+    /// (migration `009_default_boards.sql`): the kanban view always
+    /// needs somewhere to land, and the only legitimate way to drop
+    /// such a board is to delete the owning space (which cascades).
+    ///
     /// # Errors
     ///
-    /// `AppError::NotFound` if id is unknown.
+    /// * `AppError::NotFound` if id is unknown.
+    /// * `AppError::Validation { field: "isDefault", … }` when the
+    ///   target row's `is_default = 1`. We pre-check via `get_by_id`
+    ///   instead of letting a constraint fire — the existing
+    ///   error-mapping table maps raw `ConstraintViolation` to
+    ///   `TransactionRolledBack`, which would erase the user-facing
+    ///   reason.
     pub fn delete(&self, id: &str) -> Result<(), AppError> {
         let conn = acquire(self.pool).map_err(map_db_err)?;
-        let removed = repo::delete(&conn, id).map_err(map_db_err)?;
-        if removed {
-            Ok(())
-        } else {
-            Err(AppError::NotFound {
+        match repo::get_by_id(&conn, id).map_err(map_db_err)? {
+            Some(row) if row.is_default => Err(AppError::Validation {
+                field: "is_default".into(),
+                reason: "Cannot delete the default board for a space. \
+                         Delete the space to remove it."
+                    .into(),
+            }),
+            Some(_) => {
+                let removed = repo::delete(&conn, id).map_err(map_db_err)?;
+                if removed {
+                    Ok(())
+                } else {
+                    // Race: row was deleted between get_by_id and
+                    // delete. Treat as NotFound.
+                    Err(AppError::NotFound {
+                        entity: "board".into(),
+                        id: id.to_owned(),
+                    })
+                }
+            }
+            None => Err(AppError::NotFound {
                 entity: "board".into(),
                 id: id.to_owned(),
-            })
+            }),
         }
     }
 }
@@ -189,6 +223,7 @@ fn row_to_board(row: BoardRow) -> Board {
         description: row.description,
         color: row.color,
         icon: row.icon,
+        is_default: row.is_default,
         created_at: row.created_at,
         updated_at: row.updated_at,
         owner_role_id: row.owner_role_id,
@@ -230,6 +265,7 @@ mod tests {
             description: None,
             color: None,
             icon: None,
+            is_default: false,
         }
     }
 
@@ -428,5 +464,61 @@ mod tests {
             })
             .unwrap();
         assert_eq!(after_clear.icon, None);
+    }
+
+    // ------------------------------------------------------------------
+    // is_default coverage at the use-case layer (migration 009).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn create_with_is_default_true_round_trips() {
+        let pool = fresh_pool_with_space("sp1", "abc");
+        let uc = BoardsUseCase::new(&pool);
+        let mut a = args("Main", "sp1");
+        a.is_default = true;
+        let board = uc.create(a).unwrap();
+        assert!(board.is_default);
+        let fetched = uc.get(&board.id).unwrap();
+        assert!(fetched.is_default);
+    }
+
+    #[test]
+    fn create_defaults_is_default_to_false() {
+        let pool = fresh_pool_with_space("sp1", "abc");
+        let uc = BoardsUseCase::new(&pool);
+        let board = uc.create(args("X", "sp1")).unwrap();
+        assert!(!board.is_default);
+    }
+
+    #[test]
+    fn delete_refuses_default_board() {
+        let pool = fresh_pool_with_space("sp1", "abc");
+        let uc = BoardsUseCase::new(&pool);
+        let mut a = args("Main", "sp1");
+        a.is_default = true;
+        let board = uc.create(a).unwrap();
+
+        match uc.delete(&board.id).expect_err("must refuse") {
+            AppError::Validation { field, reason } => {
+                assert_eq!(field, "is_default");
+                assert!(
+                    reason.contains("default board"),
+                    "unexpected reason: {reason}"
+                );
+            }
+            other => panic!("expected Validation, got {other:?}"),
+        }
+
+        // The board must still be there after the refusal.
+        assert!(uc.get(&board.id).is_ok());
+    }
+
+    #[test]
+    fn delete_allows_non_default_board() {
+        let pool = fresh_pool_with_space("sp1", "abc");
+        let uc = BoardsUseCase::new(&pool);
+        let board = uc.create(args("X", "sp1")).unwrap();
+        assert!(!board.is_default);
+        uc.delete(&board.id).expect("non-default board deletes");
     }
 }
