@@ -113,42 +113,6 @@ export function MultiTagInput({
 
   return (
     <div className={styles.root} data-testid={testId}>
-      {selectedItems.length > 0 ? (
-        <AriaTagGroup
-          className={styles.tagGroup}
-          aria-label={`${label} — selected`}
-          selectionMode="none"
-          onRemove={handleRemove}
-        >
-          <AriaTagList className={styles.tagList}>
-            {selectedItems.map((item) => (
-              <AriaTag
-                key={item.id}
-                id={item.id}
-                textValue={item.label}
-                className={styles.tag}
-              >
-                {item.color ? (
-                  <span
-                    className={styles.tagSwatch}
-                    style={{ backgroundColor: item.color }}
-                    aria-hidden="true"
-                  />
-                ) : null}
-                <span className={styles.tagLabel}>{item.label}</span>
-                <AriaButton
-                  slot="remove"
-                  className={styles.tagRemove}
-                  aria-label={`Remove ${item.label}`}
-                >
-                  <span aria-hidden="true">×</span>
-                </AriaButton>
-              </AriaTag>
-            ))}
-          </AriaTagList>
-        </AriaTagGroup>
-      ) : null}
-
       <AriaComboBox
         className={styles.combobox}
         inputValue={query}
@@ -160,9 +124,44 @@ export function MultiTagInput({
       >
         <AriaLabel className={styles.srOnly}>{label}</AriaLabel>
         <div className={styles.inputWrap}>
+          {selectedItems.length > 0 ? (
+            <AriaTagGroup
+              className={styles.tagGroup}
+              aria-label={`${label} — selected`}
+              selectionMode="none"
+              onRemove={handleRemove}
+            >
+              <AriaTagList className={styles.tagList}>
+                {selectedItems.map((item) => (
+                  <AriaTag
+                    key={item.id}
+                    id={item.id}
+                    textValue={item.label}
+                    className={styles.tag}
+                  >
+                    {item.color ? (
+                      <span
+                        className={styles.tagSwatch}
+                        style={{ backgroundColor: item.color }}
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                    <span className={styles.tagLabel}>{item.label}</span>
+                    <AriaButton
+                      slot="remove"
+                      className={styles.tagRemove}
+                      aria-label={`Remove ${item.label}`}
+                    >
+                      <span aria-hidden="true">×</span>
+                    </AriaButton>
+                  </AriaTag>
+                ))}
+              </AriaTagList>
+            </AriaTagGroup>
+          ) : null}
           <AriaInput
             className={styles.input}
-            placeholder={placeholder}
+            placeholder={selectedItems.length === 0 ? placeholder : ""}
           />
         </div>
         <AriaPopover className={styles.popover}>
