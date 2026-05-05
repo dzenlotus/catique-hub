@@ -647,7 +647,7 @@ export function TaskDialogContent({
       {/* Role */}
       <div className={styles.section}>
         <FieldSelect
-          label="Agent role"
+          label="Cat"
           value={localRoleId}
           onChange={setLocalRoleId}
           options={[

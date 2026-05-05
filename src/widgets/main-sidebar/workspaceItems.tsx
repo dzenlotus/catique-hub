@@ -5,7 +5,7 @@ import {
   PixelDesignMagicWand,
   PixelCodingAppsWebsitesDatabase,
   PixelInterfaceEssentialSettingCog,
-  PixelBusinessProductsNetworkUser,
+  PixelPetAnimalsCat,
 } from "@shared/ui/Icon";
 
 import type { NavView } from "./MainSidebar";
@@ -29,8 +29,8 @@ export const WORKSPACE_ITEMS: WorkspaceItem[] = [
   },
   {
     view: "agent-roles",
-    label: "Agent roles",
-    icon: <PixelBusinessProductsNetworkUser width={18} height={18} aria-hidden />,
+    label: "Cats",
+    icon: <PixelPetAnimalsCat width={18} height={18} aria-hidden />,
   },
   {
     view: "prompts",

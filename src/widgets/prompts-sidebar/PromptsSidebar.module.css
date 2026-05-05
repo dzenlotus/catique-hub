@@ -37,9 +37,9 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-12);
+  gap: var(--space-8);
   width: 100%;
-  padding: 10px var(--space-12) 10px 12px;
+  padding: 8px var(--space-12) 8px 12px;
   border-radius: var(--radius-md);
   border: none;
   background-color: transparent;
@@ -51,7 +51,7 @@
   text-align: left;
   cursor: pointer;
   user-select: none;
-  min-height: 38px;
+  min-height: 32px;
   transition:
     background-color 80ms ease-out,
     color 80ms ease-out;

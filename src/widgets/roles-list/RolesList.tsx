@@ -2,7 +2,7 @@ import { type ReactElement } from "react";
 
 import { RoleCard, useRoles } from "@entities/role";
 import { Button, EmptyState, Scrollable } from "@shared/ui";
-import { PixelBusinessProductsNetworkUser } from "@shared/ui/Icon";
+import { PixelPetAnimalsCat } from "@shared/ui/Icon";
 
 import styles from "./RolesList.module.css";
 
@@ -40,7 +40,7 @@ export function RolesList({
     <section className={styles.root} aria-labelledby="roles-list-heading">
       <header className={styles.header}>
         <div className={styles.headingGroup}>
-          <PixelBusinessProductsNetworkUser
+          <PixelPetAnimalsCat
             width={20}
             height={20}
             className={styles.headingIcon}
@@ -48,10 +48,10 @@ export function RolesList({
           />
           <div className={styles.headingText}>
             <h2 id="roles-list-heading" className={styles.heading}>
-              Agent roles
+              Cats
             </h2>
             <p className={styles.description}>
-              Personas your AI agents adopt for a task.
+              The cats — personas your AI agents adopt for a task.
             </p>
           </div>
         </div>
@@ -62,7 +62,7 @@ export function RolesList({
             onPress={() => onCreate?.()}
             data-testid="roles-list-create-button"
           >
-            Create role
+            Create cat
           </Button>
         </div>
       </header>
@@ -93,16 +93,16 @@ export function RolesList({
           ) : rolesQuery.data.length === 0 ? (
             <div className={styles.empty} data-testid="roles-list-empty">
               <EmptyState
-                icon={<PixelBusinessProductsNetworkUser width={64} height={64} />}
-                title="No agent roles yet"
-                description="Personas your AI agents adopt for tasks."
+                icon={<PixelPetAnimalsCat width={64} height={64} />}
+                title="No cats yet"
+                description="The cats your AI agents adopt for tasks."
                 action={
                   <Button
                     variant="primary"
                     size="md"
                     onPress={() => onCreate?.()}
                   >
-                    Create role
+                    Create cat
                   </Button>
                 }
               />
