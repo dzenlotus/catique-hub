@@ -30,4 +30,12 @@ pub struct Space {
     pub position: f64,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Phase 5 workflow-graph payload. Opaque JSON string owned by the
+    /// future visual-workflow editor (ctq-113). The backend persists it
+    /// verbatim — no shape validation here; the editor task owns the
+    /// schema. `None` means "no workflow configured for this space"
+    /// and is the default for every existing row after migration
+    /// `015_space_workflow_graph.sql`.
+    #[serde(default)]
+    pub workflow_graph_json: Option<String>,
 }

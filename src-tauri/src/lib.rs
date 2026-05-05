@@ -82,6 +82,9 @@ pub fn run() {
             handlers::spaces::set_space_mcp_tools,
             handlers::spaces::set_space_prompts,
             handlers::spaces::set_space_skills,
+            // ---------------- spaces.workflow_graph_json (ctq-113, Phase 5 stub) ----------------
+            handlers::spaces::get_workflow_graph,
+            handlers::spaces::set_workflow_graph,
             // ---------------- boards (E2.1 + E2.4 + ctq-101 + ctq-108 + ctq-120) ----------------
             handlers::boards::create_board,
             handlers::boards::delete_board,

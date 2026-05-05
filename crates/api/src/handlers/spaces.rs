@@ -234,3 +234,51 @@ pub async fn set_space_mcp_tools(
     events::emit(&state, events::SPACE_UPDATED, json!({ "id": space_id }));
     Ok(())
 }
+
+// -------------------------------------------------------------------------
+// ctq-113 — Phase 5 workflow-graph stub IPC.
+//
+// Two thin wrappers over the use-case layer. **No payload validation**:
+// the future Phase 5 visual-workflow editor owns the schema; this round
+// only carves out the persistence slot so the editor task can ship
+// without a follow-up backend change. Reads return `Option<String>` so
+// the unset / unknown-space cases collapse cleanly into a single
+// "no graph configured" branch on the frontend.
+// -------------------------------------------------------------------------
+
+/// IPC: read the workflow-graph payload for a space.
+///
+/// Returns `Ok(None)` for an unset slot AND for an unknown space id —
+/// the contract is "string-or-absent". Use `get_space` first if the
+/// caller needs to distinguish the two states.
+///
+/// # Errors
+///
+/// Forwards every error from `SpacesUseCase::get_workflow_graph`.
+#[tauri::command]
+pub async fn get_workflow_graph(
+    state: State<'_, AppState>,
+    space_id: String,
+) -> Result<Option<String>, AppError> {
+    SpacesUseCase::new(&state.pool).get_workflow_graph(&space_id)
+}
+
+/// IPC: persist a workflow-graph payload for a space.
+///
+/// **No JSON shape validation** — the editor owns the schema. Stores
+/// `json` verbatim and bumps `updated_at`. Emits `space:updated` so
+/// existing listeners refetch the affected card.
+///
+/// # Errors
+///
+/// `AppError::NotFound` if the space id is unknown.
+#[tauri::command]
+pub async fn set_workflow_graph(
+    state: State<'_, AppState>,
+    space_id: String,
+    json: String,
+) -> Result<(), AppError> {
+    SpacesUseCase::new(&state.pool).set_workflow_graph(space_id.clone(), json)?;
+    events::emit(&state, events::SPACE_UPDATED, json!({ "id": space_id }));
+    Ok(())
+}

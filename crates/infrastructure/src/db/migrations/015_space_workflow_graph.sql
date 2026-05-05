@@ -1,0 +1,13 @@
+-- 015_space_workflow_graph.sql — Phase 5 workflow-graph stub column (ctq-113).
+--
+-- Adds a single nullable `workflow_graph_json` column on `spaces` so the
+-- Phase 5 visual-workflow editor has a persistence slot ready before its
+-- own task lands. Storage shape is intentionally opaque (raw TEXT, no
+-- CHECK on JSON validity) — the editor task owns schema validation; this
+-- migration only carves out the column so the IPC stubs (`get_workflow_graph`
+-- / `set_workflow_graph`) can round-trip arbitrary strings without a
+-- follow-up schema change.
+--
+-- Existing rows survive with NULL — every later read path treats NULL as
+-- "no workflow graph configured" (the IPC returns `Option<String>`).
+ALTER TABLE spaces ADD COLUMN workflow_graph_json TEXT;

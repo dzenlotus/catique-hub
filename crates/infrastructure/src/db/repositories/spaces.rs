@@ -37,6 +37,12 @@ pub struct SpaceRow {
     pub position: f64,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Phase 5 workflow-graph payload (ctq-113 / migration
+    /// `015_space_workflow_graph.sql`). Stored verbatim as TEXT — no
+    /// shape validation at this layer; the future editor owns the
+    /// schema. `None` represents an unset graph (the default for every
+    /// existing row post-migration).
+    pub workflow_graph_json: Option<String>,
 }
 
 impl SpaceRow {
@@ -53,6 +59,7 @@ impl SpaceRow {
             position: row.get("position")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
+            workflow_graph_json: row.get("workflow_graph_json")?,
         })
     }
 }
@@ -98,7 +105,7 @@ pub struct SpacePatch {
 pub fn list_all(conn: &Connection) -> Result<Vec<SpaceRow>, DbError> {
     let mut stmt = conn.prepare(
         "SELECT id, name, prefix, description, color, icon, is_default, position, \
-                created_at, updated_at \
+                created_at, updated_at, workflow_graph_json \
          FROM spaces \
          ORDER BY position ASC, name ASC",
     )?;
@@ -118,7 +125,7 @@ pub fn list_all(conn: &Connection) -> Result<Vec<SpaceRow>, DbError> {
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<SpaceRow>, DbError> {
     let mut stmt = conn.prepare(
         "SELECT id, name, prefix, description, color, icon, is_default, position, \
-                created_at, updated_at \
+                created_at, updated_at, workflow_graph_json \
          FROM spaces WHERE id = ?1",
     )?;
     Ok(stmt.query_row(params![id], SpaceRow::from_row).optional()?)
@@ -167,6 +174,10 @@ pub fn insert(conn: &Connection, draft: &SpaceDraft) -> Result<SpaceRow, DbError
         position,
         created_at: now,
         updated_at: now,
+        // `workflow_graph_json` defaults to NULL on a fresh insert
+        // (migration 015). Setting it requires the dedicated
+        // `set_workflow_graph` helper — keeps the create path lean.
+        workflow_graph_json: None,
     })
 }
 
@@ -245,6 +256,61 @@ pub fn update(
 /// Surfaces rusqlite errors. FK violation bubbles up unchanged.
 pub fn delete(conn: &Connection, id: &str) -> Result<bool, DbError> {
     let n = conn.execute("DELETE FROM spaces WHERE id = ?1", params![id])?;
+    Ok(n > 0)
+}
+
+// ---------------------------------------------------------------------
+// Phase 5 workflow-graph stub (ctq-113 / migration 015_space_workflow_graph.sql).
+//
+// The column itself is opaque TEXT — no JSON validation here. The
+// follow-up Phase 5 editor task owns shape + migration of the payload;
+// this layer round-trips arbitrary strings unchanged.
+// ---------------------------------------------------------------------
+
+/// Read the raw workflow-graph payload for `space_id`. `Ok(None)` for an
+/// unset slot (the post-migration default for every existing row);
+/// `Ok(None)` *also* surfaces when the space id is unknown — the IPC
+/// layer treats both as "no graph configured" because the contract only
+/// promises a string-or-absent shape.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn get_workflow_graph(
+    conn: &Connection,
+    space_id: &str,
+) -> Result<Option<String>, DbError> {
+    let mut stmt = conn.prepare("SELECT workflow_graph_json FROM spaces WHERE id = ?1")?;
+    let row = stmt
+        .query_row(params![space_id], |r| r.get::<_, Option<String>>(0))
+        .optional()?;
+    // Outer `Option` = "row exists?"; inner `Option` = "column non-NULL?".
+    // Collapse both into a single Option<String> — the IPC contract does
+    // not distinguish "missing space" from "unset slot".
+    Ok(row.flatten())
+}
+
+/// Write `json` verbatim into `space_id.workflow_graph_json`. Bumps
+/// `updated_at`. Returns `true` if a row matched (the space exists).
+///
+/// **No JSON validation.** ctq-113 is a Phase 5 stub: the editor owns
+/// payload shape; the backend stores whatever string it receives. The
+/// follow-up validation task should layer a parse step at the IPC
+/// boundary if desired.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn set_workflow_graph(
+    conn: &Connection,
+    space_id: &str,
+    json: &str,
+) -> Result<bool, DbError> {
+    let now = now_millis();
+    let n = conn.execute(
+        "UPDATE spaces SET workflow_graph_json = ?1, updated_at = ?2 WHERE id = ?3",
+        params![json, now, space_id],
+    )?;
     Ok(n > 0)
 }
 
@@ -859,5 +925,68 @@ mod tests {
             )
             .unwrap();
         assert_eq!(n, 0, "FK cascade must strip space_prompts on prompt delete");
+    }
+
+    // ------------------------------------------------------------------
+    // Phase 5 workflow-graph stub (ctq-113 / migration 015).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn fresh_space_has_null_workflow_graph() {
+        let conn = fresh_db();
+        let row = insert(&conn, &draft("abc")).unwrap();
+        assert_eq!(row.workflow_graph_json, None);
+        let got = get_workflow_graph(&conn, &row.id).unwrap();
+        assert_eq!(got, None);
+    }
+
+    #[test]
+    fn workflow_graph_round_trips_arbitrary_json_string() {
+        let conn = fresh_db();
+        let space = insert(&conn, &draft("abc")).unwrap();
+        let payload = r#"{"nodes":[{"id":"a"}],"edges":[]}"#;
+        let updated = set_workflow_graph(&conn, &space.id, payload).unwrap();
+        assert!(updated, "set must report a row matched");
+        let got = get_workflow_graph(&conn, &space.id).unwrap();
+        assert_eq!(got.as_deref(), Some(payload));
+    }
+
+    #[test]
+    fn workflow_graph_accepts_non_json_garbage_no_validation() {
+        // ctq-113 is a stub — payload shape is the editor's problem.
+        // We must not reject "garbage" at the storage layer.
+        let conn = fresh_db();
+        let space = insert(&conn, &draft("abc")).unwrap();
+        let updated = set_workflow_graph(&conn, &space.id, "not-json{").unwrap();
+        assert!(updated);
+        assert_eq!(
+            get_workflow_graph(&conn, &space.id).unwrap().as_deref(),
+            Some("not-json{")
+        );
+    }
+
+    #[test]
+    fn set_workflow_graph_returns_false_for_missing_space() {
+        let conn = fresh_db();
+        let updated = set_workflow_graph(&conn, "ghost", "{}").unwrap();
+        assert!(!updated, "no row matched ghost id");
+    }
+
+    #[test]
+    fn get_workflow_graph_returns_none_for_missing_space() {
+        let conn = fresh_db();
+        assert!(get_workflow_graph(&conn, "ghost").unwrap().is_none());
+    }
+
+    #[test]
+    fn workflow_graph_overwrite_keeps_latest_payload() {
+        let conn = fresh_db();
+        let space = insert(&conn, &draft("abc")).unwrap();
+        set_workflow_graph(&conn, &space.id, "{\"v\":1}").unwrap();
+        set_workflow_graph(&conn, &space.id, "{\"v\":2}").unwrap();
+        assert_eq!(
+            get_workflow_graph(&conn, &space.id).unwrap().as_deref(),
+            Some("{\"v\":2}")
+        );
     }
 }

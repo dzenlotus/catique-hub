@@ -410,6 +410,49 @@ impl<'a> SpacesUseCase<'a> {
         )
         .map_err(map_db_err)
     }
+
+    /// Read the Phase 5 workflow-graph payload for `space_id`. ctq-113.
+    ///
+    /// Returns `Ok(None)` for an unset slot — the post-migration default
+    /// for every existing space — and *also* for an unknown space id.
+    /// The IPC contract treats both as "no graph configured"; rejecting
+    /// the unknown-id case would force the frontend to pre-check the
+    /// space exists, which is friction we don't want for a stub.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn get_workflow_graph(&self, space_id: &str) -> Result<Option<String>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        repo::get_workflow_graph(&conn, space_id).map_err(map_db_err)
+    }
+
+    /// Persist `json` as the workflow-graph payload for `space_id`.
+    /// ctq-113 — Phase 5 stub. **No JSON validation here**: the future
+    /// editor task owns the payload schema.
+    ///
+    /// `AppError::NotFound` for unknown space ids — distinct from
+    /// `get_workflow_graph` because the writer must signal "no row
+    /// to overwrite" so the UI can route the user to creating a space
+    /// first rather than silently dropping the payload.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound` if the space does not exist; storage-layer
+    /// errors otherwise.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn set_workflow_graph(&self, space_id: String, json: String) -> Result<(), AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let updated = repo::set_workflow_graph(&conn, &space_id, &json).map_err(map_db_err)?;
+        if updated {
+            Ok(())
+        } else {
+            Err(AppError::NotFound {
+                entity: "space".into(),
+                id: space_id,
+            })
+        }
+    }
 }
 
 fn prompt_row_to_prompt(row: PromptRow) -> Prompt {
@@ -459,6 +502,7 @@ fn row_to_space(row: SpaceRow) -> Space {
         position: row.position,
         created_at: row.created_at,
         updated_at: row.updated_at,
+        workflow_graph_json: row.workflow_graph_json,
     }
 }
 
@@ -788,5 +832,48 @@ mod tests {
 
         uc.set_space_prompts(space.id.clone(), Vec::new()).unwrap();
         assert!(uc.list_space_prompts(&space.id).unwrap().is_empty());
+    }
+
+    // ------------------------------------------------------------------
+    // ctq-113 — Phase 5 workflow-graph stub.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn workflow_graph_round_trip_arbitrary_string() {
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        let space = uc.create(args("S", "sp")).unwrap();
+        // Initially unset.
+        assert!(uc.get_workflow_graph(&space.id).unwrap().is_none());
+        // Set + read back.
+        let payload = r#"{"nodes":[{"id":"a"},{"id":"b"}]}"#;
+        uc.set_workflow_graph(space.id.clone(), payload.into())
+            .unwrap();
+        let got = uc.get_workflow_graph(&space.id).unwrap();
+        assert_eq!(got.as_deref(), Some(payload));
+    }
+
+    #[test]
+    fn set_workflow_graph_returns_not_found_for_missing_space() {
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        match uc
+            .set_workflow_graph("ghost".into(), "{}".into())
+            .expect_err("nf")
+        {
+            AppError::NotFound { entity, id } => {
+                assert_eq!(entity, "space");
+                assert_eq!(id, "ghost");
+            }
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn workflow_graph_get_returns_none_for_missing_space() {
+        // ctq-113 stub contract: missing space collapses into "no graph".
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        assert!(uc.get_workflow_graph("ghost").unwrap().is_none());
     }
 }

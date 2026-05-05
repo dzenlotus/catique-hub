@@ -11,4 +11,13 @@ color: string | null,
  * onto a React component from `src/shared/ui/Icon/`. `None` (and
  * any identifier the frontend doesn't recognise) renders no icon.
  */
-icon: string | null, isDefault: boolean, position: number, createdAt: bigint, updatedAt: bigint, };
+icon: string | null, isDefault: boolean, position: number, createdAt: bigint, updatedAt: bigint, 
+/**
+ * Phase 5 workflow-graph payload. Opaque JSON string owned by the
+ * future visual-workflow editor (ctq-113). The backend persists it
+ * verbatim — no shape validation here; the editor task owns the
+ * schema. `None` means "no workflow configured for this space"
+ * and is the default for every existing row after migration
+ * `015_space_workflow_graph.sql`.
+ */
+workflowGraphJson: string | null, };
