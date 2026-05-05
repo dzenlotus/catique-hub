@@ -72,6 +72,11 @@
 
 .listColumn {
   min-width: 0;
+  /* Grid items default to `min-height: auto` which lets content
+   * push the row taller than the cell. Force min-height: 0 so the
+   * `.listScroll` viewport can clip + scroll instead of overflowing
+   * the grid row. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background-color: var(--color-surface-canvas);
