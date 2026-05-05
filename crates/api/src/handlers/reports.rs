@@ -73,7 +73,17 @@ pub async fn create_agent_report(
     Ok(report)
 }
 
-/// IPC: partial-update a report.
+/// IPC: partial-update a report (ctq-97).
+///
+/// `kind`, `title`, `content`, `author` are all individually optional:
+/// any subset can be patched in one call. `updated_at` is bumped on
+/// every successful patch (`agent_reports.rs:140`).
+///
+/// **Author guard placeholder; off in v1.** No ownership check is
+/// performed on the `author` field — any caller can mutate any report.
+/// Phase 2 will gate this behind an `expected_author` argument so an
+/// agent cannot overwrite a peer's report. Tracked under audit F-13
+/// (`docs/audit/mcp-contract-and-task-depth-audit.md`).
 ///
 /// # Errors
 ///
@@ -96,7 +106,12 @@ pub async fn update_agent_report(
     Ok(report)
 }
 
-/// IPC: delete a report.
+/// IPC: delete a report (ctq-97).
+///
+/// **Author guard placeholder; off in v1.** No ownership check is
+/// performed; any caller can delete any report. Phase 2 will add an
+/// `expected_author` argument with `Forbidden` semantics. Tracked under
+/// audit F-13 (`docs/audit/mcp-contract-and-task-depth-audit.md`).
 ///
 /// # Errors
 ///

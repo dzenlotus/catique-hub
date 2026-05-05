@@ -351,4 +351,77 @@ mod tests {
             other => panic!("got {other:?}"),
         }
     }
+
+    #[test]
+    fn update_patches_content_and_kind_and_bumps_updated_at() {
+        // ctq-97 contract: `update_agent_report` must replace `content`
+        // and `kind` and bump `updated_at`. Sleep between create and
+        // update so the millisecond clock advances.
+        let pool = fresh_pool_with_task();
+        let uc = ReportsUseCase::new(&pool);
+        let original = uc
+            .create(
+                "t1".into(),
+                "plan".into(),
+                "Initial".into(),
+                "draft".into(),
+                Some("agent-a".into()),
+            )
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+
+        let patched = uc
+            .update(
+                original.id.clone(),
+                Some("review".into()),
+                None,
+                Some("amended body".into()),
+                None,
+            )
+            .unwrap();
+
+        assert_eq!(patched.kind, "review");
+        assert_eq!(patched.content, "amended body");
+        assert_eq!(patched.title, "Initial");
+        assert!(
+            patched.updated_at >= original.updated_at,
+            "updated_at must move forward: orig={} new={}",
+            original.updated_at,
+            patched.updated_at
+        );
+    }
+
+    #[test]
+    fn update_returns_not_found_for_missing_id() {
+        let pool = fresh_pool_with_task();
+        let uc = ReportsUseCase::new(&pool);
+        match uc
+            .update("ghost".into(), None, Some("X".into()), None, None)
+            .expect_err("nf")
+        {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "agent_report"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn delete_then_get_returns_not_found() {
+        // ctq-97 contract: delete removes the row.
+        let pool = fresh_pool_with_task();
+        let uc = ReportsUseCase::new(&pool);
+        let r = uc
+            .create(
+                "t1".into(),
+                "summary".into(),
+                "S".into(),
+                "body".into(),
+                None,
+            )
+            .unwrap();
+        uc.delete(&r.id).unwrap();
+        match uc.get(&r.id).expect_err("nf") {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "agent_report"),
+            other => panic!("got {other:?}"),
+        }
+    }
 }
