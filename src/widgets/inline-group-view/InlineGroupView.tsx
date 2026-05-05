@@ -34,6 +34,7 @@ import {
   Menu,
   MenuItem,
   KebabIcon,
+  Scrollable,
 } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
@@ -215,29 +216,35 @@ export function InlineGroupView({
           data-drop-target={isDropTarget ? "true" : undefined}
           data-testid="inline-group-view-drop-zone"
         >
-          {memberPrompts.length === 0 ? (
-            <div className={styles.empty}>
-              <p className={styles.emptyTitle}>No prompts in this group yet</p>
-              <p className={styles.emptyHint}>
-                Drag prompts from the sidebar onto the group to add them.
-              </p>
+          <Scrollable axis="y" className={styles.listScroll}>
+            <div className={styles.listInner}>
+              {memberPrompts.length === 0 ? (
+                <div className={styles.empty}>
+                  <p className={styles.emptyTitle}>
+                    No prompts in this group yet
+                  </p>
+                  <p className={styles.emptyHint}>
+                    Drag prompts from the sidebar onto the group to add them.
+                  </p>
+                </div>
+              ) : (
+                memberPrompts.map((prompt, index) => (
+                  <SortableMemberCard
+                    key={prompt.id}
+                    prompt={prompt}
+                    index={index}
+                    groupSortableKey={groupSortableKey}
+                    onSelect={onSelectPrompt}
+                    onRemove={handleRemoveFromGroup}
+                    isRemoving={removeMember.isPending}
+                    onHoverChange={(isHovered) =>
+                      setHoveredPromptId(isHovered ? prompt.id : null)
+                    }
+                  />
+                ))
+              )}
             </div>
-          ) : (
-            memberPrompts.map((prompt, index) => (
-              <SortableMemberCard
-                key={prompt.id}
-                prompt={prompt}
-                index={index}
-                groupSortableKey={groupSortableKey}
-                onSelect={onSelectPrompt}
-                onRemove={handleRemoveFromGroup}
-                isRemoving={removeMember.isPending}
-                onHoverChange={(isHovered) =>
-                  setHoveredPromptId(isHovered ? prompt.id : null)
-                }
-              />
-            ))
-          )}
+          </Scrollable>
         </div>
 
         <div className={styles.previewColumn}>
@@ -250,19 +257,21 @@ export function InlineGroupView({
               {sumTokenCount(memberPrompts)}
             </span>
           </div>
-          <div className={styles.previewBody}>
-            {memberPrompts.length === 0 ? (
-              <p className={styles.previewEmpty}>
-                Add prompts to see how they'll render to an agent.
-              </p>
-            ) : (
-              <PromptsXmlPreview
-                prompts={memberPrompts}
-                groupName={group.name}
-                hoveredPromptId={hoveredPromptId}
-              />
-            )}
-          </div>
+          <Scrollable axis="y" className={styles.previewBody}>
+            <div className={styles.previewBodyInner}>
+              {memberPrompts.length === 0 ? (
+                <p className={styles.previewEmpty}>
+                  Add prompts to see how they'll render to an agent.
+                </p>
+              ) : (
+                <PromptsXmlPreview
+                  prompts={memberPrompts}
+                  groupName={group.name}
+                  hoveredPromptId={hoveredPromptId}
+                />
+              )}
+            </div>
+          </Scrollable>
         </div>
       </div>
     </section>

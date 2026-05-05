@@ -121,17 +121,11 @@ export function MultiTagInput({
 
   return (
     <div className={styles.root} data-testid={testId}>
-      {/* `key` cycles after each selection so the ComboBox's internal
-          selectedKey resets to null — without it RAC keeps the last
-          picked key locked in and refuses to re-fire onSelectionChange
-          if the user picks the same item again. Uncontrolled selection
-          + key remount is the canonical workaround for the
-          tag-multiselect pattern (no `selectedKey` controlled prop). */}
       <AriaComboBox
-        key={`tag-input-${selectedIds.length}`}
         className={styles.combobox}
         inputValue={query}
         onInputChange={setQuery}
+        selectedKey={null}
         onSelectionChange={handleSelectFromList}
         menuTrigger="focus"
         allowsEmptyCollection

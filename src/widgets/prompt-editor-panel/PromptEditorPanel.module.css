@@ -45,35 +45,24 @@
   white-space: nowrap;
 }
 
+/*
+ * Round-19f: scroll surface delegated to `<Scrollable>` (OverlayScrollbars)
+ * so the prompt editor's right-pane scrollbar matches the rest of the
+ * app — thin, auto-hides at rest. The native ::-webkit-scrollbar block
+ * was removed for the same reason.
+ */
 .scrollArea {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+}
+
+.scrollAreaInner {
   display: flex;
   flex-direction: column;
   gap: 0;
   /* Negative-margin trick so focus rings can render slightly outside. */
   margin: 0 calc(-1 * var(--space-4));
   padding: 0 var(--space-4);
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border-strong) transparent;
-}
-
-.scrollArea::-webkit-scrollbar {
-  width: 8px;
-}
-
-.scrollArea::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scrollArea::-webkit-scrollbar-thumb {
-  background: var(--color-border-strong);
-  border-radius: var(--radius-full, 9999px);
-}
-
-.scrollArea::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-subtle);
 }
 
 .section {

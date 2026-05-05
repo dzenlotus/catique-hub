@@ -20,6 +20,7 @@ import {
   Input,
   MarkdownField,
   IconColorPicker,
+  Scrollable,
 } from "@shared/ui";
 import { PixelInterfaceEssentialBin } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
@@ -80,16 +81,18 @@ export function PromptEditorPanel({
         aria-label="Prompt editor"
         data-testid="prompt-editor-panel"
       >
-        <div className={styles.scrollArea}>
-          <div className={styles.section}>
-            <div className={cn(styles.skeletonRow, styles.skeletonRowNarrow)} />
-            <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
+        <Scrollable axis="y" className={styles.scrollArea}>
+          <div className={styles.scrollAreaInner}>
+            <div className={styles.section}>
+              <div className={cn(styles.skeletonRow, styles.skeletonRowNarrow)} />
+              <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
+            </div>
+            <div className={styles.section}>
+              <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
+              <div className={styles.skeletonBlock} />
+            </div>
           </div>
-          <div className={styles.section}>
-            <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
-            <div className={styles.skeletonBlock} />
-          </div>
-        </div>
+        </Scrollable>
         <div className={styles.footer}>
           <Button
             variant="ghost"
@@ -303,7 +306,8 @@ export function PromptEditorPanel({
         />
         <h2 className={styles.title}>{prompt.name}</h2>
       </header>
-      <div className={styles.scrollArea}>
+      <Scrollable axis="y" className={styles.scrollArea}>
+        <div className={styles.scrollAreaInner}>
         {/* Name */}
         <div className={styles.section}>
           <Input
@@ -410,7 +414,8 @@ export function PromptEditorPanel({
               : "Current count: not computed"}
           </span>
         </div>
-      </div>
+        </div>
+      </Scrollable>
 
       <div className={styles.footer}>
         {saveError ? (
