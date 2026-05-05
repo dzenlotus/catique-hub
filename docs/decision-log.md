@@ -11,3 +11,5 @@ Format: `D-NN | YYYY-MM-DD | Title | ADR ref`
 | Entry | Date | Decision | ADR |
 |---|---|---|---|
 | D-001 | 2026-05-01 | MCP sidecar = bundled Node 20 over stdio JSON-RPC | ADR-0002 |
+| D-002 | 2026-05-05 | NFR set for Rust stack approved | (no ADR — see nfr-rust-stack.md) |
+| D-003 | 2026-05-05 | MCP sidecar spike validated: cold-start 20–40 ms ≪ 2 s budget; Q-1 size revised to +30–35 MB (UPX incompatible with macOS codesign) | ADR-0002 + experiments/sidecar-spike/ |

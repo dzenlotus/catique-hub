@@ -1,0 +1,17 @@
+{
+  "name": "sidecar-spike",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "ctq-56 / ADR-0002 sidecar spike — standalone, NOT in workspace.",
+  "scripts": {
+    "bench": "node scripts/bench-cold-start.mjs 5",
+    "sidecar": "node sidecar/index.js",
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0"
+  }
+}

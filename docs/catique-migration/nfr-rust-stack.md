@@ -1,10 +1,11 @@
 # NFR — Rust Stack (Catique HUB)
 
-**Status:** draft  
+**Status:** approved  
 **Owner:** product-analyst (ctq-59)  
 **Date:** 2026-05-01  
 **Audience:** tech-analyst making stack trade-off decisions (axum vs actix, sea-orm vs sqlx vs rusqlite, serde_json vs rmp-serde, etc.)  
 **Supersedes:** none — first version  
+**Reviewed-by:** tech-analyst (ctq-59 sign-off) — 2026-05-05  
 
 ---
 
