@@ -119,7 +119,6 @@ export function BoardSettings(): ReactElement {
             initialIcon={board.icon ?? null}
             initialColor={board.color ?? ""}
             initialSpaceId={board.spaceId}
-            initialPosition={String(board.position)}
             initialOwnerRoleId={board.ownerRoleId}
             isDefault={board.isDefault}
           />
@@ -138,7 +137,6 @@ interface BoardSettingsFormProps {
   initialIcon: string | null;
   initialColor: string;
   initialSpaceId: string;
-  initialPosition: string;
   /** Role that owns this board (`boards.owner_role_id`, ctq-105/106). */
   initialOwnerRoleId: string;
   isDefault: boolean;
@@ -151,7 +149,6 @@ function BoardSettingsForm({
   initialIcon,
   initialColor,
   initialSpaceId,
-  initialPosition,
   initialOwnerRoleId,
   isDefault,
 }: BoardSettingsFormProps): ReactElement {
@@ -171,7 +168,6 @@ function BoardSettingsForm({
   const [icon, setIcon] = useState<string | null>(initialIcon);
   const [color, setColor] = useState<string>(initialColor);
   const [spaceId, setSpaceId] = useState(initialSpaceId);
-  const [position, setPosition] = useState(initialPosition);
   // Local owner state. Mutations apply optimistically — the React
   // Query cache is the single source of truth, this state mirrors it
   // for the rendered <select> value and rolls back on IPC error.
@@ -260,17 +256,17 @@ function BoardSettingsForm({
   const trimmedDescription = description.trim();
   const resolvedColor = color === "" ? null : color;
   const initialResolvedColor = initialColor === "" ? null : initialColor;
-  const parsedPosition =
-    position.trim() === "" ? undefined : Number(position);
 
+  // audit-#12: `position` is no longer user-editable — drag-reorder on
+  // the kanban owns the ordering write-path. The form's dirty-check and
+  // mutation payload omit `position` entirely; the underlying
+  // `board.position` value stays untouched on save.
   const isDirty =
     trimmedName !== initialName.trim() ||
     trimmedDescription !== initialDescription.trim() ||
     icon !== initialIcon ||
     resolvedColor !== initialResolvedColor ||
-    spaceId !== initialSpaceId ||
-    (parsedPosition !== undefined &&
-      parsedPosition !== Number(initialPosition));
+    spaceId !== initialSpaceId;
 
   const canSubmit = trimmedName.length > 0 && isDirty;
 
@@ -279,10 +275,6 @@ function BoardSettingsForm({
     setSavedAt(null);
     if (trimmedName.length === 0) {
       setError("Name cannot be empty.");
-      return;
-    }
-    if (parsedPosition !== undefined && !Number.isFinite(parsedPosition)) {
-      setError("Position must be a number.");
       return;
     }
 
@@ -296,12 +288,6 @@ function BoardSettingsForm({
     if (icon !== initialIcon) args.icon = icon;
     if (resolvedColor !== initialResolvedColor) args.color = resolvedColor;
     if (spaceId !== initialSpaceId) args.spaceId = spaceId;
-    if (
-      parsedPosition !== undefined &&
-      parsedPosition !== Number(initialPosition)
-    ) {
-      args.position = parsedPosition;
-    }
 
     updateMutation.mutate(args, {
       onSuccess: () => setSavedAt(Date.now()),
@@ -452,13 +438,6 @@ function BoardSettingsForm({
             )}
           </div>
 
-          <Input
-            label="Position"
-            value={position}
-            onChange={setPosition}
-            placeholder="Optional"
-            data-testid="board-settings-position-input"
-          />
         </div>
 
         <div className={styles.actions}>
