@@ -68,6 +68,10 @@ impl ClientAdapter for ClaudeCodeAdapter {
     }
 
     /// Returns `catique-{role_id}.md`.
+    ///
+    /// `role_id` is the cat's stable identifier (DB primary key), never
+    /// the display name — see ctq-83 and the trait-level contract for
+    /// the rationale (renaming the cat must not orphan the file).
     fn agent_filename(&self, role_id: &str) -> String {
         format!("catique-{role_id}.md")
     }
@@ -177,5 +181,43 @@ mod tests {
         let a = ClaudeCodeAdapter;
         let name = a.agent_filename("rust-backend");
         assert_eq!(name, "catique-rust-backend.md");
+    }
+
+    /// ctq-83: the filename is purely a function of the stable cat
+    /// identifier (the DB primary key). Two cats with the same
+    /// human-readable display name but different ids must produce
+    /// distinct filenames; identical ids with different display names
+    /// would, by construction, collide — but the trait contract makes
+    /// the display name irrelevant to the path.
+    #[test]
+    fn cat_filename_uses_stable_id_not_display_name() {
+        let a = ClaudeCodeAdapter;
+        // Two distinct stable ids → two distinct filenames, even if
+        // both cats happen to share the display name "Backend".
+        let one = a.agent_filename("cat-abc123");
+        let two = a.agent_filename("cat-def456");
+        assert_eq!(one, "catique-cat-abc123.md");
+        assert_eq!(two, "catique-cat-def456.md");
+        assert_ne!(one, two);
+        // Sanity: callable display-name-only inputs (e.g. "Backend
+        // Engineer") still pass through verbatim — but the contract
+        // says the caller must supply the id.
+    }
+
+    /// ctq-83: renaming a cat (display-name change) does NOT change the
+    /// stable id, so the filename must stay byte-identical. We model
+    /// the rename as the same `role_id` argument across two calls.
+    #[test]
+    fn renaming_cat_does_not_change_filename() {
+        let a = ClaudeCodeAdapter;
+        let id = "cat-stable-id";
+        // Before rename: cat is called "Backend".
+        let before = a.agent_filename(id);
+        // After rename: cat is now called "Platform Engineer". The id
+        // is unchanged → adapter is not even told about the rename →
+        // filename is byte-identical.
+        let after = a.agent_filename(id);
+        assert_eq!(before, after);
+        assert_eq!(after, "catique-cat-stable-id.md");
     }
 }

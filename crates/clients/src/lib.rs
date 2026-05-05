@@ -121,6 +121,15 @@ pub trait ClientAdapter: Send + Sync {
 
     /// Filename for the managed file for a given `role_id`.
     ///
+    /// **ctq-83**: this MUST take the *stable* id (the database
+    /// primary key — what the product calls `cat_id` after the
+    /// agent-as-cat rename), never the human-readable display name.
+    /// Renaming a cat must not move the on-disk file or break the
+    /// frontmatter `role-id` ↔ filename invariant: the sync's stale
+    /// detection compares `agent_filename(role.id)` against on-disk
+    /// `catique-…` files, so any function of the *display name* would
+    /// orphan + recreate a file on every rename.
+    ///
     /// Includes the `catique-` prefix (defence-in-depth: files are
     /// identifiable even if frontmatter is hand-edited away) and the
     /// correct extension per client format.
