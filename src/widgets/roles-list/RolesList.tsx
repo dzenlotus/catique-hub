@@ -1,16 +1,16 @@
-import { useState, type ReactElement } from "react";
+import { type ReactElement } from "react";
 
 import { RoleCard, useRoles } from "@entities/role";
 import { Button, EmptyState, Scrollable } from "@shared/ui";
 import { PixelBusinessProductsNetworkUser } from "@shared/ui/Icon";
-import { RoleEditor } from "@widgets/role-editor";
-import { RoleCreateDialog } from "@widgets/role-create-dialog";
 
 import styles from "./RolesList.module.css";
 
 export interface RolesListProps {
   /** Called when the user activates a role card. */
   onSelectRole?: (roleId: string) => void;
+  /** Called when the user clicks the header "Create role" button. */
+  onCreate?: () => void;
 }
 
 /**
@@ -25,9 +25,10 @@ export interface RolesListProps {
  * Prompt-attach DnD was removed when the widget was migrated off
  * `@dnd-kit/core`.
  */
-export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+export function RolesList({
+  onSelectRole,
+  onCreate,
+}: RolesListProps = {}): ReactElement {
   const rolesQuery = useRoles();
 
   return (
@@ -58,7 +59,7 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
           <Button
             variant="primary"
             size="md"
-            onPress={() => setIsCreateOpen(true)}
+            onPress={() => onCreate?.()}
             data-testid="roles-list-create-button"
           >
             Create role
@@ -99,7 +100,7 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
                   <Button
                     variant="primary"
                     size="md"
-                    onPress={() => setIsCreateOpen(true)}
+                    onPress={() => onCreate?.()}
                   >
                     Create role
                   </Button>
@@ -112,10 +113,7 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
                 <RoleCard
                   key={role.id}
                   role={role}
-                  onSelect={(id) => {
-                    setSelectedRoleId(id);
-                    onSelectRole?.(id);
-                  }}
+                  onSelect={(id) => onSelectRole?.(id)}
                 />
               ))}
             </div>
@@ -123,15 +121,6 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
         </div>
       </div>
 
-      <RoleEditor
-        roleId={selectedRoleId}
-        onClose={() => setSelectedRoleId(null)}
-      />
-
-      <RoleCreateDialog
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-      />
     </section>
     </Scrollable>
   );

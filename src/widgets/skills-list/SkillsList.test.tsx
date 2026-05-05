@@ -120,39 +120,34 @@ describe("SkillsList", () => {
     expect(onSelectSkill).toHaveBeenCalledWith("skill-pick");
   });
 
-  it("opens SkillCreateDialog when the create button is clicked", async () => {
+  it("fires onCreate when the create button is clicked", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_skills") return [];
       return new Promise(() => {});
     });
-    const { user } = renderWithClient(<SkillsList />);
+    const onCreate = vi.fn();
+    const { user } = renderWithClient(<SkillsList onCreate={onCreate} />);
     await waitFor(() => {
       expect(screen.getByTestId("skills-list-empty")).toBeInTheDocument();
     });
-    const createBtn = screen.getByTestId("skills-list-create-button");
-    await user.click(createBtn);
-    // Dialog should open (the name input appears in the DOM)
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("skill-create-dialog-name-input"),
-      ).toBeInTheDocument();
-    });
+    await user.click(screen.getByTestId("skills-list-create-button"));
+    expect(onCreate).toHaveBeenCalled();
   });
 
-  it("clicking a card opens SkillEditor", async () => {
+  it("fires onSelectSkill when a card is clicked", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_skills")
         return [makeSkill({ id: "skill-editor-test", name: "Go" })];
-      if (cmd === "get_skill") return makeSkill({ id: "skill-editor-test", name: "Go" });
       return new Promise(() => {});
     });
-    const { user } = renderWithClient(<SkillsList />);
+    const onSelectSkill = vi.fn();
+    const { user } = renderWithClient(
+      <SkillsList onSelectSkill={onSelectSkill} />,
+    );
     await waitFor(() => {
       expect(screen.getByTestId("skills-list-grid")).toBeInTheDocument();
     });
     await user.click(screen.getByText("Go"));
-    await waitFor(() => {
-      expect(screen.getByTestId("skill-editor")).toBeInTheDocument();
-    });
+    expect(onSelectSkill).toHaveBeenCalledWith("skill-editor-test");
   });
 });

@@ -1,16 +1,16 @@
-import { useState, type ReactElement } from "react";
+import { type ReactElement } from "react";
 
 import { McpToolCard, useMcpTools } from "@entities/mcp-tool";
 import { Button, EmptyState, Scrollable } from "@shared/ui";
 import { PixelCodingAppsWebsitesDatabase } from "@shared/ui/Icon";
-import { McpToolEditor } from "@widgets/mcp-tool-editor";
-import { McpToolCreateDialog } from "@widgets/mcp-tool-create-dialog";
 
 import styles from "./McpToolsList.module.css";
 
 export interface McpToolsListProps {
   /** Called when the user activates a tool card. */
   onSelectTool?: (toolId: string) => void;
+  /** Called when the user clicks the header "Create server" button. */
+  onCreate?: () => void;
 }
 
 /**
@@ -22,9 +22,10 @@ export interface McpToolsListProps {
  *   3. empty — friendly headline + CTA.
  *   4. populated — CSS-grid of `McpToolCard`s.
  */
-export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactElement {
-  const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+export function McpToolsList({
+  onSelectTool,
+  onCreate,
+}: McpToolsListProps = {}): ReactElement {
   const toolsQuery = useMcpTools();
 
   return (
@@ -55,7 +56,7 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
           <Button
             variant="primary"
             size="md"
-            onPress={() => setIsCreateOpen(true)}
+            onPress={() => onCreate?.()}
             data-testid="mcp-tools-list-create-button"
           >
             Create server
@@ -94,7 +95,7 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
               <Button
                 variant="primary"
                 size="md"
-                onPress={() => setIsCreateOpen(true)}
+                onPress={() => onCreate?.()}
               >
                 Create server
               </Button>
@@ -107,24 +108,11 @@ export function McpToolsList({ onSelectTool }: McpToolsListProps = {}): ReactEle
             <McpToolCard
               key={tool.id}
               tool={tool}
-              onSelect={(id) => {
-                setSelectedToolId(id);
-                onSelectTool?.(id);
-              }}
+              onSelect={(id) => onSelectTool?.(id)}
             />
           ))}
         </div>
       )}
-
-      <McpToolEditor
-        toolId={selectedToolId}
-        onClose={() => setSelectedToolId(null)}
-      />
-
-      <McpToolCreateDialog
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-      />
     </section>
     </Scrollable>
   );

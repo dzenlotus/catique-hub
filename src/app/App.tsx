@@ -5,11 +5,11 @@ import { Switch, Route, useLocation } from "wouter";
 import { BoardHome } from "@widgets/board-home";
 import { KanbanBoard } from "@widgets/kanban-board";
 import { PromptsPage } from "@widgets/prompts-page";
-import { RolesList } from "@widgets/roles-list";
+import { RolesPage } from "@widgets/roles-page";
 import { TagsList } from "@widgets/tags-list";
 import { AgentReportsList } from "@widgets/agent-reports-list";
-import { SkillsList } from "@widgets/skills-list";
-import { McpToolsList } from "@widgets/mcp-tools-list";
+import { SkillsPage } from "@widgets/skills-page";
+import { McpToolsPage } from "@widgets/mcp-tools-page";
 import { SettingsView } from "@widgets/settings-view";
 import { SpaceSettings } from "@widgets/space-settings";
 import { BoardSettings } from "@widgets/board-settings";
@@ -109,7 +109,7 @@ export default function App(): ReactElement {
             <PromptsPage />
           </Route>
           <Route path={routes.roles}>
-            <RolesList />
+            <RolesPage />
           </Route>
           <Route path={routes.tags}>
             <TagsList />
@@ -118,10 +118,10 @@ export default function App(): ReactElement {
             <AgentReportsList />
           </Route>
           <Route path={routes.skills}>
-            <SkillsList />
+            <SkillsPage />
           </Route>
           <Route path={routes.mcpTools}>
-            <McpToolsList />
+            <McpToolsPage />
           </Route>
           <Route path={routes.spaceSettings}>
             <SpaceSettings />
