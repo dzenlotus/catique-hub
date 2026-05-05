@@ -598,9 +598,15 @@ mod tests {
             .unwrap();
         assert_eq!(before_total, 1, "fixture seeds exactly one board");
 
-        // Run pending — only 010 should fire.
+        // Run pending — every migration after 009 should fire in
+        // lexical order. The first one is the focus of this test
+        // (010_backfill_default_boards). Later migrations (011+) land
+        // additively without disturbing the post-010 invariants.
         let applied = run_pending(&mut conn).expect("post-009 pending");
-        assert_eq!(applied.len(), 1, "only 010 should be pending");
+        assert!(
+            !applied.is_empty(),
+            "at least 010_backfill_default_boards must run when pre-seeded through 009",
+        );
         assert_eq!(applied[0].name, "010_backfill_default_boards");
 
         // Every space must now have ≥ 1 default board.

@@ -75,6 +75,11 @@ pub fn run() {
             handlers::spaces::get_space,
             handlers::spaces::list_spaces,
             handlers::spaces::update_space,
+            // ---------------- space_prompts (ctq-99) ----------------
+            handlers::spaces::add_space_prompt,
+            handlers::spaces::list_space_prompts,
+            handlers::spaces::remove_space_prompt,
+            handlers::spaces::set_space_prompts,
             // ---------------- boards (E2.1 + E2.4) ----------------
             handlers::boards::create_board,
             handlers::boards::delete_board,

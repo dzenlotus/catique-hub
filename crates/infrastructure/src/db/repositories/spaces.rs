@@ -248,6 +248,140 @@ pub fn delete(conn: &Connection, id: &str) -> Result<bool, DbError> {
     Ok(n > 0)
 }
 
+// ---------------------------------------------------------------------
+// Join-table helpers — `space_prompts` (migration 011_space_prompts.sql).
+//
+// The fourth inheritance level (D9 / ctq-73). Mirrors the
+// `board_prompts` / `column_prompts` shape but exposes a `Vec<PromptRow>`
+// reader (joined onto `prompts`) so the API layer can return the full
+// prompt payload rather than just opaque ids — same pattern as
+// `tasks::list_task_prompts`.
+// ---------------------------------------------------------------------
+
+/// List every prompt attached to a space, joined from `prompts`,
+/// ordered by `space_prompts.position` ascending.
+///
+/// Returns an empty Vec when the space has no attached prompts; we do
+/// **not** validate that `space_id` actually exists here — the use-case
+/// layer handles that check when it matters.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn list_space_prompts(
+    conn: &Connection,
+    space_id: &str,
+) -> Result<Vec<super::prompts::PromptRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT p.id, p.name, p.content, p.color, p.short_description, p.icon, \
+                p.examples_json, p.token_count, p.created_at, p.updated_at \
+         FROM space_prompts sp \
+         JOIN prompts p ON p.id = sp.prompt_id \
+         WHERE sp.space_id = ?1 \
+         ORDER BY sp.position ASC",
+    )?;
+    let rows = stmt.query_map(params![space_id], super::prompts::PromptRow::from_row_pub)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// Attach a prompt to a space. Upserts `position` if the pair already
+/// exists, so callers can re-use this helper for ordering without a
+/// separate "move" path.
+///
+/// `position` defaults to 0.0 when omitted — keeps the API signature
+/// terse for the simple "append" case while still allowing the resolver
+/// or DnD-reorder paths to thread an explicit fractional value through.
+///
+/// # Errors
+///
+/// FK violation (unknown `space_id` or `prompt_id`) surfaces as
+/// [`DbError::Sqlite`].
+pub fn add_space_prompt(
+    conn: &Connection,
+    space_id: &str,
+    prompt_id: &str,
+    position: Option<f64>,
+) -> Result<(), DbError> {
+    let pos = position.unwrap_or(0.0);
+    conn.execute(
+        "INSERT INTO space_prompts (space_id, prompt_id, position) \
+         VALUES (?1, ?2, ?3) \
+         ON CONFLICT(space_id, prompt_id) DO UPDATE SET position = excluded.position",
+        params![space_id, prompt_id, pos],
+    )?;
+    Ok(())
+}
+
+/// Detach a prompt from a space. Returns `true` if a row was deleted.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn remove_space_prompt(
+    conn: &Connection,
+    space_id: &str,
+    prompt_id: &str,
+) -> Result<bool, DbError> {
+    let n = conn.execute(
+        "DELETE FROM space_prompts WHERE space_id = ?1 AND prompt_id = ?2",
+        params![space_id, prompt_id],
+    )?;
+    Ok(n > 0)
+}
+
+/// Atomically replace the full ordered prompt list for a space.
+///
+/// Deletes every existing row for `space_id`, then re-inserts
+/// `ordered_prompt_ids` with `position = 1.0..=N.0`. Wrapped in a
+/// `SAVEPOINT` so the operation is atomic even when the caller passes
+/// a connection that is not already inside a transaction — same shape
+/// as `prompt_groups::set_members`.
+///
+/// `ordered_prompt_ids` may be empty: that clears the space's prompt
+/// attachments in one round-trip.
+///
+/// # Errors
+///
+/// FK violation (unknown `space_id` or any `prompt_id`) rolls the
+/// savepoint back and surfaces as [`DbError::Sqlite`].
+pub fn set_space_prompts(
+    conn: &Connection,
+    space_id: &str,
+    ordered_prompt_ids: &[String],
+) -> Result<(), DbError> {
+    conn.execute("SAVEPOINT set_space_prompts", [])?;
+    let result = (|| -> Result<(), DbError> {
+        conn.execute(
+            "DELETE FROM space_prompts WHERE space_id = ?1",
+            params![space_id],
+        )?;
+        for (idx, prompt_id) in ordered_prompt_ids.iter().enumerate() {
+            // Position is REAL — start at 1.0 and spread integer
+            // positions on the natural-number lattice so DnD reorder
+            // paths can mid-point insert without renumbering.
+            #[allow(clippy::cast_precision_loss)]
+            let position = (idx + 1) as f64;
+            conn.execute(
+                "INSERT INTO space_prompts (space_id, prompt_id, position) \
+                 VALUES (?1, ?2, ?3)",
+                params![space_id, prompt_id, position],
+            )?;
+        }
+        Ok(())
+    })();
+    if result.is_ok() {
+        conn.execute("RELEASE set_space_prompts", [])?;
+    } else {
+        conn.execute("ROLLBACK TO set_space_prompts", [])?;
+        conn.execute("RELEASE set_space_prompts", [])?;
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -509,5 +643,221 @@ mod tests {
         .unwrap()
         .unwrap();
         assert_eq!(cleared.color, None);
+    }
+
+    // ------------------------------------------------------------------
+    // space_prompts join (migration 011_space_prompts.sql).
+    // ------------------------------------------------------------------
+
+    /// Insert a prompt row directly so FK constraints on `space_prompts`
+    /// are satisfied without dragging the prompts use-case in.
+    fn insert_prompt(conn: &Connection, id: &str) {
+        conn.execute(
+            "INSERT INTO prompts (id, name, content, created_at, updated_at) \
+             VALUES (?1, ?2, '', 0, 0)",
+            params![id, id],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn space_prompts_table_exists_after_migrations() {
+        // Migration 011 must land the table in the embedded set.
+        let conn = fresh_db();
+        let n: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master \
+                 WHERE type='table' AND name='space_prompts'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1, "space_prompts table must exist after migrations");
+    }
+
+    #[test]
+    fn add_then_list_returns_prompt_in_position_order() {
+        let conn = fresh_db();
+        let space = insert(&conn, &draft("abc")).unwrap();
+        insert_prompt(&conn, "p1");
+        insert_prompt(&conn, "p2");
+        insert_prompt(&conn, "p3");
+
+        // Insert out of order to prove ORDER BY position works.
+        add_space_prompt(&conn, &space.id, "p2", Some(2.0)).unwrap();
+        add_space_prompt(&conn, &space.id, "p1", Some(1.0)).unwrap();
+        add_space_prompt(&conn, &space.id, "p3", Some(3.0)).unwrap();
+
+        let prompts = list_space_prompts(&conn, &space.id).unwrap();
+        let ids: Vec<&str> = prompts.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ids, vec!["p1", "p2", "p3"]);
+    }
+
+    #[test]
+    fn add_is_idempotent_and_updates_position() {
+        let conn = fresh_db();
+        let space = insert(&conn, &draft("abc")).unwrap();
+        insert_prompt(&conn, "p1");
+
+        add_space_prompt(&conn, &space.id, "p1", Some(1.0)).unwrap();
+        add_space_prompt(&conn, &space.id, "p1", Some(5.0)).unwrap();
+
+        // Still exactly one row; position bumped to 5.0.
+        let n: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM space_prompts WHERE space_id = ?1",
+                params![space.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1);
+        let pos: f64 = conn
+            .query_row(
+                "SELECT position FROM space_prompts WHERE space_id = ?1 AND prompt_id = 'p1'",
+                params![space.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!((pos - 5.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn remove_returns_true_then_false() {
+        let conn = fresh_db();
+        let space = insert(&conn, &draft("abc")).unwrap();
+        insert_prompt(&conn, "p1");
+        add_space_prompt(&conn, &space.id, "p1", Some(1.0)).unwrap();
+
+        assert!(remove_space_prompt(&conn, &space.id, "p1").unwrap());
+        assert!(!remove_space_prompt(&conn, &space.id, "p1").unwrap());
+        assert!(list_space_prompts(&conn, &space.id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn round_trip_create_attach_three_remove_one() {
+        // DoD round-trip: 3 attached → list returns 3 in position
+        // order → remove 1 → list returns 2.
+        let conn = fresh_db();
+        let space = insert(&conn, &draft("abc")).unwrap();
+        for id in ["p1", "p2", "p3"] {
+            insert_prompt(&conn, id);
+        }
+        add_space_prompt(&conn, &space.id, "p1", Some(1.0)).unwrap();
+        add_space_prompt(&conn, &space.id, "p2", Some(2.0)).unwrap();
+        add_space_prompt(&conn, &space.id, "p3", Some(3.0)).unwrap();
+
+        let listed: Vec<String> = list_space_prompts(&conn, &space.id)
+            .unwrap()
+            .into_iter()
+            .map(|p| p.id)
+            .collect();
+        assert_eq!(listed, vec!["p1", "p2", "p3"]);
+
+        assert!(remove_space_prompt(&conn, &space.id, "p2").unwrap());
+        let after: Vec<String> = list_space_prompts(&conn, &space.id)
+            .unwrap()
+            .into_iter()
+            .map(|p| p.id)
+            .collect();
+        assert_eq!(after, vec!["p1", "p3"]);
+    }
+
+    #[test]
+    fn set_space_prompts_replaces_all() {
+        let conn = fresh_db();
+        let space = insert(&conn, &draft("abc")).unwrap();
+        for id in ["p1", "p2", "p3"] {
+            insert_prompt(&conn, id);
+        }
+        add_space_prompt(&conn, &space.id, "p1", Some(1.0)).unwrap();
+        add_space_prompt(&conn, &space.id, "p2", Some(2.0)).unwrap();
+
+        // Replace with an entirely different ordered set.
+        set_space_prompts(&conn, &space.id, &["p3".into(), "p1".into()]).unwrap();
+
+        let listed: Vec<String> = list_space_prompts(&conn, &space.id)
+            .unwrap()
+            .into_iter()
+            .map(|p| p.id)
+            .collect();
+        assert_eq!(listed, vec!["p3", "p1"]);
+    }
+
+    #[test]
+    fn set_space_prompts_with_empty_clears_all() {
+        let conn = fresh_db();
+        let space = insert(&conn, &draft("abc")).unwrap();
+        insert_prompt(&conn, "p1");
+        add_space_prompt(&conn, &space.id, "p1", Some(1.0)).unwrap();
+
+        set_space_prompts(&conn, &space.id, &[]).unwrap();
+        assert!(list_space_prompts(&conn, &space.id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn set_space_prompts_rolls_back_on_bad_fk() {
+        // Bad FK in the tail of the list must roll the savepoint back —
+        // the pre-existing row stays, no partial replacement.
+        let conn = fresh_db();
+        let space = insert(&conn, &draft("abc")).unwrap();
+        insert_prompt(&conn, "p1");
+        add_space_prompt(&conn, &space.id, "p1", Some(1.0)).unwrap();
+
+        let err = set_space_prompts(&conn, &space.id, &["p1".into(), "ghost".into()])
+            .expect_err("FK violation expected");
+        match err {
+            DbError::Sqlite(_) => {}
+            other => panic!("expected Sqlite FK error, got {other:?}"),
+        }
+
+        // Pre-existing row survived the rollback.
+        let listed: Vec<String> = list_space_prompts(&conn, &space.id)
+            .unwrap()
+            .into_iter()
+            .map(|p| p.id)
+            .collect();
+        assert_eq!(listed, vec!["p1"]);
+    }
+
+    #[test]
+    fn space_delete_cascades_to_space_prompts() {
+        let conn = fresh_db();
+        let space = insert(&conn, &draft("abc")).unwrap();
+        insert_prompt(&conn, "p1");
+        add_space_prompt(&conn, &space.id, "p1", Some(1.0)).unwrap();
+
+        // Remove via raw DELETE — the cascade is a property of the FK
+        // declaration, independent of the use-case layer.
+        conn.execute("DELETE FROM spaces WHERE id = ?1", params![space.id])
+            .unwrap();
+
+        let n: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM space_prompts WHERE space_id = ?1",
+                params![space.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 0, "FK cascade must strip space_prompts on space delete");
+    }
+
+    #[test]
+    fn prompt_delete_cascades_to_space_prompts() {
+        let conn = fresh_db();
+        let space = insert(&conn, &draft("abc")).unwrap();
+        insert_prompt(&conn, "p1");
+        add_space_prompt(&conn, &space.id, "p1", Some(1.0)).unwrap();
+
+        conn.execute("DELETE FROM prompts WHERE id = 'p1'", [])
+            .unwrap();
+
+        let n: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM space_prompts WHERE space_id = ?1",
+                params![space.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 0, "FK cascade must strip space_prompts on prompt delete");
     }
 }

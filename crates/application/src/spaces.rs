@@ -7,11 +7,12 @@
 //! Optional `color` is validated as `#RRGGBB`; `icon` is opaque to the
 //! backend (the frontend owns the identifier set).
 
-use catique_domain::Space;
+use catique_domain::{Prompt, Space};
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::{
         boards::{self as boards_repo, BoardDraft},
+        prompts::PromptRow,
         spaces::{self as repo, SpaceDraft, SpacePatch, SpaceRow},
     },
 };
@@ -251,6 +252,97 @@ impl<'a> SpacesUseCase<'a> {
             reason: e.to_string(),
         })?;
         Ok(())
+    }
+
+    // ------------------------------------------------------------------
+    // space_prompts join (D9 / ctq-99 / migration 011_space_prompts.sql).
+    //
+    // Fourth-level prompt-inheritance attachments. The resolver
+    // (ctq-100) consumes this read path; the IPC handlers expose the
+    // four operations the frontend needs for the dnd-kit reorder UX.
+    // ------------------------------------------------------------------
+
+    /// List every prompt attached to a space, ordered by
+    /// `space_prompts.position` ascending. Returns an empty Vec when no
+    /// prompts are attached.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn list_space_prompts(&self, space_id: &str) -> Result<Vec<Prompt>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let rows = repo::list_space_prompts(&conn, space_id).map_err(map_db_err)?;
+        Ok(rows.into_iter().map(prompt_row_to_prompt).collect())
+    }
+
+    /// Attach a prompt to a space. Upserts `position` if the pair
+    /// already exists (matches `add_board_prompt` / `add_column_prompt`
+    /// semantics).
+    ///
+    /// # Errors
+    ///
+    /// `AppError::TransactionRolledBack` on FK violation (unknown space
+    /// or prompt id).
+    pub fn add_space_prompt(
+        &self,
+        space_id: &str,
+        prompt_id: &str,
+        position: Option<f64>,
+    ) -> Result<(), AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        repo::add_space_prompt(&conn, space_id, prompt_id, position).map_err(map_db_err)
+    }
+
+    /// Detach a prompt from a space.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound { entity: "space_prompt", … }` when no row
+    /// matched the `(space_id, prompt_id)` pair.
+    pub fn remove_space_prompt(&self, space_id: &str, prompt_id: &str) -> Result<(), AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let removed = repo::remove_space_prompt(&conn, space_id, prompt_id).map_err(map_db_err)?;
+        if removed {
+            Ok(())
+        } else {
+            Err(AppError::NotFound {
+                entity: "space_prompt".into(),
+                id: format!("{space_id}|{prompt_id}"),
+            })
+        }
+    }
+
+    /// Atomically replace the full ordered prompt list for a space.
+    /// Mirrors `prompt_groups::set_members` — single round-trip,
+    /// savepoint-wrapped, FK violation rolls back.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::TransactionRolledBack` on FK violation (unknown space
+    /// or any prompt id).
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn set_space_prompts(
+        &self,
+        space_id: String,
+        ordered_prompt_ids: Vec<String>,
+    ) -> Result<(), AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        repo::set_space_prompts(&conn, &space_id, &ordered_prompt_ids).map_err(map_db_err)
+    }
+}
+
+fn prompt_row_to_prompt(row: PromptRow) -> Prompt {
+    Prompt {
+        id: row.id,
+        name: row.name,
+        content: row.content,
+        color: row.color,
+        short_description: row.short_description,
+        icon: row.icon,
+        examples: row.examples,
+        token_count: row.token_count,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
     }
 }
 
@@ -519,5 +611,101 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM boards", [], |r| r.get(0))
             .unwrap();
         assert_eq!(board_count, 1);
+    }
+
+    // ------------------------------------------------------------------
+    // space_prompts (ctq-99 / migration 011_space_prompts.sql).
+    // ------------------------------------------------------------------
+
+    /// Insert a prompt directly via SQL so FK constraints are satisfied
+    /// without touching the prompts use case (which we don't need here).
+    fn seed_prompt(pool: &Pool, id: &str) {
+        let conn = pool.get().unwrap();
+        conn.execute(
+            "INSERT INTO prompts (id, name, content, created_at, updated_at) \
+             VALUES (?1, ?2, '', 0, 0)",
+            rusqlite::params![id, id],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn space_prompts_round_trip_dod_check() {
+        // DoD round-trip: create space → add 3 prompts → list returns
+        // 3 in position order → remove 1 → list returns 2.
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        let space = uc.create(args("S", "sp")).unwrap();
+        for id in ["p1", "p2", "p3"] {
+            seed_prompt(&pool, id);
+        }
+
+        uc.add_space_prompt(&space.id, "p1", Some(1.0)).unwrap();
+        uc.add_space_prompt(&space.id, "p2", Some(2.0)).unwrap();
+        uc.add_space_prompt(&space.id, "p3", Some(3.0)).unwrap();
+
+        let listed: Vec<String> = uc
+            .list_space_prompts(&space.id)
+            .unwrap()
+            .into_iter()
+            .map(|p| p.id)
+            .collect();
+        assert_eq!(listed, vec!["p1", "p2", "p3"]);
+
+        uc.remove_space_prompt(&space.id, "p2").unwrap();
+        let after: Vec<String> = uc
+            .list_space_prompts(&space.id)
+            .unwrap()
+            .into_iter()
+            .map(|p| p.id)
+            .collect();
+        assert_eq!(after, vec!["p1", "p3"]);
+    }
+
+    #[test]
+    fn remove_space_prompt_returns_not_found_when_pair_absent() {
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        let space = uc.create(args("S", "sp")).unwrap();
+        match uc.remove_space_prompt(&space.id, "ghost").expect_err("nf") {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "space_prompt"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn set_space_prompts_replaces_all() {
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        let space = uc.create(args("S", "sp")).unwrap();
+        for id in ["p1", "p2", "p3"] {
+            seed_prompt(&pool, id);
+        }
+
+        uc.add_space_prompt(&space.id, "p1", Some(1.0)).unwrap();
+        uc.add_space_prompt(&space.id, "p2", Some(2.0)).unwrap();
+
+        uc.set_space_prompts(space.id.clone(), vec!["p3".into(), "p1".into()])
+            .unwrap();
+
+        let listed: Vec<String> = uc
+            .list_space_prompts(&space.id)
+            .unwrap()
+            .into_iter()
+            .map(|p| p.id)
+            .collect();
+        assert_eq!(listed, vec!["p3", "p1"]);
+    }
+
+    #[test]
+    fn set_space_prompts_with_empty_clears_all() {
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        let space = uc.create(args("S", "sp")).unwrap();
+        seed_prompt(&pool, "p1");
+        uc.add_space_prompt(&space.id, "p1", Some(1.0)).unwrap();
+
+        uc.set_space_prompts(space.id.clone(), Vec::new()).unwrap();
+        assert!(uc.list_space_prompts(&space.id).unwrap().is_empty());
     }
 }

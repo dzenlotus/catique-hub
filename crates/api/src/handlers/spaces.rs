@@ -13,7 +13,7 @@ use catique_application::{
     spaces::{CreateSpaceArgs, SpacesUseCase, UpdateSpaceArgs},
     AppError,
 };
-use catique_domain::Space;
+use catique_domain::{Prompt, Space};
 use serde_json::json;
 use tauri::State;
 
@@ -114,5 +114,91 @@ pub async fn update_space(
 pub async fn delete_space(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
     SpacesUseCase::new(&state.pool).delete(&id)?;
     events::emit(&state, events::SPACE_DELETED, json!({ "id": id }));
+    Ok(())
+}
+
+// -------------------------------------------------------------------------
+// space_prompts join (ctq-99 / migration 011_space_prompts.sql).
+//
+// Fourth-level prompt-inheritance join. Mirrors the
+// `add_*_prompt` / `remove_*_prompt` pair on `prompts` plus the bulk
+// `set_*` setter from `prompt_groups::set_prompt_group_members`. The
+// resolver itself (ctq-100) is downstream and consumes the read path
+// directly. Each mutation emits `space:updated` so existing listeners
+// invalidate their queries without a new event constant — keeping the
+// surface small for ctq-99 and letting the resolver task add a
+// dedicated `space_prompts:changed` event later if the frontend needs
+// finer granularity.
+// -------------------------------------------------------------------------
+
+/// IPC: list every prompt attached to a space, ordered by
+/// `space_prompts.position` ascending.
+///
+/// # Errors
+///
+/// Forwards every error from `SpacesUseCase::list_space_prompts`.
+#[tauri::command]
+pub async fn list_space_prompts(
+    state: State<'_, AppState>,
+    space_id: String,
+) -> Result<Vec<Prompt>, AppError> {
+    SpacesUseCase::new(&state.pool).list_space_prompts(&space_id)
+}
+
+/// IPC: attach a prompt to a space. Idempotent — calling twice with a
+/// different `position` updates the position rather than failing.
+///
+/// # Errors
+///
+/// Forwards every error from `SpacesUseCase::add_space_prompt`.
+#[tauri::command]
+pub async fn add_space_prompt(
+    state: State<'_, AppState>,
+    space_id: String,
+    prompt_id: String,
+    position: Option<f64>,
+) -> Result<(), AppError> {
+    SpacesUseCase::new(&state.pool).add_space_prompt(&space_id, &prompt_id, position)?;
+    events::emit(
+        &state,
+        events::SPACE_UPDATED,
+        json!({ "id": space_id, "prompt_id": prompt_id }),
+    );
+    Ok(())
+}
+
+/// IPC: detach a prompt from a space.
+///
+/// # Errors
+///
+/// `AppError::NotFound { entity: "space_prompt", … }` when no row matched.
+#[tauri::command]
+pub async fn remove_space_prompt(
+    state: State<'_, AppState>,
+    space_id: String,
+    prompt_id: String,
+) -> Result<(), AppError> {
+    SpacesUseCase::new(&state.pool).remove_space_prompt(&space_id, &prompt_id)?;
+    events::emit(
+        &state,
+        events::SPACE_UPDATED,
+        json!({ "id": space_id, "prompt_id": prompt_id }),
+    );
+    Ok(())
+}
+
+/// IPC: atomically replace the full ordered prompt list for a space.
+///
+/// # Errors
+///
+/// Forwards every error from `SpacesUseCase::set_space_prompts`.
+#[tauri::command]
+pub async fn set_space_prompts(
+    state: State<'_, AppState>,
+    space_id: String,
+    prompt_ids: Vec<String>,
+) -> Result<(), AppError> {
+    SpacesUseCase::new(&state.pool).set_space_prompts(space_id.clone(), prompt_ids)?;
+    events::emit(&state, events::SPACE_UPDATED, json!({ "id": space_id }));
     Ok(())
 }
