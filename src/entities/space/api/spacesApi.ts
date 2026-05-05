@@ -92,6 +92,10 @@ export interface CreateSpaceArgs {
   /** Lowercase a–z, digits, hyphens; length 1–10. */
   prefix: string;
   description?: string;
+  /** Optional CSS hex color (`#RRGGBB`). */
+  color?: string;
+  /** Optional pixel-icon identifier (matches `@shared/ui/Icon`). */
+  icon?: string;
   /** When true, this space becomes the default. Defaults to false. */
   isDefault?: boolean;
 }
@@ -104,6 +108,8 @@ export async function createSpace(args: CreateSpaceArgs): Promise<Space> {
     isDefault: args.isDefault ?? false,
   };
   if (args.description !== undefined) payload.description = args.description;
+  if (args.color !== undefined) payload.color = args.color;
+  if (args.icon !== undefined) payload.icon = args.icon;
   return invokeWithAppError<Space>("create_space", payload);
 }
 
@@ -116,6 +122,16 @@ export interface UpdateSpaceArgs {
    * Mirrors Rust's `Option<Option<String>>`.
    */
   description?: string | null;
+  /**
+   * Skip = `undefined`, set = string, clear-to-NULL = `null`.
+   * Mirrors Rust's `Option<Option<String>>`.
+   */
+  color?: string | null;
+  /**
+   * Skip = `undefined`, set = string, clear-to-NULL = `null`.
+   * Mirrors Rust's `Option<Option<String>>`.
+   */
+  icon?: string | null;
   /** Skip = `undefined`. */
   isDefault?: boolean;
   /** Skip = `undefined`. */
@@ -127,6 +143,8 @@ export async function updateSpace(args: UpdateSpaceArgs): Promise<Space> {
   const payload: Record<string, unknown> = { id: args.id };
   if (args.name !== undefined) payload.name = args.name;
   if (args.description !== undefined) payload.description = args.description;
+  if (args.color !== undefined) payload.color = args.color;
+  if (args.icon !== undefined) payload.icon = args.icon;
   if (args.isDefault !== undefined) payload.isDefault = args.isDefault;
   if (args.position !== undefined) payload.position = args.position;
   return invokeWithAppError<Space>("update_space", payload);

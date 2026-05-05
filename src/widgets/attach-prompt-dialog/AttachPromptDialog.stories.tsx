@@ -29,7 +29,7 @@ import { AttachPromptDialog } from "./AttachPromptDialog";
 // ── Stub factories ────────────────────────────────────────────────────────────
 
 function stubBoard(id: string, name: string, spaceId = "spc-1"): Board {
-  return { id, name, spaceId, roleId: null, position: 1, description: null, ownerRoleId: "maintainer-system", createdAt: 0n, updatedAt: 0n };
+  return { id, name, spaceId, roleId: null, position: 1, description: null, color: null, icon: null, ownerRoleId: "maintainer-system", createdAt: 0n, updatedAt: 0n };
 }
 
 function stubColumn(id: string, name: string, boardId: string): Column {

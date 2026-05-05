@@ -11,6 +11,8 @@ function makeSpace(overrides: Partial<Space> = {}): Space {
     name: "Engineering",
     prefix: "eng",
     description: null,
+    color: null,
+    icon: null,
     isDefault: false,
     position: 1,
     createdAt: 0n,

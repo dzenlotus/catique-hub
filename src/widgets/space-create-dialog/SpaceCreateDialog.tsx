@@ -19,7 +19,7 @@ import { useState, type ReactElement } from "react";
 import { useCreateSpaceMutation, validatePrefix } from "@entities/space";
 import type { Space } from "@entities/space";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 
 import styles from "./SpaceCreateDialog.module.css";
 
@@ -37,12 +37,32 @@ export function SpaceCreateDialog({
   onClose,
   onCreated,
 }: SpaceCreateDialogProps): ReactElement {
+  // Lifted icon/color so the dialog header picker drives the create
+  // payload (etalon: PromptCreateDialog / BoardCreateDialog).
+  const [icon, setIcon] = useState<string | null>(null);
+  const [color, setColor] = useState<string>("");
+
   return (
     <Dialog
       title="Create space"
+      titleLeading={
+        <IconColorPicker
+          value={{ icon, color: color === "" ? null : color }}
+          onChange={(next) => {
+            setIcon(next.icon);
+            setColor(next.color ?? "");
+          }}
+          ariaLabel="Space icon and color"
+          data-testid="space-create-dialog-appearance-picker"
+        />
+      }
       isOpen={isOpen}
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) {
+          setIcon(null);
+          setColor("");
+          onClose();
+        }
       }}
       isDismissable
       className={styles.dialogBody}
@@ -50,7 +70,13 @@ export function SpaceCreateDialog({
     >
       {() => (
         <SpaceCreateDialogContent
-          onClose={onClose}
+          icon={icon}
+          color={color}
+          onClose={() => {
+            setIcon(null);
+            setColor("");
+            onClose();
+          }}
           {...(onCreated !== undefined ? { onCreated } : {})}
         />
       )}
@@ -61,11 +87,17 @@ export function SpaceCreateDialog({
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface SpaceCreateDialogContentProps {
+  /** Lifted icon state (driven by the dialog header picker). */
+  icon: string | null;
+  /** Lifted color state (driven by the dialog header picker). */
+  color: string;
   onClose: () => void;
   onCreated?: (space: Space) => void;
 }
 
 function SpaceCreateDialogContent({
+  icon,
+  color,
   onClose,
   onCreated,
 }: SpaceCreateDialogContentProps): ReactElement {
@@ -109,6 +141,8 @@ function SpaceCreateDialogContent({
     const args: MutationArgs = { name: trimmedName, prefix: trimmedPrefix };
     const trimmedDesc = description.trim();
     if (trimmedDesc !== "") args.description = trimmedDesc;
+    if (color !== "") args.color = color;
+    if (icon !== null) args.icon = icon;
 
     createMutation.mutate(args, {
       onSuccess: (space) => {

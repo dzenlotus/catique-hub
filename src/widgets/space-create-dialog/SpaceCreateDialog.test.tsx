@@ -28,6 +28,8 @@ function makeSpace(overrides: Partial<Space> = {}): Space {
     name: "My Space",
     prefix: "my",
     description: null,
+    color: null,
+    icon: null,
     isDefault: false,
     position: 1,
     createdAt: 0n,

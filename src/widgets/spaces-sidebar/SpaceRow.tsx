@@ -121,7 +121,7 @@ export function SpaceRow({
           aria-label={`${space.name}${isActiveSpace ? " (active space)" : ""}`}
           data-testid={`spaces-sidebar-space-name-${space.id}`}
         >
-          <SpaceIcon name={space.name} />
+          <SpaceIcon name={space.name} icon={space.icon} color={space.color} />
           <MarqueeText text={space.name} className={styles.spaceNameText} />
         </button>
       </div>
@@ -160,7 +160,11 @@ export function SpaceRow({
                     </MenuTrigger>
                   }
                 >
-                  <BoardIcon name={board.name} />
+                  <BoardIcon
+                    name={board.name}
+                    icon={board.icon}
+                    color={board.color}
+                  />
                   <MarqueeText
                     text={board.name}
                     className={styles.boardRowLabel}

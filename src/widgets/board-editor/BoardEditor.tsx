@@ -9,7 +9,14 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { useBoard, useUpdateBoardMutation } from "@entities/board";
 import { useSpaces } from "@entities/space";
-import { Dialog, Button, Input, Listbox, ListboxItem } from "@shared/ui";
+import {
+  Dialog,
+  Button,
+  Input,
+  Listbox,
+  ListboxItem,
+  IconColorPicker,
+} from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -28,13 +35,35 @@ export interface BoardEditorProps {
  *
  * Delegates open/close tracking to `boardId` — when null the `<Dialog>`
  * `isOpen` prop is false, so RAC handles exit animations and focus restoration.
+ *
+ * Icon/color picker lives in the dialog's `titleLeading` slot — same
+ * etalon as `<PromptEditor>` and `<PromptEditorPanel>`.
  */
 export function BoardEditor({ boardId, onClose }: BoardEditorProps): ReactElement {
   const isOpen = boardId !== null;
 
+  // Lifted so the dialog header picker shares state with the body's
+  // create payload. Seeded by `<BoardEditorContent>` once the query
+  // lands.
+  const [icon, setIcon] = useState<string | null>(null);
+  const [color, setColor] = useState<string>("");
+
   return (
     <Dialog
       title="Edit board"
+      titleLeading={
+        boardId !== null ? (
+          <IconColorPicker
+            value={{ icon, color: color === "" ? null : color }}
+            onChange={(next) => {
+              setIcon(next.icon);
+              setColor(next.color ?? "");
+            }}
+            ariaLabel="Board icon and color"
+            data-testid="board-editor-appearance-picker"
+          />
+        ) : undefined
+      }
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -45,7 +74,14 @@ export function BoardEditor({ boardId, onClose }: BoardEditorProps): ReactElemen
     >
       {() =>
         boardId !== null ? (
-          <BoardEditorContent boardId={boardId} onClose={onClose} />
+          <BoardEditorContent
+            boardId={boardId}
+            icon={icon}
+            color={color}
+            setIcon={setIcon}
+            setColor={setColor}
+            onClose={onClose}
+          />
         ) : null
       }
     </Dialog>
@@ -56,11 +92,21 @@ export function BoardEditor({ boardId, onClose }: BoardEditorProps): ReactElemen
 
 interface BoardEditorContentProps {
   boardId: string;
+  /** Lifted icon state (shared with the dialog header picker). */
+  icon: string | null;
+  /** Lifted color state (shared with the dialog header picker). */
+  color: string;
+  setIcon: (next: string | null) => void;
+  setColor: (next: string) => void;
   onClose: () => void;
 }
 
 function BoardEditorContent({
   boardId,
+  icon: localIcon,
+  color: localColor,
+  setIcon: setLocalIcon,
+  setColor: setLocalColor,
   onClose,
 }: BoardEditorContentProps): ReactElement {
   const query = useBoard(boardId);
@@ -68,7 +114,9 @@ function BoardEditorContent({
   const updateMutation = useUpdateBoardMutation();
   const { pushToast } = useToast();
 
-  // Local edit state — initialised from the loaded board.
+  // Local edit state — initialised from the loaded board. Icon and
+  // color are lifted to the parent so the dialog header picker can
+  // drive them.
   const [localName, setLocalName] = useState("");
   const [localDescription, setLocalDescription] = useState("");
   const [localSpaceId, setLocalSpaceId] = useState("");
@@ -82,8 +130,13 @@ function BoardEditorContent({
       setLocalDescription(query.data.description ?? "");
       setLocalSpaceId(query.data.spaceId);
       setLocalPosition(String(query.data.position));
+      setLocalIcon(query.data.icon ?? null);
+      setLocalColor(query.data.color ?? "");
       setSaveError(null);
     }
+    // setLocal{Icon,Color} are stable parent setters; including them
+    // in deps is correct but they don't re-fire the effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query.data, boardId]);
 
   // ── Pending ────────────────────────────────────────────────────────
@@ -227,6 +280,13 @@ function BoardEditorContent({
       // Send null to clear, string to set.
       mutationArgs.description = trimmedDescription === "" ? null : trimmedDescription;
     }
+    const resolvedColor = localColor === "" ? null : localColor;
+    if (resolvedColor !== board.color) {
+      mutationArgs.color = resolvedColor;
+    }
+    if (localIcon !== (board.icon ?? null)) {
+      mutationArgs.icon = localIcon;
+    }
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
@@ -246,6 +306,8 @@ function BoardEditorContent({
     setLocalDescription(board.description ?? "");
     setLocalSpaceId(board.spaceId);
     setLocalPosition(String(board.position));
+    setLocalIcon(board.icon ?? null);
+    setLocalColor(board.color ?? "");
     setSaveError(null);
     onClose();
   };

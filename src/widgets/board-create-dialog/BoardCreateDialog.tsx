@@ -19,7 +19,7 @@ import { useCreateBoardMutation } from "@entities/board";
 import type { Board } from "@entities/board";
 import { useSpaces } from "@entities/space";
 import { invoke } from "@shared/api";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 
@@ -45,21 +45,46 @@ export function BoardCreateDialog({
   onCreated,
 }: BoardCreateDialogProps): ReactElement {
   const { activeSpaceId } = useActiveSpace();
+  // Lifted icon/color so the dialog header picker drives the create
+  // payload directly (etalon: PromptCreateDialog).
+  const [icon, setIcon] = useState<string | null>(null);
+  const [color, setColor] = useState<string>("");
 
   return (
     <Dialog
       title="Create board"
+      titleLeading={
+        <IconColorPicker
+          value={{ icon, color: color === "" ? null : color }}
+          onChange={(next) => {
+            setIcon(next.icon);
+            setColor(next.color ?? "");
+          }}
+          ariaLabel="Board icon and color"
+          data-testid="board-create-dialog-appearance-picker"
+        />
+      }
       description="Boards live inside a space. Enter a name and pick a space."
       isOpen={isOpen}
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) {
+          setIcon(null);
+          setColor("");
+          onClose();
+        }
       }}
       isDismissable
       data-testid="board-create-dialog"
     >
       {() => (
         <BoardCreateDialogContent
-          onClose={onClose}
+          icon={icon}
+          color={color}
+          onClose={() => {
+            setIcon(null);
+            setColor("");
+            onClose();
+          }}
           activeSpaceId={activeSpaceId}
           {...(onCreated !== undefined ? { onCreated } : {})}
         />
@@ -71,12 +96,18 @@ export function BoardCreateDialog({
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface BoardCreateDialogContentProps {
+  /** Lifted icon state (driven by the dialog header picker). */
+  icon: string | null;
+  /** Lifted color state (driven by the dialog header picker). */
+  color: string;
   onClose: () => void;
   onCreated?: (board: Board) => void;
   activeSpaceId: string | null;
 }
 
 function BoardCreateDialogContent({
+  icon,
+  color,
   onClose,
   onCreated,
   activeSpaceId,
@@ -153,6 +184,8 @@ function BoardCreateDialogContent({
         name: trimmedName,
         spaceId: resolvedSpaceId,
         ...(trimmedDescription ? { description: trimmedDescription } : {}),
+        ...(color !== "" ? { color } : {}),
+        ...(icon !== null ? { icon } : {}),
       },
       {
         onSuccess: (board) => {

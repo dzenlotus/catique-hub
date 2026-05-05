@@ -21,8 +21,7 @@ import { useParams, useLocation } from "wouter";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { routes } from "@app/routes";
 import { useSpace, useUpdateSpaceMutation } from "@entities/space";
-import { Button, Input, Scrollable } from "@shared/ui";
-import { PixelInterfaceEssentialSettingCog } from "@shared/ui/Icon";
+import { Button, IconColorPicker, Input, Scrollable } from "@shared/ui";
 
 import styles from "./SpaceSettings.module.css";
 
@@ -92,32 +91,13 @@ export function SpaceSettings(): ReactElement {
       data-testid="space-settings-scroll"
     >
       <div className={styles.root} data-testid="space-settings">
-        <header
-          className={styles.pageHeader}
-          aria-labelledby="space-settings-heading"
-        >
-          <PixelInterfaceEssentialSettingCog
-            width={20}
-            height={20}
-            className={styles.pageHeaderIcon}
-            aria-hidden={true}
-          />
-          <div className={styles.pageHeaderText}>
-            <h2 id="space-settings-heading" className={styles.pageTitle}>
-              {spaceQuery.data.name}
-            </h2>
-            <p className={styles.pageDescription}>
-              Space settings. The prefix is set at creation and cannot be
-              changed.
-            </p>
-          </div>
-        </header>
-
         <SpaceSettingsForm
           key={spaceQuery.data.id}
           spaceId={spaceQuery.data.id}
           initialName={spaceQuery.data.name}
           initialDescription={spaceQuery.data.description ?? ""}
+          initialIcon={spaceQuery.data.icon ?? null}
+          initialColor={spaceQuery.data.color ?? ""}
           prefix={spaceQuery.data.prefix}
         />
       </div>
@@ -134,6 +114,10 @@ interface SpaceSettingsFormProps {
   spaceId: string;
   initialName: string;
   initialDescription: string;
+  /** Pixel-icon identifier or `null` if unset. */
+  initialIcon: string | null;
+  /** Hex color or `""` if unset. */
+  initialColor: string;
   prefix: string;
 }
 
@@ -141,21 +125,29 @@ function SpaceSettingsForm({
   spaceId,
   initialName,
   initialDescription,
+  initialIcon,
+  initialColor,
   prefix,
 }: SpaceSettingsFormProps): ReactElement {
   const updateMutation = useUpdateSpaceMutation();
 
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
+  const [icon, setIcon] = useState<string | null>(initialIcon);
+  const [color, setColor] = useState<string>(initialColor);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const trimmedName = name.trim();
   const trimmedDescription = description.trim();
+  const resolvedColor = color === "" ? null : color;
+  const initialResolvedColor = initialColor === "" ? null : initialColor;
 
   const isDirty =
     trimmedName !== initialName.trim() ||
-    trimmedDescription !== initialDescription.trim();
+    trimmedDescription !== initialDescription.trim() ||
+    icon !== initialIcon ||
+    resolvedColor !== initialResolvedColor;
 
   const canSubmit = trimmedName.length > 0 && isDirty;
 
@@ -176,6 +168,8 @@ function SpaceSettingsForm({
     if (trimmedDescription !== initialDescription.trim()) {
       args.description = trimmedDescription.length > 0 ? trimmedDescription : null;
     }
+    if (icon !== initialIcon) args.icon = icon;
+    if (resolvedColor !== initialResolvedColor) args.color = resolvedColor;
 
     updateMutation.mutate(args, {
       onSuccess: () => {
@@ -188,10 +182,35 @@ function SpaceSettingsForm({
   };
 
   return (
-    <section className={styles.card} aria-labelledby="space-settings-form">
-      <h3 id="space-settings-form" className={styles.cardHeading}>
-        General
-      </h3>
+    <>
+      <header
+        className={styles.pageHeader}
+        aria-labelledby="space-settings-heading"
+      >
+        <IconColorPicker
+          value={{ icon, color: resolvedColor }}
+          onChange={(next) => {
+            setIcon(next.icon);
+            setColor(next.color ?? "");
+          }}
+          ariaLabel="Space icon and color"
+          data-testid="space-settings-appearance-picker"
+        />
+        <div className={styles.pageHeaderText}>
+          <h2 id="space-settings-heading" className={styles.pageTitle}>
+            {trimmedName.length > 0 ? trimmedName : initialName}
+          </h2>
+          <p className={styles.pageDescription}>
+            Space settings. The prefix is set at creation and cannot be
+            changed.
+          </p>
+        </div>
+      </header>
+
+      <section className={styles.card} aria-labelledby="space-settings-form">
+        <h3 id="space-settings-form" className={styles.cardHeading}>
+          General
+        </h3>
       <div className={styles.cardBody}>
         <div className={styles.fields}>
           <Input
@@ -252,6 +271,7 @@ function SpaceSettingsForm({
           </Button>
         </div>
       </div>
-    </section>
+      </section>
+    </>
   );
 }

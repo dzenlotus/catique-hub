@@ -147,6 +147,10 @@ export interface CreateBoardArgs {
   spaceId: string;
   /** Optional description. `undefined` = omit (treated as null on server). */
   description?: string;
+  /** Optional CSS hex color (`#RRGGBB`). */
+  color?: string;
+  /** Optional pixel-icon identifier (matches `@shared/ui/Icon`). */
+  icon?: string;
 }
 
 /**
@@ -160,6 +164,8 @@ export async function createBoard(args: CreateBoardArgs): Promise<Board> {
     spaceId: args.spaceId,
   };
   if (args.description !== undefined) payload.description = args.description;
+  if (args.color !== undefined) payload.color = args.color;
+  if (args.icon !== undefined) payload.icon = args.icon;
   return invokeWithAppError<Board>("create_board", payload);
 }
 
@@ -181,6 +187,16 @@ export interface UpdateBoardArgs {
    * Matches the `Option<Option<String>>` shape on the Rust side.
    */
   description?: string | null;
+  /**
+   * `undefined` = leave as-is, `null` = clear, `string` = set.
+   * Matches Rust's `Option<Option<String>>` shape.
+   */
+  color?: string | null;
+  /**
+   * `undefined` = leave as-is, `null` = clear, `string` = set.
+   * Matches Rust's `Option<Option<String>>` shape.
+   */
+  icon?: string | null;
 }
 
 /**
@@ -194,6 +210,8 @@ export async function updateBoard(args: UpdateBoardArgs): Promise<Board> {
   if (args.spaceId !== undefined) payload.spaceId = args.spaceId;
   if (args.position !== undefined) payload.position = args.position;
   if (args.description !== undefined) payload.description = args.description;
+  if (args.color !== undefined) payload.color = args.color;
+  if (args.icon !== undefined) payload.icon = args.icon;
   return invokeWithAppError<Board>("update_board", payload);
 }
 
