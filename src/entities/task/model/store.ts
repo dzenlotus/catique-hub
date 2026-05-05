@@ -206,15 +206,26 @@ export function useDeleteTaskMutation(): UseMutationResult<
 }
 
 /**
- * `useAddTaskPromptMutation` — attach a prompt directly to a task.
- * No cache invalidation needed: the join-table is write-only at this layer.
+ * `useAddTaskPromptMutation` — attach a prompt directly to a task and
+ * invalidate the task-prompts list cache so the editor's chip row
+ * reflects the new attachment without an extra round-trip.
+ *
+ * Without the `onSuccess` invalidation the backend persists the row
+ * but the `useTaskPrompts(taskId)` cache stays stale until the user
+ * closes and reopens the dialog (audit F-11).
  */
 export function useAddTaskPromptMutation(): UseMutationResult<
   void,
   Error,
   AddTaskPromptArgs
 > {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: addTaskPrompt,
+    onSuccess: (_void, vars) => {
+      void queryClient.invalidateQueries({
+        queryKey: tasksKeys.prompts(vars.taskId),
+      });
+    },
   });
 }
