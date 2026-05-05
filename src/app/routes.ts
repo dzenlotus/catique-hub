@@ -7,8 +7,9 @@
  * E4.x (router): introduced with wouter migration. Previously navigation was
  * purely in-memory via `useState<NavView>` in App.tsx.
  * Round 4: NavView "roles" → "agent-roles", "mcp-tools" → "mcp-servers".
- *          URL paths are unchanged (backward compat). "tags" and "reports"
- *          are no longer sidebar nav items but routes remain for deep-links.
+ *          URL paths are unchanged (backward compat).
+ * Audit-#20: Tags and Reports re-promoted to first-class sidebar items
+ *          (they were orphan routes — visible only via deep link).
  */
 
 import type { NavView } from "@widgets/main-sidebar";
@@ -26,9 +27,9 @@ export const routes = {
   prompts: "/prompts",
   /** /roles — maps to "agent-roles" NavView */
   roles: "/roles",
-  /** /tags — no longer a sidebar nav item but route still valid */
+  /** /tags — first-class sidebar tab (audit-#20). */
   tags: "/tags",
-  /** /reports — no longer a sidebar nav item but route still valid */
+  /** /reports — first-class sidebar tab (audit-#20). */
   reports: "/reports",
   skills: "/skills",
   /** /mcp-tools — maps to "mcp-servers" NavView */
@@ -79,6 +80,10 @@ export function pathForView(view: NavView): string {
       return routes.skills;
     case "mcp-servers":
       return routes.mcpTools;
+    case "tags":
+      return routes.tags;
+    case "reports":
+      return routes.reports;
     case "spaces":
       return routes.spaces;
     case "settings":
@@ -101,6 +106,8 @@ export function viewForPath(path: string): NavView {
   if (path === routes.roles) return "agent-roles";
   if (path === routes.skills) return "skills";
   if (path === routes.mcpTools) return "mcp-servers";
+  if (path === routes.tags) return "tags";
+  if (path === routes.reports) return "reports";
   // Round-19e: standalone /spaces page was retired — the canonical
   // home shell already shows the sidebar with every space. Keep the
   // path resolvable so any old deep-link redirects to the home page

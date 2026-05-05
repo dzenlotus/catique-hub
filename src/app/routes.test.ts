@@ -6,7 +6,7 @@ import type { NavView } from "@widgets/main-sidebar";
 // ---------------------------------------------------------------------------
 // All nav views for round-trip coverage
 // "roles" → "agent-roles", "mcp-tools" → "mcp-servers" (Round 4 rename)
-// "tags" and "reports" removed from sidebar nav but routes still exist
+// Audit-#20: "tags" and "reports" promoted back to first-class sidebar tabs.
 // ---------------------------------------------------------------------------
 
 // Round-19e: "spaces" stays in the NavView union for deep-link
@@ -20,6 +20,8 @@ const ALL_VIEWS: NavView[] = [
   "agent-roles",
   "skills",
   "mcp-servers",
+  "tags",
+  "reports",
   "settings",
 ];
 
@@ -153,14 +155,13 @@ describe("viewForPath", () => {
     expect(viewForPath("/tasks/some-other-id")).toBe("boards");
   });
 
-  // /tags and /reports are no longer in the sidebar but the routes still exist.
-  // viewForPath falls back to "boards" for them (they are no longer NavView members).
-  it("maps /tags → boards (removed from sidebar nav)", () => {
-    expect(viewForPath("/tags")).toBe("boards");
+  // Audit-#20: tags and reports are first-class sidebar tabs again.
+  it("maps /tags → tags (audit-#20)", () => {
+    expect(viewForPath("/tags")).toBe("tags");
   });
 
-  it("maps /reports → boards (removed from sidebar nav)", () => {
-    expect(viewForPath("/reports")).toBe("boards");
+  it("maps /reports → reports (audit-#20)", () => {
+    expect(viewForPath("/reports")).toBe("reports");
   });
 
   // Round-trip: pathForView(view) → viewForPath → same view

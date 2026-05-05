@@ -21,6 +21,8 @@ export type NavView =
   | "prompts"
   | "skills"
   | "mcp-servers"
+  | "tags"
+  | "reports"
   | "settings"
   // Not shown in sidebar nav but still routable:
   | "spaces";
