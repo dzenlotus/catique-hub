@@ -757,6 +757,67 @@ pub fn resolve_active_role(
     super::roles::get_by_id(conn, &rid)
 }
 
+// =====================================================================
+// FTS5 search scoped by space + cat (ctq-84).
+// =====================================================================
+
+/// Cat-as-Agent Phase 1 (ctq-84): full-text search over tasks scoped to
+/// a single space + cat (role) pair. Uses the existing `tasks_fts`
+/// virtual table joined back to `tasks` and `boards` so the
+/// `space_id` predicate filters before the FTS5 MATCH ranks. Hard cap
+/// LIMIT 20 — the IPC contract returns the top hits, not a full
+/// unbounded list (the bench seeds 10k tasks; perf-gate is P99 < 100 ms,
+/// see `benches/search_by_cat_and_space.rs`).
+///
+/// **Query sanitisation**: see `super::search::fts5_quote` — terms are
+/// double-quoted and embedded `"` doubled, neutralising every FTS5
+/// operator. An empty / whitespace-only `query` returns `Vec::new()`
+/// without hitting the DB.
+///
+/// **Snippet**: `snippet(tasks_fts, 1, …)` — col 1 is `title`, the only
+/// human-readable indexed column we want surfaced.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors as [`DbError::Sqlite`].
+pub fn search_tasks_by_cat_and_space(
+    conn: &Connection,
+    space_id: &str,
+    cat_id: &str,
+    query: &str,
+) -> Result<Vec<catique_domain::TaskMatch>, DbError> {
+    let Some(fts_query) = super::search::fts5_quote(query) else {
+        return Ok(Vec::new());
+    };
+
+    let mut stmt = conn.prepare(
+        "SELECT t.id, t.title, t.description, t.role_id, \
+                snippet(tasks_fts, 1, '<b>', '</b>', '…', 16) AS snippet \
+         FROM tasks t \
+         JOIN boards b ON t.board_id = b.id \
+         JOIN tasks_fts f ON f.task_id = t.id \
+         WHERE b.space_id = ?1 AND t.role_id = ?2 AND tasks_fts MATCH ?3 \
+         ORDER BY rank \
+         LIMIT 20",
+    )?;
+
+    let rows = stmt.query_map(params![space_id, cat_id, fts_query], |row| {
+        Ok(catique_domain::TaskMatch {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            description: row.get(2)?,
+            role_id: row.get(3)?,
+            snippet: row.get(4)?,
+        })
+    })?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1420,5 +1481,108 @@ mod tests {
         )
         .unwrap();
         assert!(resolve_active_role(&conn, &task.id).unwrap().is_none());
+    }
+
+    /// ctq-84: search returns only tasks whose `(space, role_id)` pair
+    /// matches both predicates. Tasks owned by a different cat or
+    /// living in another space must not surface.
+    #[test]
+    fn search_by_cat_and_space_respects_both_predicates() {
+        let (conn, bd, col) = fresh_db_with_board();
+        conn.execute_batch(
+            "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
+                 VALUES ('sp2','S2','sp2',0,0,0,0); \
+             INSERT INTO boards (id, name, space_id, position, created_at, updated_at) \
+                 VALUES ('bd-other','B','sp2',0,0,0); \
+             INSERT INTO columns (id, board_id, name, position, created_at) \
+                 VALUES ('c-other','bd-other','Todo',0,0); \
+             INSERT INTO roles (id, name, content, created_at, updated_at) VALUES \
+                 ('cat1','Cat1','',0,0), \
+                 ('cat2','Cat2','',0,0);",
+        )
+        .unwrap();
+        // In-scope (sp1, cat1).
+        let _t1 = insert(
+            &conn,
+            &TaskDraft {
+                board_id: bd.clone(),
+                column_id: col.clone(),
+                title: "Refactor pipeline".into(),
+                description: Some("touches the resolver".into()),
+                position: 1.0,
+                role_id: Some("cat1".into()),
+            },
+        )
+        .unwrap();
+        // Same space, different cat — must not match.
+        let _t2 = insert(
+            &conn,
+            &TaskDraft {
+                board_id: bd,
+                column_id: col,
+                title: "Refactor login".into(),
+                description: None,
+                position: 2.0,
+                role_id: Some("cat2".into()),
+            },
+        )
+        .unwrap();
+        // Different space, same cat — must not match.
+        let _t3 = insert(
+            &conn,
+            &TaskDraft {
+                board_id: "bd-other".into(),
+                column_id: "c-other".into(),
+                title: "Refactor exporter".into(),
+                description: None,
+                position: 3.0,
+                role_id: Some("cat1".into()),
+            },
+        )
+        .unwrap();
+        let hits = search_tasks_by_cat_and_space(&conn, "sp1", "cat1", "Refactor").unwrap();
+        assert_eq!(hits.len(), 1, "expected exactly the (sp1,cat1) row");
+        assert_eq!(hits[0].title, "Refactor pipeline");
+        assert_eq!(hits[0].role_id.as_deref(), Some("cat1"));
+        // Snippet must contain a highlight tag.
+        assert!(hits[0].snippet.contains("<b>"));
+    }
+
+    /// ctq-84: empty / whitespace query short-circuits to an empty Vec
+    /// without a DB hit (matches `search_tasks` contract in
+    /// `repositories::search`).
+    #[test]
+    fn search_by_cat_and_space_empty_query_returns_empty() {
+        let (conn, _bd, _col) = fresh_db_with_board();
+        let hits = search_tasks_by_cat_and_space(&conn, "sp1", "anything", "   ").unwrap();
+        assert!(hits.is_empty());
+    }
+
+    /// ctq-84: result list is hard-capped at 20 even when many tasks
+    /// match the predicates.
+    #[test]
+    fn search_by_cat_and_space_caps_at_twenty() {
+        let (conn, bd, col) = fresh_db_with_board();
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) VALUES ('catX','X','',0,0)",
+            [],
+        )
+        .unwrap();
+        for i in 0..30 {
+            insert(
+                &conn,
+                &TaskDraft {
+                    board_id: bd.clone(),
+                    column_id: col.clone(),
+                    title: format!("Sweep {i}"),
+                    description: None,
+                    position: f64::from(i),
+                    role_id: Some("catX".into()),
+                },
+            )
+            .unwrap();
+        }
+        let hits = search_tasks_by_cat_and_space(&conn, "sp1", "catX", "Sweep").unwrap();
+        assert_eq!(hits.len(), 20);
     }
 }

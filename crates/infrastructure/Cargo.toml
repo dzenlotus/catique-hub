@@ -69,6 +69,12 @@ criterion.workspace = true
 name = "resolver"
 harness = false
 
+# ctq-84 (cat-as-Agent search perf gate, P99 < 100 ms on 10k tasks).
+# Same harness style as `resolver` — `cargo bench` only.
+[[bench]]
+name = "search_by_cat_and_space"
+harness = false
+
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }
 module_name_repetitions = "allow"
