@@ -84,4 +84,11 @@ pub enum AppError {
         #[ts(rename = "secretRef")]
         secret_ref: String,
     },
+
+    /// Action targets a resource the caller is not allowed to mutate —
+    /// e.g. attempting to delete an `is_system` row seeded by a
+    /// migration. Distinct from `Validation` so the UI can render a
+    /// different affordance (lock icon vs. inline form error).
+    #[error("forbidden: {reason}")]
+    Forbidden { reason: String },
 }
