@@ -75,22 +75,31 @@ pub fn run() {
             handlers::spaces::get_space,
             handlers::spaces::list_spaces,
             handlers::spaces::update_space,
-            // ---------------- space_prompts (ctq-99) ----------------
+            // ---------------- space_prompts + space_skills/mcp_tools (ctq-99 + ctq-120) ----------------
             handlers::spaces::add_space_prompt,
             handlers::spaces::list_space_prompts,
             handlers::spaces::remove_space_prompt,
+            handlers::spaces::set_space_mcp_tools,
             handlers::spaces::set_space_prompts,
-            // ---------------- boards (E2.1 + E2.4) ----------------
+            handlers::spaces::set_space_skills,
+            // ---------------- boards (E2.1 + E2.4 + ctq-101 + ctq-108 + ctq-120) ----------------
             handlers::boards::create_board,
             handlers::boards::delete_board,
             handlers::boards::get_board,
             handlers::boards::list_boards,
+            handlers::boards::set_board_mcp_tools,
+            handlers::boards::set_board_owner,
+            handlers::boards::set_board_prompts,
+            handlers::boards::set_board_skills,
             handlers::boards::update_board,
-            // ---------------- columns (E2.4) ----------------
+            // ---------------- columns (E2.4 + ctq-108 + ctq-120) ----------------
             handlers::columns::create_column,
             handlers::columns::delete_column,
             handlers::columns::get_column,
             handlers::columns::list_columns,
+            handlers::columns::set_column_mcp_tools,
+            handlers::columns::set_column_prompts,
+            handlers::columns::set_column_skills,
             handlers::columns::update_column,
             // ---------------- tasks (E2.4) ----------------
             handlers::tasks::add_task_prompt,
@@ -104,6 +113,7 @@ pub fn run() {
             handlers::tasks::list_task_prompts,
             handlers::tasks::list_tasks,
             handlers::tasks::log_step,
+            handlers::tasks::move_task,
             handlers::tasks::rate_task,
             handlers::tasks::remove_task_prompt,
             handlers::tasks::set_task_prompt_override,
@@ -119,7 +129,7 @@ pub fn run() {
             handlers::prompts::remove_column_prompt,
             handlers::prompts::recompute_prompt_token_count,
             handlers::prompts::update_prompt,
-            // ---------------- roles (E2.4) ----------------
+            // ---------------- roles (E2.4 + ctq-108) ----------------
             handlers::roles::add_role_mcp_tool,
             handlers::roles::add_role_prompt,
             handlers::roles::add_role_skill,
@@ -130,18 +140,27 @@ pub fn run() {
             handlers::roles::remove_role_mcp_tool,
             handlers::roles::remove_role_prompt,
             handlers::roles::remove_role_skill,
+            handlers::roles::set_role_prompts,
             handlers::roles::update_role,
-            // ---------------- skills (E2.x) ----------------
+            // ---------------- skills (E2.x + ctq-117 + ctq-127) ----------------
+            handlers::skills::add_task_skill,
             handlers::skills::create_skill,
             handlers::skills::delete_skill,
             handlers::skills::get_skill,
+            handlers::skills::list_role_skills,
             handlers::skills::list_skills,
+            handlers::skills::list_task_skills,
+            handlers::skills::remove_task_skill,
             handlers::skills::update_skill,
-            // ---------------- mcp tools (E2.x) ----------------
+            // ---------------- mcp tools (E2.x + ctq-117 + ctq-127) ----------------
+            handlers::mcp_tools::add_task_mcp_tool,
             handlers::mcp_tools::create_mcp_tool,
             handlers::mcp_tools::delete_mcp_tool,
             handlers::mcp_tools::get_mcp_tool,
             handlers::mcp_tools::list_mcp_tools,
+            handlers::mcp_tools::list_role_mcp_tools,
+            handlers::mcp_tools::list_task_mcp_tools,
+            handlers::mcp_tools::remove_task_mcp_tool,
             handlers::mcp_tools::update_mcp_tool,
             // ---------------- mcp servers (ctq-115, ADR-0007) ----------------
             handlers::mcp_servers::create_mcp_server,
@@ -150,7 +169,7 @@ pub fn run() {
             handlers::mcp_servers::get_mcp_server_connection_hint,
             handlers::mcp_servers::list_mcp_servers,
             handlers::mcp_servers::update_mcp_server,
-            // ---------------- tags (E2.4) ----------------
+            // ---------------- tags (E2.4 + ctq-108) ----------------
             handlers::tags::add_prompt_tag,
             handlers::tags::create_tag,
             handlers::tags::delete_tag,
@@ -158,6 +177,7 @@ pub fn run() {
             handlers::tags::list_prompt_tags_map,
             handlers::tags::list_tags,
             handlers::tags::remove_prompt_tag,
+            handlers::tags::set_tag_prompts,
             handlers::tags::update_tag,
             // ---------------- agent reports (E2.4) ----------------
             handlers::reports::create_agent_report,
@@ -165,13 +185,14 @@ pub fn run() {
             handlers::reports::get_agent_report,
             handlers::reports::list_agent_reports,
             handlers::reports::update_agent_report,
-            // ---------------- attachments (E2.4 + E5) ----------------
+            // ---------------- attachments (E2.4 + E5 + ctq-110) ----------------
             handlers::attachments::create_attachment,
             handlers::attachments::delete_attachment,
             handlers::attachments::get_attachment,
             handlers::attachments::list_attachments,
             handlers::attachments::update_attachment,
             handlers::attachments::upload_attachment,
+            handlers::attachments::upload_attachment_blob,
             // ---------------- prompt groups (E2.x) ----------------
             handlers::prompt_groups::add_prompt_group_member,
             handlers::prompt_groups::create_prompt_group,
@@ -186,10 +207,11 @@ pub fn run() {
             handlers::settings::get_setting,
             handlers::settings::ping,
             handlers::settings::set_setting,
-            // ---------------- search (E4.1) ----------------
+            // ---------------- search (E4.1 + ctq-84) ----------------
             handlers::search::search_tasks,
             handlers::search::search_agent_reports,
             handlers::search::search_all,
+            handlers::search::search_tasks_by_cat_and_space,
             // ---------------- sidecar (ADR-0002 spike, ctq-56) ----------------
             handlers::sidecar::sidecar_status,
             handlers::sidecar::sidecar_ping,
