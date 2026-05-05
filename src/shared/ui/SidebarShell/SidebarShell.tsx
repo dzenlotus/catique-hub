@@ -71,6 +71,12 @@ export interface SidebarSectionLabelProps {
   /** Mirrored as `aria-label` so AT picks the same string. */
   ariaLabel?: string;
   className?: string;
+  /**
+   * Optional trailing slot rendered on the right side of the label —
+   * typically a filter trigger. Sits flush with the section's right
+   * gutter without disturbing the label's own padding.
+   */
+  trailing?: ReactNode;
 }
 
 /**
@@ -81,13 +87,15 @@ export function SidebarSectionLabel({
   children,
   ariaLabel,
   className,
+  trailing,
 }: SidebarSectionLabelProps): ReactElement {
   const labelProps =
     ariaLabel !== undefined ? { "aria-label": ariaLabel } : {};
 
   return (
     <div className={cn(styles.sectionLabel, className)} {...labelProps}>
-      {children}
+      <span className={styles.sectionLabelText}>{children}</span>
+      {trailing}
     </div>
   );
 }

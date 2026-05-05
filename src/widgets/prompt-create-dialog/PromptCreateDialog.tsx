@@ -14,6 +14,7 @@ import { useState, type ReactElement } from "react";
 
 import { useCreatePromptMutation } from "@entities/prompt";
 import type { Prompt } from "@entities/prompt";
+import { useAddPromptTagMutation } from "@entities/tag";
 import { Dialog, Button, Input, IconColorPicker } from "@shared/ui";
 
 import styles from "./PromptCreateDialog.module.css";
@@ -22,6 +23,12 @@ export interface PromptCreateDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onCreated?: (prompt: Prompt) => void;
+  /**
+   * Tag ids to attach to the newly-created prompt — typically the
+   * tags currently active on the parent's filter affordance, so the
+   * new prompt lands inside the same filter the user is browsing.
+   */
+  inheritedTagIds?: ReadonlyArray<string>;
 }
 
 /**
@@ -31,6 +38,7 @@ export function PromptCreateDialog({
   isOpen,
   onClose,
   onCreated,
+  inheritedTagIds,
 }: PromptCreateDialogProps): ReactElement {
   return (
     <Dialog
@@ -47,6 +55,7 @@ export function PromptCreateDialog({
         <PromptCreateDialogContent
           onClose={onClose}
           {...(onCreated !== undefined ? { onCreated } : {})}
+          {...(inheritedTagIds !== undefined ? { inheritedTagIds } : {})}
         />
       )}
     </Dialog>
@@ -58,13 +67,16 @@ export function PromptCreateDialog({
 interface PromptCreateDialogContentProps {
   onClose: () => void;
   onCreated?: (prompt: Prompt) => void;
+  inheritedTagIds?: ReadonlyArray<string>;
 }
 
 function PromptCreateDialogContent({
   onClose,
   onCreated,
+  inheritedTagIds,
 }: PromptCreateDialogContentProps): ReactElement {
   const createMutation = useCreatePromptMutation();
+  const addPromptTag = useAddPromptTagMutation();
 
   const [name, setName] = useState("");
   const [content, setContent] = useState("");
@@ -98,6 +110,16 @@ function PromptCreateDialogContent({
 
     createMutation.mutate(args, {
       onSuccess: (prompt) => {
+        // Inherit the parent's active tag filter — fire-and-forget per-tag
+        // attachments so the new prompt lands inside the same filter
+        // the user was browsing. Failures fall through to the React-Query
+        // event channel and surface as ordinary toasts; we don't block
+        // the dialog close on them.
+        if (inheritedTagIds && inheritedTagIds.length > 0) {
+          for (const tagId of inheritedTagIds) {
+            addPromptTag.mutate({ promptId: prompt.id, tagId });
+          }
+        }
         onCreated?.(prompt);
         onClose();
       },

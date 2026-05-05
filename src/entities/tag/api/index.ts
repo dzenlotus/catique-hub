@@ -4,5 +4,11 @@ export {
   createTag,
   updateTag,
   deleteTag,
+  addPromptTag,
+  removePromptTag,
 } from "./tagsApi";
-export type { CreateTagArgs, UpdateTagArgs } from "./tagsApi";
+export type {
+  CreateTagArgs,
+  UpdateTagArgs,
+  PromptTagArgs,
+} from "./tagsApi";

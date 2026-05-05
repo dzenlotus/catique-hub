@@ -13,8 +13,14 @@ export {
   createTag,
   updateTag,
   deleteTag,
+  addPromptTag,
+  removePromptTag,
 } from "./api";
-export type { CreateTagArgs, UpdateTagArgs } from "./api";
+export type {
+  CreateTagArgs,
+  UpdateTagArgs,
+  PromptTagArgs,
+} from "./api";
 
 // Model
 export {
@@ -24,6 +30,8 @@ export {
   useCreateTagMutation,
   useUpdateTagMutation,
   useDeleteTagMutation,
+  useAddPromptTagMutation,
+  useRemovePromptTagMutation,
 } from "./model";
 export type { Tag } from "./model";
 

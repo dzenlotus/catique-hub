@@ -260,4 +260,15 @@ describe("PromptsPage", () => {
       screen.getByTestId("prompts-sidebar-add-prompt"),
     ).toBeInTheDocument();
   });
+
+  it("exposes a tags filter trigger next to the PROMPTS section label", async () => {
+    mockIpc({ prompts: [], groups: [] });
+    renderPage();
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompts-sidebar-tags-filter-trigger"),
+      ).toBeInTheDocument();
+    });
+  });
 });

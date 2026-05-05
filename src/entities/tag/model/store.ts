@@ -18,15 +18,23 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  addPromptTag,
   createTag,
   deleteTag,
   getTag,
   listTags,
+  removePromptTag,
   updateTag,
   type CreateTagArgs,
+  type PromptTagArgs,
   type UpdateTagArgs,
 } from "../api";
 import type { Tag } from "./types";
+
+const promptsKeys = {
+  all: ["prompts"] as const,
+  tagMap: () => ["prompts", "tagMap"] as const,
+};
 
 /** Query-key factory. Centralised so invalidation stays consistent. */
 export const tagsKeys = {
@@ -96,6 +104,42 @@ export function useDeleteTagMutation(): UseMutationResult<
     mutationFn: deleteTag,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: tagsKeys.list() });
+    },
+  });
+}
+
+/**
+ * `useAddPromptTagMutation` — attach a tag to a prompt, then invalidate
+ * the prompts→tags map so filter chips and tag chips refresh.
+ */
+export function useAddPromptTagMutation(): UseMutationResult<
+  void,
+  Error,
+  PromptTagArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: addPromptTag,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: promptsKeys.tagMap() });
+    },
+  });
+}
+
+/**
+ * `useRemovePromptTagMutation` — detach a tag from a prompt, then
+ * invalidate the prompts→tags map.
+ */
+export function useRemovePromptTagMutation(): UseMutationResult<
+  void,
+  Error,
+  PromptTagArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: removePromptTag,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: promptsKeys.tagMap() });
     },
   });
 }

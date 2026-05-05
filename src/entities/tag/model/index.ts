@@ -6,4 +6,6 @@ export {
   useCreateTagMutation,
   useUpdateTagMutation,
   useDeleteTagMutation,
+  useAddPromptTagMutation,
+  useRemovePromptTagMutation,
 } from "./store";

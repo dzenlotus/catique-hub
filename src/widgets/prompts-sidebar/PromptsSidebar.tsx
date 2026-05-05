@@ -7,7 +7,7 @@ import {
   SidebarSectionDivider,
   SidebarNavItem,
 } from "@shared/ui";
-import { type Prompt, usePrompts } from "@entities/prompt";
+import { type Prompt, usePrompts, usePromptTagsMap } from "@entities/prompt";
 import {
   type PromptGroup,
   usePromptGroups,
@@ -17,6 +17,7 @@ import { PromptCreateDialog } from "@widgets/prompt-create-dialog";
 
 import { GroupRow } from "./GroupRow";
 import { PromptRow } from "./PromptRow";
+import { TagsFilterButton } from "./TagsFilterButton";
 import styles from "./PromptsSidebar.module.css";
 
 // ---------------------------------------------------------------------------
@@ -69,6 +70,7 @@ export function PromptsSidebar({
 }: PromptsSidebarProps): ReactElement {
   const promptsQuery = usePrompts();
   const groupsQuery = usePromptGroups();
+  const tagsMapQuery = usePromptTagsMap();
 
   const prompts: Prompt[] = useMemo(
     () => promptsQuery.data ?? [],
@@ -78,6 +80,29 @@ export function PromptsSidebar({
     () => groupsQuery.data ?? [],
     [groupsQuery.data],
   );
+
+  // ── Filter state ───────────────────────────────────────────────────
+  // Multi-select tag filter — when one or more tags are selected, the
+  // PROMPTS list is restricted to prompts that carry ALL selected tags
+  // (intersection). New prompts created via the sidebar's "Add prompt"
+  // button inherit the active filter tags so the user lands inside
+  // the same filter without an extra click.
+  const [filterTagIds, setFilterTagIds] = useState<ReadonlyArray<string>>([]);
+
+  const filteredPrompts = useMemo<Prompt[]>(() => {
+    if (filterTagIds.length === 0) return prompts;
+    const promptTags = tagsMapQuery.data;
+    if (!promptTags) return prompts;
+    const promptToTagSet = new Map<string, Set<string>>();
+    for (const entry of promptTags) {
+      promptToTagSet.set(entry.promptId, new Set(entry.tagIds));
+    }
+    return prompts.filter((p) => {
+      const tagSet = promptToTagSet.get(p.id);
+      if (!tagSet) return false;
+      return filterTagIds.every((id) => tagSet.has(id));
+    });
+  }, [prompts, filterTagIds, tagsMapQuery.data]);
 
   // ── Dialogs ────────────────────────────────────────────────────────
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
@@ -149,6 +174,15 @@ export function PromptsSidebar({
         </div>
       );
     }
+    if (filteredPrompts.length === 0) {
+      return (
+        <div className={styles.bodyEmpty}>
+          <span className={styles.bodyEmptyText}>
+            No prompts match the active tag filter.
+          </span>
+        </div>
+      );
+    }
 
     return (
       <ul
@@ -156,7 +190,7 @@ export function PromptsSidebar({
         role="list"
         data-testid="prompts-sidebar-prompt-list"
       >
-        {prompts.map((prompt, index) => (
+        {filteredPrompts.map((prompt, index) => (
           <PromptRow
             key={prompt.id}
             prompt={prompt}
@@ -204,7 +238,17 @@ export function PromptsSidebar({
 
         <SidebarSectionDivider />
 
-        <SidebarSectionLabel ariaLabel="Prompts">PROMPTS</SidebarSectionLabel>
+        <SidebarSectionLabel
+          ariaLabel="Prompts"
+          trailing={
+            <TagsFilterButton
+              selectedTagIds={filterTagIds}
+              onChange={setFilterTagIds}
+            />
+          }
+        >
+          PROMPTS
+        </SidebarSectionLabel>
         {renderPromptsBody()}
         {promptsQuery.status === "success" ? (
           <SidebarAddRow
@@ -224,6 +268,7 @@ export function PromptsSidebar({
       <PromptCreateDialog
         isOpen={isPromptDialogOpen}
         onClose={() => setIsPromptDialogOpen(false)}
+        inheritedTagIds={filterTagIds}
       />
     </>
   );

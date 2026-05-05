@@ -96,3 +96,28 @@ export async function updateTag(args: UpdateTagArgs): Promise<Tag> {
 export async function deleteTag(id: string): Promise<void> {
   return invokeWithAppError<void>("delete_tag", { id });
 }
+
+// ---------------------------------------------------------------------
+// Join-table helpers — prompt_tags.
+// ---------------------------------------------------------------------
+
+export interface PromptTagArgs {
+  promptId: string;
+  tagId: string;
+}
+
+/** `add_prompt_tag` — attach a tag to a prompt. */
+export async function addPromptTag(args: PromptTagArgs): Promise<void> {
+  return invokeWithAppError<void>("add_prompt_tag", {
+    promptId: args.promptId,
+    tagId: args.tagId,
+  });
+}
+
+/** `remove_prompt_tag` — detach a tag from a prompt. */
+export async function removePromptTag(args: PromptTagArgs): Promise<void> {
+  return invokeWithAppError<void>("remove_prompt_tag", {
+    promptId: args.promptId,
+    tagId: args.tagId,
+  });
+}

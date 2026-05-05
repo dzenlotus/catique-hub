@@ -27,6 +27,10 @@
 }
 
 .sectionLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
   padding: 0 var(--space-4) var(--space-12);
   font-family: var(--font-sans);
   font-size: 13px;
@@ -37,6 +41,11 @@
   color: var(--color-text-subtle);
   user-select: none;
   flex-shrink: 0;
+}
+
+.sectionLabelText {
+  flex: 1;
+  min-width: 0;
 }
 
 /* "+ Add ..." trigger pinned at the bottom of a section. Mirrors the

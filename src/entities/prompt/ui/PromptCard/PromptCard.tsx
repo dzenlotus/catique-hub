@@ -30,7 +30,7 @@ export interface PromptCardProps {
  * Layout (vertical):
  *   - top:    `name` (single line, truncated with ellipsis)
  *   - middle: `shortDescription` if present (muted text)
- *   - bottom: meta row — optional color swatch + optional token-count chip
+ *   - bottom: meta row — optional token-count chip
  *
  * Uses a native `<button>` for activation so Enter, Space, and platform
  * a11y semantics come for free.
@@ -84,13 +84,6 @@ export function PromptCard({
       )}
 
       <span className={styles.meta}>
-        {prompt.color !== null && (
-          <span
-            className={styles.colorSwatch}
-            style={{ backgroundColor: prompt.color }}
-            aria-label={`Color: ${prompt.color}`}
-          />
-        )}
         {prompt.tokenCount !== null && prompt.tokenCount > 0n && (
           <span className={styles.tokenChip} aria-label="Token count">
             ≈{prompt.tokenCount.toString()} tokens
