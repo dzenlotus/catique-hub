@@ -15,8 +15,9 @@
 import { useState, type ReactElement } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { useCreateBoardMutation } from "@entities/board";
+import { boardsKeys } from "@entities/board";
 import type { Board } from "@entities/board";
+import { useRoles } from "@entities/role";
 import { useSpaces } from "@entities/space";
 import { invoke } from "@shared/api";
 import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
@@ -24,6 +25,34 @@ import { cn } from "@shared/lib";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 
 import styles from "./BoardCreateDialog.module.css";
+
+/**
+ * Default owner-cat for newly-created boards.
+ *
+ * Matches the seeded `roles.id = 'maintainer-system'` row from migration
+ * `004_cat_as_agent_phase1.sql`. Mirrors the DB-level default on
+ * `boards.owner_role_id`, so picking this value in the dialog produces
+ * the same effect as omitting it server-side — minus the schema drift
+ * risk (`bindings/Board.ts` makes `ownerRoleId` non-null, ctq-105).
+ */
+const DEFAULT_OWNER_ROLE_ID = "maintainer-system";
+
+/**
+ * Args for the local `create_board` mutation. The shared
+ * `entities/board` `useCreateBoardMutation` does not yet model
+ * `ownerRoleId` — we send it directly here so the schema-required
+ * field (migration 004) leaves the dialog. Once the IPC handler in
+ * `crates/api/src/handlers/boards.rs` accepts the arg (ctq-101 batch),
+ * this mutation can be folded back into the entity.
+ */
+interface CreateBoardLocalArgs {
+  name: string;
+  spaceId: string;
+  ownerRoleId: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+}
 
 export interface BoardCreateDialogProps {
   isOpen: boolean;
@@ -118,11 +147,41 @@ function BoardCreateDialogContent({
 }: BoardCreateDialogContentProps): ReactElement {
   const queryClient = useQueryClient();
   const spacesQuery = useSpaces();
-  const createBoard = useCreateBoardMutation();
+  // Owner-cat picker source. `excludeSystem: true` drops the
+  // coordinator-only `dirizher-system` row (ctq-88 guard) while keeping
+  // `maintainer-system` and every user-defined cat available.
+  const rolesQuery = useRoles({ excludeSystem: true });
+
+  // Local create-board mutation. We bypass `useCreateBoardMutation`
+  // from `@entities/board` because that hook's `CreateBoardArgs` does
+  // not yet expose `ownerRoleId`. Invalidates the same `["boards"]`
+  // root key on success so every mounted `useBoards()` re-fetches.
+  const createBoard = useMutation<Board, Error, CreateBoardLocalArgs>({
+    mutationFn: async (args) => {
+      const payload: Record<string, unknown> = {
+        name: args.name,
+        spaceId: args.spaceId,
+        ownerRoleId: args.ownerRoleId,
+      };
+      if (args.description !== undefined) payload.description = args.description;
+      if (args.color !== undefined) payload.color = args.color;
+      if (args.icon !== undefined) payload.icon = args.icon;
+      return invoke<Board>("create_board", payload);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: boardsKeys.list() });
+    },
+  });
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [spaceId, setSpaceId] = useState<string | null>(null);
+  // Default = Maintainer for low-friction creation. The Submit gate
+  // below still enforces a non-empty value in case the user clears
+  // the picker manually (defensive — UI never offers an empty option).
+  const [ownerRoleId, setOwnerRoleId] = useState<string>(
+    DEFAULT_OWNER_ROLE_ID,
+  );
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   /**
@@ -169,7 +228,10 @@ function BoardCreateDialogContent({
   const noSpacesYet =
     spacesQuery.status === "success" && spacesQuery.data.length === 0;
 
-  const canSubmit = name.trim().length > 0 && resolvedSpaceId !== null;
+  const canSubmit =
+    name.trim().length > 0 &&
+    resolvedSpaceId !== null &&
+    ownerRoleId.trim().length > 0;
 
   const handleSubmit = (): void => {
     setSubmitError(null);
@@ -182,11 +244,21 @@ function BoardCreateDialogContent({
       setSubmitError("Select or create a space.");
       return;
     }
+    if (ownerRoleId.trim().length === 0) {
+      setSubmitError("Pick an owner cat.");
+      return;
+    }
     const trimmedDescription = description.trim();
+    // `ownerRoleId` is sent verbatim to `create_board`. `bindings/Board.ts`
+    // already requires the field non-null (migration 004); the IPC handler
+    // accepts it once ctq-101 lands, and meanwhile silently ignores the
+    // extra arg while the DB-level DEFAULT keeps `maintainer-system` —
+    // matching what the picker pre-selects, so behaviour is consistent.
     createBoard.mutate(
       {
         name: trimmedName,
         spaceId: resolvedSpaceId,
+        ownerRoleId,
         ...(trimmedDescription ? { description: trimmedDescription } : {}),
         ...(color !== "" ? { color } : {}),
         ...(icon !== null ? { icon } : {}),
@@ -234,6 +306,32 @@ function BoardCreateDialogContent({
             rows={3}
             data-testid="board-create-dialog-description-input"
           />
+        </label>
+      </div>
+
+      {/* Owner cat picker — required (`boards.owner_role_id NOT NULL`). */}
+      <div className={styles.section}>
+        <label className={styles.selectField}>
+          <span className={styles.selectLabel}>Owner cat</span>
+          <select
+            className={styles.select}
+            value={ownerRoleId}
+            onChange={(e) => setOwnerRoleId(e.target.value)}
+            aria-label="Owner cat"
+            data-testid="board-create-dialog-owner-select"
+          >
+            {rolesQuery.status === "success"
+              ? rolesQuery.data.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))
+              : (
+                <option value={DEFAULT_OWNER_ROLE_ID}>
+                  Loading…
+                </option>
+              )}
+          </select>
         </label>
       </div>
 

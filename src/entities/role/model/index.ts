@@ -6,5 +6,15 @@ export {
   useCreateRoleMutation,
   useUpdateRoleMutation,
   useDeleteRoleMutation,
+  useRolePrompts,
   useAddRolePromptMutation,
+  useRemoveRolePromptMutation,
+  useSetRolePromptsMutation,
+  useRoleSkills,
+  useAddRoleSkillMutation,
+  useRemoveRoleSkillMutation,
+  useRoleMcpTools,
+  useAddRoleMcpToolMutation,
+  useRemoveRoleMcpToolMutation,
 } from "./store";
+export type { UseRolesOptions, SetRolePromptsArgs } from "./store";

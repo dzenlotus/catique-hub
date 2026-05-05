@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Board } from "@entities/board";
+import type { Role } from "@entities/role";
 import type { Space } from "@entities/space";
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 
@@ -69,6 +70,47 @@ function makeSpace(overrides: Partial<Space> = {}): Space {
   };
 }
 
+function makeRole(overrides: Partial<Role> = {}): Role {
+  return {
+    id: "role-user",
+    name: "User Cat",
+    content: "",
+    color: null,
+    isSystem: false,
+    createdAt: 0n,
+    updatedAt: 0n,
+    ...overrides,
+  };
+}
+
+/**
+ * Default mock roster for `list_roles` calls. Mirrors the seeded
+ * application state: Maintainer + Dirizher system rows plus one user
+ * role. The dialog requests `excludeSystem: true` and must filter
+ * Dirizher out at the hook layer (see `useRoles` in
+ * `entities/role/model/store.ts`).
+ */
+function defaultRoles(): Role[] {
+  return [
+    makeRole({ id: "maintainer-system", name: "Maintainer", isSystem: true }),
+    makeRole({ id: "dirizher-system", name: "Dirizher", isSystem: true }),
+    makeRole({ id: "role-user", name: "Senior Cat", isSystem: false }),
+  ];
+}
+
+/**
+ * Wire `invoke` mock for the standard happy-path. Each test composes
+ * its specific overrides on top of this baseline, mirroring the
+ * pattern used in `task-create-dialog`.
+ */
+function setupDefaultMocks(spaces: Space[] = [makeSpace()]): void {
+  invokeMock.mockImplementation(async (cmd) => {
+    if (cmd === "list_spaces") return spaces;
+    if (cmd === "list_roles") return defaultRoles();
+    throw new Error(`unexpected command: ${cmd}`);
+  });
+}
+
 beforeEach(() => {
   invokeMock.mockReset();
 });
@@ -79,7 +121,7 @@ afterEach(() => {
 
 describe("BoardCreateDialog", () => {
   it("renders the form fields when open", async () => {
-    invokeMock.mockResolvedValue([makeSpace()]);
+    setupDefaultMocks();
     renderWithClient(
       <BoardCreateDialog isOpen onClose={() => undefined} />,
     );
@@ -89,10 +131,13 @@ describe("BoardCreateDialog", () => {
     expect(
       await screen.findByTestId("board-create-dialog-space-select"),
     ).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("board-create-dialog-owner-select"),
+    ).toBeInTheDocument();
   });
 
   it("Save button is disabled when name is empty", async () => {
-    invokeMock.mockResolvedValue([makeSpace()]);
+    setupDefaultMocks();
     renderWithClient(
       <BoardCreateDialog isOpen onClose={() => undefined} />,
     );
@@ -101,7 +146,7 @@ describe("BoardCreateDialog", () => {
   });
 
   it("Save button becomes enabled once name is filled", async () => {
-    invokeMock.mockResolvedValue([makeSpace()]);
+    setupDefaultMocks();
     const { user } = renderWithClient(
       <BoardCreateDialog isOpen onClose={() => undefined} />,
     );
@@ -111,10 +156,43 @@ describe("BoardCreateDialog", () => {
     expect(saveBtn).not.toBeDisabled();
   });
 
+  it("preselects Maintainer as the default owner cat", async () => {
+    setupDefaultMocks();
+    renderWithClient(
+      <BoardCreateDialog isOpen onClose={() => undefined} />,
+    );
+    const ownerSelect = (await screen.findByTestId(
+      "board-create-dialog-owner-select",
+    )) as HTMLSelectElement;
+    // Pre-selected even before `list_roles` resolves so the Submit
+    // button is not blocked by the loading window.
+    expect(ownerSelect.value).toBe("maintainer-system");
+  });
+
+  it("excludes Dirizher from the owner picker but keeps Maintainer", async () => {
+    setupDefaultMocks();
+    renderWithClient(
+      <BoardCreateDialog isOpen onClose={() => undefined} />,
+    );
+    const ownerSelect = (await screen.findByTestId(
+      "board-create-dialog-owner-select",
+    )) as HTMLSelectElement;
+
+    // Wait for `list_roles` to resolve and the picker to render the
+    // filtered options.
+    await waitFor(() => {
+      const ids = Array.from(ownerSelect.options).map((o) => o.value);
+      expect(ids).toContain("maintainer-system");
+      expect(ids).toContain("role-user");
+      expect(ids).not.toContain("dirizher-system");
+    });
+  });
+
   it("calls create_board mutation with correct payload on submit", async () => {
     const newBoard = makeBoard({ id: "brd-new", name: "Спринт" });
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_spaces") return [makeSpace({ id: "spc-1" })];
+      if (cmd === "list_roles") return defaultRoles();
       if (cmd === "create_board") return newBoard;
       throw new Error(`unexpected command: ${cmd}`);
     });
@@ -135,12 +213,49 @@ describe("BoardCreateDialog", () => {
     expect(onCreated).toHaveBeenCalledWith(newBoard);
 
     const createCall = invokeMock.mock.calls.find(([cmd]) => cmd === "create_board");
-    // Boards default to a neutral list glyph; the test asserts
-    // exactly what the dialog sends when the user only types a name.
+    // Boards default to a neutral list glyph + Maintainer owner. The
+    // test asserts exactly what the dialog sends when the user only
+    // types a name (everything else stays at its preselected default).
     expect(createCall?.[1]).toEqual({
       name: "Спринт",
       spaceId: "spc-1",
+      ownerRoleId: "maintainer-system",
       icon: "PixelInterfaceEssentialList",
+    });
+  });
+
+  it("sends the chosen owner cat in the create payload", async () => {
+    const newBoard = makeBoard({ id: "brd-new", ownerRoleId: "role-user" });
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_spaces") return [makeSpace({ id: "spc-1" })];
+      if (cmd === "list_roles") return defaultRoles();
+      if (cmd === "create_board") return newBoard;
+      throw new Error(`unexpected: ${cmd}`);
+    });
+
+    const { user } = renderWithClient(
+      <BoardCreateDialog isOpen onClose={() => undefined} />,
+    );
+
+    const nameInput = await screen.findByTestId("board-create-dialog-name-input");
+    await user.type(nameInput, "Спринт");
+
+    // Wait for the picker to populate with the user role, then switch.
+    const ownerSelect = (await screen.findByTestId(
+      "board-create-dialog-owner-select",
+    )) as HTMLSelectElement;
+    await waitFor(() => {
+      expect(
+        Array.from(ownerSelect.options).map((o) => o.value),
+      ).toContain("role-user");
+    });
+    await user.selectOptions(ownerSelect, "role-user");
+
+    await user.click(screen.getByTestId("board-create-dialog-save"));
+
+    const createCall = invokeMock.mock.calls.find(([cmd]) => cmd === "create_board");
+    expect(createCall?.[1]).toMatchObject({
+      ownerRoleId: "role-user",
     });
   });
 
@@ -148,6 +263,7 @@ describe("BoardCreateDialog", () => {
     const newBoard = makeBoard();
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_spaces") return [makeSpace()];
+      if (cmd === "list_roles") return defaultRoles();
       if (cmd === "create_board") return newBoard;
       throw new Error(`unexpected: ${cmd}`);
     });
@@ -169,6 +285,7 @@ describe("BoardCreateDialog", () => {
   it("shows inline error on mutation failure", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_spaces") return [makeSpace()];
+      if (cmd === "list_roles") return defaultRoles();
       if (cmd === "create_board") throw new Error("db error");
       throw new Error(`unexpected: ${cmd}`);
     });
@@ -188,7 +305,7 @@ describe("BoardCreateDialog", () => {
   });
 
   it("Cancel closes without calling the mutation", async () => {
-    invokeMock.mockResolvedValue([makeSpace()]);
+    setupDefaultMocks();
 
     const onClose = vi.fn();
     const { user } = renderWithClient(
@@ -213,6 +330,7 @@ describe("BoardCreateDialog", () => {
   it("shows bootstrap CTA when no spaces exist", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_spaces") return [];
+      if (cmd === "list_roles") return defaultRoles();
       throw new Error(`unexpected: ${cmd}`);
     });
 
@@ -226,7 +344,7 @@ describe("BoardCreateDialog", () => {
   });
 
   it("defaults to the isDefault space when multiple spaces exist", async () => {
-    invokeMock.mockResolvedValue([
+    setupDefaultMocks([
       makeSpace({ id: "spc-first", name: "Первое", isDefault: false }),
       makeSpace({ id: "spc-default", name: "По умолчанию", isDefault: true }),
     ]);
@@ -248,7 +366,7 @@ describe("BoardCreateDialog", () => {
     // (it comes first so ActiveSpaceProvider picks it via localStorage restore
     // OR we rely on it being first and non-default; the provider auto-selects
     // isDefault, so make spc-active isDefault to control which is active).
-    invokeMock.mockResolvedValue([
+    setupDefaultMocks([
       makeSpace({ id: "spc-active", name: "Активное", isDefault: true }),
       makeSpace({ id: "spc-other", name: "Другое", isDefault: false }),
     ]);

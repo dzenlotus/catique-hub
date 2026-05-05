@@ -14,11 +14,25 @@ export {
   updateRole,
   deleteRole,
   addRolePrompt,
+  removeRolePrompt,
+  listRolePrompts,
+  setRolePrompts,
+  addRoleSkill,
+  removeRoleSkill,
+  listRoleSkills,
+  addRoleMcpTool,
+  removeRoleMcpTool,
+  listRoleMcpTools,
 } from "./api";
 export type {
   CreateRoleArgs,
   UpdateRoleArgs,
   AddRolePromptArgs,
+  RemoveRolePromptArgs,
+  AddRoleSkillArgs,
+  RemoveRoleSkillArgs,
+  AddRoleMcpToolArgs,
+  RemoveRoleMcpToolArgs,
 } from "./api";
 
 // Model
@@ -29,9 +43,18 @@ export {
   useCreateRoleMutation,
   useUpdateRoleMutation,
   useDeleteRoleMutation,
+  useRolePrompts,
   useAddRolePromptMutation,
+  useRemoveRolePromptMutation,
+  useSetRolePromptsMutation,
+  useRoleSkills,
+  useAddRoleSkillMutation,
+  useRemoveRoleSkillMutation,
+  useRoleMcpTools,
+  useAddRoleMcpToolMutation,
+  useRemoveRoleMcpToolMutation,
 } from "./model";
-export type { Role } from "./model";
+export type { Role, UseRolesOptions, SetRolePromptsArgs } from "./model";
 
 // UI
 export { RoleCard } from "./ui";

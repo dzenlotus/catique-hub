@@ -198,9 +198,13 @@ describe("BoardsList", () => {
       ([cmd]) => cmd === "create_board",
     );
     expect(createCall).toBeDefined();
+    // ctq-105: BoardCreateDialog now sends `ownerRoleId` (Maintainer
+    // by default) so the schema-required `boards.owner_role_id` is
+    // never elided from the IPC payload.
     expect(createCall?.[1]).toEqual({
       name: "Sprint 14",
       spaceId: "spc-default",
+      ownerRoleId: "maintainer-system",
       icon: "PixelInterfaceEssentialList",
     });
 
