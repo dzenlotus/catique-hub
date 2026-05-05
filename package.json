@@ -36,6 +36,9 @@
     "react": "^19.2.5",
     "react-aria-components": "1.17.0",
     "react-dom": "^19.2.5",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
     "the-new-css-reset": "^1.11.3",
     "wouter": "^3.9.0"
   },
