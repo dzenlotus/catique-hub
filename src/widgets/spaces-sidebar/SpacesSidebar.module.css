@@ -32,6 +32,7 @@
 /* Space header row (chevron + name).
  * Ctq-76 item 1: kebab column removed; the trailing 28-px track is gone. */
 .spaceRow {
+  position: relative;
   display: grid;
   grid-template-columns: 28px 1fr;
   align-items: center;
@@ -40,9 +41,41 @@
   margin-left: -4px;
 }
 
-.spaceRowActive {
-  /* No special highlight on the space header itself — active board row
-     carries it. */
+/*
+ * Round-19f: highlight the space header when its /spaces/:id/settings
+ * route is open. Mirrors `.navItemRowActive` from SidebarShell —
+ * accent-soft inset background + leading red strip — so the user
+ * always sees where they are in the rail.
+ */
+.spaceRowActive::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  right: 0;
+  background-color: var(--color-accent-soft);
+  border-radius: var(--radius-sm);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.spaceRowActive::after {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 4px;
+  bottom: 4px;
+  width: 5px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-cta-bg);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.spaceRow > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Chevron toggle button */

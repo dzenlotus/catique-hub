@@ -50,12 +50,19 @@ export function SpaceRow({
   onSelectBoard,
   isDefaultExpanded,
 }: SpaceRowProps): ReactElement {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const [isExpanded, setIsExpanded] = useLocalStorage(
     getExpandedKey(space.id),
     booleanCodec,
     isDefaultExpanded,
   );
+
+  // Round-19f: highlight the space header when the user is on its
+  // settings page, mirroring how the board row highlights when a
+  // /boards/:id route is active. Other surfaces (BoardHome, kanban)
+  // intentionally don't trigger this — the active board row carries
+  // the highlight there.
+  const isOnSpaceSettings = location === spaceSettingsPath(space.id);
   // Round-19e: "Settings" from the per-board kebab navigates to the
   // /boards/:id/settings route (replaces the modal-based BoardEditor).
   // Replaces the old `window.confirm` flow — modal shows up via the
@@ -102,7 +109,10 @@ export function SpaceRow({
     <li className={styles.spaceItem}>
       {/* Space header row */}
       <div
-        className={cn(styles.spaceRow, isActiveSpace && styles.spaceRowActive)}
+        className={cn(
+          styles.spaceRow,
+          isOnSpaceSettings && styles.spaceRowActive,
+        )}
         data-testid={`spaces-sidebar-space-row-${space.id}`}
       >
         {/* Chevron — toggles expand/collapse, does NOT change active space */}
