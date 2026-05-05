@@ -81,18 +81,20 @@ export function PromptEditorPanel({
         aria-label="Prompt editor"
         data-testid="prompt-editor-panel"
       >
-        <Scrollable axis="y" className={styles.scrollArea}>
-          <div className={styles.scrollAreaInner}>
-            <div className={styles.section}>
-              <div className={cn(styles.skeletonRow, styles.skeletonRowNarrow)} />
-              <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
+        <div className={styles.scrollArea}>
+          <Scrollable axis="y" className={styles.scrollableHost}>
+            <div className={styles.scrollAreaInner}>
+              <div className={styles.section}>
+                <div className={cn(styles.skeletonRow, styles.skeletonRowNarrow)} />
+                <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
+              </div>
+              <div className={styles.section}>
+                <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
+                <div className={styles.skeletonBlock} />
+              </div>
             </div>
-            <div className={styles.section}>
-              <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
-              <div className={styles.skeletonBlock} />
-            </div>
-          </div>
-        </Scrollable>
+          </Scrollable>
+        </div>
         <div className={styles.footer}>
           <Button
             variant="ghost"
@@ -306,7 +308,8 @@ export function PromptEditorPanel({
         />
         <h2 className={styles.title}>{prompt.name}</h2>
       </header>
-      <Scrollable axis="y" className={styles.scrollArea}>
+      <div className={styles.scrollArea}>
+      <Scrollable axis="y" className={styles.scrollableHost}>
         <div className={styles.scrollAreaInner}>
         {/* Name */}
         <div className={styles.section}>
@@ -416,6 +419,7 @@ export function PromptEditorPanel({
         </div>
         </div>
       </Scrollable>
+      </div>
 
       <div className={styles.footer}>
         {saveError ? (
