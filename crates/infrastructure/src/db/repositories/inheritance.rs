@@ -26,6 +26,7 @@
 
 use rusqlite::{params, Connection, Transaction, TransactionBehavior};
 
+use super::tasks::AttachScope;
 use crate::db::pool::DbError;
 
 /// Parent scope for a skill or MCP-tool inheritance attachment.
@@ -146,8 +147,13 @@ pub fn remove_skill(
 ///   1. `DELETE FROM <table> WHERE <parent> = ?1`
 ///   2. `INSERT … (parent_id, skill_id, position)` for each `skill_id`
 ///      with `position = i as f64` to preserve caller-supplied order.
+///   3. `cascade_clear_skill_scope` followed by one
+///      `cascade_skill_attachment` per leaf — the resolver's
+///      materialised `task_skills` rows are kept in sync inside the
+///      same transaction (ctq-121).
 ///
-/// Empty `skill_ids` clears the parent.
+/// Empty `skill_ids` clears the parent and wipes the scope's
+/// materialised rows.
 ///
 /// # Errors
 ///
@@ -162,8 +168,18 @@ pub fn set_skills(
 ) -> Result<(), DbError> {
     let table = scope.skill_table();
     let parent = scope.parent_col();
+    let attach_scope = inheritance_to_attach_scope(scope, parent_id);
     let tx = Transaction::new_unchecked(conn, TransactionBehavior::Immediate)?;
     set_inner(&tx, table, parent, parent_id, "skill_id", skill_ids)?;
+    // Materialised rows: wipe the prior scope contribution and
+    // re-cascade each leaf with `position = idx as f64` (matches the
+    // join-table numbering set by `set_inner`).
+    cascade_clear_skill_scope(&tx, &attach_scope)?;
+    for (idx, skill_id) in skill_ids.iter().enumerate() {
+        #[allow(clippy::cast_precision_loss)]
+        let position = idx as f64;
+        cascade_skill_attachment(&tx, &attach_scope, skill_id, position)?;
+    }
     tx.commit()?;
     Ok(())
 }
@@ -235,7 +251,9 @@ pub fn remove_mcp_tool(
     Ok(n > 0)
 }
 
-/// Replace the entire MCP-tool list for `parent_id`.
+/// Replace the entire MCP-tool list for `parent_id`. Mirrors
+/// [`set_skills`] — also clears + re-cascades the materialised
+/// `task_mcp_tools` rows in the same transaction (ctq-121).
 ///
 /// # Errors
 ///
@@ -248,10 +266,253 @@ pub fn set_mcp_tools(
 ) -> Result<(), DbError> {
     let table = scope.mcp_tool_table();
     let parent = scope.parent_col();
+    let attach_scope = inheritance_to_attach_scope(scope, parent_id);
     let tx = Transaction::new_unchecked(conn, TransactionBehavior::Immediate)?;
     set_inner(&tx, table, parent, parent_id, "mcp_tool_id", mcp_tool_ids)?;
+    cascade_clear_mcp_tool_scope(&tx, &attach_scope)?;
+    for (idx, mcp_tool_id) in mcp_tool_ids.iter().enumerate() {
+        #[allow(clippy::cast_precision_loss)]
+        let position = idx as f64;
+        cascade_mcp_tool_attachment(&tx, &attach_scope, mcp_tool_id, position)?;
+    }
     tx.commit()?;
     Ok(())
+}
+
+/// Bridge between the [`InheritanceScope`] (board/column/space — used
+/// by the join tables in this module) and the cascade-side
+/// [`AttachScope`] (which also covers role).
+fn inheritance_to_attach_scope(scope: InheritanceScope, parent_id: &str) -> AttachScope {
+    match scope {
+        InheritanceScope::Board => AttachScope::Board(parent_id.to_owned()),
+        InheritanceScope::Column => AttachScope::Column(parent_id.to_owned()),
+        InheritanceScope::Space => AttachScope::Space(parent_id.to_owned()),
+    }
+}
+
+// =====================================================================
+// Cascade helpers — write-time materialisation onto task_skills /
+// task_mcp_tools (ctq-121, mirrors ADR-0006 prompt cascades).
+//
+// Whenever a skill/mcp_tool is attached at any scope above task-direct,
+// the application layer calls `cascade_skill_attachment` / mirror to
+// INSERT one row into `task_skills` (or `task_mcp_tools`) for every task
+// that inherits the attachment, tagging `origin` with the source scope
+// id. Detachment uses the symmetric `cascade_*_detachment` helpers; the
+// scope-clear sweeper supports the bulk `set_*` setters that need to
+// wipe a scope's contributions before re-cascading.
+//
+// Idempotency: `INSERT OR IGNORE` (via `ON CONFLICT … DO NOTHING`) so
+// re-runs and the override rule (direct beats inherited at read time)
+// never clobber an existing row.
+//
+// The `task_skills` / `task_mcp_tools` schema (see `001_initial.sql:186-200`)
+// uses `(task_id, leaf_id)` as the composite primary key with an
+// `origin` column on top — same shape as `task_prompts`. The cleanup
+// trigger `cleanup_role_origin_on_role_delete` already strips
+// `origin = 'role:<id>'` rows on role delete (`001_initial.sql:248-250`),
+// so role-scoped cascades survive the FK-cascade boundary cleanly.
+// =====================================================================
+
+/// Format the SQL-side origin tag for a scope: `role:<id>` /
+/// `column:<id>` / `board:<id>` / `space:<id>`. Mirrors
+/// `tasks::AttachScope::origin_tag` (which is private to that module —
+/// we recompute here to keep the inheritance module self-contained).
+fn origin_tag(scope: &AttachScope) -> String {
+    match scope {
+        AttachScope::Role(id) => format!("role:{id}"),
+        AttachScope::Column(id) => format!("column:{id}"),
+        AttachScope::Board(id) => format!("board:{id}"),
+        AttachScope::Space(id) => format!("space:{id}"),
+    }
+}
+
+/// Materialise one skill onto every task in scope. Idempotent on
+/// `(task_id, skill_id)` — `ON CONFLICT DO NOTHING` so an existing
+/// direct attachment is never overwritten.
+///
+/// Returns the number of rows materialised (zero if no tasks live under
+/// the scope).
+///
+/// # Errors
+///
+/// FK violation surfaces as [`DbError::Sqlite`]. The cascade is
+/// FK-safe by construction (it enumerates existing tasks).
+pub fn cascade_skill_attachment(
+    conn: &Connection,
+    scope: &AttachScope,
+    skill_id: &str,
+    position: f64,
+) -> Result<usize, DbError> {
+    cascade_leaf_attachment(conn, scope, "task_skills", "skill_id", skill_id, position)
+}
+
+/// Symmetric inverse of [`cascade_skill_attachment`]: strip every row
+/// inherited from this scope+skill pair. Direct rows
+/// (`origin = 'direct'`) survive — the override rule keeps a user's
+/// manual attachment alive across a board-level detach.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn cascade_skill_detachment(
+    conn: &Connection,
+    scope: &AttachScope,
+    skill_id: &str,
+) -> Result<usize, DbError> {
+    let origin = origin_tag(scope);
+    let n = conn.execute(
+        "DELETE FROM task_skills WHERE skill_id = ?1 AND origin = ?2",
+        params![skill_id, origin],
+    )?;
+    Ok(n)
+}
+
+/// Strip every inherited row in `task_skills` carrying this scope's
+/// origin (regardless of `skill_id`). Used by `set_*_skills` bulk
+/// setters that need to wipe the scope's contribution before
+/// re-cascading the new ordered list.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn cascade_clear_skill_scope(
+    conn: &Connection,
+    scope: &AttachScope,
+) -> Result<usize, DbError> {
+    let origin = origin_tag(scope);
+    let n = conn.execute(
+        "DELETE FROM task_skills WHERE origin = ?1",
+        params![origin],
+    )?;
+    Ok(n)
+}
+
+/// Materialise one MCP tool onto every task in scope. Symmetric mirror
+/// of [`cascade_skill_attachment`] over `task_mcp_tools`.
+///
+/// # Errors
+///
+/// FK violation surfaces as [`DbError::Sqlite`].
+pub fn cascade_mcp_tool_attachment(
+    conn: &Connection,
+    scope: &AttachScope,
+    mcp_tool_id: &str,
+    position: f64,
+) -> Result<usize, DbError> {
+    cascade_leaf_attachment(
+        conn,
+        scope,
+        "task_mcp_tools",
+        "mcp_tool_id",
+        mcp_tool_id,
+        position,
+    )
+}
+
+/// Symmetric inverse of [`cascade_mcp_tool_attachment`].
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn cascade_mcp_tool_detachment(
+    conn: &Connection,
+    scope: &AttachScope,
+    mcp_tool_id: &str,
+) -> Result<usize, DbError> {
+    let origin = origin_tag(scope);
+    let n = conn.execute(
+        "DELETE FROM task_mcp_tools WHERE mcp_tool_id = ?1 AND origin = ?2",
+        params![mcp_tool_id, origin],
+    )?;
+    Ok(n)
+}
+
+/// Strip every inherited row in `task_mcp_tools` carrying this scope's
+/// origin.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn cascade_clear_mcp_tool_scope(
+    conn: &Connection,
+    scope: &AttachScope,
+) -> Result<usize, DbError> {
+    let origin = origin_tag(scope);
+    let n = conn.execute(
+        "DELETE FROM task_mcp_tools WHERE origin = ?1",
+        params![origin],
+    )?;
+    Ok(n)
+}
+
+/// Shared body for `cascade_skill_attachment` / `cascade_mcp_tool_attachment`.
+/// `table` is `task_skills` or `task_mcp_tools`; `leaf_col` is the
+/// per-table leaf column name (`skill_id` / `mcp_tool_id`). The fixed
+/// `task_*` prefix and the closed `AttachScope` set make this safe
+/// against SQL injection — we never format a user-supplied string into
+/// the SQL body.
+fn cascade_leaf_attachment(
+    conn: &Connection,
+    scope: &AttachScope,
+    table: &'static str,
+    leaf_col: &'static str,
+    leaf_id: &str,
+    position: f64,
+) -> Result<usize, DbError> {
+    debug_assert!(
+        matches!(table, "task_skills" | "task_mcp_tools"),
+        "cascade_leaf_attachment only handles task_skills / task_mcp_tools",
+    );
+    debug_assert!(
+        matches!(leaf_col, "skill_id" | "mcp_tool_id"),
+        "leaf_col must match the table",
+    );
+    let origin = origin_tag(scope);
+    let n = match scope {
+        AttachScope::Role(id) => {
+            let sql = format!(
+                "INSERT INTO {table} (task_id, {leaf_col}, origin, position) \
+                 SELECT t.id, ?2, ?3, ?4 \
+                 FROM tasks t \
+                 WHERE t.role_id = ?1 \
+                 ON CONFLICT(task_id, {leaf_col}) DO NOTHING",
+            );
+            conn.execute(&sql, params![id, leaf_id, origin, position])?
+        }
+        AttachScope::Column(id) => {
+            let sql = format!(
+                "INSERT INTO {table} (task_id, {leaf_col}, origin, position) \
+                 SELECT t.id, ?2, ?3, ?4 \
+                 FROM tasks t \
+                 WHERE t.column_id = ?1 \
+                 ON CONFLICT(task_id, {leaf_col}) DO NOTHING",
+            );
+            conn.execute(&sql, params![id, leaf_id, origin, position])?
+        }
+        AttachScope::Board(id) => {
+            let sql = format!(
+                "INSERT INTO {table} (task_id, {leaf_col}, origin, position) \
+                 SELECT t.id, ?2, ?3, ?4 \
+                 FROM tasks t \
+                 WHERE t.board_id = ?1 \
+                 ON CONFLICT(task_id, {leaf_col}) DO NOTHING",
+            );
+            conn.execute(&sql, params![id, leaf_id, origin, position])?
+        }
+        AttachScope::Space(id) => {
+            let sql = format!(
+                "INSERT INTO {table} (task_id, {leaf_col}, origin, position) \
+                 SELECT t.id, ?2, ?3, ?4 \
+                 FROM tasks t \
+                 JOIN boards b ON b.id = t.board_id \
+                 WHERE b.space_id = ?1 \
+                 ON CONFLICT(task_id, {leaf_col}) DO NOTHING",
+            );
+            conn.execute(&sql, params![id, leaf_id, origin, position])?
+        }
+    };
+    Ok(n)
 }
 
 /// Shared body for `set_skills` / `set_mcp_tools`: DELETE + bulk INSERT.
@@ -428,5 +689,252 @@ mod tests {
             let got = list_mcp_tools(&conn, scope, parent).unwrap();
             assert_eq!(got, vec!["mt1".to_owned(), "mt2".to_owned()]);
         }
+    }
+
+    // -----------------------------------------------------------------
+    // ctq-121 — skill / mcp_tool inheritance cascade onto task_skills /
+    // task_mcp_tools. Mirrors the prompt-cascade unit tests in
+    // `tasks.rs`.
+    // -----------------------------------------------------------------
+
+    /// Seed two tasks under the column `co` so cascade has somewhere
+    /// to materialise into.
+    fn seed_two_tasks_on_column(conn: &Connection) -> [&'static str; 2] {
+        conn.execute_batch(
+            "INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES \
+                 ('t1','bd','co','sp-1','T1',0,0,0), \
+                 ('t2','bd','co','sp-2','T2',1,0,0);",
+        )
+        .unwrap();
+        ["t1", "t2"]
+    }
+
+    #[test]
+    fn cascade_skill_attachment_materialises_for_column_scope() {
+        let conn = fresh_db();
+        let _ = seed_two_tasks_on_column(&conn);
+        let n = cascade_skill_attachment(
+            &conn,
+            &AttachScope::Column("co".into()),
+            "sk1",
+            1.0,
+        )
+        .unwrap();
+        assert_eq!(n, 2);
+        let origin: String = conn
+            .query_row(
+                "SELECT origin FROM task_skills WHERE task_id = 't1' AND skill_id = 'sk1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(origin, "column:co");
+    }
+
+    #[test]
+    fn cascade_skill_detachment_strips_only_scope_origin() {
+        let conn = fresh_db();
+        let _ = seed_two_tasks_on_column(&conn);
+
+        // Direct attachment + column cascade with the same skill — the
+        // cascade INSERT-OR-IGNORE preserves the direct row.
+        conn.execute(
+            "INSERT INTO task_skills (task_id, skill_id, origin, position) \
+             VALUES ('t1','sk1','direct',0.0)",
+            [],
+        )
+        .unwrap();
+        cascade_skill_attachment(&conn, &AttachScope::Column("co".into()), "sk1", 1.0).unwrap();
+
+        // Detach the cascade — direct row must survive on t1.
+        cascade_skill_detachment(&conn, &AttachScope::Column("co".into()), "sk1").unwrap();
+        let origin_t1: String = conn
+            .query_row(
+                "SELECT origin FROM task_skills WHERE task_id = 't1' AND skill_id = 'sk1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(origin_t1, "direct");
+        // t2 had only the cascade row — must be gone.
+        let n_t2: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_skills WHERE task_id = 't2' AND skill_id = 'sk1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n_t2, 0);
+    }
+
+    #[test]
+    fn set_skills_cascades_via_inheritance_setter() {
+        // ctq-121 contract: invoking `set_skills` on a board with two
+        // tasks must materialise origin-tagged rows in task_skills.
+        let mut conn = fresh_db();
+        conn.execute_batch(
+            "INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES \
+                 ('t1','bd','co','sp-1','T1',0,0,0), \
+                 ('t2','bd','co','sp-2','T2',1,0,0);",
+        )
+        .unwrap();
+        set_skills(
+            &mut conn,
+            InheritanceScope::Board,
+            "bd",
+            &["sk1".to_owned(), "sk2".to_owned()],
+        )
+        .unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_skills WHERE origin = 'board:bd'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 4, "two tasks × two skills = 4 rows");
+
+        // Replace with [sk1] — must drop the sk2 cascade rows in lockstep.
+        set_skills(
+            &mut conn,
+            InheritanceScope::Board,
+            "bd",
+            &["sk1".to_owned()],
+        )
+        .unwrap();
+        let count_after: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_skills WHERE origin = 'board:bd'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count_after, 2, "only sk1 cascade survives");
+        let count_sk2: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_skills WHERE skill_id = 'sk2'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count_sk2, 0);
+    }
+
+    #[test]
+    fn set_skills_clears_cascade_rows_when_input_empty() {
+        let mut conn = fresh_db();
+        conn.execute(
+            "INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES ('t1','bd','co','sp-1','T1',0,0,0)",
+            [],
+        )
+        .unwrap();
+        set_skills(
+            &mut conn,
+            InheritanceScope::Space,
+            "sp",
+            &["sk1".to_owned()],
+        )
+        .unwrap();
+        // Sanity: cascade landed.
+        let before: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_skills WHERE origin = 'space:sp'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(before, 1);
+
+        set_skills(&mut conn, InheritanceScope::Space, "sp", &[]).unwrap();
+        let after: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_skills WHERE origin = 'space:sp'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(after, 0);
+    }
+
+    #[test]
+    fn cascade_mcp_tool_attachment_materialises_for_space_scope() {
+        let conn = fresh_db();
+        let _ = seed_two_tasks_on_column(&conn);
+        let n =
+            cascade_mcp_tool_attachment(&conn, &AttachScope::Space("sp".into()), "mt1", 0.0)
+                .unwrap();
+        assert_eq!(n, 2, "both tasks live in space sp");
+        let origin: String = conn
+            .query_row(
+                "SELECT origin FROM task_mcp_tools WHERE task_id = 't1' AND mcp_tool_id = 'mt1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(origin, "space:sp");
+    }
+
+    #[test]
+    fn set_mcp_tools_cascades_and_clear_lifecycle() {
+        let mut conn = fresh_db();
+        conn.execute(
+            "INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES ('t1','bd','co','sp-1','T1',0,0,0)",
+            [],
+        )
+        .unwrap();
+        set_mcp_tools(
+            &mut conn,
+            InheritanceScope::Column,
+            "co",
+            &["mt1".to_owned(), "mt2".to_owned()],
+        )
+        .unwrap();
+        let mat: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_mcp_tools WHERE origin = 'column:co'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(mat, 2);
+        set_mcp_tools(&mut conn, InheritanceScope::Column, "co", &[]).unwrap();
+        let after: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_mcp_tools WHERE origin = 'column:co'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(after, 0);
+    }
+
+    #[test]
+    fn cascade_skill_role_attachment_only_hits_role_bearing_tasks() {
+        let conn = fresh_db();
+        // Seed roles and three tasks: two on rl1, one off-role.
+        conn.execute_batch(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) VALUES \
+                 ('rl1','R1','',0,0), ('rl2','R2','',0,0); \
+             INSERT INTO tasks (id, board_id, column_id, slug, title, role_id, position, created_at, updated_at) VALUES \
+                 ('ta','bd','co','sp-a','T1','rl1',0,0,0), \
+                 ('tb','bd','co','sp-b','T2','rl1',1,0,0), \
+                 ('tc','bd','co','sp-c','T3','rl2',2,0,0);",
+        )
+        .unwrap();
+        let n = cascade_skill_attachment(&conn, &AttachScope::Role("rl1".into()), "sk1", 1.0)
+            .unwrap();
+        assert_eq!(n, 2, "rl1 has exactly two tasks");
+        let off_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_skills WHERE task_id = 'tc'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(off_count, 0, "tc is on rl2; cascade must not hit it");
     }
 }

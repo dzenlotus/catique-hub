@@ -7,6 +7,10 @@ use catique_application::{roles::RolesUseCase, AppError};
 use catique_domain::Role;
 use catique_infrastructure::db::{
     pool::acquire,
+    repositories::inheritance::{
+        cascade_mcp_tool_attachment, cascade_mcp_tool_detachment, cascade_skill_attachment,
+        cascade_skill_detachment,
+    },
     repositories::roles as repo,
     repositories::tasks::{
         cascade_prompt_attachment, cascade_prompt_detachment, AttachScope,
@@ -184,6 +188,13 @@ pub async fn remove_role_prompt(
 
 /// Attach a skill to a role.
 ///
+/// ctq-121: mirrors [`add_role_prompt`] — the join-table insert is
+/// followed in the same immediate transaction by
+/// [`cascade_skill_attachment`], which materialises one `task_skills`
+/// row tagged `origin = 'role:<role_id>'` for every task whose
+/// `role_id = role_id`. The pair is atomic so the resolver never sees
+/// a half-attached state.
+///
 /// # Errors
 ///
 /// `AppError::TransactionRolledBack` on FK violation.
@@ -194,11 +205,27 @@ pub async fn add_role_skill(
     skill_id: String,
     position: f64,
 ) -> Result<(), AppError> {
-    let conn = acquire(&state.pool).map_err(map_db)?;
-    repo::add_role_skill(&conn, &role_id, &skill_id, position).map_err(map_db)
+    let mut conn = acquire(&state.pool).map_err(map_db)?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| map_db(e.into()))?;
+    repo::add_role_skill(&tx, &role_id, &skill_id, position).map_err(map_db)?;
+    cascade_skill_attachment(
+        &tx,
+        &AttachScope::Role(role_id.clone()),
+        &skill_id,
+        position,
+    )
+    .map_err(map_db)?;
+    tx.commit().map_err(|e| map_db(e.into()))?;
+    Ok(())
 }
 
 /// Detach a skill from a role.
+///
+/// ctq-121: symmetric inverse of [`add_role_skill`] — strips both the
+/// join row AND every materialised `task_skills` row tagged
+/// `origin = 'role:<role_id>'`. Direct attachments survive.
 ///
 /// # Errors
 ///
@@ -209,9 +236,15 @@ pub async fn remove_role_skill(
     role_id: String,
     skill_id: String,
 ) -> Result<(), AppError> {
-    let conn = acquire(&state.pool).map_err(map_db)?;
-    let removed = repo::remove_role_skill(&conn, &role_id, &skill_id).map_err(map_db)?;
+    let mut conn = acquire(&state.pool).map_err(map_db)?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| map_db(e.into()))?;
+    let removed = repo::remove_role_skill(&tx, &role_id, &skill_id).map_err(map_db)?;
     if removed {
+        cascade_skill_detachment(&tx, &AttachScope::Role(role_id.clone()), &skill_id)
+            .map_err(map_db)?;
+        tx.commit().map_err(|e| map_db(e.into()))?;
         Ok(())
     } else {
         Err(AppError::NotFound {
@@ -221,7 +254,8 @@ pub async fn remove_role_skill(
     }
 }
 
-/// Attach an MCP tool to a role.
+/// Attach an MCP tool to a role. ctq-121 cascade variant — see
+/// [`add_role_skill`] for the contract.
 ///
 /// # Errors
 ///
@@ -233,11 +267,24 @@ pub async fn add_role_mcp_tool(
     mcp_tool_id: String,
     position: f64,
 ) -> Result<(), AppError> {
-    let conn = acquire(&state.pool).map_err(map_db)?;
-    repo::add_role_mcp_tool(&conn, &role_id, &mcp_tool_id, position).map_err(map_db)
+    let mut conn = acquire(&state.pool).map_err(map_db)?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| map_db(e.into()))?;
+    repo::add_role_mcp_tool(&tx, &role_id, &mcp_tool_id, position).map_err(map_db)?;
+    cascade_mcp_tool_attachment(
+        &tx,
+        &AttachScope::Role(role_id.clone()),
+        &mcp_tool_id,
+        position,
+    )
+    .map_err(map_db)?;
+    tx.commit().map_err(|e| map_db(e.into()))?;
+    Ok(())
 }
 
-/// Detach an MCP tool from a role.
+/// Detach an MCP tool from a role. ctq-121 cascade variant — see
+/// [`remove_role_skill`] for the contract.
 ///
 /// # Errors
 ///
@@ -248,9 +295,15 @@ pub async fn remove_role_mcp_tool(
     role_id: String,
     mcp_tool_id: String,
 ) -> Result<(), AppError> {
-    let conn = acquire(&state.pool).map_err(map_db)?;
-    let removed = repo::remove_role_mcp_tool(&conn, &role_id, &mcp_tool_id).map_err(map_db)?;
+    let mut conn = acquire(&state.pool).map_err(map_db)?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| map_db(e.into()))?;
+    let removed = repo::remove_role_mcp_tool(&tx, &role_id, &mcp_tool_id).map_err(map_db)?;
     if removed {
+        cascade_mcp_tool_detachment(&tx, &AttachScope::Role(role_id.clone()), &mcp_tool_id)
+            .map_err(map_db)?;
+        tx.commit().map_err(|e| map_db(e.into()))?;
         Ok(())
     } else {
         Err(AppError::NotFound {
