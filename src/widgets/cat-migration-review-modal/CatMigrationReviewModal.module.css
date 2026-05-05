@@ -1,0 +1,96 @@
+/*
+ * CatMigrationReviewModal — one-shot review of board owner-cats after
+ * the migration-004 auto-assignment to `maintainer-system`.
+ *
+ * Layout: scrollable list of board rows with a Combobox per row, plus a
+ * sticky footer carrying the "Looks good" CTA. Mirrors the section /
+ * footer pattern from BoardCreateDialog so the visual rhythm stays
+ * consistent across modals.
+ */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: min(560px, 80vw);
+  max-width: 720px;
+}
+
+.intro {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-16);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  align-items: center;
+  gap: var(--space-16);
+  padding: var(--space-12) 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.boardLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.boardName {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+  /* Avoid wrapping the board name onto multiple lines while still
+     truncating in the rare case of a very long string. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.boardSpace {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.rowError {
+  margin: var(--space-4) 0 0;
+  grid-column: 1 / -1;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-8);
+  padding-top: var(--space-16);
+}

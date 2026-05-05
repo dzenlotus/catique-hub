@@ -20,6 +20,7 @@ import { TopBar } from "@widgets/top-bar";
 import { Toaster } from "@widgets/toaster";
 import { TaskView } from "@widgets/task-view";
 
+import { CatMigrationReviewMount } from "./providers/CatMigrationReviewMount";
 import { routes, pathForView, viewForPath } from "./routes";
 import styles from "./App.module.css";
 
@@ -138,6 +139,9 @@ export default function App(): ReactElement {
       </main>
 
       <Toaster />
+      {/* ctq-82 (P1-T4): one-shot post-migration review modal. Renders
+          only while `settings.cat_migration_reviewed === 'false'`. */}
+      <CatMigrationReviewMount />
     </div>
   );
 }
