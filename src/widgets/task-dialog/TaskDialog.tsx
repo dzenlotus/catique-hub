@@ -341,12 +341,17 @@ function FieldSelect({
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface TaskDialogContentProps {
+/**
+ * Exported content body (round-19e). The task editor body is now
+ * reused by the routed `<TaskView>` page — same form fields,
+ * mutations, footer. Keep the form in one place to avoid drift.
+ */
+export interface TaskDialogContentProps {
   taskId: string;
   onClose: () => void;
 }
 
-function TaskDialogContent({
+export function TaskDialogContent({
   taskId,
   onClose,
 }: TaskDialogContentProps): ReactElement {

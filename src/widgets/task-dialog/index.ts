@@ -1,2 +1,2 @@
-export { TaskDialog } from "./TaskDialog";
-export type { TaskDialogProps } from "./TaskDialog";
+export { TaskDialog, TaskDialogContent } from "./TaskDialog";
+export type { TaskDialogProps, TaskDialogContentProps } from "./TaskDialog";

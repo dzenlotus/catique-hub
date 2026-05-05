@@ -18,7 +18,7 @@ import type { NavView } from "@widgets/main-sidebar";
 import { SpacesSidebar } from "@widgets/spaces-sidebar";
 import { TopBar } from "@widgets/top-bar";
 import { Toaster } from "@widgets/toaster";
-import { TaskDialog } from "@widgets/task-dialog";
+import { TaskView } from "@widgets/task-view";
 
 import { routes, pathForView, viewForPath } from "./routes";
 import styles from "./App.module.css";
@@ -52,9 +52,9 @@ export default function App(): ReactElement {
     setLocation(pathForView(view));
   }
 
-  // SpacesSidebar is only relevant for board-centric views (BoardHome, the
-  // kanban detail, and the task deep-link that renders BoardHome behind it).
-  // viewForPath() maps `/`, `/boards/:id`, and `/tasks/:id` all to "boards".
+  // SpacesSidebar is only relevant for board-centric views (BoardHome,
+  // the kanban detail, and the task deep-link). viewForPath() maps `/`,
+  // `/boards/:id`, and `/tasks/:id` all to "boards".
   const showSpacesSidebar = activeView === "boards";
 
   return (
@@ -80,18 +80,11 @@ export default function App(): ReactElement {
 
       <main className={styles.mainPane}>
         <Switch>
-          {/* Task deep-link — BoardHome behind the dialog handles redirect to
-              the last-opened board; dialog closes back to /. */}
+          {/* Round-19e: task editor as a routed page in mainPane,
+              same shell as space/board/prompts settings. Back returns
+              to /. */}
           <Route path={routes.task}>
-            {(params) => (
-              <>
-                <BoardHome />
-                <TaskDialog
-                  taskId={params.taskId}
-                  onClose={() => setLocation(routes.boards)}
-                />
-              </>
-            )}
+            <TaskView />
           </Route>
 
           {/* Board detail — boardId comes from URL params. The
