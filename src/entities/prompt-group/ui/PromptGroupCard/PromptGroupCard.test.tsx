@@ -22,6 +22,7 @@ function makeGroup(overrides: Partial<PromptGroup> = {}): PromptGroup {
     id: "group-001",
     name: "Core Prompts",
     color: null,
+    icon: null,
     position: 0n,
     createdAt: 0n,
     updatedAt: 0n,

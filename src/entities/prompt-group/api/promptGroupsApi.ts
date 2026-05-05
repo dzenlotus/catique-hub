@@ -65,6 +65,8 @@ export async function getPromptGroup(id: string): Promise<PromptGroup> {
 export interface CreatePromptGroupArgs {
   name: string;
   color?: string;
+  /** Pixel-icon identifier (matches a key from `@shared/ui/Icon`). */
+  icon?: string;
   position?: bigint;
 }
 
@@ -74,6 +76,7 @@ export async function createPromptGroup(
 ): Promise<PromptGroup> {
   const payload: Record<string, unknown> = { name: args.name };
   if (args.color !== undefined) payload.color = args.color;
+  if (args.icon !== undefined) payload.icon = args.icon;
   if (args.position !== undefined) payload.position = args.position;
   return invokeWithAppError<PromptGroup>("create_prompt_group", payload);
 }
@@ -87,6 +90,11 @@ export interface UpdatePromptGroupArgs {
    * Mirrors Rust's `Option<Option<String>>`.
    */
   color?: string | null;
+  /**
+   * Skip = `undefined`, set = string, clear-to-NULL = `null`.
+   * Mirrors Rust's `Option<Option<String>>`.
+   */
+  icon?: string | null;
   /** Skip = `undefined`. */
   position?: bigint;
 }
@@ -98,6 +106,7 @@ export async function updatePromptGroup(
   const payload: Record<string, unknown> = { id: args.id };
   if (args.name !== undefined) payload.name = args.name;
   if (args.color !== undefined) payload.color = args.color;
+  if (args.icon !== undefined) payload.icon = args.icon;
   if (args.position !== undefined) payload.position = args.position;
   return invokeWithAppError<PromptGroup>("update_prompt_group", payload);
 }

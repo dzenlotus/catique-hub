@@ -46,12 +46,14 @@ export function InlineGroupSettings({
 
   const [localName, setLocalName] = useState("");
   const [localColor, setLocalColor] = useState<string>("");
+  const [localIcon, setLocalIcon] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (query.data) {
       setLocalName(query.data.name);
       setLocalColor(query.data.color ?? "");
+      setLocalIcon(query.data.icon ?? null);
       setSaveError(null);
     }
   }, [query.data, groupId]);
@@ -117,6 +119,7 @@ export function InlineGroupSettings({
     if (trimmedName !== group.name) args.name = trimmedName;
     const resolvedColor = localColor === "" ? null : localColor;
     if (resolvedColor !== group.color) args.color = resolvedColor;
+    if (localIcon !== (group.icon ?? null)) args.icon = localIcon;
 
     updateMutation.mutate(args, {
       onSuccess: () => {
@@ -132,6 +135,7 @@ export function InlineGroupSettings({
   const handleCancel = (): void => {
     setLocalName(group.name);
     setLocalColor(group.color ?? "");
+    setLocalIcon(group.icon ?? null);
     setSaveError(null);
     onClose();
   };
@@ -176,13 +180,14 @@ export function InlineGroupSettings({
           </p>
           <IconColorPicker
             value={{
-              icon: null,
+              icon: localIcon,
               color: localColor === "" ? null : localColor,
             }}
             onChange={(next) => {
+              setLocalIcon(next.icon);
               setLocalColor(next.color ?? "");
             }}
-            ariaLabel="Group color"
+            ariaLabel="Group icon and color"
             data-testid="inline-group-settings-appearance"
           />
         </div>

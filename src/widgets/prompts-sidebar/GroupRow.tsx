@@ -2,7 +2,13 @@ import { type ReactElement } from "react";
 import { useDroppable } from "@dnd-kit/react";
 
 import { cn } from "@shared/lib";
-import { Button, Menu, MenuItem, MenuTrigger } from "@shared/ui";
+import {
+  Button,
+  IconRenderer,
+  Menu,
+  MenuItem,
+  MenuTrigger,
+} from "@shared/ui";
 import type { PromptGroup } from "@entities/prompt-group";
 
 import { KebabIcon } from "./KebabIcon";
@@ -54,15 +60,23 @@ export function GroupRow({
         {isActive && (
           <span className={styles.groupActiveStrip} aria-hidden="true" />
         )}
-        <span
-          className={styles.groupSwatch}
-          style={
-            group.color !== null
-              ? { backgroundColor: group.color }
-              : undefined
-          }
-          aria-hidden="true"
-        />
+        <span className={styles.groupIndicator} aria-hidden="true">
+          {group.icon !== null ? (
+            <IconRenderer
+              name={group.icon}
+              width={14}
+              height={14}
+              {...(group.color !== null
+                ? { style: { color: group.color } }
+                : {})}
+            />
+          ) : group.color !== null ? (
+            <span
+              className={styles.groupSwatch}
+              style={{ backgroundColor: group.color }}
+            />
+          ) : null}
+        </span>
         <button
           type="button"
           className={styles.groupName}
