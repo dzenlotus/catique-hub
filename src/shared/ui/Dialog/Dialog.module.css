@@ -106,6 +106,27 @@
   color: var(--color-text-default);
 }
 
+/*
+ * Optional row that pairs a leading slot (typically an
+ * `<IconColorPicker>`) with the dialog title. Mirrors the pattern used
+ * by `<PromptEditorPanel>`'s header so dialog and inline editor share
+ * the same affordance position.
+ */
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.titleRow .title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .description {
   margin: 0;
   font-size: var(--font-size-body);

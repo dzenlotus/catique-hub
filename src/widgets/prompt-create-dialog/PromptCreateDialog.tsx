@@ -33,6 +33,11 @@ export interface PromptCreateDialogProps {
 
 /**
  * `PromptCreateDialog` — modal dialog for creating a new prompt.
+ *
+ * The IconColorPicker lives in the dialog's `titleLeading` slot so it
+ * sits to the LEFT of the title — same pattern as `<PromptEditorPanel>`
+ * and `<InlineGroupSettings>`. Appearance edits the same `icon` /
+ * `color` state the create payload reads from on save.
  */
 export function PromptCreateDialog({
   isOpen,
@@ -40,12 +45,33 @@ export function PromptCreateDialog({
   onCreated,
   inheritedTagIds,
 }: PromptCreateDialogProps): ReactElement {
+  // Lift icon/color state up so the header picker can drive the dialog
+  // body's create payload. Reset on every open so a previous draft
+  // doesn't leak into a new modal.
+  const [icon, setIcon] = useState<string | null>(null);
+  const [color, setColor] = useState<string>("");
+
   return (
     <Dialog
       title="Create prompt"
+      titleLeading={
+        <IconColorPicker
+          value={{ icon, color: color === "" ? null : color }}
+          onChange={(next) => {
+            setIcon(next.icon);
+            setColor(next.color ?? "");
+          }}
+          ariaLabel="Prompt icon and color"
+          data-testid="prompt-create-dialog-appearance-picker"
+        />
+      }
       isOpen={isOpen}
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) {
+          setIcon(null);
+          setColor("");
+          onClose();
+        }
       }}
       isDismissable
       className={styles.dialogBody}
@@ -53,7 +79,13 @@ export function PromptCreateDialog({
     >
       {() => (
         <PromptCreateDialogContent
-          onClose={onClose}
+          icon={icon}
+          color={color}
+          onClose={() => {
+            setIcon(null);
+            setColor("");
+            onClose();
+          }}
           {...(onCreated !== undefined ? { onCreated } : {})}
           {...(inheritedTagIds !== undefined ? { inheritedTagIds } : {})}
         />
@@ -65,12 +97,18 @@ export function PromptCreateDialog({
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface PromptCreateDialogContentProps {
+  /** Icon lifted to the parent so the header picker drives this state. */
+  icon: string | null;
+  /** Color lifted to the parent so the header picker drives this state. */
+  color: string;
   onClose: () => void;
   onCreated?: (prompt: Prompt) => void;
   inheritedTagIds?: ReadonlyArray<string>;
 }
 
 function PromptCreateDialogContent({
+  icon,
+  color,
   onClose,
   onCreated,
   inheritedTagIds,
@@ -81,8 +119,6 @@ function PromptCreateDialogContent({
   const [name, setName] = useState("");
   const [content, setContent] = useState("");
   const [shortDescription, setShortDescription] = useState("");
-  const [color, setColor] = useState("");
-  const [icon, setIcon] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const canSubmit = name.trim().length > 0 && content.trim().length > 0;
@@ -160,19 +196,8 @@ function PromptCreateDialogContent({
         />
       </div>
 
-      {/* Combined icon + color picker (round-19d). */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Appearance</p>
-        <IconColorPicker
-          value={{ icon, color: color === "" ? null : color }}
-          onChange={(next) => {
-            setIcon(next.icon);
-            setColor(next.color ?? "");
-          }}
-          ariaLabel="Prompt icon and color"
-          data-testid="prompt-create-dialog-appearance-picker"
-        />
-      </div>
+      {/* Appearance picker now lives in the dialog header
+          (`titleLeading` slot), so no in-body Appearance section. */}
 
       {/* Content */}
       <div className={styles.section}>

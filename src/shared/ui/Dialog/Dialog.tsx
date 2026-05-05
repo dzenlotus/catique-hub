@@ -97,6 +97,13 @@ export interface DialogProps {
   /** Visible heading. Required for a11y (RAC wires aria-labelledby). */
   title: string;
   /**
+   * Optional element rendered to the LEFT of the title — typically an
+   * `<IconColorPicker>` so the appearance affordance reads as part of
+   * the dialog header rather than its own labelled section. Mirrors
+   * the pattern used by `<PromptEditorPanel>`.
+   */
+  titleLeading?: ReactNode;
+  /**
    * Optional supporting copy under the title. Use sentence-case, ≤2
    * sentences. Internally bound to aria-describedby.
    */
@@ -139,6 +146,7 @@ export interface DialogProps {
  */
 export function Dialog({
   title,
+  titleLeading,
   description,
   isDismissable = true,
   isOpen,
@@ -161,9 +169,18 @@ export function Dialog({
           >
           {({ close }) => (
             <>
-              <Heading slot="title" className={styles.title}>
-                {title}
-              </Heading>
+              {titleLeading !== undefined ? (
+                <div className={styles.titleRow}>
+                  {titleLeading}
+                  <Heading slot="title" className={styles.title}>
+                    {title}
+                  </Heading>
+                </div>
+              ) : (
+                <Heading slot="title" className={styles.title}>
+                  {title}
+                </Heading>
+              )}
               {description ? (
                 <p className={styles.description}>{description}</p>
               ) : null}

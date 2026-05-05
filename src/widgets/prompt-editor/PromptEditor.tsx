@@ -34,13 +34,36 @@ export interface PromptEditorProps {
  *
  * Delegates open/close tracking to `promptId` — when null the `<Dialog>`
  * `isOpen` prop is false, so RAC handles exit animations and focus restoration.
+ *
+ * The IconColorPicker lives in the dialog's `titleLeading` slot —
+ * matching `<PromptEditorPanel>` so appearance always sits to the
+ * LEFT of the title.
  */
 export function PromptEditor({ promptId, onClose }: PromptEditorProps): ReactElement {
   const isOpen = promptId !== null;
 
+  // Icon/color state is lifted here so the dialog header (rendered
+  // outside `DialogContent`) can drive the same draft the body reads
+  // back. `<PromptEditorContent>` seeds these on promptId change.
+  const [icon, setIcon] = useState<string | null>(null);
+  const [color, setColor] = useState<string>("");
+
   return (
     <Dialog
       title="Prompt"
+      titleLeading={
+        promptId !== null ? (
+          <IconColorPicker
+            value={{ icon, color: color === "" ? null : color }}
+            onChange={(next) => {
+              setIcon(next.icon);
+              setColor(next.color ?? "");
+            }}
+            ariaLabel="Prompt icon and color"
+            data-testid="prompt-editor-appearance-picker"
+          />
+        ) : undefined
+      }
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -51,7 +74,14 @@ export function PromptEditor({ promptId, onClose }: PromptEditorProps): ReactEle
     >
       {() =>
         promptId !== null ? (
-          <PromptEditorContent promptId={promptId} onClose={onClose} />
+          <PromptEditorContent
+            promptId={promptId}
+            icon={icon}
+            color={color}
+            setIcon={setIcon}
+            setColor={setColor}
+            onClose={onClose}
+          />
         ) : null
       }
     </Dialog>
@@ -62,22 +92,32 @@ export function PromptEditor({ promptId, onClose }: PromptEditorProps): ReactEle
 
 interface PromptEditorContentProps {
   promptId: string;
+  /** Lifted icon state (shared with the dialog header picker). */
+  icon: string | null;
+  /** Lifted color state (shared with the dialog header picker). */
+  color: string;
+  setIcon: (next: string | null) => void;
+  setColor: (next: string) => void;
   onClose: () => void;
 }
 
 function PromptEditorContent({
   promptId,
+  icon: localIcon,
+  color: localColor,
+  setIcon: setLocalIcon,
+  setColor: setLocalColor,
   onClose,
 }: PromptEditorContentProps): ReactElement {
   const query = usePrompt(promptId);
   const updateMutation = useUpdatePromptMutation();
   const { pushToast } = useToast();
 
-  // Local edit state — initialised from the loaded prompt.
+  // Local edit state — initialised from the loaded prompt. Icon and
+  // color are owned by the parent so the dialog header picker can drive
+  // them; everything else stays local.
   const [localName, setLocalName] = useState("");
   const [localShortDescription, setLocalShortDescription] = useState("");
-  const [localColor, setLocalColor] = useState("");
-  const [localIcon, setLocalIcon] = useState<string | null>(null);
   const [localContent, setLocalContent] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -91,6 +131,9 @@ function PromptEditorContent({
       setLocalContent(query.data.content);
       setSaveError(null);
     }
+    // setLocalColor / setLocalIcon are stable identities passed from the
+    // parent — including them in deps is correct but doesn't re-fire.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query.data, promptId]);
 
   // ── Pending ────────────────────────────────────────────────────────
@@ -284,22 +327,8 @@ function PromptEditorContent({
         />
       </div>
 
-      {/* Combined icon + color picker (round-19d). Bare — the picker
-          itself reads as a self-contained appearance affordance. */}
-      <div className={styles.section}>
-        <IconColorPicker
-          value={{
-            icon: localIcon,
-            color: localColor === "" ? null : localColor,
-          }}
-          onChange={(next) => {
-            setLocalIcon(next.icon);
-            setLocalColor(next.color ?? "");
-          }}
-          ariaLabel="Prompt icon and color"
-          data-testid="prompt-editor-appearance-picker"
-        />
-      </div>
+      {/* Appearance picker now lives in the dialog's `titleLeading`
+          slot, not the body — same pattern as `<PromptEditorPanel>`. */}
 
       {/* Content — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}
       <div className={styles.section}>
