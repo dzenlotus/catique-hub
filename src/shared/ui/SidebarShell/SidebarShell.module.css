@@ -215,16 +215,23 @@
   left: 12px;
 }
 
-/* When a trailing slot (kebab) is rendered, reserve right-padding on
- * the inner button so the label can ellipsise without sliding under
- * the absolutely-positioned trigger. */
+/* The inner button needs to shrink so the trailing trigger can sit
+ * inline next to it without pushing the row's height. `min-width: 0`
+ * + `flex: 1` lets the label ellipsise instead of overflowing. */
 .navItemHasTrailing {
-  padding-right: 36px;
+  flex: 1;
+  min-width: 0;
 }
 
-/* Container that pairs the row button with a trailing kebab/menu trigger. */
+/* Container that pairs the row button with a trailing kebab/menu trigger.
+ * Round-19e: was `position: relative` block — that forced any non-
+ * absolutely-positioned trailing element below the button. Switched to
+ * flex-row so the trigger sits inline. */
 .navItemRow {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 @media (prefers-reduced-motion: reduce) {
