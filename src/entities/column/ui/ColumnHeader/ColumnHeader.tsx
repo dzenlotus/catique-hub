@@ -7,7 +7,15 @@ import {
   PixelInterfaceEssentialPlus,
 } from "@shared/ui/Icon";
 
-import { Button, Dialog, Input, Menu, MenuItem, MenuTrigger } from "@shared/ui";
+import {
+  Button,
+  Dialog,
+  Input,
+  KebabIcon,
+  Menu,
+  MenuItem,
+  MenuTrigger,
+} from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import styles from "./ColumnHeader.module.css";
@@ -176,7 +184,7 @@ export function ColumnHeader({
           aria-label={`Column actions for ${name}`}
           className={styles.moreButton}
         >
-          <span aria-hidden="true">⋯</span>
+          <KebabIcon />
         </Button>
         <Menu onAction={handleMenuAction} placement="bottom end">
           <MenuItem id="rename">Rename</MenuItem>

@@ -71,7 +71,14 @@ pub async fn create_prompt(
 /// # Errors
 ///
 /// Forwards every error from `PromptsUseCase::update`.
+//
+// Tauri's `#[tauri::command]` macro requires positional args matching
+// the IPC payload keys, so the field-per-arg shape can't be replaced
+// with an arg-bag struct without breaking the wire contract. The
+// allow narrows the lint to this entry point only — the underlying
+// use-case signature can still be argued about separately.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn update_prompt(
     state: State<'_, AppState>,
     id: String,
