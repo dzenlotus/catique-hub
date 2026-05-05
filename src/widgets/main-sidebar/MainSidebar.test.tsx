@@ -59,8 +59,6 @@ const ALL_VIEWS: NavView[] = [
   "prompts",
   "skills",
   "mcp-servers",
-  "tags",
-  "reports",
   "settings",
 ];
 
@@ -110,15 +108,13 @@ describe("MainSidebar — wordmark + section labels", () => {
 // ---------------------------------------------------------------------------
 
 describe("MainSidebar — nav items", () => {
-  it("renders all workspace nav items (incl. Tags + Reports per audit-#20)", () => {
+  it("renders all 6 workspace nav items", () => {
     setup();
     expect(screen.getByRole("button", { name: /^boards$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^roles$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^prompts$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^skills$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /mcp servers/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^tags$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^reports$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^settings$/i })).toBeInTheDocument();
   });
 
@@ -146,8 +142,6 @@ describe("MainSidebar — nav items", () => {
         prompts: /^prompts$/i,
         skills: /^skills$/i,
         "mcp-servers": /mcp servers/i,
-        tags: /^tags$/i,
-        reports: /^reports$/i,
         settings: /^settings$/i,
         spaces: /spaces/i,
       };
@@ -188,8 +182,6 @@ describe("MainSidebar — nav items", () => {
       ["agent-roles", /^roles$/i],
       ["prompts", /^prompts$/i],
       ["skills", /^skills$/i],
-      ["tags", /^tags$/i],
-      ["reports", /^reports$/i],
       ["mcp-servers", /mcp servers/i],
       ["settings", /^settings$/i],
     ];
