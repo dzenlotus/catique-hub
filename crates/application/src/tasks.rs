@@ -6,14 +6,20 @@
 //! parent existence so `NotFound` is typed.
 
 use catique_domain::{
-    OriginRef, Prompt, PromptWithOrigin, Role, Task, TaskBundle, TaskRating,
+    McpTool, McpToolWithOrigin, OriginRef, Prompt, PromptWithOrigin, Role, Skill, SkillWithOrigin,
+    Task, TaskBundle, TaskRating,
 };
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
+    repositories::mcp_tools::McpToolRow,
     repositories::prompts::PromptRow,
     repositories::roles::RoleRow,
+    repositories::skills::SkillRow,
     repositories::task_ratings::{self as ratings_repo, TaskRatingRow},
-    repositories::tasks::{self as repo, ResolvedPromptRow, TaskDraft, TaskPatch, TaskRow},
+    repositories::tasks::{
+        self as repo, ResolvedMcpToolRow, ResolvedPromptRow, ResolvedSkillRow, TaskDraft,
+        TaskPatch, TaskRow,
+    },
 };
 use rusqlite::params;
 
@@ -304,7 +310,15 @@ impl<'a> TasksUseCase<'a> {
             })?;
         let role_row = repo::resolve_active_role(&conn, task_id).map_err(map_db_err)?;
         let prompt_rows = repo::resolve_task_prompts(&conn, task_id).map_err(map_db_err)?;
-        Ok(assemble_bundle(row, role_row, prompt_rows))
+        let skill_rows = repo::resolve_task_skills(&conn, task_id).map_err(map_db_err)?;
+        let mcp_tool_rows = repo::resolve_task_mcp_tools(&conn, task_id).map_err(map_db_err)?;
+        Ok(assemble_bundle(
+            row,
+            role_row,
+            prompt_rows,
+            skill_rows,
+            mcp_tool_rows,
+        ))
     }
 
     /// Delete a task.
@@ -484,6 +498,31 @@ fn prompt_row_to_prompt(row: PromptRow) -> Prompt {
     }
 }
 
+fn skill_row_to_skill(row: SkillRow) -> Skill {
+    Skill {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        color: row.color,
+        position: row.position,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
+
+fn mcp_tool_row_to_mcp_tool(row: McpToolRow) -> McpTool {
+    McpTool {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        schema_json: row.schema_json,
+        color: row.color,
+        position: row.position,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
+
 fn row_to_task(row: TaskRow) -> Task {
     Task {
         id: row.id,
@@ -534,51 +573,100 @@ fn assemble_bundle(
     task_row: TaskRow,
     role_row: Option<RoleRow>,
     prompt_rows: Vec<ResolvedPromptRow>,
+    skill_rows: Vec<ResolvedSkillRow>,
+    mcp_tool_rows: Vec<ResolvedMcpToolRow>,
 ) -> TaskBundle {
+    let prompts = dedup_by_origin_precedence(
+        prompt_rows,
+        |row| row.prompt.id.clone(),
+        |row| (row.origin_raw.clone(), row.position),
+        |row, origin| PromptWithOrigin {
+            prompt: prompt_row_to_prompt(row.prompt),
+            origin,
+        },
+    );
+
+    let skills = dedup_by_origin_precedence(
+        skill_rows,
+        |row| row.skill.id.clone(),
+        |row| (row.origin_raw.clone(), row.position),
+        |row, origin| SkillWithOrigin {
+            skill: skill_row_to_skill(row.skill),
+            origin,
+        },
+    );
+
+    let mcp_tools = dedup_by_origin_precedence(
+        mcp_tool_rows,
+        |row| row.mcp_tool.id.clone(),
+        |row| (row.origin_raw.clone(), row.position),
+        |row, origin| McpToolWithOrigin {
+            mcp_tool: mcp_tool_row_to_mcp_tool(row.mcp_tool),
+            origin,
+        },
+    );
+
+    TaskBundle {
+        task: row_to_task(task_row),
+        role: role_row.map(role_row_to_role),
+        prompts,
+        skills,
+        mcp_tools,
+    }
+}
+
+/// Generic dedup-by-origin-precedence step shared between prompts,
+/// skills, and MCP tools. The contract is identical across all three:
+///   1. Group rows by `key_of(row)`.
+///   2. Keep the row with the highest origin precedence per group;
+///      ties broken by arrival order (first-seen wins).
+///   3. Sort the kept rows by `(precedence DESC, position ASC)`.
+///   4. Project each row through `make_entry` once we know its origin.
+///
+/// Malformed origin strings (the row's `origin` column does not match
+/// any known scope) are treated as `Direct` — the only safe fallback
+/// that doesn't lose user data.
+fn dedup_by_origin_precedence<R, T, K, P, M>(
+    rows: Vec<R>,
+    key_of: K,
+    parts_of: P,
+    make_entry: M,
+) -> Vec<T>
+where
+    K: Fn(&R) -> String,
+    P: Fn(&R) -> (String, f64),
+    M: Fn(R, OriginRef) -> T,
+{
     use std::collections::HashMap;
 
-    // First pass: group rows by `prompt_id`, keeping the
-    // highest-precedence origin per prompt. We track the index into the
-    // original `prompt_rows` so we can re-sort by precedence + position
-    // afterwards.
-    //
-    // The `(precedence, idx)` tuple is the comparison key — higher
-    // precedence wins; ties broken by position-order arrival.
-    let mut best_per_prompt: HashMap<String, (u8, usize)> = HashMap::new();
-    for (idx, row) in prompt_rows.iter().enumerate() {
-        let origin =
-            OriginRef::parse(&row.origin_raw).unwrap_or(OriginRef::Direct);
-        let prec = origin.precedence();
-        match best_per_prompt.get(&row.prompt.id) {
+    let mut best: HashMap<String, (u8, usize)> = HashMap::new();
+    for (idx, row) in rows.iter().enumerate() {
+        let (origin_raw, _) = parts_of(row);
+        let prec = OriginRef::parse(&origin_raw)
+            .unwrap_or(OriginRef::Direct)
+            .precedence();
+        match best.get(&key_of(row)) {
             Some(&(existing_prec, _)) if existing_prec >= prec => {
-                // Existing row has higher (or equal) precedence — keep it.
+                // Earlier row wins on (precedence, arrival-order) tie.
             }
             _ => {
-                best_per_prompt.insert(row.prompt.id.clone(), (prec, idx));
+                best.insert(key_of(row), (prec, idx));
             }
         }
     }
 
-    // Second pass: collect winners + sort by precedence DESC, position ASC.
-    let mut winners: Vec<(u8, f64, PromptWithOrigin)> = prompt_rows
+    let mut winners: Vec<(u8, f64, T)> = rows
         .into_iter()
         .enumerate()
         .filter_map(|(idx, row)| {
-            let kept_idx = best_per_prompt.get(&row.prompt.id)?.1;
+            let kept_idx = best.get(&key_of(&row))?.1;
             if kept_idx != idx {
                 return None;
             }
-            let origin = OriginRef::parse(&row.origin_raw).unwrap_or(OriginRef::Direct);
+            let (origin_raw, position) = parts_of(&row);
+            let origin = OriginRef::parse(&origin_raw).unwrap_or(OriginRef::Direct);
             let prec = origin.precedence();
-            let position = row.position;
-            Some((
-                prec,
-                position,
-                PromptWithOrigin {
-                    prompt: prompt_row_to_prompt(row.prompt),
-                    origin,
-                },
-            ))
+            Some((prec, position, make_entry(row, origin)))
         })
         .collect();
 
@@ -587,13 +675,7 @@ fn assemble_bundle(
             .then_with(|| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
     });
 
-    let prompts = winners.into_iter().map(|(_, _, p)| p).collect();
-
-    TaskBundle {
-        task: row_to_task(task_row),
-        role: role_row.map(role_row_to_role),
-        prompts,
-    }
+    winners.into_iter().map(|(_, _, entry)| entry).collect()
 }
 
 /// Hard upper bound on the per-call `summary` length passed to
@@ -1144,6 +1226,137 @@ mod tests {
         assert_eq!(bundle.prompts.len(), 1, "direct + role dedup to one");
         assert_eq!(bundle.prompts[0].origin, OriginRef::Direct);
         assert_eq!(bundle.prompts[0].prompt.id, "p-shared");
+    }
+
+    // ---------------------------------------------------------------
+    // ctq-119 — bundle now carries skills + mcp_tools.
+    // ---------------------------------------------------------------
+
+    /// Helper that wires the bare bones onto the existing pool fixture
+    /// (one task on `rl` plus a pair of skills and a pair of mcp_tools).
+    /// Returns the task id so the asserts can target it.
+    fn seed_bundle_skills_fixture(pool: &Pool) -> String {
+        {
+            let conn = pool.get().unwrap();
+            conn.execute_batch(
+                "INSERT INTO roles (id, name, content, created_at, updated_at) \
+                     VALUES ('rl','R','',0,0); \
+                 INSERT INTO skills (id, name, content, created_at, updated_at) \
+                     VALUES ('sk1','Skill One','',0,0), ('sk2','Skill Two','',0,0); \
+                 INSERT INTO mcp_tools (id, name, content, created_at, updated_at) \
+                     VALUES ('mt1','Tool One','',0,0), ('mt2','Tool Two','',0,0);",
+            )
+            .unwrap();
+        }
+        let uc = TasksUseCase::new(pool);
+        uc.create(
+            "bd1".into(),
+            "c1".into(),
+            "T".into(),
+            None,
+            1.0,
+            Some("rl".into()),
+        )
+        .unwrap()
+        .id
+    }
+
+    #[test]
+    fn resolve_task_bundle_includes_skill_inherited_from_role() {
+        // Skills attached to a cat (role) must surface on every task
+        // sitting under a role-bearing column with that role active.
+        // We cascade via the role-level repo helper directly — the
+        // ctq-121 cascade hooks in the IPC layer use the same path.
+        use catique_infrastructure::db::repositories::inheritance::cascade_skill_attachment;
+        use catique_infrastructure::db::repositories::roles as roles_repo;
+        use catique_infrastructure::db::repositories::tasks::AttachScope;
+
+        let pool = fresh_pool();
+        let task_id = seed_bundle_skills_fixture(&pool);
+        // Attach + cascade in lockstep so the resolver finds the rows.
+        {
+            let conn = pool.get().unwrap();
+            roles_repo::add_role_skill(&conn, "rl", "sk1", 1.0).unwrap();
+            cascade_skill_attachment(&conn, &AttachScope::Role("rl".into()), "sk1", 1.0).unwrap();
+        }
+
+        let uc = TasksUseCase::new(&pool);
+        let bundle = uc.resolve_task_bundle(&task_id).unwrap();
+        assert_eq!(bundle.skills.len(), 1);
+        assert_eq!(bundle.skills[0].skill.id, "sk1");
+        assert_eq!(bundle.skills[0].origin, OriginRef::Role("rl".into()));
+        assert!(bundle.mcp_tools.is_empty());
+    }
+
+    #[test]
+    fn resolve_task_bundle_skill_direct_overrides_role() {
+        // Same skill attached directly to the task AND inherited from
+        // the role — the bundle returns it once tagged Direct (override
+        // rule "direct beats inherited"). Mirrors the prompt assertion.
+        use catique_infrastructure::db::repositories::inheritance::cascade_skill_attachment;
+        use catique_infrastructure::db::repositories::roles as roles_repo;
+        use catique_infrastructure::db::repositories::skills as skills_repo;
+        use catique_infrastructure::db::repositories::tasks::AttachScope;
+
+        let pool = fresh_pool();
+        let task_id = seed_bundle_skills_fixture(&pool);
+        {
+            let conn = pool.get().unwrap();
+            // Direct first.
+            skills_repo::add_task_skill(&conn, &task_id, "sk1", 0.5).unwrap();
+            // Then role attach + cascade — INSERT OR IGNORE keeps direct intact.
+            roles_repo::add_role_skill(&conn, "rl", "sk1", 1.0).unwrap();
+            cascade_skill_attachment(&conn, &AttachScope::Role("rl".into()), "sk1", 1.0).unwrap();
+        }
+
+        let uc = TasksUseCase::new(&pool);
+        let bundle = uc.resolve_task_bundle(&task_id).unwrap();
+        assert_eq!(bundle.skills.len(), 1);
+        assert_eq!(bundle.skills[0].skill.id, "sk1");
+        assert_eq!(bundle.skills[0].origin, OriginRef::Direct);
+    }
+
+    #[test]
+    fn resolve_task_bundle_includes_mcp_tool_inherited_from_role() {
+        use catique_infrastructure::db::repositories::inheritance::cascade_mcp_tool_attachment;
+        use catique_infrastructure::db::repositories::roles as roles_repo;
+        use catique_infrastructure::db::repositories::tasks::AttachScope;
+
+        let pool = fresh_pool();
+        let task_id = seed_bundle_skills_fixture(&pool);
+        {
+            let conn = pool.get().unwrap();
+            roles_repo::add_role_mcp_tool(&conn, "rl", "mt1", 1.0).unwrap();
+            cascade_mcp_tool_attachment(&conn, &AttachScope::Role("rl".into()), "mt1", 1.0)
+                .unwrap();
+        }
+
+        let uc = TasksUseCase::new(&pool);
+        let bundle = uc.resolve_task_bundle(&task_id).unwrap();
+        assert_eq!(bundle.mcp_tools.len(), 1);
+        assert_eq!(bundle.mcp_tools[0].mcp_tool.id, "mt1");
+        assert_eq!(bundle.mcp_tools[0].origin, OriginRef::Role("rl".into()));
+    }
+
+    #[test]
+    fn resolve_task_bundle_mcp_tool_direct_overrides_board() {
+        use catique_infrastructure::db::repositories::inheritance::cascade_mcp_tool_attachment;
+        use catique_infrastructure::db::repositories::mcp_tools as mt_repo;
+        use catique_infrastructure::db::repositories::tasks::AttachScope;
+
+        let pool = fresh_pool();
+        let task_id = seed_bundle_skills_fixture(&pool);
+        {
+            let conn = pool.get().unwrap();
+            mt_repo::add_task_mcp_tool(&conn, &task_id, "mt1", 0.5).unwrap();
+            cascade_mcp_tool_attachment(&conn, &AttachScope::Board("bd1".into()), "mt1", 1.0)
+                .unwrap();
+        }
+
+        let uc = TasksUseCase::new(&pool);
+        let bundle = uc.resolve_task_bundle(&task_id).unwrap();
+        assert_eq!(bundle.mcp_tools.len(), 1);
+        assert_eq!(bundle.mcp_tools[0].origin, OriginRef::Direct);
     }
 
     #[test]

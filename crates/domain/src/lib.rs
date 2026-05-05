@@ -64,6 +64,8 @@ pub use skill::Skill;
 pub use space::Space;
 pub use tag::Tag;
 pub use task::Task;
-pub use task_bundle::{OriginRef, PromptWithOrigin, TaskBundle};
+pub use task_bundle::{
+    McpToolWithOrigin, OriginRef, PromptWithOrigin, SkillWithOrigin, TaskBundle,
+};
 pub use task_match::TaskMatch;
 pub use task_rating::TaskRating;

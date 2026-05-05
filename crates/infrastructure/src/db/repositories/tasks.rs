@@ -719,6 +719,124 @@ pub fn resolve_task_prompts(
     Ok(out)
 }
 
+/// One row of the resolver's hot-path skill SELECT. Pure data — the
+/// use-case layer wraps this into a `domain::SkillWithOrigin`.
+#[derive(Debug, Clone)]
+pub struct ResolvedSkillRow {
+    pub origin_raw: String,
+    pub position: f64,
+    pub skill: super::skills::SkillRow,
+}
+
+/// Resolve the full skill set for one task — single index scan on
+/// `task_skills` joined to `skills`. ctq-119 mirror of
+/// [`resolve_task_prompts`]; the precedence-based override rule
+/// ("direct beats inherited") is applied in Rust at the use-case
+/// layer after the fetch.
+///
+/// Returns rows sorted by `position` ASC.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn resolve_task_skills(
+    conn: &Connection,
+    task_id: &str,
+) -> Result<Vec<ResolvedSkillRow>, DbError> {
+    // `idx_task_skills_task` (001_initial.sql:236) covers the WHERE; the
+    // JOIN onto `skills` is a primary-key seek per row. Same shape as
+    // `resolve_task_prompts` so the two paths share their plan profile.
+    let mut stmt = conn.prepare(
+        "SELECT ts.origin, ts.position, \
+                s.id, s.name, s.description, s.color, s.position AS skill_position, \
+                s.created_at, s.updated_at \
+         FROM task_skills ts \
+         JOIN skills s ON s.id = ts.skill_id \
+         WHERE ts.task_id = ?1 \
+         ORDER BY ts.position ASC",
+    )?;
+    let rows = stmt.query_map(params![task_id], |row| {
+        let origin: String = row.get("origin")?;
+        let position: f64 = row.get("position")?;
+        // Hand-construct the `SkillRow` because the stored procedure
+        // for skills exposes `from_row` over a row that selects
+        // `position` (not `skill_position`). We column-rename here to
+        // avoid the ambiguity with `task_skills.position`.
+        let skill = super::skills::SkillRow {
+            id: row.get("id")?,
+            name: row.get("name")?,
+            description: row.get("description")?,
+            color: row.get("color")?,
+            position: row.get("skill_position")?,
+            created_at: row.get("created_at")?,
+            updated_at: row.get("updated_at")?,
+        };
+        Ok(ResolvedSkillRow {
+            origin_raw: origin,
+            position,
+            skill,
+        })
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// One row of the resolver's hot-path MCP-tool SELECT.
+#[derive(Debug, Clone)]
+pub struct ResolvedMcpToolRow {
+    pub origin_raw: String,
+    pub position: f64,
+    pub mcp_tool: super::mcp_tools::McpToolRow,
+}
+
+/// Resolve the full MCP-tool set for one task. ctq-119 mirror of
+/// [`resolve_task_prompts`].
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn resolve_task_mcp_tools(
+    conn: &Connection,
+    task_id: &str,
+) -> Result<Vec<ResolvedMcpToolRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT tm.origin, tm.position, \
+                m.id, m.name, m.description, m.schema_json, m.color, \
+                m.position AS mcp_tool_position, m.created_at, m.updated_at \
+         FROM task_mcp_tools tm \
+         JOIN mcp_tools m ON m.id = tm.mcp_tool_id \
+         WHERE tm.task_id = ?1 \
+         ORDER BY tm.position ASC",
+    )?;
+    let rows = stmt.query_map(params![task_id], |row| {
+        let origin: String = row.get("origin")?;
+        let position: f64 = row.get("position")?;
+        let mcp_tool = super::mcp_tools::McpToolRow {
+            id: row.get("id")?,
+            name: row.get("name")?,
+            description: row.get("description")?,
+            schema_json: row.get("schema_json")?,
+            color: row.get("color")?,
+            position: row.get("mcp_tool_position")?,
+            created_at: row.get("created_at")?,
+            updated_at: row.get("updated_at")?,
+        };
+        Ok(ResolvedMcpToolRow {
+            origin_raw: origin,
+            position,
+            mcp_tool,
+        })
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
 /// Resolve the active role for a task: `task.role_id` if set, else
 /// `column.role_id`, else `board.role_id`. Returns `None` when none of
 /// the three carry a role assignment.

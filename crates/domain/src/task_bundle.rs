@@ -38,7 +38,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{Prompt, Role, Task};
+use crate::{McpTool, Prompt, Role, Skill, Task};
 
 /// Origin of one [`PromptWithOrigin`] inside a [`TaskBundle`]. The
 /// resolver tags every materialised row by which scope contributed it;
@@ -110,9 +110,35 @@ pub struct PromptWithOrigin {
     pub origin: OriginRef,
 }
 
+/// One skill entry inside a [`TaskBundle`], paired with its origin.
+/// ctq-119 — mirrors [`PromptWithOrigin`] over `task_skills` rows.
+#[derive(TS, Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct SkillWithOrigin {
+    pub skill: Skill,
+    pub origin: OriginRef,
+}
+
+/// One MCP-tool entry inside a [`TaskBundle`], paired with its origin.
+/// ctq-119 — mirrors [`PromptWithOrigin`] over `task_mcp_tools` rows.
+#[derive(TS, Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct McpToolWithOrigin {
+    pub mcp_tool: McpTool,
+    pub origin: OriginRef,
+}
+
 /// Fully-resolved view of one task: its row, its active role (if any),
 /// and the deduplicated, origin-tagged prompt set ready for assembly
 /// into the LLM payload.
+///
+/// ctq-119 extends the bundle with `skills` + `mcp_tools` so a single
+/// `get_task_bundle` call returns everything the agent needs. Each
+/// collection follows the same precedence rule as `prompts`:
+/// `Direct > Role > Column > Board > Space`, with one entry per leaf
+/// id (highest-precedence origin wins on a tie).
 #[derive(TS, Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
@@ -125,6 +151,15 @@ pub struct TaskBundle {
     /// Prompts ordered by precedence-then-position. Direct rows lead;
     /// inherited rows follow in `Role > Column > Board > Space` order.
     pub prompts: Vec<PromptWithOrigin>,
+    /// Skills ordered by the same precedence rule as `prompts`.
+    /// Defaults to an empty vec for backward compatibility with
+    /// pre-ctq-119 callers (the `serde(default)` keeps deserialisation
+    /// of stored payloads forward-compatible).
+    #[serde(default)]
+    pub skills: Vec<SkillWithOrigin>,
+    /// MCP tools ordered by the same precedence rule.
+    #[serde(default)]
+    pub mcp_tools: Vec<McpToolWithOrigin>,
 }
 
 #[cfg(test)]
