@@ -6,7 +6,7 @@
 //! `<prefix>-<6char>` rationale.
 
 use catique_application::{tasks::TasksUseCase, AppError};
-use catique_domain::{Prompt, Task, TaskRating};
+use catique_domain::{Prompt, Task, TaskBundle, TaskRating};
 use catique_infrastructure::paths::app_data_dir;
 use serde_json::json;
 use tauri::State;
@@ -174,6 +174,25 @@ pub async fn list_task_prompts(
     task_id: String,
 ) -> Result<Vec<Prompt>, AppError> {
     TasksUseCase::new(&state.pool).list_task_prompts(&task_id)
+}
+
+/// IPC: resolve the full agent bundle for one task.
+///
+/// Returns the task row, its active role (task > column > board
+/// fallback), and the deduplicated, origin-tagged prompt list ready for
+/// LLM assembly. ADR-0006 decision (D-004): the resolver reads from
+/// `task_prompts` only — every materialised row is INSERTed at
+/// configuration time so the hot path stays a single index seek.
+///
+/// # Errors
+///
+/// Forwards every error from `TasksUseCase::resolve_task_bundle`.
+#[tauri::command]
+pub async fn get_task_bundle(
+    state: State<'_, AppState>,
+    task_id: String,
+) -> Result<TaskBundle, AppError> {
+    TasksUseCase::new(&state.pool).resolve_task_bundle(&task_id)
 }
 
 /// Attach a prompt directly to a task.

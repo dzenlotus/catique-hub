@@ -38,6 +38,13 @@ thiserror.workspace = true
 # over Runtime).
 tauri = { workspace = true, features = ["wry"] }
 
+# ADR-0006: handlers wrap join-table writes + cascade calls in
+# `Connection::transaction_with_behavior(Immediate)` so the resolver
+# never observes a half-attached state. Pulling rusqlite in directly
+# avoids a re-export shim through `catique-infrastructure`; the type is
+# already part of the api's effective surface via the pool acquire.
+rusqlite.workspace = true
+
 # E2.5 (Katya, 2026-04-28): `OnceCell` for the AppHandle slot in
 # AppState. The handle is set once during the Tauri `setup` callback and
 # read by every handler post-mutation. Caret OK — once_cell is a thin,

@@ -5,7 +5,13 @@
 
 use catique_application::{roles::RolesUseCase, AppError};
 use catique_domain::Role;
-use catique_infrastructure::db::{pool::acquire, repositories::roles as repo};
+use catique_infrastructure::db::{
+    pool::acquire,
+    repositories::roles as repo,
+    repositories::tasks::{
+        cascade_prompt_attachment, cascade_prompt_detachment, AttachScope,
+    },
+};
 use serde_json::json;
 use tauri::State;
 
@@ -88,6 +94,12 @@ pub async fn delete_role(state: State<'_, AppState>, id: String) -> Result<(), A
 
 /// Attach a prompt to a role.
 ///
+/// ADR-0006 (write-time materialisation): the join-table insert is
+/// followed immediately by [`cascade_prompt_attachment`], which writes
+/// one `task_prompts` row tagged `origin = 'role:<role_id>'` for every
+/// task whose `role_id = role_id`. The pair runs in a single immediate
+/// transaction so the resolver never observes a half-attached state.
+///
 /// # Errors
 ///
 /// `AppError::TransactionRolledBack` on FK violation.
@@ -98,11 +110,27 @@ pub async fn add_role_prompt(
     prompt_id: String,
     position: f64,
 ) -> Result<(), AppError> {
-    let conn = acquire(&state.pool).map_err(map_db)?;
-    repo::add_role_prompt(&conn, &role_id, &prompt_id, position).map_err(map_db)
+    let mut conn = acquire(&state.pool).map_err(map_db)?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| map_db(e.into()))?;
+    repo::add_role_prompt(&tx, &role_id, &prompt_id, position).map_err(map_db)?;
+    cascade_prompt_attachment(
+        &tx,
+        &AttachScope::Role(role_id.clone()),
+        &prompt_id,
+        position,
+    )
+    .map_err(map_db)?;
+    tx.commit().map_err(|e| map_db(e.into()))?;
+    Ok(())
 }
 
 /// Detach a prompt from a role.
+///
+/// Symmetric to [`add_role_prompt`]: removes the join row plus every
+/// materialised `task_prompts` row tagged `origin = 'role:<role_id>'`.
+/// Direct attachments (`origin = 'direct'`) for the same prompt survive.
 ///
 /// # Errors
 ///
@@ -113,11 +141,18 @@ pub async fn remove_role_prompt(
     role_id: String,
     prompt_id: String,
 ) -> Result<(), AppError> {
-    let conn = acquire(&state.pool).map_err(map_db)?;
-    let removed = repo::remove_role_prompt(&conn, &role_id, &prompt_id).map_err(map_db)?;
+    let mut conn = acquire(&state.pool).map_err(map_db)?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| map_db(e.into()))?;
+    let removed = repo::remove_role_prompt(&tx, &role_id, &prompt_id).map_err(map_db)?;
     if removed {
+        cascade_prompt_detachment(&tx, &AttachScope::Role(role_id.clone()), &prompt_id)
+            .map_err(map_db)?;
+        tx.commit().map_err(|e| map_db(e.into()))?;
         Ok(())
     } else {
+        // Nothing changed; rollback is implicit when tx drops.
         Err(AppError::NotFound {
             entity: "role_prompt".into(),
             id: format!("{role_id}|{prompt_id}"),

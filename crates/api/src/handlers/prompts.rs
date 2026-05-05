@@ -7,7 +7,13 @@
 
 use catique_application::{prompts::PromptsUseCase, AppError};
 use catique_domain::Prompt;
-use catique_infrastructure::db::{pool::acquire, repositories::prompts as repo};
+use catique_infrastructure::db::{
+    pool::acquire,
+    repositories::prompts as repo,
+    repositories::tasks::{
+        cascade_prompt_attachment, cascade_prompt_detachment, AttachScope,
+    },
+};
 use serde_json::json;
 use tauri::State;
 
@@ -141,6 +147,11 @@ pub async fn recompute_prompt_token_count(
 
 /// Attach a prompt to a board.
 ///
+/// ADR-0006: the join-table insert is paired with a write-time cascade
+/// that materialises one `task_prompts` row per task in the board with
+/// `origin = 'board:<board_id>'`. Both sides land inside one immediate
+/// transaction so the resolver never sees a half-attached state.
+///
 /// # Errors
 ///
 /// `AppError::TransactionRolledBack` on FK violation.
@@ -151,11 +162,29 @@ pub async fn add_board_prompt(
     prompt_id: String,
     position: i64,
 ) -> Result<(), AppError> {
-    let conn = acquire(&state.pool).map_err(map_db)?;
-    repo::add_board_prompt(&conn, &board_id, &prompt_id, position).map_err(map_db)
+    let mut conn = acquire(&state.pool).map_err(map_db)?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| map_db(e.into()))?;
+    repo::add_board_prompt(&tx, &board_id, &prompt_id, position).map_err(map_db)?;
+    #[allow(clippy::cast_precision_loss)]
+    let pos_f = position as f64;
+    cascade_prompt_attachment(
+        &tx,
+        &AttachScope::Board(board_id.clone()),
+        &prompt_id,
+        pos_f,
+    )
+    .map_err(map_db)?;
+    tx.commit().map_err(|e| map_db(e.into()))?;
+    Ok(())
 }
 
 /// Detach a prompt from a board.
+///
+/// Symmetric to [`add_board_prompt`]: strips the join-table row plus
+/// every materialised `task_prompts` row tagged
+/// `origin = 'board:<board_id>'`. Direct attachments survive untouched.
 ///
 /// # Errors
 ///
@@ -166,9 +195,15 @@ pub async fn remove_board_prompt(
     board_id: String,
     prompt_id: String,
 ) -> Result<(), AppError> {
-    let conn = acquire(&state.pool).map_err(map_db)?;
-    let removed = repo::remove_board_prompt(&conn, &board_id, &prompt_id).map_err(map_db)?;
+    let mut conn = acquire(&state.pool).map_err(map_db)?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| map_db(e.into()))?;
+    let removed = repo::remove_board_prompt(&tx, &board_id, &prompt_id).map_err(map_db)?;
     if removed {
+        cascade_prompt_detachment(&tx, &AttachScope::Board(board_id.clone()), &prompt_id)
+            .map_err(map_db)?;
+        tx.commit().map_err(|e| map_db(e.into()))?;
         Ok(())
     } else {
         Err(AppError::NotFound {
@@ -180,6 +215,9 @@ pub async fn remove_board_prompt(
 
 /// Attach a prompt to a column.
 ///
+/// ADR-0006: the join-table insert is paired with a write-time cascade
+/// that materialises one `task_prompts` row per task in the column.
+///
 /// # Errors
 ///
 /// `AppError::TransactionRolledBack` on FK violation.
@@ -190,11 +228,28 @@ pub async fn add_column_prompt(
     prompt_id: String,
     position: i64,
 ) -> Result<(), AppError> {
-    let conn = acquire(&state.pool).map_err(map_db)?;
-    repo::add_column_prompt(&conn, &column_id, &prompt_id, position).map_err(map_db)
+    let mut conn = acquire(&state.pool).map_err(map_db)?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| map_db(e.into()))?;
+    repo::add_column_prompt(&tx, &column_id, &prompt_id, position).map_err(map_db)?;
+    #[allow(clippy::cast_precision_loss)]
+    let pos_f = position as f64;
+    cascade_prompt_attachment(
+        &tx,
+        &AttachScope::Column(column_id.clone()),
+        &prompt_id,
+        pos_f,
+    )
+    .map_err(map_db)?;
+    tx.commit().map_err(|e| map_db(e.into()))?;
+    Ok(())
 }
 
 /// Detach a prompt from a column.
+///
+/// Symmetric to [`add_column_prompt`]: strips the join-table row plus
+/// every materialised `task_prompts` row with the matching origin.
 ///
 /// # Errors
 ///
@@ -205,9 +260,15 @@ pub async fn remove_column_prompt(
     column_id: String,
     prompt_id: String,
 ) -> Result<(), AppError> {
-    let conn = acquire(&state.pool).map_err(map_db)?;
-    let removed = repo::remove_column_prompt(&conn, &column_id, &prompt_id).map_err(map_db)?;
+    let mut conn = acquire(&state.pool).map_err(map_db)?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| map_db(e.into()))?;
+    let removed = repo::remove_column_prompt(&tx, &column_id, &prompt_id).map_err(map_db)?;
     if removed {
+        cascade_prompt_detachment(&tx, &AttachScope::Column(column_id.clone()), &prompt_id)
+            .map_err(map_db)?;
+        tx.commit().map_err(|e| map_db(e.into()))?;
         Ok(())
     } else {
         Err(AppError::NotFound {
