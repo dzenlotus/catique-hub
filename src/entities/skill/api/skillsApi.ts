@@ -66,11 +66,22 @@ export interface CreateSkillArgs {
   name: string;
   description?: string;
   color?: string;
+  /**
+   * Sort rank assigned to the new skill.  Required by the Rust handler
+   * (`crates/api/src/handlers/skills.rs::create_skill` takes a non-optional
+   * `position: f64`); omitting it triggers a serde error before the
+   * handler body runs.  Callers default to a monotonically-increasing
+   * value (`Date.now()`) so each new row lands at the end of the list.
+   */
+  position: number;
 }
 
 /** `create_skill` — create a new skill. */
 export async function createSkill(args: CreateSkillArgs): Promise<Skill> {
-  const payload: Record<string, unknown> = { name: args.name };
+  const payload: Record<string, unknown> = {
+    name: args.name,
+    position: args.position,
+  };
   if (args.description !== undefined) payload.description = args.description;
   if (args.color !== undefined) payload.color = args.color;
   return invokeWithAppError<Skill>("create_skill", payload);

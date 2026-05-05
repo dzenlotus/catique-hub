@@ -81,8 +81,12 @@ function SkillCreateDialogContent({
       return;
     }
 
+    // `position` is required by the Rust handler (non-optional `f64`).
+    // Use `Date.now()` so each new skill lands at the end of the list —
+    // monotonically increasing, no list dependency, matches the
+    // server-side `(position, name)` ordering.
     type MutationArgs = Parameters<typeof createMutation.mutate>[0];
-    const args: MutationArgs = { name: trimmedName };
+    const args: MutationArgs = { name: trimmedName, position: Date.now() };
     if (description !== "") args.description = description;
     if (color !== "") args.color = color;
 
