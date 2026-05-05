@@ -75,6 +75,12 @@ tauri-plugin-dialog = "2"
 # Test helpers — not pulled into production binaries.
 tempfile = "3"
 
+# Bench harness — gated as `[dev-dependencies]` everywhere; never
+# pulled into release artefacts. Pinned to the 0.5.x line because
+# criterion's MSRV bump in 0.6 sits above our `rust-version = 1.81`
+# floor; the 0.5 API surface is stable for our needs.
+criterion = "0.5"
+
 [profile.release]
 panic = "abort"
 codegen-units = 1

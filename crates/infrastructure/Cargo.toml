@@ -60,6 +60,14 @@ chrono.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+criterion.workspace = true
+
+# ADR-0006 (resolver perf gate, P99 < 50 ms): criterion harness over a
+# 10k-task seed fixture. Lives at `benches/resolver.rs`; running takes
+# ~30 s on an M-series Mac so it is excluded from default `cargo test`.
+[[bench]]
+name = "resolver"
+harness = false
 
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }
