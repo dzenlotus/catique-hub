@@ -29,14 +29,14 @@ export function McpToolsPage(): ReactElement {
     <section className={shellStyles.root} data-testid="mcp-tools-page-root">
       <div className={shellStyles.sidebarSlot}>
         <EntityListSidebar
-          title="MCP SERVERS"
-          ariaLabel="MCP servers navigation"
+          title="MCP TOOLS"
+          ariaLabel="MCP tools navigation"
           items={items}
           selectedId={selectedId}
           onSelect={setSelectedId}
-          addLabel="Add server"
+          addLabel="Add tool"
           onAdd={() => setIsCreateOpen(true)}
-          emptyText="No MCP servers yet."
+          emptyText="No MCP tools yet."
           testIdPrefix="mcp-tools-sidebar"
           isLoading={toolsQuery.status === "pending"}
           errorMessage={
