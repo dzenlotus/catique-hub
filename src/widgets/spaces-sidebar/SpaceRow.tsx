@@ -5,6 +5,7 @@ import { cn } from "@shared/lib";
 import {
   Button,
   ConfirmDialog,
+  KebabIcon,
   Menu,
   MenuItem,
   MarqueeText,
@@ -17,7 +18,6 @@ import { type Board, useDeleteBoardMutation } from "@entities/board";
 import { boardSettingsPath, spaceSettingsPath } from "@app/routes";
 import { useToast } from "@app/providers/ToastProvider";
 import { ChevronIcon } from "./ChevronIcon";
-import { KebabIcon } from "./KebabIcon";
 import { BoardIcon, SpaceIcon } from "./icons";
 import styles from "./SpacesSidebar.module.css";
 

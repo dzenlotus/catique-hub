@@ -5,13 +5,13 @@ import { cn } from "@shared/lib";
 import {
   Button,
   IconRenderer,
+  KebabIcon,
   Menu,
   MenuItem,
   MenuTrigger,
 } from "@shared/ui";
 import type { PromptGroup } from "@entities/prompt-group";
 
-import { KebabIcon } from "./KebabIcon";
 import styles from "./PromptsSidebar.module.css";
 
 // ---------------------------------------------------------------------------
