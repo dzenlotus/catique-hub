@@ -142,6 +142,7 @@ export function SpaceRow({
                     <MenuTrigger>
                       <Button
                         variant="ghost"
+                        size="sm"
                         className={styles.boardKebabBtn}
                         aria-label={`Actions for board ${board.name}`}
                         data-testid={`spaces-sidebar-board-kebab-${board.id}`}
