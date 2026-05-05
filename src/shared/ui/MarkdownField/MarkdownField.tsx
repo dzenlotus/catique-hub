@@ -3,11 +3,15 @@
  * a grouped Markdown formatting toolbar.
  *
  * Default mode is **view**: the value is rendered through
- * `MarkdownPreview`. Click on the preview (or tab focus, or focus
- * from the keyboard) flips into **edit** mode — a `<textarea>` takes
- * its place and is given focus immediately, alongside the toolbar
- * (sticky at the top of the edit surface so it stays visible while
- * the textarea grows).
+ * `MarkdownPreview`. Edit mode is entered explicitly via **click**,
+ * **Enter**, or **Space** on the focused preview — bare keyboard
+ * focus (e.g. tabbing through a form) only paints the focus ring,
+ * it never flips the mode. This keeps tab order predictable when
+ * the field is one of several inputs on a page.
+ *
+ * Once in edit mode a `<textarea>` takes the preview's place and is
+ * given focus immediately, alongside the toolbar (sticky at the top
+ * of the edit surface so it stays visible while the textarea grows).
  *
  * Toolbar UX (round-19d redesign):
  *   - Logical groups separated by thin dividers (text · heading ·
@@ -439,13 +443,15 @@ export function MarkdownField({
   }
 
   // View mode — clickable preview surface.
+  // Mode is entered via click or Enter/Space on the focused button —
+  // *not* on focus alone, so tabbing through a form doesn't disrupt
+  // the order or steal focus into a textarea unexpectedly.
   const isEmpty = value.trim().length === 0;
   return (
     <button
       type="button"
       className={cn(styles.viewSurface, isEmpty && styles.viewSurfaceEmpty, className)}
       onClick={enterEdit}
-      onFocus={enterEdit}
       onKeyDown={handleViewKeyDown}
       aria-label={ariaLabel ? `Edit ${ariaLabel}` : "Edit content"}
       data-testid={testId}
