@@ -13,7 +13,7 @@
  * what populates the dropdown.
  */
 
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import {
   Button as AriaButton,
   ComboBox as AriaComboBox,
@@ -74,6 +74,14 @@ export function MultiTagInput({
 }: MultiTagInputProps): ReactElement {
   const [query, setQuery] = useState("");
 
+  // RAC ComboBox echoes the selected option's text into the input
+  // value right before our onSelectionChange handler runs. This effect
+  // wipes that echo on the next render once the chip has landed in
+  // selectedIds, so the input visibly empties after a click.
+  useEffect(() => {
+    setQuery("");
+  }, [selectedIds.length]);
+
   const itemById = new Map(items.map((it) => [it.id, it]));
   const selectedItems = selectedIds
     .map((id) => itemById.get(id))
@@ -113,11 +121,17 @@ export function MultiTagInput({
 
   return (
     <div className={styles.root} data-testid={testId}>
+      {/* `key` cycles after each selection so the ComboBox's internal
+          selectedKey resets to null — without it RAC keeps the last
+          picked key locked in and refuses to re-fire onSelectionChange
+          if the user picks the same item again. Uncontrolled selection
+          + key remount is the canonical workaround for the
+          tag-multiselect pattern (no `selectedKey` controlled prop). */}
       <AriaComboBox
+        key={`tag-input-${selectedIds.length}`}
         className={styles.combobox}
         inputValue={query}
         onInputChange={setQuery}
-        selectedKey={null}
         onSelectionChange={handleSelectFromList}
         menuTrigger="focus"
         allowsEmptyCollection
