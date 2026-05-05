@@ -126,6 +126,28 @@ pub async fn add_role_prompt(
     Ok(())
 }
 
+/// IPC: atomically replace the full ordered prompt list for a role.
+/// ctq-108 / audit F-08 — bulk setter for MCP agents that prefer to
+/// publish the desired-state list rather than diffing add/remove pairs.
+///
+/// MCP description: "Replace every prompt currently attached to
+/// `role_id` with `prompt_ids` (in order). Pass an empty list to clear
+/// the attachment set. Atomic — partial failures roll back."
+///
+/// # Errors
+///
+/// Forwards every error from `RolesUseCase::set_role_prompts`.
+#[tauri::command]
+pub async fn set_role_prompts(
+    state: State<'_, AppState>,
+    role_id: String,
+    prompt_ids: Vec<String>,
+) -> Result<(), AppError> {
+    RolesUseCase::new(&state.pool).set_role_prompts(role_id.clone(), prompt_ids)?;
+    events::emit(&state, events::ROLE_UPDATED, json!({ "id": role_id }));
+    Ok(())
+}
+
 /// Detach a prompt from a role.
 ///
 /// Symmetric to [`add_role_prompt`]: removes the join row plus every

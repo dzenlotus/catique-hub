@@ -120,6 +120,66 @@ pub async fn update_task(
     Ok(after)
 }
 
+/// IPC: move a task to a different column (and optionally reposition).
+///
+/// Promptery-compat shape (audit F-10 / ctq-107). Promptery's MCP tool
+/// catalogue exposes `move_task(task_id, column_id, position?)` as a
+/// first-class operation; agents written against that contract land
+/// here without a wire-shape translation step. Catique HUB's own
+/// `update_task` covers the same surface and stays available — both
+/// names work.
+///
+/// **Cross-board moves:** when `column_id` belongs to a different
+/// board than the task's current row, the use-case patches
+/// `tasks.board_id` in the same connection so the row stays internally
+/// consistent. The task's `role_id` and every direct `task_prompts`
+/// row (`origin = 'direct'`) survive the move untouched.
+///
+/// Emits `task:updated` plus `task:moved` (when the column actually
+/// changed) so the realtime frontend cache invalidates the same way it
+/// does for `update_task`.
+///
+/// # Errors
+///
+/// * `AppError::NotFound` — `task_id` or `column_id` does not exist.
+/// * Storage-layer errors as usual.
+#[tauri::command]
+pub async fn move_task(
+    state: State<'_, AppState>,
+    task_id: String,
+    column_id: String,
+    position: Option<f64>,
+) -> Result<Task, AppError> {
+    // Snapshot the pre-move task so the post-emit logic can decide
+    // whether to also fire `task:moved` (column actually changed) —
+    // mirrors `update_task`'s compare-and-emit shape.
+    let uc = TasksUseCase::new(&state.pool);
+    let before = uc.get(&task_id)?;
+    let after = uc.move_task(task_id, column_id, position)?;
+    events::emit(
+        &state,
+        events::TASK_UPDATED,
+        json!({
+            "id": after.id,
+            "column_id": after.column_id,
+            "board_id": after.board_id,
+        }),
+    );
+    if before.column_id != after.column_id {
+        events::emit(
+            &state,
+            events::TASK_MOVED,
+            json!({
+                "id": after.id,
+                "from_column_id": before.column_id,
+                "to_column_id": after.column_id,
+                "board_id": after.board_id,
+            }),
+        );
+    }
+    Ok(after)
+}
+
 /// IPC: delete a task.
 ///
 /// Performs the FK cascade on `task_attachments` rows AND removes the

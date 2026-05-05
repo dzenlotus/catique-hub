@@ -114,6 +114,31 @@ pub async fn add_prompt_tag(
     repo::add_prompt_tag(&conn, &prompt_id, &tag_id).map_err(map_db)
 }
 
+/// IPC: atomically replace the full set of prompts wearing this tag.
+/// ctq-108 / audit F-08 — bulk setter symmetric with the
+/// role/board/column variants.
+///
+/// Tags are not part of the prompt-inheritance chain, so this setter
+/// only touches the `prompt_tags` join — no `task_prompts` cascade.
+///
+/// MCP description: "Replace every prompt currently labeled with
+/// `tag_id` with `prompt_ids`. Pass an empty list to clear the tag's
+/// label set. Atomic — partial failures roll back."
+///
+/// # Errors
+///
+/// Forwards every error from `TagsUseCase::set_tag_prompts`.
+#[tauri::command]
+pub async fn set_tag_prompts(
+    state: State<'_, AppState>,
+    tag_id: String,
+    prompt_ids: Vec<String>,
+) -> Result<(), AppError> {
+    TagsUseCase::new(&state.pool).set_tag_prompts(tag_id.clone(), prompt_ids)?;
+    events::emit(&state, events::TAG_UPDATED, json!({ "id": tag_id }));
+    Ok(())
+}
+
 /// Detach a tag from a prompt.
 ///
 /// # Errors

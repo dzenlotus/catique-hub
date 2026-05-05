@@ -167,6 +167,98 @@ impl<'a> TasksUseCase<'a> {
         }
     }
 
+    /// Promptery-compat shape: move a task to `column_id`, optionally
+    /// repositioning it. Mirrors Promptery's MCP `move_task(task_id,
+    /// column_id, position)` so agents written against that catalogue
+    /// land here without a wire-shape translation step.
+    ///
+    /// Within a single board this is a thin wrapper around `update`.
+    /// Across boards, the destination column may live on a different
+    /// `board_id` than the task's current row — `update` only patches
+    /// `column_id`, leaving `tasks.board_id` stale (audit F-10 / ctq-107).
+    /// We resolve the new column's owning `board_id` up-front and patch
+    /// it in the same connection so the row stays internally consistent.
+    ///
+    /// **Preserved across the move:** `task.role_id` (task-level role
+    /// stays put), every direct `task_prompts` row (`origin = 'direct'`
+    /// is independent of column/board scope). Inherited `task_prompts`
+    /// rows (board/column origin) are *not* re-cascaded here — that's
+    /// resolver-internals territory (ctq-98) and lies outside this
+    /// alias's contract; the brief explicitly scopes the guarantee to
+    /// task-level role + direct prompts.
+    ///
+    /// # Errors
+    ///
+    /// * `AppError::NotFound` — `task_id` or `column_id` does not exist.
+    /// * Storage-layer errors as usual.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn move_task(
+        &self,
+        task_id: String,
+        column_id: String,
+        position: Option<f64>,
+    ) -> Result<Task, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+
+        // Resolve the destination column → typed NotFound for missing
+        // columns (the FK on `tasks.column_id` would otherwise produce
+        // a generic constraint error mapped to TransactionRolledBack).
+        let column_board_id: Option<String> = conn
+            .query_row(
+                "SELECT board_id FROM columns WHERE id = ?1",
+                params![column_id],
+                |r| r.get::<_, String>(0),
+            )
+            .map(Some)
+            .or_else(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                other => Err(other),
+            })
+            .map_err(|e| map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e)))?;
+        let new_board_id = column_board_id.ok_or_else(|| AppError::NotFound {
+            entity: "column".into(),
+            id: column_id.clone(),
+        })?;
+
+        // Pre-check the task itself so a missing row surfaces as a
+        // typed NotFound rather than letting `repo::update` return
+        // Ok(None) (which we would also map to NotFound, but doing the
+        // SELECT here keeps the path linear).
+        let existing = repo::get_by_id(&conn, &task_id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "task".into(),
+                id: task_id.clone(),
+            })?;
+
+        // Cross-board move: patch board_id directly. `TaskPatch` does
+        // not expose `board_id` (intentional — most callers shouldn't
+        // mutate it). Doing the UPDATE here keeps the special case
+        // local to `move_task` and avoids widening the patch surface.
+        if existing.board_id != new_board_id {
+            conn.execute(
+                "UPDATE tasks SET board_id = ?1 WHERE id = ?2",
+                params![new_board_id, task_id],
+            )
+            .map_err(|e| map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e)))?;
+        }
+
+        let patch = TaskPatch {
+            title: None,
+            description: None,
+            column_id: Some(column_id),
+            position,
+            role_id: None,
+        };
+        match repo::update(&conn, &task_id, &patch).map_err(map_db_err)? {
+            Some(row) => Ok(row_to_task(row)),
+            None => Err(AppError::NotFound {
+                entity: "task".into(),
+                id: task_id,
+            }),
+        }
+    }
+
     /// List the prompts attached to a task, ordered by join-table `position`.
     ///
     /// # Errors
@@ -741,6 +833,141 @@ mod tests {
         match uc.rate_task("ghost".into(), Some(1)).expect_err("nf") {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "task"),
             other => panic!("got {other:?}"),
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // ctq-107 — `move_task` Promptery-compat alias.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn move_task_within_same_board_swaps_column_and_position() {
+        // Same-board move: only column_id (and position) changes; the
+        // existing board_id stays put. Direct prompts and the task's
+        // role_id survive — that's the whole contract for the alias.
+        use catique_infrastructure::db::repositories::tasks as repo;
+
+        let pool = fresh_pool();
+        // Add a second column on the same board so we have somewhere
+        // to move to.
+        {
+            let conn = pool.get().unwrap();
+            conn.execute(
+                "INSERT INTO columns (id, board_id, name, position, created_at) \
+                 VALUES ('c2','bd1','Done',1,0)",
+                [],
+            )
+            .unwrap();
+            conn.execute_batch(
+                "INSERT INTO roles (id, name, content, created_at, updated_at) \
+                     VALUES ('rl', 'R', '', 0, 0); \
+                 INSERT INTO prompts (id, name, content, created_at, updated_at) \
+                     VALUES ('p-direct', 'direct prompt', '', 0, 0);",
+            )
+            .unwrap();
+        }
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create(
+                "bd1".into(),
+                "c1".into(),
+                "T".into(),
+                None,
+                1.0,
+                Some("rl".into()),
+            )
+            .unwrap();
+        // Attach a direct prompt — it must survive the move.
+        {
+            let conn = pool.get().unwrap();
+            repo::add_task_prompt(&conn, &task.id, "p-direct", 1.0).unwrap();
+        }
+
+        let moved = uc
+            .move_task(task.id.clone(), "c2".into(), Some(2.0))
+            .unwrap();
+        assert_eq!(moved.column_id, "c2");
+        assert_eq!(moved.board_id, "bd1");
+        assert!((moved.position - 2.0).abs() < f64::EPSILON);
+        // Task-level role survives.
+        assert_eq!(moved.role_id.as_deref(), Some("rl"));
+
+        // Direct prompts survive across the move.
+        let prompts = uc.list_task_prompts(&task.id).unwrap();
+        assert_eq!(prompts.len(), 1);
+        assert_eq!(prompts[0].id, "p-direct");
+    }
+
+    #[test]
+    fn move_task_across_boards_repoints_board_id() {
+        // Cross-board move: destination column lives on a different
+        // board. `tasks.board_id` must follow so the row stays
+        // internally consistent — that is the bug `update_task` has
+        // (audit F-10), and `move_task` is the alias that fixes it.
+        use catique_infrastructure::db::repositories::tasks as repo;
+
+        let pool = fresh_pool();
+        // Seed a second board with one column on the same space.
+        {
+            let conn = pool.get().unwrap();
+            conn.execute_batch(
+                "INSERT INTO boards (id, name, space_id, position, created_at, updated_at) \
+                     VALUES ('bd2','B2','sp1',1,0,0); \
+                 INSERT INTO columns (id, board_id, name, position, created_at) \
+                     VALUES ('cb2','bd2','Backlog',0,0); \
+                 INSERT INTO prompts (id, name, content, created_at, updated_at) \
+                     VALUES ('p-d','direct','',0,0);",
+            )
+            .unwrap();
+        }
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .unwrap();
+        {
+            let conn = pool.get().unwrap();
+            repo::add_task_prompt(&conn, &task.id, "p-d", 1.0).unwrap();
+        }
+
+        let moved = uc.move_task(task.id.clone(), "cb2".into(), None).unwrap();
+        assert_eq!(moved.board_id, "bd2", "board_id must follow column");
+        assert_eq!(moved.column_id, "cb2");
+
+        // Direct prompt survived the cross-board move.
+        let prompts = uc.list_task_prompts(&task.id).unwrap();
+        assert_eq!(prompts.len(), 1);
+        assert_eq!(prompts[0].id, "p-d");
+    }
+
+    #[test]
+    fn move_task_returns_not_found_for_missing_task() {
+        let pool = fresh_pool();
+        let uc = TasksUseCase::new(&pool);
+        match uc
+            .move_task("ghost".into(), "c1".into(), None)
+            .expect_err("nf")
+        {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "task"),
+            other => panic!("expected NotFound, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn move_task_returns_not_found_for_missing_column() {
+        let pool = fresh_pool();
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .unwrap();
+        match uc
+            .move_task(task.id, "ghost".into(), None)
+            .expect_err("nf")
+        {
+            AppError::NotFound { entity, id } => {
+                assert_eq!(entity, "column");
+                assert_eq!(id, "ghost");
+            }
+            other => panic!("expected NotFound, got {other:?}"),
         }
     }
 

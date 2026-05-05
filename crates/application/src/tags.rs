@@ -149,6 +149,75 @@ impl<'a> TagsUseCase<'a> {
             })
         }
     }
+
+    /// Atomically replace the set of prompts wearing this tag.
+    /// ctq-108: bulk setter symmetric with the role/board/column
+    /// variants.
+    ///
+    /// Unlike role/board/column, tags are **not** part of the prompt-
+    /// inheritance chain (they're labels, not scopes), so this setter
+    /// does not touch `task_prompts` or call any cascade helper. The
+    /// schema's `prompt_tags` join carries no `position` column either —
+    /// ordering is alphabetic on the FE (`list_prompt_tags_map`), so we
+    /// only ensure the new set replaces the old set atomically.
+    ///
+    /// `prompt_ids` may be empty: that clears the tag's prompts in one
+    /// round-trip. Duplicate ids are silently de-duplicated by the
+    /// `INSERT … ON CONFLICT DO NOTHING` in the underlying repo helper —
+    /// we re-issue a plain INSERT here for the same effect.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::TransactionRolledBack` on FK violation (unknown
+    /// `tag_id` or any prompt id).
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn set_tag_prompts(
+        &self,
+        tag_id: String,
+        prompt_ids: Vec<String>,
+    ) -> Result<(), AppError> {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+
+        tx.execute(
+            "DELETE FROM prompt_tags WHERE tag_id = ?1",
+            rusqlite::params![tag_id],
+        )
+        .map_err(|e| map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e)))?;
+
+        // Insert the new set with a fresh `added_at` per row. We can't
+        // reuse `repositories::tags::add_prompt_tag` here because it
+        // takes `&Connection` not `&Transaction`; cloning the SQL keeps
+        // the whole bulk write inside one tx.
+        let now = now_unix_ms();
+        for prompt_id in &prompt_ids {
+            tx.execute(
+                "INSERT INTO prompt_tags (prompt_id, tag_id, added_at) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(prompt_id, tag_id) DO NOTHING",
+                rusqlite::params![prompt_id, tag_id, now],
+            )
+            .map_err(|e| map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e)))?;
+        }
+
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
+        Ok(())
+    }
+}
+
+/// Wall-clock unix-ms. Same shape as `tasks::now_unix_ms`. Kept local
+/// rather than promoted to a shared util because the use-case layer's
+/// only other clock consumer (`tasks::log_step`) inlines the same helper
+/// — promoting feels premature with two call-sites.
+fn now_unix_ms() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|d| i64::try_from(d.as_millis()).ok())
+        .unwrap_or(0)
 }
 
 fn row_to_tag(row: TagRow) -> Tag {
@@ -284,5 +353,98 @@ mod tests {
             .find(|e| e.tag_ids == vec![t2.id.clone()])
             .unwrap();
         assert_eq!(p2_entry.tag_ids.len(), 1, "P2 has only t2");
+    }
+
+    // -----------------------------------------------------------------
+    // ctq-108 — set_tag_prompts bulk setter (no resolver cascade —
+    // tags aren't an inheritance scope).
+    // -----------------------------------------------------------------
+
+    fn seed_tag_prompts_fixture() -> (Pool, String) {
+        let pool = fresh_pool();
+        let tag = TagsUseCase::new(&pool).create("rust".into(), None).unwrap();
+        {
+            let conn = acquire(&pool).unwrap();
+            conn.execute_batch(
+                "INSERT INTO prompts (id, name, content, created_at, updated_at) VALUES \
+                     ('p1','P1','',0,0), \
+                     ('p2','P2','',0,0), \
+                     ('p3','P3','',0,0);",
+            )
+            .unwrap();
+        }
+        (pool, tag.id)
+    }
+
+    #[test]
+    fn set_tag_prompts_replaces_ordering() {
+        let (pool, tag_id) = seed_tag_prompts_fixture();
+        let uc = TagsUseCase::new(&pool);
+
+        uc.set_tag_prompts(tag_id.clone(), vec!["p1".into(), "p2".into()])
+            .unwrap();
+        uc.set_tag_prompts(tag_id.clone(), vec!["p3".into(), "p1".into()])
+            .unwrap();
+
+        let conn = acquire(&pool).unwrap();
+        // prompt_tags has no `position` column — assert membership only.
+        let mut ids: Vec<String> = conn
+            .prepare("SELECT prompt_id FROM prompt_tags WHERE tag_id = ?1")
+            .unwrap()
+            .query_map(rusqlite::params![tag_id], |r| r.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        ids.sort();
+        assert_eq!(ids, vec!["p1".to_string(), "p3".to_string()]);
+    }
+
+    #[test]
+    fn set_tag_prompts_with_empty_clears_all() {
+        let (pool, tag_id) = seed_tag_prompts_fixture();
+        let uc = TagsUseCase::new(&pool);
+        uc.set_tag_prompts(tag_id.clone(), vec!["p1".into(), "p2".into()])
+            .unwrap();
+        uc.set_tag_prompts(tag_id.clone(), Vec::new()).unwrap();
+
+        let conn = acquire(&pool).unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM prompt_tags WHERE tag_id = ?1",
+                rusqlite::params![tag_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn set_tag_prompts_atomic_on_fk_error() {
+        let (pool, tag_id) = seed_tag_prompts_fixture();
+        let uc = TagsUseCase::new(&pool);
+        uc.set_tag_prompts(tag_id.clone(), vec!["p1".into()])
+            .unwrap();
+
+        let err = uc
+            .set_tag_prompts(
+                tag_id.clone(),
+                vec!["p2".into(), "ghost".into(), "p3".into()],
+            )
+            .expect_err("FK violation");
+        match err {
+            AppError::TransactionRolledBack { .. } => {}
+            other => panic!("expected TransactionRolledBack, got {other:?}"),
+        }
+
+        // Pre-state: only p1.
+        let conn = acquire(&pool).unwrap();
+        let ids: Vec<String> = conn
+            .prepare("SELECT prompt_id FROM prompt_tags WHERE tag_id = ?1")
+            .unwrap()
+            .query_map(rusqlite::params![tag_id], |r| r.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(ids, vec!["p1".to_string()]);
     }
 }

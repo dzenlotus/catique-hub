@@ -58,6 +58,19 @@ once_cell = "1.21"
 # util::new_id() so the id alphabet is consistent across the codebase.
 nanoid.workspace = true
 
+# ctq-110 (`upload_attachment_blob`): MCP agents publish attachment
+# bodies as base64-encoded JSON strings (binary IPC payloads aren't
+# part of Tauri's serde contract). The crate is small, audited, and
+# 0.22 is the version the rest of the dependency graph already pulls
+# in transitively (verified in Cargo.lock). Caret-allowed because the
+# decoder is a stable interface — no schema impact.
+base64 = "0.22"
+
+[dev-dependencies]
+# ctq-110: handler-level tests stand up a temp data root + in-memory
+# DB pool to exercise the full upload path without spinning up Tauri.
+tempfile.workspace = true
+
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }
 module_name_repetitions = "allow"
