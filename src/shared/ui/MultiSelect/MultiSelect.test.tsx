@@ -98,6 +98,19 @@ describe("MultiSelect", () => {
     expect(onChange).toHaveBeenLastCalledWith(["p1"]);
   });
 
+  it("audit-A: listbox carries the styles class that bounds its height", async () => {
+    // jsdom-friendly: assert the className stamp, not computed height.
+    // The CSS module maps `.listbox` to a hashed class which carries
+    // the `max-height: clamp(...)` + `overflow-y: auto` rules.
+    const user = userEvent.setup();
+    render(<Harness />);
+    const cb = screen.getByRole("combobox", { name: "Prompts" });
+    await user.click(cb);
+    const listbox = await screen.findByRole("listbox");
+    // The CSS-module class name contains the original token "listbox".
+    expect(listbox.className).toMatch(/listbox/);
+  });
+
   it("filters options by typed query", async () => {
     const user = userEvent.setup();
     render(<Harness />);

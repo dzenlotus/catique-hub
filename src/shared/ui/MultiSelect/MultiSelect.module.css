@@ -97,8 +97,15 @@
   border-radius: var(--radius-md);
   box-shadow: 0 8px 24px var(--color-shadow-overlay, rgba(0, 0, 0, 0.15));
   outline: none;
-  max-height: 280px;
+  /*
+   * audit-A: bound the dropdown so it never floods the viewport. Clamp
+   * keeps it usable on tall displays (cap 360px) while still showing a
+   * meaningful slice on shorter ones (min 160px). Native scrollbar —
+   * styled tokens-only via existing browser defaults.
+   */
+  max-height: clamp(160px, 40vh, 360px);
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .option {
