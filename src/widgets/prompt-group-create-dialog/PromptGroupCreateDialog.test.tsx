@@ -154,6 +154,30 @@ describe("PromptGroupCreateDialog", () => {
     expect(createCalls).toHaveLength(0);
   });
 
+  it("audit-D: identity row places color picker BEFORE the name field", () => {
+    renderWithClient(
+      <PromptGroupCreateDialog isOpen onClose={() => undefined} />,
+    );
+    const identityRow = screen.getByTestId(
+      "prompt-group-create-dialog-identity-row",
+    );
+    const colorInput = screen.getByTestId(
+      "prompt-group-create-dialog-color-input",
+    );
+    const nameInput = screen.getByTestId(
+      "prompt-group-create-dialog-name-input",
+    );
+    expect(identityRow).toContainElement(colorInput);
+    expect(identityRow).toContainElement(nameInput);
+    // DOM order — picker comes first; name second.
+    const order = identityRow.compareDocumentPosition(nameInput);
+    // eslint-disable-next-line no-bitwise
+    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const pickerBeforeName = colorInput.compareDocumentPosition(nameInput);
+    // eslint-disable-next-line no-bitwise
+    expect(pickerBeforeName & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("does not render content when isOpen is false", () => {
     renderWithClient(
       <PromptGroupCreateDialog isOpen={false} onClose={() => undefined} />,

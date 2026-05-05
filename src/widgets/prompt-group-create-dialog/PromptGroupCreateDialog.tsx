@@ -100,30 +100,18 @@ function PromptGroupCreateDialogContent({
 
   return (
     <>
-      {/* Name */}
-      <div className={styles.section}>
-        <Input
-          label="Name"
-          value={name}
-          onChange={setName}
-          placeholder="Group name"
-          autoFocus
-          className={styles.fullWidthInput}
-          data-testid="prompt-group-create-dialog-name-input"
-        />
-      </div>
-
-      {/* Color */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {color !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: color }}
-              aria-hidden="true"
-            />
-          )}
+      {/*
+       * audit-D: identity picker (color) renders on the LEFT of the
+       * name field in a horizontal row. Compact ~64-72 px square so
+       * the name column flexes to fill remaining width. Reset hangs
+       * below the color square inside the same column to keep the
+       * picker self-contained.
+       */}
+      <div
+        className={styles.identityRow}
+        data-testid="prompt-group-create-dialog-identity-row"
+      >
+        <div className={styles.identityPicker}>
           <input
             type="color"
             className={styles.colorInput}
@@ -142,6 +130,17 @@ function PromptGroupCreateDialogContent({
               Reset
             </Button>
           )}
+        </div>
+        <div className={styles.identityFields}>
+          <Input
+            label="Name"
+            value={name}
+            onChange={setName}
+            placeholder="Group name"
+            autoFocus
+            className={styles.fullWidthInput}
+            data-testid="prompt-group-create-dialog-name-input"
+          />
         </div>
       </div>
 
