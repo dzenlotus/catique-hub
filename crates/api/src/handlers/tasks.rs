@@ -6,7 +6,7 @@
 //! `<prefix>-<6char>` rationale.
 
 use catique_application::{tasks::TasksUseCase, AppError};
-use catique_domain::{Prompt, Task};
+use catique_domain::{Prompt, Task, TaskRating};
 use serde_json::json;
 use tauri::State;
 
@@ -249,6 +249,95 @@ pub async fn clear_task_prompt_override(
             id: format!("{task_id}|{prompt_id}"),
         })
     }
+}
+
+// ---------------------------------------------------------------------
+// Cat-as-Agent Phase 1 — step log + rating IPC surface (ctq-85, ctq-86,
+// ctq-95). Handlers mirror the use-case signatures one-for-one; no event
+// emission yet — the audit (F-01/F-02) tracks `task:logged` /
+// `task:rated` as a follow-up once the realtime taxonomy is widened.
+// ---------------------------------------------------------------------
+
+/// IPC: append one step-log line to a task. Format produced by the use
+/// case is `[YYYY-MM-DDTHH:MM:SSZ] {summary}\n` — see
+/// `TasksUseCase::log_step` for the full contract.
+///
+/// # Errors
+///
+/// Forwards every error from `TasksUseCase::log_step`.
+#[tauri::command]
+pub async fn log_step(
+    state: State<'_, AppState>,
+    task_id: String,
+    summary: String,
+) -> Result<(), AppError> {
+    TasksUseCase::new(&state.pool).log_step(task_id, summary)
+}
+
+/// IPC: read the raw step-log buffer for a task. Companion to
+/// `log_step`; cheaper than `get_task` when the caller only needs the
+/// log text. Returns `""` for tasks that have never been logged-to;
+/// `AppError::NotFound` if the task id is unknown.
+///
+/// # Errors
+///
+/// `AppError::NotFound` for missing tasks; storage-layer errors.
+#[tauri::command]
+pub async fn get_step_log(state: State<'_, AppState>, task_id: String) -> Result<String, AppError> {
+    let conn = catique_infrastructure::db::pool::acquire(&state.pool).map_err(map_db)?;
+    match catique_infrastructure::db::repositories::tasks::get_step_log(&conn, &task_id)
+        .map_err(map_db)?
+    {
+        Some(text) => Ok(text),
+        None => Err(AppError::NotFound {
+            entity: "task".into(),
+            id: task_id,
+        }),
+    }
+}
+
+/// IPC: set or clear the rating for a task. `rating = None` deletes the
+/// rating value (the row stays so `rated_at` records the unrate moment);
+/// `Some(-1 | 0 | 1)` upserts. Out-of-range integers and missing tasks
+/// surface as typed `AppError`.
+///
+/// The IPC payload uses `i32` because `i8` is not a first-class JSON
+/// number on the TS side; the use case re-narrows to `i8` after the
+/// out-of-range guard.
+///
+/// # Errors
+///
+/// Forwards every error from `TasksUseCase::rate_task`.
+#[tauri::command]
+pub async fn rate_task(
+    state: State<'_, AppState>,
+    task_id: String,
+    rating: Option<i32>,
+) -> Result<(), AppError> {
+    let narrowed = match rating {
+        None => None,
+        Some(v) => Some(i8::try_from(v).map_err(|_| AppError::Validation {
+            field: "rating".into(),
+            reason: "must be one of -1, 0, +1, or null".into(),
+        })?),
+    };
+    TasksUseCase::new(&state.pool).rate_task(task_id, narrowed)
+}
+
+/// IPC: look up the rating row for a task. `Ok(None)` for tasks that
+/// have never been rated; `Ok(Some(row))` with `row.rating = None` for
+/// tasks that were rated and then explicitly un-rated (memo Q4 / AC-R2
+/// distinction).
+///
+/// # Errors
+///
+/// Forwards every error from `TasksUseCase::get_task_rating`.
+#[tauri::command]
+pub async fn get_task_rating(
+    state: State<'_, AppState>,
+    task_id: String,
+) -> Result<Option<TaskRating>, AppError> {
+    TasksUseCase::new(&state.pool).get_task_rating(&task_id)
 }
 
 fn map_db(err: catique_infrastructure::db::pool::DbError) -> AppError {

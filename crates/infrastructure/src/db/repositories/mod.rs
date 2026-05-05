@@ -20,6 +20,7 @@ pub mod prompt_groups;
 pub mod prompts;
 pub mod roles;
 pub mod search;
+pub mod settings;
 pub mod skills;
 pub mod spaces;
 pub mod tags;

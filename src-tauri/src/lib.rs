@@ -92,9 +92,13 @@ pub fn run() {
             handlers::tasks::clear_task_prompt_override,
             handlers::tasks::create_task,
             handlers::tasks::delete_task,
+            handlers::tasks::get_step_log,
             handlers::tasks::get_task,
+            handlers::tasks::get_task_rating,
             handlers::tasks::list_task_prompts,
             handlers::tasks::list_tasks,
+            handlers::tasks::log_step,
+            handlers::tasks::rate_task,
             handlers::tasks::remove_task_prompt,
             handlers::tasks::set_task_prompt_override,
             handlers::tasks::update_task,
@@ -166,7 +170,9 @@ pub fn run() {
             handlers::prompt_groups::set_prompt_group_members,
             handlers::prompt_groups::update_prompt_group,
             // ---------------- settings ----------------
+            handlers::settings::get_setting,
             handlers::settings::ping,
+            handlers::settings::set_setting,
             // ---------------- search (E4.1) ----------------
             handlers::search::search_tasks,
             handlers::search::search_agent_reports,

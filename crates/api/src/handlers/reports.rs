@@ -16,14 +16,25 @@ use crate::state::AppState;
 /// E2 will populate per-domain initialisation here.
 pub fn register() {}
 
-/// IPC: list every report (newest first).
+/// IPC: list agent-report rows (newest first).
+///
+/// `task_id` is an optional filter. When omitted (or explicitly `null`),
+/// every row is returned — preserving the legacy global-list behaviour.
+///
+/// **MCP tool guidance:** agents inspecting prior reports for a single
+/// task should always pass `task_id` rather than scanning the global
+/// list. The schema's `idx_agent_reports_task` index makes the filtered
+/// path O(matches); the unfiltered path is O(all-reports).
 ///
 /// # Errors
 ///
 /// Forwards every error from `ReportsUseCase::list`.
 #[tauri::command]
-pub async fn list_agent_reports(state: State<'_, AppState>) -> Result<Vec<AgentReport>, AppError> {
-    ReportsUseCase::new(&state.pool).list()
+pub async fn list_agent_reports(
+    state: State<'_, AppState>,
+    task_id: Option<String>,
+) -> Result<Vec<AgentReport>, AppError> {
+    ReportsUseCase::new(&state.pool).list(task_id)
 }
 
 /// IPC: look up a report by id.
