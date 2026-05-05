@@ -3,14 +3,22 @@
  * (Board / Column / Task / Role) via the join-table IPCs.
  *
  * Props:
- *   - `isOpen`      — controls dialog visibility.
- *   - `onClose`     — called on Cancel, successful Save, or Esc.
- *   - `onAttached`  — optional callback invoked after a successful attach.
+ *   - `isOpen`        — controls dialog visibility.
+ *   - `onClose`       — called on Cancel, successful Save, or Esc.
+ *   - `onAttached`    — optional callback invoked after a successful attach.
+ *   - `defaultTarget` — optional target to pre-populate the form with.
+ *   - `lockedTarget`  — when true, the target is fixed to `defaultTarget`
+ *                       and the kind/target pickers are hidden. Caller
+ *                       must supply `defaultTarget` when locking.
  *
- * Form steps:
+ * Form steps (free mode):
  *   1. Pick target kind (radio group): Board / Column / Task / Role.
  *   2. Pick a target (cascading Comboboxes depending on kind).
  *   3. Pick a prompt (Combobox from usePrompts()).
+ *
+ * Locked mode (ctq-89): only step 3 is rendered — `defaultTarget` is
+ * shown as a read-only summary line so the user knows what they're
+ * attaching to.
  */
 
 import { useState, type ReactElement } from "react";
@@ -39,17 +47,35 @@ import type { ComboboxItem } from "@shared/ui";
 
 import styles from "./AttachPromptDialog.module.css";
 
-// ─── Public props ────────────────────────────────────────────────────────────
+// ─── Public types ────────────────────────────────────────────────────────────
+
+/**
+ * Discriminated union describing what a prompt is being attached to.
+ * `kind` selects the join-table; `id` is the entity primary key on the
+ * matching domain table (board / column / task / role).
+ */
+export type AttachTarget =
+  | { kind: "board"; id: string }
+  | { kind: "column"; id: string }
+  | { kind: "task"; id: string }
+  | { kind: "role"; id: string };
 
 export interface AttachPromptDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onAttached?: () => void;
+  /** Pre-fills the target. In free mode the form is editable; in
+   *  locked mode (`lockedTarget=true`) this is the only target. */
+  defaultTarget?: AttachTarget;
+  /** When `true`, the kind + target pickers are hidden. The dialog
+   *  uses `defaultTarget` directly for the attach mutation. The caller
+   *  is responsible for supplying `defaultTarget` when locking. */
+  lockedTarget?: boolean;
 }
 
 // ─── Target-kind discriminant ─────────────────────────────────────────────────
 
-type TargetKind = "board" | "column" | "task" | "role";
+type TargetKind = AttachTarget["kind"];
 
 const TARGET_KINDS: { value: TargetKind; label: string }[] = [
   { value: "board", label: "Board" },
@@ -57,6 +83,13 @@ const TARGET_KINDS: { value: TargetKind; label: string }[] = [
   { value: "task", label: "Task" },
   { value: "role", label: "Role" },
 ];
+
+const TARGET_KIND_LABEL: Record<TargetKind, string> = {
+  board: "Board",
+  column: "Column",
+  task: "Task",
+  role: "Role",
+};
 
 // ─── Shell ───────────────────────────────────────────────────────────────────
 
@@ -69,6 +102,8 @@ export function AttachPromptDialog({
   isOpen,
   onClose,
   onAttached,
+  defaultTarget,
+  lockedTarget = false,
 }: AttachPromptDialogProps): ReactElement {
   return (
     <Dialog
@@ -85,6 +120,8 @@ export function AttachPromptDialog({
         <AttachPromptDialogContent
           onClose={onClose}
           {...(onAttached !== undefined ? { onAttached } : {})}
+          {...(defaultTarget !== undefined ? { defaultTarget } : {})}
+          lockedTarget={lockedTarget}
         />
       )}
     </Dialog>
@@ -96,18 +133,35 @@ export function AttachPromptDialog({
 interface AttachPromptDialogContentProps {
   onClose: () => void;
   onAttached?: () => void;
+  defaultTarget?: AttachTarget;
+  lockedTarget: boolean;
 }
 
 function AttachPromptDialogContent({
   onClose,
   onAttached,
+  defaultTarget,
+  lockedTarget,
 }: AttachPromptDialogContentProps): ReactElement {
   const { pushToast } = useToast();
-  const [kind, setKind] = useState<TargetKind>("board");
 
-  // Cascade board → column / task
-  const [selectedBoardId, setSelectedBoardId] = useState<string>("");
-  const [selectedTargetId, setSelectedTargetId] = useState<string>("");
+  // When locked, the form's `kind` is fixed to the locked target's kind.
+  // Otherwise it starts at `defaultTarget?.kind` (if any) or "board".
+  const [kind, setKind] = useState<TargetKind>(
+    defaultTarget?.kind ?? "board",
+  );
+
+  // Cascade board → column / task. In locked mode none of these are
+  // user-editable, but we still seed `selectedTargetId` so the submit
+  // path can dispatch the right mutation without branching on locked.
+  const [selectedBoardId, setSelectedBoardId] = useState<string>(
+    defaultTarget?.kind === "board" ? defaultTarget.id : "",
+  );
+  const [selectedTargetId, setSelectedTargetId] = useState<string>(
+    defaultTarget !== undefined && defaultTarget.kind !== "board"
+      ? defaultTarget.id
+      : "",
+  );
   const [selectedPromptId, setSelectedPromptId] = useState<string>("");
 
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -118,13 +172,14 @@ function AttachPromptDialogContent({
   const addTaskPrompt = useAddTaskPromptMutation();
   const addRolePrompt = useAddRolePromptMutation();
 
-  // Data queries
+  // Data queries — skipped in locked mode so we don't hit the IPC for
+  // pickers we never render.
   const boardsQuery = useBoards();
   const columnsQuery = useColumns(
-    kind === "column" ? selectedBoardId : "",
+    !lockedTarget && kind === "column" ? selectedBoardId : "",
   );
   const tasksQuery = useTasksByBoard(
-    kind === "task" ? selectedBoardId : "",
+    !lockedTarget && kind === "task" ? selectedBoardId : "",
   );
   const rolesQuery = useRoles();
   const promptsQuery = usePrompts();
@@ -168,12 +223,7 @@ function AttachPromptDialogContent({
   // ── Validation ─────────────────────────────────────────────────────
 
   const needsBoardFirst = kind === "column" || kind === "task";
-  const targetId =
-    kind === "board"
-      ? selectedBoardId
-      : kind === "role"
-        ? selectedTargetId
-        : selectedTargetId;
+  const targetId = kind === "board" ? selectedBoardId : selectedTargetId;
 
   const isPending =
     addBoardPrompt.status === "pending" ||
@@ -181,10 +231,12 @@ function AttachPromptDialogContent({
     addTaskPrompt.status === "pending" ||
     addRolePrompt.status === "pending";
 
+  // In locked mode the target is guaranteed populated from props, so
+  // submission only waits on the prompt selection.
   const canSubmit =
     selectedPromptId.length > 0 &&
     targetId.length > 0 &&
-    (needsBoardFirst ? selectedBoardId.length > 0 : true);
+    (lockedTarget ? true : needsBoardFirst ? selectedBoardId.length > 0 : true);
 
   // ── Submit ─────────────────────────────────────────────────────────
 
@@ -257,122 +309,141 @@ function AttachPromptDialogContent({
 
   return (
     <>
-      {/* Step 1 — target kind */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Target kind</p>
+      {/* Step 1+2 collapsed into a read-only summary in locked mode. */}
+      {lockedTarget && defaultTarget !== undefined ? (
         <div
-          className={styles.kindGroup}
-          role="radiogroup"
-          aria-label="Target kind"
-          data-testid="attach-prompt-dialog-target-kind"
+          className={styles.section}
+          data-testid="attach-prompt-dialog-locked-target"
         >
-          {TARGET_KINDS.map(({ value, label }) => (
-            <label key={value} className={styles.kindOption}>
-              <input
-                type="radio"
-                name="attach-target-kind"
-                value={value}
-                checked={kind === value}
-                onChange={() => handleKindChange(value)}
-                className={styles.kindRadio}
-              />
-              {label}
-            </label>
-          ))}
+          <p className={styles.sectionLabel}>Target</p>
+          <p className={styles.lockedTarget}>
+            {TARGET_KIND_LABEL[defaultTarget.kind]}
+          </p>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Step 1 — target kind */}
+          <div className={styles.section}>
+            <p className={styles.sectionLabel}>Target kind</p>
+            <div
+              className={styles.kindGroup}
+              role="radiogroup"
+              aria-label="Target kind"
+              data-testid="attach-prompt-dialog-target-kind"
+            >
+              {TARGET_KINDS.map(({ value, label }) => (
+                <label key={value} className={styles.kindOption}>
+                  <input
+                    type="radio"
+                    name="attach-target-kind"
+                    value={value}
+                    checked={kind === value}
+                    onChange={() => handleKindChange(value)}
+                    className={styles.kindRadio}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
 
-      {/* Step 2 — target selection */}
-      <div
-        className={styles.section}
-        data-testid="attach-prompt-dialog-target"
-      >
-        <p className={styles.sectionLabel}>Target</p>
+          {/* Step 2 — target selection */}
+          <div
+            className={styles.section}
+            data-testid="attach-prompt-dialog-target"
+          >
+            <p className={styles.sectionLabel}>Target</p>
 
-        {/* Board picker — shown for all kinds that need a board */}
-        {kind === "board" && (
-          <Combobox
-            label="Board"
-            items={boardItems}
-            placeholder="Select a board…"
-            emptyState="No boards available"
-            className={styles.combobox}
-            onSelectionChange={handleBoardSelect}
-            selectedKey={selectedBoardId !== "" ? selectedBoardId : null}
-          />
-        )}
+            {/* Board picker — shown for all kinds that need a board */}
+            {kind === "board" && (
+              <Combobox
+                label="Board"
+                items={boardItems}
+                placeholder="Select a board…"
+                emptyState="No boards available"
+                className={styles.combobox}
+                onSelectionChange={handleBoardSelect}
+                selectedKey={selectedBoardId !== "" ? selectedBoardId : null}
+              />
+            )}
 
-        {/* Column: first board, then column */}
-        {kind === "column" && (
-          <>
-            <Combobox
-              label="Board"
-              items={boardItems}
-              placeholder="Select a board first…"
-              emptyState="No boards available"
-              className={styles.combobox}
-              onSelectionChange={handleBoardSelect}
-              selectedKey={selectedBoardId !== "" ? selectedBoardId : null}
-            />
-            <Combobox
-              label="Column"
-              items={columnItems}
-              placeholder={
-                selectedBoardId !== ""
-                  ? "Select a column…"
-                  : "Select a board first"
-              }
-              emptyState="No columns on this board"
-              className={styles.combobox}
-              isDisabled={selectedBoardId === ""}
-              onSelectionChange={handleTargetSelect}
-              selectedKey={selectedTargetId !== "" ? selectedTargetId : null}
-            />
-          </>
-        )}
+            {/* Column: first board, then column */}
+            {kind === "column" && (
+              <>
+                <Combobox
+                  label="Board"
+                  items={boardItems}
+                  placeholder="Select a board first…"
+                  emptyState="No boards available"
+                  className={styles.combobox}
+                  onSelectionChange={handleBoardSelect}
+                  selectedKey={selectedBoardId !== "" ? selectedBoardId : null}
+                />
+                <Combobox
+                  label="Column"
+                  items={columnItems}
+                  placeholder={
+                    selectedBoardId !== ""
+                      ? "Select a column…"
+                      : "Select a board first"
+                  }
+                  emptyState="No columns on this board"
+                  className={styles.combobox}
+                  isDisabled={selectedBoardId === ""}
+                  onSelectionChange={handleTargetSelect}
+                  selectedKey={
+                    selectedTargetId !== "" ? selectedTargetId : null
+                  }
+                />
+              </>
+            )}
 
-        {/* Task: first board, then task */}
-        {kind === "task" && (
-          <>
-            <Combobox
-              label="Board"
-              items={boardItems}
-              placeholder="Select a board first…"
-              emptyState="No boards available"
-              className={styles.combobox}
-              onSelectionChange={handleBoardSelect}
-              selectedKey={selectedBoardId !== "" ? selectedBoardId : null}
-            />
-            <Combobox
-              label="Task"
-              items={taskItems}
-              placeholder={
-                selectedBoardId !== ""
-                  ? "Select a task…"
-                  : "Select a board first"
-              }
-              emptyState="No tasks on this board"
-              className={styles.combobox}
-              isDisabled={selectedBoardId === ""}
-              onSelectionChange={handleTargetSelect}
-              selectedKey={selectedTargetId !== "" ? selectedTargetId : null}
-            />
-          </>
-        )}
+            {/* Task: first board, then task */}
+            {kind === "task" && (
+              <>
+                <Combobox
+                  label="Board"
+                  items={boardItems}
+                  placeholder="Select a board first…"
+                  emptyState="No boards available"
+                  className={styles.combobox}
+                  onSelectionChange={handleBoardSelect}
+                  selectedKey={selectedBoardId !== "" ? selectedBoardId : null}
+                />
+                <Combobox
+                  label="Task"
+                  items={taskItems}
+                  placeholder={
+                    selectedBoardId !== ""
+                      ? "Select a task…"
+                      : "Select a board first"
+                  }
+                  emptyState="No tasks on this board"
+                  className={styles.combobox}
+                  isDisabled={selectedBoardId === ""}
+                  onSelectionChange={handleTargetSelect}
+                  selectedKey={
+                    selectedTargetId !== "" ? selectedTargetId : null
+                  }
+                />
+              </>
+            )}
 
-        {/* Role picker */}
-        {kind === "role" && (
-          <Combobox
-            label="Role"
-            items={roleItems}
-            placeholder="Select a role…"
-            emptyState="No roles available"
-            className={styles.combobox}
-            onSelectionChange={handleTargetSelect}
-            selectedKey={selectedTargetId !== "" ? selectedTargetId : null}
-          />
-        )}
-      </div>
+            {/* Role picker */}
+            {kind === "role" && (
+              <Combobox
+                label="Role"
+                items={roleItems}
+                placeholder="Select a role…"
+                emptyState="No roles available"
+                className={styles.combobox}
+                onSelectionChange={handleTargetSelect}
+                selectedKey={selectedTargetId !== "" ? selectedTargetId : null}
+              />
+            )}
+          </div>
+        </>
+      )}
 
       {/* Step 3 — prompt selection */}
       <div className={styles.section}>

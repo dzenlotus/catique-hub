@@ -80,6 +80,22 @@
   width: 100%;
 }
 
+/* ── Locked-target summary (ctq-89) ──────────────────────────────── */
+
+/* Read-only label shown in place of the kind/target pickers when the
+ * dialog is opened in `lockedTarget` mode. Visually quiet — the user
+ * already knows what they're attaching to (the surface that opened
+ * the dialog), so we just confirm the kind. */
+.lockedTarget {
+  margin: 0;
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-canvas);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-default);
+}
+
 /* ── Footer ──────────────────────────────────────────────────────── */
 
 .footer {

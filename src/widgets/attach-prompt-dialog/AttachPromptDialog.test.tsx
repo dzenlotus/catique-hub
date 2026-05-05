@@ -342,6 +342,78 @@ describe("AttachPromptDialog", () => {
     });
   });
 
+  // ── ctq-89: defaultTarget + lockedTarget ────────────────────────────────
+
+  it("renders target dropdown by default (no defaultTarget, no lock)", () => {
+    renderWithClient(<AttachPromptDialog isOpen onClose={() => undefined} />);
+    // Free mode — kind radios and the target section both rendered.
+    expect(
+      screen.getByTestId("attach-prompt-dialog-target-kind"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("attach-prompt-dialog-target"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("attach-prompt-dialog-locked-target"),
+    ).toBeNull();
+  });
+
+  it("hides dropdown when lockedTarget is true and uses defaultTarget on submit", async () => {
+    const onClose = vi.fn();
+    const onAttached = vi.fn();
+    const { user } = renderWithClient(
+      <AttachPromptDialog
+        isOpen
+        onClose={onClose}
+        onAttached={onAttached}
+        defaultTarget={{ kind: "role", id: ROLE.id }}
+        lockedTarget
+      />,
+    );
+
+    // Kind radios + cascading pickers must be hidden.
+    expect(
+      screen.queryByTestId("attach-prompt-dialog-target-kind"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("attach-prompt-dialog-target"),
+    ).toBeNull();
+    // The read-only summary takes their place.
+    expect(
+      screen.getByTestId("attach-prompt-dialog-locked-target"),
+    ).toBeInTheDocument();
+
+    // Wait for the prompts list to land then pick one.
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalled();
+    });
+    await selectComboboxItem(user, "Prompt", "Системный промпт");
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("attach-prompt-dialog-save"),
+      ).not.toBeDisabled();
+    });
+
+    await user.click(screen.getByTestId("attach-prompt-dialog-save"));
+
+    // Locked target dispatches the role-specific mutation against the
+    // pre-supplied id.
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalled();
+    });
+    expect(onAttached).toHaveBeenCalled();
+
+    const addCall = invokeMock.mock.calls.find(
+      ([cmd]) => cmd === "add_role_prompt",
+    );
+    expect(addCall).toBeDefined();
+    expect(addCall?.[1]).toMatchObject({
+      roleId: ROLE.id,
+      promptId: PROMPT.id,
+    });
+  });
+
   it("shows inline error when mutation fails", async () => {
     invokeMock.mockImplementation(async (cmd: string) => {
       if (cmd === "add_board_prompt") throw new Error("сбой базы данных");
