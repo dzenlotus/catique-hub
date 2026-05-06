@@ -1,0 +1,73 @@
+/*
+ * TextArea — multi-line text-field primitive.
+ * Styling mirrors Input where possible — same border, focus ring,
+ * tokens — so the two read as a coherent set when stacked.
+ */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-family: var(--font-sans);
+}
+
+.label {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+  cursor: default;
+}
+
+.textarea {
+  min-height: 96px;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+  resize: vertical;
+  outline: none;
+  transition: border-color 120ms ease-out;
+}
+
+.textarea::placeholder {
+  color: var(--color-text-subtle);
+}
+
+.textarea[data-hovered] {
+  border-color: var(--color-border-focus);
+}
+
+.textarea[data-focused] {
+  border-color: var(--color-border-focus);
+}
+
+.textarea[data-invalid] {
+  border-color: var(--color-status-danger);
+}
+
+.textarea[data-disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  resize: none;
+}
+
+.description {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.error {
+  font-size: var(--font-size-caption);
+  color: var(--color-status-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .textarea {
+    transition: none;
+  }
+}
