@@ -167,31 +167,41 @@ describe("BoardCreateDialog", () => {
     renderWithClient(
       <BoardCreateDialog isOpen onClose={() => undefined} />,
     );
-    const ownerSelect = (await screen.findByTestId(
+    // Round-19c: native <select> replaced by RAC <Select>. The data-testid
+    // is forwarded to the trigger button; the selected key is mirrored as
+    // the trigger's visible text content. Wait for `list_roles` to resolve
+    // so the trigger label flips from "Loading…" to the role name.
+    const ownerTrigger = await screen.findByTestId(
       "board-create-dialog-owner-select",
-    )) as HTMLSelectElement;
-    // Pre-selected even before `list_roles` resolves so the Submit
-    // button is not blocked by the loading window.
-    expect(ownerSelect.value).toBe("maintainer-system");
+    );
+    await waitFor(() => {
+      expect(ownerTrigger).toHaveTextContent("Maintainer");
+    });
   });
 
   it("excludes Dirizher from the owner picker but keeps Maintainer", async () => {
     setupDefaultMocks();
-    renderWithClient(
+    const { user } = renderWithClient(
       <BoardCreateDialog isOpen onClose={() => undefined} />,
     );
-    const ownerSelect = (await screen.findByTestId(
+    const ownerTrigger = await screen.findByTestId(
       "board-create-dialog-owner-select",
-    )) as HTMLSelectElement;
+    );
 
-    // Wait for `list_roles` to resolve and the picker to render the
-    // filtered options.
+    // Wait for `list_roles` to resolve, then open the popover and read
+    // the rendered options.
     await waitFor(() => {
-      const ids = Array.from(ownerSelect.options).map((o) => o.value);
-      expect(ids).toContain("maintainer-system");
-      expect(ids).toContain("role-user");
-      expect(ids).not.toContain("dirizher-system");
+      expect(ownerTrigger).toHaveTextContent("Maintainer");
     });
+    await user.click(ownerTrigger);
+
+    await screen.findByRole("listbox");
+    const optionNames = screen
+      .getAllByRole("option")
+      .map((o) => o.textContent ?? "");
+    expect(optionNames).toContain("Maintainer");
+    expect(optionNames).toContain("Senior Cat");
+    expect(optionNames).not.toContain("Dirizher");
   });
 
   it("calls create_board mutation with correct payload on submit", async () => {
@@ -246,16 +256,18 @@ describe("BoardCreateDialog", () => {
     const nameInput = await screen.findByTestId("board-create-dialog-name-input");
     await user.type(nameInput, "Спринт");
 
-    // Wait for the picker to populate with the user role, then switch.
-    const ownerSelect = (await screen.findByTestId(
+    // RAC <Select> replaces native <select>: open the trigger and click
+    // the desired option from the listbox popover.
+    const ownerTrigger = await screen.findByTestId(
       "board-create-dialog-owner-select",
-    )) as HTMLSelectElement;
+    );
     await waitFor(() => {
-      expect(
-        Array.from(ownerSelect.options).map((o) => o.value),
-      ).toContain("role-user");
+      expect(ownerTrigger).toHaveTextContent("Maintainer");
     });
-    await user.selectOptions(ownerSelect, "role-user");
+    await user.click(ownerTrigger);
+    await user.click(
+      await screen.findByRole("option", { name: "Senior Cat" }),
+    );
 
     await user.click(screen.getByTestId("board-create-dialog-save"));
 
@@ -359,11 +371,14 @@ describe("BoardCreateDialog", () => {
       <BoardCreateDialog isOpen onClose={() => undefined} />,
     );
 
-    const select = (await screen.findByTestId(
+    // RAC <Select>: the selected key is rendered as the trigger's text
+    // content. Wait for `list_spaces` to resolve and assert the default
+    // space's name shows up on the trigger.
+    const trigger = await screen.findByTestId(
       "board-create-dialog-space-select",
-    )) as HTMLSelectElement;
+    );
     await waitFor(() => {
-      expect(select.value).toBe("spc-default");
+      expect(trigger).toHaveTextContent("По умолчанию");
     });
   });
 
@@ -381,14 +396,13 @@ describe("BoardCreateDialog", () => {
       <BoardCreateDialog isOpen onClose={() => undefined} />,
     );
 
-    const select = (await screen.findByTestId(
-      "board-create-dialog-space-select",
-    )) as HTMLSelectElement;
-
     // The active space (resolved by ActiveSpaceProvider to spc-active)
     // should be pre-selected — not the first-in-list spc-other.
+    const trigger = await screen.findByTestId(
+      "board-create-dialog-space-select",
+    );
     await waitFor(() => {
-      expect(select.value).toBe("spc-active");
+      expect(trigger).toHaveTextContent("Активное");
     });
   });
 });
