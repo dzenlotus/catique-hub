@@ -14,7 +14,7 @@ import { useState, type ReactElement } from "react";
 
 import { useCreateRoleMutation } from "@entities/role";
 import type { Role } from "@entities/role";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 
 import styles from "./RoleCreateDialog.module.css";
 
@@ -117,36 +117,15 @@ function RoleCreateDialogContent({
         />
       </div>
 
-      {/* Color */}
+      {/* Color (canonical IconColorPicker — color-only mode). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {color !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: color }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={color === "" ? "#000000" : color}
-            onChange={(e) => setColor(e.target.value)}
-            aria-label="Role color"
-            data-testid="role-create-dialog-color-input"
-          />
-          {color !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setColor("")}
-              data-testid="role-create-dialog-color-reset"
-            >
-              Reset
-            </Button>
-          )}
-        </div>
+        <IconColorPicker
+          value={{ icon: null, color: color === "" ? null : color }}
+          onChange={(next) => setColor(next.color ?? "")}
+          ariaLabel="Role color"
+          data-testid="role-create-dialog-color-input"
+        />
       </div>
 
       {/* Content */}
