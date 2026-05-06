@@ -87,6 +87,7 @@ function makeRole(overrides: Partial<Role> = {}): Role {
     name: "Senior Cat",
     content: "",
     color: null,
+    icon: null,
     isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,

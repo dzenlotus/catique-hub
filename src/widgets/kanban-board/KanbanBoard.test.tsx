@@ -80,6 +80,7 @@ function makeColumn(overrides: Partial<Column> = {}): Column {
     roleId: null,
     position: 1n,
     createdAt: 0n,
+    isDefault: false,
     ...overrides,
   };
 }

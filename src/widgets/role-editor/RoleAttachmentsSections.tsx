@@ -2,34 +2,29 @@
  * `RoleAttachmentsSections` — three composed sections rendered inside
  * `RoleEditor`: attached prompts, skills, MCP tools.
  *
- * Audit-#8 reshape: each section is now a single `<MultiSelect>` chip
- * field (ctq-103 / ctq-116 surface). `Create + attach` stays a small
- * sibling button for prompts so users can mint a new prompt without
- * leaving the dialog. Drag-reorder for prompts is preserved by passing
- * `reorderable` to the prompt MultiSelect.
+ * Each section is a single `<MultiSelect>` chip field whose own label
+ * doubles as the section header — the duplicate `<p className="sectionLabel">`
+ * tags were dropped per maintainer feedback (round-21). The
+ * "Create + attach" prompts trigger was removed at the same time:
+ * authoring a prompt belongs on the prompts page, not buried inside the
+ * role editor.
  */
 
-import { useMemo, useState, type ReactElement } from "react";
+import { useMemo, type ReactElement } from "react";
 
-import { Button, MultiSelect } from "@shared/ui";
+import { MultiSelect } from "@shared/ui";
 import { useToast } from "@app/providers/ToastProvider";
 import {
   useRolePrompts,
   useRoleSkills,
   useRoleMcpTools,
-  useAddRolePromptMutation,
   useSetRolePromptsMutation,
   useSetRoleSkillsMutation,
   useSetRoleMcpToolsMutation,
 } from "@entities/role";
-import {
-  usePrompts,
-  useCreatePromptMutation,
-  type Prompt,
-} from "@entities/prompt";
+import { usePrompts, type Prompt } from "@entities/prompt";
 import { useSkills, type Skill } from "@entities/skill";
 import { useMcpTools, type McpTool } from "@entities/mcp-tool";
-import { PromptCreateDialog } from "@widgets/prompt-create-dialog";
 
 import styles from "./RoleEditor.module.css";
 
@@ -62,11 +57,7 @@ function RolePromptsSection({ roleId }: SectionProps): ReactElement {
   const attachedQuery = useRolePrompts(roleId);
   const allQuery = usePrompts();
   const setMutation = useSetRolePromptsMutation();
-  const addMutation = useAddRolePromptMutation();
-  const createMutation = useCreatePromptMutation();
   const { pushToast } = useToast();
-
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   const attachedIds = useMemo(
     () => (attachedQuery.data ?? []).map((p) => p.id),
@@ -94,18 +85,6 @@ function RolePromptsSection({ roleId }: SectionProps): ReactElement {
       className={styles.section}
       data-testid="role-editor-prompts-section"
     >
-      <div className={styles.attachmentSectionHeader}>
-        <p className={styles.sectionLabel}>Prompts</p>
-        <Button
-          variant="ghost"
-          size="sm"
-          onPress={() => setIsCreateOpen(true)}
-          data-testid="role-editor-prompts-create"
-        >
-          Create + attach
-        </Button>
-      </div>
-
       <MultiSelect<string>
         label="Prompts"
         values={attachedIds}
@@ -116,30 +95,6 @@ function RolePromptsSection({ roleId }: SectionProps): ReactElement {
         emptyText="No prompts available"
         testId="role-editor-prompts-select"
       />
-
-      <PromptCreateDialog
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        onCreated={(prompt) => {
-          const nextPosition = attachedIds.length;
-          addMutation.mutate(
-            { roleId, promptId: prompt.id, position: nextPosition },
-            {
-              onError: (err) => {
-                pushToast(
-                  "error",
-                  `Created prompt but failed to attach: ${err.message}`,
-                );
-              },
-              onSuccess: () => {
-                pushToast("success", "Prompt created and attached");
-              },
-            },
-          );
-        }}
-      />
-      {/* `createMutation` exposes its own status to the dialog. */}
-      {createMutation.status === "error" ? null : null}
     </section>
   );
 }
@@ -178,7 +133,6 @@ function RoleSkillsSection({ roleId }: SectionProps): ReactElement {
       className={styles.section}
       data-testid="role-editor-skills-section"
     >
-      <p className={styles.sectionLabel}>Skills</p>
       <MultiSelect<string>
         label="Skills"
         values={attachedIds}
@@ -226,7 +180,6 @@ function RoleMcpToolsSection({ roleId }: SectionProps): ReactElement {
       className={styles.section}
       data-testid="role-editor-mcp-tools-section"
     >
-      <p className={styles.sectionLabel}>MCP tools</p>
       <MultiSelect<string>
         label="MCP tools"
         values={attachedIds}

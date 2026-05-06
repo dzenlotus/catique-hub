@@ -89,6 +89,37 @@
   margin-left: 7px;
 }
 
+/* Compact "+" trigger sitting in the trailing slot of a section label.
+   Round-21 (maintainer feedback): replaces the bottom-of-section
+   "+ Add ..." row for sidebar surfaces. */
+.sectionAddTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.sectionAddTrigger:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.sectionAddTrigger:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .addRow {
     transition: none;

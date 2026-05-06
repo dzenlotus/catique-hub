@@ -31,6 +31,7 @@ function makeColumn(overrides: Partial<Column> = {}): Column {
     position: 2n,
     roleId: null,
     createdAt: 0n,
+    isDefault: false,
     ...overrides,
   };
 }
@@ -41,6 +42,7 @@ function makeRole(overrides: Partial<Role> = {}): Role {
     name: "Разработчик",
     content: "",
     color: null,
+    icon: null,
     isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,

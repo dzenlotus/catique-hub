@@ -17,12 +17,9 @@ import { useEffect, useState, type ReactElement } from "react";
 
 import { useColumns } from "@entities/column";
 import type { Column } from "@entities/column";
-import { useRoles } from "@entities/role";
-import type { Role } from "@entities/role";
 import { useCreateTaskMutation } from "@entities/task";
 import { useToast } from "@app/providers/ToastProvider";
-import { Dialog, Button, Input, Listbox, ListboxItem, MarkdownPreview, Scrollable } from "@shared/ui";
-import { cn } from "@shared/lib";
+import { Dialog, Button, Input, MarkdownField, Scrollable } from "@shared/ui";
 
 import styles from "./TaskCreateDialog.module.css";
 
@@ -89,18 +86,14 @@ function TaskCreateDialogContent({
   // ── Form state ──────────────────────────────────────────────────────────
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [descriptionMode, setDescriptionMode] = useState<"edit" | "preview">("edit");
   const [selectedBoardId] = useState<string | null>(defaultBoardId);
   const [selectedColumnId, setSelectedColumnId] = useState<string | null>(defaultColumnId);
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // ── Data queries ────────────────────────────────────────────────────────
   const columnsQuery = useColumns(selectedBoardId ?? "");
-  const rolesQuery = useRoles();
 
   const columns: Column[] = columnsQuery.data ?? [];
-  const roles: Role[] = rolesQuery.data ?? [];
 
   // Auto-pick the first column of the selected board when none is set.
   // The dialog no longer exposes a Status picker — tasks land in the
@@ -147,7 +140,9 @@ function TaskCreateDialogContent({
       description: description.trim() !== "" ? description.trim() : null,
       position,
     };
-    if (selectedRoleId !== null) mutationArgs.roleId = selectedRoleId;
+    // audit-2026-05-06: roleId resolved server-side from the
+    // board's owner_role_id (1:1 board↔role rule). Frontend no
+    // longer sends a role on create_task.
 
     createTask.mutate(
       mutationArgs,
@@ -185,95 +180,23 @@ function TaskCreateDialogContent({
         />
       </div>
 
-      {/* Description */}
+      {/* Description — canonical MarkdownField (in-place edit ⇄ preview). */}
       <div className={styles.section}>
-        <div className={styles.descriptionHeader}>
-          <span className={styles.sectionLabel}>Description</span>
-          <div className={styles.descriptionTabs}>
-            <button
-              type="button"
-              className={cn(
-                styles.descriptionTab,
-                descriptionMode === "edit" && styles.descriptionTabActive,
-              )}
-              onClick={() => setDescriptionMode("edit")}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              className={cn(
-                styles.descriptionTab,
-                descriptionMode === "preview" && styles.descriptionTabActive,
-              )}
-              onClick={() => setDescriptionMode("preview")}
-            >
-              Preview
-            </button>
-          </div>
-        </div>
-        {descriptionMode === "edit" ? (
-          <textarea
-            className={styles.textarea}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Optional. Markdown is supported."
-            rows={4}
-            aria-label="Description"
-            data-testid="task-create-dialog-description-textarea"
-          />
-        ) : (
-          <div className={styles.markdownPreviewWrapper}>
-            {description.trim() ? (
-              <MarkdownPreview source={description} />
-            ) : (
-              <p className={styles.previewEmpty}>Nothing to preview.</p>
-            )}
-          </div>
-        )}
+        <p className={styles.sectionLabel}>Description</p>
+        <MarkdownField
+          value={description}
+          onChange={setDescription}
+          placeholder="Optional. Markdown is supported."
+          ariaLabel="Description"
+          data-testid="task-create-dialog-description-textarea"
+        />
       </div>
 
-      {/* audit (2026-05-06): Board + Status pickers removed from the
-          create dialog per maintainer feedback — tasks belong to the
-          board they're created from (defaultBoardId, contextual).
-          Status is implicit (the board's first column / "Owner" /
-          "todo"). The dialog auto-resolves both before submit. */}
-
-      {/* Role */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Role</p>
-        {rolesQuery.status === "pending" ? (
-          <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
-        ) : rolesQuery.status === "error" ? (
-          <p className={styles.fieldError}>
-            Failed to load roles: {rolesQuery.error.message}
-          </p>
-        ) : (
-          <Listbox
-            aria-label="Role"
-            selectionMode="single"
-            selectedKeys={selectedRoleId !== null ? new Set([selectedRoleId]) : new Set(["__none__"])}
-            onSelectionChange={(keys) => {
-              const selected = [...keys][0];
-              if (selected === "__none__" || selected === undefined) {
-                setSelectedRoleId(null);
-              } else if (typeof selected === "string") {
-                setSelectedRoleId(selected);
-              }
-            }}
-            data-testid="task-create-dialog-role-select"
-          >
-            <ListboxItem key="__none__" id="__none__">
-              (no role)
-            </ListboxItem>
-            {roles.map((role) => (
-              <ListboxItem key={role.id} id={role.id}>
-                {role.name}
-              </ListboxItem>
-            ))}
-          </Listbox>
-        )}
-      </div>
+      {/* audit (2026-05-06): Board, Status, AND Role pickers removed.
+          Per the role model: every board belongs to exactly one role
+          (1:1), so a task's role is always the board's owner_role_id.
+          The Rust create_task path resolves it server-side; no
+          user-facing picker needed. */}
 
       {/* Footer */}
       <div className={styles.footer}>

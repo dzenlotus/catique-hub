@@ -63,6 +63,7 @@ function makeColumn(overrides: Partial<Column> = {}): Column {
     roleId: null,
     position: 1n,
     createdAt: 0n,
+    isDefault: false,
     ...overrides,
   };
 }
@@ -73,6 +74,7 @@ function makeRole(overrides: Partial<Role> = {}): Role {
     name: "Developer",
     content: "",
     color: null,
+    icon: null,
     isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,
@@ -267,55 +269,14 @@ describe("TaskCreateDialog", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
-  it("role listbox renders '(no role)' as first option", async () => {
+  it("does not render a role picker — role is resolved server-side from the board", async () => {
     setupDefaultMocks();
     renderDialog();
 
-    const roleSelect = await screen.findByTestId("task-create-dialog-role-select");
-    expect(roleSelect).toBeInTheDocument();
-    expect(screen.getByText("(no role)")).toBeInTheDocument();
-  });
-
-  it("selected role id is included in create_task payload", async () => {
-    const newTask = makeTask({ roleId: "role-1" });
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "list_boards") return [makeBoard()];
-      if (cmd === "list_columns") return [makeColumn()];
-      if (cmd === "list_roles") return [makeRole()];
-      if (cmd === "list_spaces") return [];
-      if (cmd === "create_task") return newTask;
-      return [];
-    });
-
-    const onClose = vi.fn();
-    const { user } = renderDialog(true, onClose);
-
-    // Fill title.
-    const titleInput = await screen.findByTestId("task-create-dialog-title-input");
-    await user.type(titleInput, "Role task");
-
-    // Select the role (second option in the role listbox — first is "(no role)").
-    const roleSelect = await screen.findByTestId("task-create-dialog-role-select");
-    const roleOptions = roleSelect.querySelectorAll("[role='option']");
-    // roleOptions[0] is "(no role)", roleOptions[1] is "Developer".
-    if (roleOptions[1]) await user.click(roleOptions[1]);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("task-create-dialog-save")).not.toBeDisabled();
-    });
-
-    await user.click(screen.getByTestId("task-create-dialog-save"));
-
-    await waitFor(() => {
-      expect(onClose).toHaveBeenCalled();
-    });
-
-    const createCall = invokeMock.mock.calls.find(([cmd]) => cmd === "create_task");
-    expect(createCall?.[1]).toMatchObject({
-      boardId: "brd-1",
-      columnId: "col-1",
-      title: "Role task",
-      roleId: "role-1",
-    });
+    await screen.findByTestId("task-create-dialog-title-input");
+    expect(
+      screen.queryByTestId("task-create-dialog-role-select"),
+    ).toBeNull();
+    expect(screen.queryByText("(no role)")).toBeNull();
   });
 });

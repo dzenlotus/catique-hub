@@ -72,6 +72,7 @@ function makeSpace(overrides: Partial<Space> = {}): Space {
     position: 1,
     createdAt: 0n,
     updatedAt: 0n,
+    workflowGraphJson: null,
     ...overrides,
   };
 }
@@ -82,6 +83,7 @@ function makeRole(overrides: Partial<Role> = {}): Role {
     name: "User Cat",
     content: "",
     color: null,
+    icon: null,
     isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,

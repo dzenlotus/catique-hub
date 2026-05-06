@@ -305,7 +305,6 @@ export function RoleEditorContent({
 
       {/* Identity row (icon + color). */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
         <IconColorPicker
           value={{ icon: localIcon, color: localColor === "" ? null : localColor }}
           onChange={(next) => {
@@ -319,7 +318,6 @@ export function RoleEditorContent({
 
       {/* Content — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Content</p>
         <MarkdownField
           value={localContent}
           onChange={setLocalContent}

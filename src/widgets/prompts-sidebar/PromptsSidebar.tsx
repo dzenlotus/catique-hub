@@ -3,7 +3,7 @@ import { useMemo, useState, type ReactElement } from "react";
 import {
   SidebarShell,
   SidebarSectionLabel,
-  SidebarAddRow,
+  SidebarSectionAddTrigger,
   SidebarSectionDivider,
   SidebarNavItem,
 } from "@shared/ui";
@@ -230,15 +230,21 @@ export function PromptsSidebar({
 
         <SidebarSectionDivider />
 
-        <SidebarSectionLabel ariaLabel="Groups">GROUPS</SidebarSectionLabel>
+        <SidebarSectionLabel
+          ariaLabel="Groups"
+          trailing={
+            groupsQuery.status === "success" ? (
+              <SidebarSectionAddTrigger
+                ariaLabel="Add group"
+                onPress={() => setIsGroupDialogOpen(true)}
+                testId="prompts-sidebar-add-group"
+              />
+            ) : null
+          }
+        >
+          GROUPS
+        </SidebarSectionLabel>
         {renderGroupsBody()}
-        {groupsQuery.status === "success" ? (
-          <SidebarAddRow
-            label="Add group"
-            onPress={() => setIsGroupDialogOpen(true)}
-            testId="prompts-sidebar-add-group"
-          />
-        ) : null}
 
         <SidebarSectionDivider />
 
@@ -251,19 +257,19 @@ export function PromptsSidebar({
                 onChange={setFilterTagIds}
               />
               <PromptsSettingsButton onPress={onOpenSettings} />
+              {promptsQuery.status === "success" ? (
+                <SidebarSectionAddTrigger
+                  ariaLabel="Add prompt"
+                  onPress={() => setIsPromptDialogOpen(true)}
+                  testId="prompts-sidebar-add-prompt"
+                />
+              ) : null}
             </span>
           }
         >
           PROMPTS
         </SidebarSectionLabel>
         {renderPromptsBody()}
-        {promptsQuery.status === "success" ? (
-          <SidebarAddRow
-            label="Add prompt"
-            onPress={() => setIsPromptDialogOpen(true)}
-            testId="prompts-sidebar-add-prompt"
-          />
-        ) : null}
       </SidebarShell>
 
       <PromptGroupCreateDialog

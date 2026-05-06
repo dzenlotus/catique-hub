@@ -194,7 +194,7 @@ describe("SpacesSidebar — SPACES tree (inline collapsible)", () => {
     });
   });
 
-  it("renders a global '+ Add space' button at the bottom", async () => {
+  it("renders a '+' add-space trigger next to the SPACES section label", async () => {
     invokeMock.mockResolvedValue(STUB_SPACES);
     setup();
     await waitFor(() => {
@@ -202,7 +202,7 @@ describe("SpacesSidebar — SPACES tree (inline collapsible)", () => {
     });
   });
 
-  it("clicking '+ Add space' opens the space-create dialog", async () => {
+  it("clicking the '+' add-space trigger opens the space-create dialog", async () => {
     invokeMock.mockImplementation((cmd: unknown) => {
       if (cmd === "list_spaces") return Promise.resolve(STUB_SPACES);
       if (cmd === "list_boards") return Promise.resolve([]);

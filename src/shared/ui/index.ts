@@ -13,6 +13,9 @@ export type {
 export { ConfirmDialog } from "./ConfirmDialog";
 export type { ConfirmDialogProps } from "./ConfirmDialog";
 
+export { Collapsible } from "./Collapsible";
+export type { CollapsibleProps } from "./Collapsible";
+
 export { Input } from "./Input";
 export type { InputProps } from "./Input";
 
@@ -97,6 +100,7 @@ export {
   SidebarShell,
   SidebarSectionLabel,
   SidebarAddRow,
+  SidebarSectionAddTrigger,
   SidebarSectionDivider,
   SidebarNavItem,
 } from "./SidebarShell";
@@ -104,6 +108,7 @@ export type {
   SidebarShellProps,
   SidebarSectionLabelProps,
   SidebarAddRowProps,
+  SidebarSectionAddTriggerProps,
   SidebarNavItemProps,
 } from "./SidebarShell";
 

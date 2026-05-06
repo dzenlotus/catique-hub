@@ -31,6 +31,7 @@ function makeRole(overrides: Partial<Role> = {}): Role {
     isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,
+    icon: null,
     ...overrides,
   };
 }

@@ -54,6 +54,7 @@ function stubColumn(overrides?: Partial<Column>): Column {
     position: 1n,
     roleId: null,
     createdAt: 0n,
+    isDefault: false,
     ...overrides,
   };
 }
@@ -67,6 +68,7 @@ function stubRole(overrides?: Partial<Role>): Role {
     isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,
+    icon: null,
     ...overrides,
   };
 }

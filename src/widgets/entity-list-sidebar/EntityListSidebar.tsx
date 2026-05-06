@@ -16,8 +16,8 @@
 import { type ReactElement } from "react";
 
 import {
-  SidebarAddRow,
   SidebarNavItem,
+  SidebarSectionAddTrigger,
   SidebarSectionLabel,
   SidebarShell,
 } from "@shared/ui";
@@ -40,9 +40,9 @@ export interface EntityListSidebarProps {
   selectedId?: string | null;
   /** Click on a row. */
   onSelect: (id: string) => void;
-  /** Label on the bottom "+ Add ..." trigger. */
+  /** Aria-label on the trailing "+" icon trigger (e.g. "Add role"). */
   addLabel: string;
-  /** Click on the "+ Add ..." trigger. */
+  /** Click on the "+" trigger that sits next to the section label. */
   onAdd: () => void;
   /** Empty-state copy when `items.length === 0`. */
   emptyText?: string;
@@ -71,7 +71,18 @@ export function EntityListSidebar({
 }: EntityListSidebarProps): ReactElement {
   return (
     <SidebarShell ariaLabel={ariaLabel} testId={`${testIdPrefix}-root`}>
-      <SidebarSectionLabel ariaLabel={title}>{title}</SidebarSectionLabel>
+      <SidebarSectionLabel
+        ariaLabel={title}
+        trailing={
+          <SidebarSectionAddTrigger
+            ariaLabel={addLabel}
+            onPress={onAdd}
+            testId={`${testIdPrefix}-add`}
+          />
+        }
+      >
+        {title}
+      </SidebarSectionLabel>
 
       {isLoading ? (
         <div className={styles.bodyEmpty} aria-hidden="true">
@@ -109,11 +120,6 @@ export function EntityListSidebar({
         </ul>
       )}
 
-      <SidebarAddRow
-        label={addLabel}
-        onPress={onAdd}
-        testId={`${testIdPrefix}-add`}
-      />
     </SidebarShell>
   );
 }

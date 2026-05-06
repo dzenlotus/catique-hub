@@ -52,6 +52,7 @@ function makeRole(overrides: Partial<Role> = {}): Role {
     name: "Senior Engineer",
     content: "Architecture ownership.",
     color: null,
+    icon: null,
     isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,

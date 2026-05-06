@@ -41,6 +41,7 @@ function makeRole(overrides: Partial<Role> = {}): Role {
     name: "Старший инженер",
     content: "",
     color: null,
+    icon: null,
     isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,
@@ -110,7 +111,9 @@ describe("RoleCreateDialog", () => {
     const createCall = invokeMock.mock.calls.find(
       ([cmd]) => cmd === "create_role",
     );
-    expect(createCall?.[1]).toEqual({ name: "Аналитик" });
+    // `content` is non-optional on the Rust side, so the IPC client
+    // always sends an empty string when the textarea is left blank.
+    expect(createCall?.[1]).toEqual({ name: "Аналитик", content: "" });
   });
 
   it("includes content in payload when filled", async () => {

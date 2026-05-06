@@ -123,16 +123,21 @@
 
 /*
  * Identity row — IconColorPicker on the left, identity fields
- * (currently just Name) on the right. Mirrors the layout adopted
- * across create-dialogs after the maintainer's "icon-picker
- * слева" feedback.
+ * (currently just Name) on the right. Aligned to the input field
+ * (not the label) per maintainer feedback: with `align-items: end`
+ * the picker bottom matches the input bottom; the 2-px nudge on the
+ * picker centres its trigger (28-px) against the 32-px input box.
  */
 .identityRow {
   display: flex;
-  align-items: flex-start;
+  align-items: end;
   gap: var(--space-12);
   padding: var(--space-16) 0;
   border-bottom: 1px solid var(--color-border-default);
+}
+
+.identityRow > :first-child {
+  margin-bottom: 2px;
 }
 
 .identityFields {

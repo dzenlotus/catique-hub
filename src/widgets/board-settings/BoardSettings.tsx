@@ -25,16 +25,14 @@ import {
 import type { Board } from "@entities/board";
 import { usePrompts } from "@entities/prompt";
 import { useRoles } from "@entities/role";
-import { useSpaces } from "@entities/space";
 import { invoke } from "@shared/api";
 import {
   Button,
+  Collapsible,
   ConfirmDialog,
   EditorShell,
   IconColorPicker,
   Input,
-  Listbox,
-  ListboxItem,
   MultiSelect,
   Select,
   SelectItem,
@@ -121,7 +119,6 @@ export function BoardSettings(): ReactElement {
             initialDescription={board.description ?? ""}
             initialIcon={board.icon ?? null}
             initialColor={board.color ?? ""}
-            initialSpaceId={board.spaceId}
             initialOwnerRoleId={board.ownerRoleId}
             isDefault={board.isDefault}
           />
@@ -139,7 +136,6 @@ interface BoardSettingsFormProps {
   initialDescription: string;
   initialIcon: string | null;
   initialColor: string;
-  initialSpaceId: string;
   /** Role that owns this board (`boards.owner_role_id`, ctq-105/106). */
   initialOwnerRoleId: string;
   isDefault: boolean;
@@ -151,7 +147,6 @@ function BoardSettingsForm({
   initialDescription,
   initialIcon,
   initialColor,
-  initialSpaceId,
   initialOwnerRoleId,
   isDefault,
 }: BoardSettingsFormProps): ReactElement {
@@ -159,7 +154,6 @@ function BoardSettingsForm({
   const queryClient = useQueryClient();
   const updateMutation = useUpdateBoardMutation();
   const deleteMutation = useDeleteBoardMutation();
-  const spacesQuery = useSpaces();
   // Owner-cat picker source. `excludeSystem: true` drops the
   // coordinator-only `dirizher-system` row (ctq-88 guard) but keeps
   // `maintainer-system` and every user-defined cat.
@@ -170,7 +164,6 @@ function BoardSettingsForm({
   const [description, setDescription] = useState(initialDescription);
   const [icon, setIcon] = useState<string | null>(initialIcon);
   const [color, setColor] = useState<string>(initialColor);
-  const [spaceId, setSpaceId] = useState(initialSpaceId);
   // Local owner state. Mutations apply optimistically — the React
   // Query cache is the single source of truth, this state mirrors it
   // for the rendered <select> value and rolls back on IPC error.
@@ -263,13 +256,14 @@ function BoardSettingsForm({
   // audit-#12: `position` is no longer user-editable — drag-reorder on
   // the kanban owns the ordering write-path. The form's dirty-check and
   // mutation payload omit `position` entirely; the underlying
-  // `board.position` value stays untouched on save.
+  // `board.position` value stays untouched on save. Maintainer feedback
+  // 2026-05-06: the Space picker is gone too — a board's space is set
+  // when the owning role is attached and is not user-editable here.
   const isDirty =
     trimmedName !== initialName.trim() ||
     trimmedDescription !== initialDescription.trim() ||
     icon !== initialIcon ||
-    resolvedColor !== initialResolvedColor ||
-    spaceId !== initialSpaceId;
+    resolvedColor !== initialResolvedColor;
 
   const canSubmit = trimmedName.length > 0 && isDirty;
 
@@ -290,7 +284,6 @@ function BoardSettingsForm({
     }
     if (icon !== initialIcon) args.icon = icon;
     if (resolvedColor !== initialResolvedColor) args.color = resolvedColor;
-    if (spaceId !== initialSpaceId) args.spaceId = spaceId;
 
     updateMutation.mutate(args, {
       onSuccess: () => setSavedAt(Date.now()),
@@ -316,8 +309,6 @@ function BoardSettingsForm({
       },
     });
   };
-
-  const spaces = spacesQuery.data ?? [];
 
   return (
     <>
@@ -358,10 +349,7 @@ function BoardSettingsForm({
         </div>
       </header>
 
-      <section className={styles.card} aria-labelledby="board-settings-form">
-        <h3 id="board-settings-form" className={styles.cardHeading}>
-          General
-        </h3>
+      <Collapsible title="General" testId="board-settings-general-section">
         <div className={styles.fields}>
           <Input
             label="Name"
@@ -406,38 +394,11 @@ function BoardSettingsForm({
           <TextArea
             label="Description"
             value={description}
-            onChange={setData => setDescription(setData)}
+            onChange={setDescription}
             placeholder="Optional"
             rows={3}
             data-testid="board-settings-description-input"
           />
-
-          <div className={styles.fieldLabel}>
-            <span className={styles.fieldLabelText}>Space</span>
-            {spacesQuery.status === "pending" ? (
-              <p className={styles.fieldHint}>Loading…</p>
-            ) : spaces.length === 0 ? (
-              <p className={styles.fieldHint}>No spaces available.</p>
-            ) : (
-              <Listbox
-                aria-label="Space"
-                selectionMode="single"
-                selectedKeys={new Set([spaceId])}
-                onSelectionChange={(keys) => {
-                  const selected = [...keys][0];
-                  if (typeof selected === "string") setSpaceId(selected);
-                }}
-                data-testid="board-settings-space-select"
-              >
-                {spaces.map((s) => (
-                  <ListboxItem key={s.id} id={s.id}>
-                    {s.name}
-                  </ListboxItem>
-                ))}
-              </Listbox>
-            )}
-          </div>
-
         </div>
 
         <div className={styles.actions}>
@@ -470,20 +431,13 @@ function BoardSettingsForm({
             Save
           </Button>
         </div>
-      </section>
+      </Collapsible>
 
-      <section
-        className={styles.card}
-        aria-labelledby="board-settings-prompts"
-        data-testid="board-settings-prompts-section"
+      <Collapsible
+        title="Board prompts"
+        description="Prompts attached at the board level cascade to every task on this board."
+        testId="board-settings-prompts-section"
       >
-        <h3 id="board-settings-prompts" className={styles.cardHeading}>
-          Board prompts
-        </h3>
-        <p className={styles.fieldHint}>
-          Prompts attached at the board level cascade to every task on
-          this board.
-        </p>
         {/* TODO(ctq-117): seed `values` from `list_board_prompts` once
             the IPC ships. Until then the chip rail starts empty and
             `set_board_prompts` canonically replaces the attached list. */}
@@ -513,7 +467,7 @@ function BoardSettingsForm({
           emptyText="No prompts available"
           testId="board-settings-prompts-select"
         />
-      </section>
+      </Collapsible>
 
       {!isDefault ? (
         <section

@@ -13,6 +13,7 @@ function makeColumn(overrides: Partial<Column> = {}): Column {
     position: 1n,
     roleId: null,
     createdAt: 0n,
+    isDefault: false,
     ...overrides,
   };
 }

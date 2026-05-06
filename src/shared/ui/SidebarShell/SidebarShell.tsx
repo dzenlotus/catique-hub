@@ -147,6 +147,49 @@ export function SidebarAddRow({
 }
 
 // ---------------------------------------------------------------------------
+// Section add trigger
+// ---------------------------------------------------------------------------
+
+export interface SidebarSectionAddTriggerProps {
+  /** Click handler — typically opens a create dialog. */
+  onPress: () => void;
+  /** Accessible label (e.g. "Add space"). */
+  ariaLabel: string;
+  /** Stable test id for the trigger. */
+  testId?: string;
+}
+
+/**
+ * Compact "+" icon button rendered in the trailing slot of a
+ * `<SidebarSectionLabel>`. Replaces the bottom-of-section
+ * `<SidebarAddRow>` for surfaces where the label-row affordance reads
+ * as visual clutter (per maintainer feedback — round-21).
+ */
+export function SidebarSectionAddTrigger({
+  onPress,
+  ariaLabel,
+  testId,
+}: SidebarSectionAddTriggerProps): ReactElement {
+  const dataTestIdProps =
+    testId !== undefined ? { "data-testid": testId } : {};
+  return (
+    <button
+      type="button"
+      className={styles.sectionAddTrigger}
+      onClick={onPress}
+      aria-label={ariaLabel}
+      {...dataTestIdProps}
+    >
+      <PixelInterfaceEssentialPlus
+        width={12}
+        height={12}
+        aria-hidden={true}
+      />
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Divider
 // ---------------------------------------------------------------------------
 
