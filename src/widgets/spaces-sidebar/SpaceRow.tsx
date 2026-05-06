@@ -10,12 +10,18 @@ import {
   MenuItem,
   MarqueeText,
   MenuTrigger,
+  SidebarAddRow,
 } from "@shared/ui";
 import { SidebarNavItem } from "@shared/ui/SidebarShell";
 import { booleanCodec, useLocalStorage } from "@shared/storage";
 import type { Space } from "@entities/space";
-import { type Board, useDeleteBoardMutation } from "@entities/board";
-import { boardSettingsPath, spaceSettingsPath } from "@app/routes";
+import {
+  type Board,
+  useCreateBoardMutation,
+  useDeleteBoardMutation,
+} from "@entities/board";
+import { RoleCreateDialog } from "@widgets/role-create-dialog";
+import { boardPath, boardSettingsPath, spaceSettingsPath } from "@app/routes";
 import { useToast } from "@app/providers/ToastProvider";
 import { ChevronIcon } from "./ChevronIcon";
 import { BoardIcon, SpaceIcon } from "./icons";
@@ -71,6 +77,12 @@ export function SpaceRow({
     useState<Board | null>(null);
   const deleteBoardMutation = useDeleteBoardMutation();
   const { pushToast } = useToast();
+  // audit-#6: per-space "+ Add role" trigger replaces the standalone
+  // board create flow. Adding a role to a space materialises a board
+  // owned by that role as a side-effect — boards never exist on their
+  // own.
+  const [addRoleOpen, setAddRoleOpen] = useState(false);
+  const createBoardMutation = useCreateBoardMutation();
 
   function handleDeleteBoard(board: Board): void {
     setBoardPendingDelete(board);
@@ -138,6 +150,45 @@ export function SpaceRow({
           <MarqueeText text={space.name} className={styles.spaceNameText} />
         </button>
       </div>
+
+      {/* audit-#6: per-space "+ Add role" trigger. Sits below the
+          board list so creation is always one click away regardless of
+          how many boards are loaded. Hidden when the space row is
+          collapsed to keep the rail compact. */}
+      {isExpanded && (
+        <SidebarAddRow
+          label="Add role"
+          onPress={() => setAddRoleOpen(true)}
+          testId={`spaces-sidebar-add-role-${space.id}`}
+        />
+      )}
+
+      <RoleCreateDialog
+        isOpen={addRoleOpen}
+        onClose={() => setAddRoleOpen(false)}
+        onCreated={(role) => {
+          createBoardMutation.mutate(
+            {
+              name: role.name,
+              spaceId: space.id,
+              ownerRoleId: role.id,
+              ...(role.color !== null ? { color: role.color } : {}),
+            },
+            {
+              onSuccess: (board) => {
+                pushToast("success", `Board “${board.name}” created`);
+                setLocation(boardPath(board.id));
+              },
+              onError: (err) => {
+                pushToast(
+                  "error",
+                  `Role created but board failed: ${err.message}`,
+                );
+              },
+            },
+          );
+        }}
+      />
 
       {/* Board rows inside expanded space */}
       {isExpanded && spaceBoards.length > 0 && (

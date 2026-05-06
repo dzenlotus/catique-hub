@@ -60,6 +60,12 @@ export async function getBoard(id: string): Promise<Board> {
 export interface CreateBoardArgs {
   name: string;
   spaceId: string;
+  /**
+   * Owner role id (`boards.owner_role_id NOT NULL`, ctq-105). When
+   * omitted the server defaults to `maintainer-system` per migration
+   * 004; explicit caller usually wants to set this.
+   */
+  ownerRoleId?: string;
   /** Optional description. `undefined` = omit (treated as null on server). */
   description?: string;
   /** Optional CSS hex color (`#RRGGBB`). */
@@ -78,6 +84,7 @@ export async function createBoard(args: CreateBoardArgs): Promise<Board> {
     name: args.name,
     spaceId: args.spaceId,
   };
+  if (args.ownerRoleId !== undefined) payload.ownerRoleId = args.ownerRoleId;
   if (args.description !== undefined) payload.description = args.description;
   if (args.color !== undefined) payload.color = args.color;
   if (args.icon !== undefined) payload.icon = args.icon;

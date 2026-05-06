@@ -9,7 +9,6 @@ import { Button, EmptyState, Scrollable } from "@shared/ui";
 import { PixelPetAnimalsCat, PixelCodingAppsWebsitesModule } from "@shared/ui/Icon";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { boardSettingsPath } from "@app/routes";
-import { BoardCreateDialog } from "@widgets/board-create-dialog";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 
 import styles from "./BoardsList.module.css";
@@ -38,7 +37,6 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
   const boardsQuery = useBoards();
   const spacesQuery = useSpaces();
   const [, setLocation] = useLocation();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSpaceCreateOpen, setIsSpaceCreateOpen] = useState(false);
 
   const hasNoSpaces =
@@ -62,16 +60,9 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
         <h2 id="boards-list-heading" className={styles.heading}>
           Boards
         </h2>
-        <div className={styles.headerActions}>
-          <Button
-            variant="primary"
-            size="md"
-            onPress={() => setIsCreateOpen(true)}
-            data-testid="boards-list-create-button"
-          >
-            Create board
-          </Button>
-        </div>
+        {/* audit-#6: head invariant — no standalone board creation.
+            Boards materialise when a role is added to a space; trigger
+            lives in the SpacesSidebar per-space "+" affordance. */}
       </header>
 
       <div className={styles.layout}>
@@ -119,16 +110,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                 <EmptyState
                   icon={<PixelCodingAppsWebsitesModule width={64} height={64} />}
                   title="No boards yet"
-                  description="Create your first board to start organising tasks."
-                  action={
-                    <Button
-                      variant="primary"
-                      size="md"
-                      onPress={() => setIsCreateOpen(true)}
-                    >
-                      Create board
-                    </Button>
-                  }
+                  description="Add a role to a space (sidebar “+”) and the board appears here automatically."
                 />
               )}
             </div>
@@ -167,10 +149,10 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
         </div>
       </div>
 
-      <BoardCreateDialog
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-      />
+      {/* audit-#6: BoardCreateDialog is no longer reachable from
+          BoardsList. The dialog component still exists for the
+          SpacesSidebar add-role flow that materialises a board as a
+          side-effect of role creation. */}
 
       <SpaceCreateDialog
         isOpen={isSpaceCreateOpen}
