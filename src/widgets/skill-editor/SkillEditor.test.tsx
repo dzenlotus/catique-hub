@@ -201,6 +201,8 @@ describe("SkillEditor", () => {
       "skill-editor-color-input-color-clear",
     );
     await user.click(resetButton);
+    // Dismiss the popover so its overlay does not eat the Save press.
+    await user.keyboard("{Escape}");
 
     const saveButton = screen.getByTestId("skill-editor-save");
     await user.click(saveButton);
