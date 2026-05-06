@@ -91,6 +91,14 @@ describe("ConnectedAgentsSection", () => {
     // Reset and set up discover response.
     invokeMock.mockResolvedValue([]);
     await userEvent.click(screen.getByTestId("discover-clients-button"));
-    expect(invokeMock).toHaveBeenCalledWith("discover_clients", undefined);
+    // audit-#17: API uses `invokeWithAppError(command)` without an args
+    // object so the recorded call is `["discover_clients"]` — assert by
+    // command name to stay agnostic of trailing arg-shape.
+    await waitFor(() => {
+      const calls = invokeMock.mock.calls.filter(
+        ([cmd]) => cmd === "discover_clients",
+      );
+      expect(calls.length).toBeGreaterThan(0);
+    });
   });
 });
