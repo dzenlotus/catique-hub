@@ -5,6 +5,7 @@ import { cn } from "@shared/lib";
 import {
   Button,
   ConfirmDialog,
+  Dialog,
   KebabIcon,
   Menu,
   MenuItem,
@@ -20,7 +21,7 @@ import {
   useCreateBoardMutation,
   useDeleteBoardMutation,
 } from "@entities/board";
-import { RoleCreateDialog } from "@widgets/role-create-dialog";
+import { useRoles } from "@entities/role";
 import { boardPath, boardSettingsPath, spaceSettingsPath } from "@app/routes";
 import { useToast } from "@app/providers/ToastProvider";
 import { ChevronIcon } from "./ChevronIcon";
@@ -163,10 +164,12 @@ export function SpaceRow({
         />
       )}
 
-      <RoleCreateDialog
+      <AddRoleToSpaceDialog
         isOpen={addRoleOpen}
         onClose={() => setAddRoleOpen(false)}
-        onCreated={(role) => {
+        space={space}
+        spaceBoards={spaceBoards}
+        onPicked={(role) => {
           createBoardMutation.mutate(
             {
               name: role.name,
@@ -176,13 +179,13 @@ export function SpaceRow({
             },
             {
               onSuccess: (board) => {
-                pushToast("success", `Board “${board.name}” created`);
+                pushToast("success", `Board “${board.name}” added`);
                 setLocation(boardPath(board.id));
               },
               onError: (err) => {
                 pushToast(
                   "error",
-                  `Role created but board failed: ${err.message}`,
+                  `Failed to add role to space: ${err.message}`,
                 );
               },
             },
@@ -265,5 +268,95 @@ export function SpaceRow({
         data-testid="spaces-sidebar-board-delete-confirm"
       />
     </li>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `AddRoleToSpaceDialog` — picker for adding an EXISTING role to a
+ * space. Per the role model: roles live globally (managed under
+ * `/roles`); each space picks roles from that pool, and one board
+ * gets attached per role per space. This dialog does NOT create a
+ * new role — it lets the user select one and triggers
+ * `createBoard(name=role.name, spaceId, ownerRoleId=role.id)`.
+ */
+interface AddRoleToSpaceDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  space: Space;
+  spaceBoards: Board[];
+  onPicked: (role: { id: string; name: string; color: string | null }) => void;
+}
+
+function AddRoleToSpaceDialog({
+  isOpen,
+  onClose,
+  space,
+  spaceBoards,
+  onPicked,
+}: AddRoleToSpaceDialogProps): ReactElement {
+  const rolesQuery = useRoles();
+  const allRoles = rolesQuery.data ?? [];
+
+  // Hide system roles (Maintainer / Dirizher) and roles already
+  // attached to a board in this space.
+  const usedRoleIds = new Set(spaceBoards.map((b) => b.ownerRoleId));
+  const candidates = allRoles.filter(
+    (r) => !r.isSystem && !usedRoleIds.has(r.id),
+  );
+
+  return (
+    <Dialog
+      title={`Add role to ${space.name}`}
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      isDismissable
+      data-testid={`spaces-sidebar-add-role-dialog-${space.id}`}
+    >
+      {() => (
+        <div className={styles.addRoleDialogBody}>
+          {rolesQuery.status === "pending" ? (
+            <p>Loading roles…</p>
+          ) : candidates.length === 0 ? (
+            <p className={styles.addRoleEmpty}>
+              No more roles to add. Create one under <strong>Roles</strong> in
+              the workspace nav, then come back.
+            </p>
+          ) : (
+            <ul className={styles.addRoleList} role="list">
+              {candidates.map((r) => (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    className={styles.addRoleItem}
+                    onClick={() => {
+                      onPicked({
+                        id: r.id,
+                        name: r.name,
+                        color: r.color ?? null,
+                      });
+                      onClose();
+                    }}
+                    data-testid={`spaces-sidebar-add-role-pick-${r.id}`}
+                  >
+                    {r.color !== null ? (
+                      <span
+                        className={styles.addRoleSwatch}
+                        style={{ backgroundColor: r.color }}
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                    <span>{r.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </Dialog>
   );
 }
