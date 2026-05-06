@@ -106,28 +106,28 @@ function RoleCreateDialogContent({
 
   return (
     <>
-      {/* Name */}
-      <div className={styles.section}>
-        <Input
-          label="Name"
-          value={name}
-          onChange={setName}
-          placeholder="Role name"
-          autoFocus
-          className={styles.fullWidthInput}
-          data-testid="role-create-dialog-name-input"
-        />
-      </div>
-
-      {/* Color (canonical IconColorPicker — color-only mode). */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
+      {/* Identity row: IconColorPicker on the LEFT, Name on the right.
+          Mirrors PromptGroupCreateDialog (audit-D, commit db80282)
+          per maintainer feedback — same layout pattern for every
+          create-dialog with an IconColorPicker. */}
+      <div className={styles.identityRow}>
         <IconColorPicker
           value={{ icon: null, color: color === "" ? null : color }}
           onChange={(next) => setColor(next.color ?? "")}
           ariaLabel="Role color"
           data-testid="role-create-dialog-color-input"
         />
+        <div className={styles.identityFields}>
+          <Input
+            label="Name"
+            value={name}
+            onChange={setName}
+            placeholder="Role name"
+            autoFocus
+            className={styles.fullWidthInput}
+            data-testid="role-create-dialog-name-input"
+          />
+        </div>
       </div>
 
       {/* Content */}
