@@ -31,10 +31,16 @@ import type { Space } from "@entities/space";
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 import { ToastProvider } from "@app/providers/ToastProvider";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-  on: vi.fn(() => Promise.resolve(() => {})),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+    on: vi.fn(() => Promise.resolve(() => {})),
+  };
+});
 
 import { invoke } from "@shared/api";
 import { BoardSettings } from "./BoardSettings";
@@ -160,11 +166,12 @@ describe("BoardSettings — owner cat picker (ctq-106)", () => {
 
     renderSettings();
 
-    const select = (await screen.findByTestId(
-      "board-settings-owner-select",
-    )) as HTMLSelectElement;
+    // Round-19c: native <select> replaced by RAC <Select>. The data-testid
+    // is forwarded to the trigger button; the selected role surfaces as
+    // the trigger's visible text content once `list_roles` resolves.
+    const trigger = await screen.findByTestId("board-settings-owner-select");
     await waitFor(() => {
-      expect(select.value).toBe("role-user");
+      expect(trigger).toHaveTextContent("Senior Cat");
     });
   });
 
@@ -176,18 +183,22 @@ describe("BoardSettings — owner cat picker (ctq-106)", () => {
       throw new Error(`unexpected: ${cmd}`);
     });
 
-    renderSettings();
+    const { user } = renderSettings();
 
-    const select = (await screen.findByTestId(
-      "board-settings-owner-select",
-    )) as HTMLSelectElement;
-
+    const trigger = await screen.findByTestId("board-settings-owner-select");
+    // Wait for `list_roles` to populate the trigger label first.
     await waitFor(() => {
-      const ids = Array.from(select.options).map((o) => o.value);
-      expect(ids).toContain("maintainer-system");
-      expect(ids).toContain("role-user");
-      expect(ids).not.toContain("dirizher-system");
+      expect(trigger).toHaveTextContent("Maintainer");
     });
+    await user.click(trigger);
+
+    await screen.findByRole("listbox");
+    const optionNames = screen
+      .getAllByRole("option")
+      .map((o) => o.textContent ?? "");
+    expect(optionNames).toContain("Maintainer");
+    expect(optionNames).toContain("Senior Cat");
+    expect(optionNames).not.toContain("Dirizher");
   });
 
   it("round-trips the new owner via update_board on change", async () => {
@@ -209,16 +220,15 @@ describe("BoardSettings — owner cat picker (ctq-106)", () => {
 
     const { user } = renderSettings();
 
-    const select = (await screen.findByTestId(
-      "board-settings-owner-select",
-    )) as HTMLSelectElement;
+    const trigger = await screen.findByTestId("board-settings-owner-select");
     await waitFor(() => {
-      expect(
-        Array.from(select.options).map((o) => o.value),
-      ).toContain("role-user");
+      expect(trigger).toHaveTextContent("Maintainer");
     });
 
-    await user.selectOptions(select, "role-user");
+    await user.click(trigger);
+    await user.click(
+      await screen.findByRole("option", { name: "Senior Cat" }),
+    );
 
     await waitFor(() => {
       const calls = invokeMock.mock.calls.filter(
@@ -227,9 +237,9 @@ describe("BoardSettings — owner cat picker (ctq-106)", () => {
       expect(calls).toHaveLength(1);
     });
     // Optimistic state lands immediately, then the server response
-    // ratifies it.
+    // ratifies it — the trigger now reads "Senior Cat".
     await waitFor(() => {
-      expect(select.value).toBe("role-user");
+      expect(trigger).toHaveTextContent("Senior Cat");
     });
   });
 
@@ -245,17 +255,16 @@ describe("BoardSettings — owner cat picker (ctq-106)", () => {
 
     const { user } = renderSettings();
 
-    const select = (await screen.findByTestId(
-      "board-settings-owner-select",
-    )) as HTMLSelectElement;
+    const trigger = await screen.findByTestId("board-settings-owner-select");
     await waitFor(() => {
-      expect(
-        Array.from(select.options).map((o) => o.value),
-      ).toContain("role-user");
+      expect(trigger).toHaveTextContent("Maintainer");
     });
 
     await act(async () => {
-      await user.selectOptions(select, "role-user");
+      await user.click(trigger);
+      await user.click(
+        await screen.findByRole("option", { name: "Senior Cat" }),
+      );
     });
 
     // The IPC fired with the new owner — rollback is what we observe
@@ -271,7 +280,7 @@ describe("BoardSettings — owner cat picker (ctq-106)", () => {
     // resolves. Toast surfacing is covered by `Toaster.test.tsx`; we
     // only validate the optimistic rollback contract here.
     await waitFor(() => {
-      expect(select.value).toBe("maintainer-system");
+      expect(trigger).toHaveTextContent("Maintainer");
     });
   });
 });
