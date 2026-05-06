@@ -97,10 +97,14 @@ describe("BoardsList", () => {
     expect(skeletons).toHaveLength(3);
   });
 
-  it("shows the create header button always (loading state)", () => {
+  it("does NOT render a 'Create board' header button (audit-#6)", () => {
+    // audit-#6 invariant: BoardsList no longer hosts a standalone create
+    // affordance. Boards materialise as a side-effect of adding a role
+    // to a space (sidebar "+" affordance owns the trigger).
     invokeMock.mockImplementation(() => new Promise(() => {}));
     renderWithClient(<BoardsList />);
-    expect(screen.getByTestId("boards-list-create-button")).toBeInTheDocument();
+    expect(screen.queryByTestId("boards-list-create-button")).toBeNull();
+    expect(screen.queryByText("Create board")).toBeNull();
   });
 
   it("shows the empty state when the list is empty", async () => {
@@ -151,102 +155,71 @@ describe("BoardsList", () => {
     expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 
-  it("creates a board and invalidates the list cache (refetches)", async () => {
-    const newBoard = makeBoard({
-      id: "brd-new",
-      name: "Sprint 14",
-      spaceId: "spc-default",
-    });
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "list_boards") {
-        return invokeMock.mock.calls.filter(
-          ([c]) => c === "list_boards",
-        ).length === 1
-          ? []
-          : [newBoard];
-      }
-      if (cmd === "list_spaces") {
-        return [makeSpace()];
-      }
-      if (cmd === "create_board") {
-        return newBoard;
-      }
-      throw new Error(`unexpected command: ${cmd}`);
-    });
-
-    const { user } = renderWithClient(<BoardsList />);
-
-    // Wait for the empty state.
-    await waitFor(() => {
-      expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
-    });
-
-    // Open the dialog from the empty CTA (header button).
-    await user.click(screen.getByTestId("boards-list-create-button"));
-
-    // Dialog open — fill name and submit via the BoardCreateDialog.
-    const nameInput = await screen.findByTestId("board-create-dialog-name-input");
-    await user.type(nameInput, "Sprint 14");
-
-    // Wait for space picker to be available (spaces query).
-    await screen.findByTestId("board-create-dialog-space-select");
-    await user.click(screen.getByTestId("board-create-dialog-save"));
-
-    // After mutation success: dialog closes, list re-fetches and now
-    // contains the new board.
-    await waitFor(() => {
-      expect(screen.getByTestId("boards-list-grid")).toBeInTheDocument();
-    });
-    expect(screen.getByText("Sprint 14")).toBeInTheDocument();
-
-    // Verify invoke was called with the right args (camelCase).
-    const createCall = invokeMock.mock.calls.find(
-      ([cmd]) => cmd === "create_board",
-    );
-    expect(createCall).toBeDefined();
-    // ctq-105: BoardCreateDialog now sends `ownerRoleId` (Maintainer
-    // by default) so the schema-required `boards.owner_role_id` is
-    // never elided from the IPC payload.
-    expect(createCall?.[1]).toEqual({
-      name: "Sprint 14",
-      spaceId: "spc-default",
-      ownerRoleId: "maintainer-system",
-      icon: "PixelInterfaceEssentialList",
-    });
-
-    // The list should have been called at least twice (initial + after
-    // invalidation triggered by the mutation's onSuccess).
-    const listCalls = invokeMock.mock.calls.filter(
-      ([cmd]) => cmd === "list_boards",
-    );
-    expect(listCalls.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("validates that a board name is required before submitting", async () => {
+  it("does NOT expose a board-creation entry point from BoardsList (audit-#6)", async () => {
+    // audit-#6 invariant: the empty-state for "no boards in this space"
+    // points the user at the SpacesSidebar "+" affordance instead of
+    // hosting a standalone create button. The BoardCreateDialog widget
+    // is therefore unreachable from here — assert it stays unmounted.
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_boards") return [] satisfies Board[];
       if (cmd === "list_spaces") return [makeSpace()];
       throw new Error(`unexpected command: ${cmd}`);
     });
-    const { user } = renderWithClient(<BoardsList />);
+
+    renderWithClient(<BoardsList />);
 
     await waitFor(() => {
       expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
     });
 
-    // Open dialog via header button.
-    await user.click(screen.getByTestId("boards-list-create-button"));
+    // Empty-state copy points at the sidebar workflow.
+    expect(screen.getByText(/Add a role to a space/i)).toBeInTheDocument();
 
-    // Space select should appear; save should be disabled (name empty).
-    await screen.findByTestId("board-create-dialog-space-select");
-    const saveBtn = screen.getByTestId("board-create-dialog-save");
-    expect(saveBtn).toBeDisabled();
+    // No create-board CTA, no BoardCreateDialog mounted.
+    expect(screen.queryByTestId("boards-list-create-button")).toBeNull();
+    expect(screen.queryByText("Create board")).toBeNull();
+    expect(
+      screen.queryByTestId("board-create-dialog-name-input"),
+    ).toBeNull();
 
-    // Clicking while disabled should not fire the mutation.
-    await act(async () => {
-      await user.click(saveBtn);
+    // The mutation cannot fire from here either.
+    const createCalls = invokeMock.mock.calls.filter(
+      ([cmd]) => cmd === "create_board",
+    );
+    expect(createCalls).toHaveLength(0);
+  });
+
+  it("does NOT mount the BoardCreateDialog when boards exist either", async () => {
+    // Same audit-#6 invariant from the populated branch: the grid renders
+    // BoardCard rows but no inline create affordance, so attempting to
+    // surface BoardCreateDialog from here is impossible. We assert no
+    // dialog mounts and no create-board IPC ever fires during render.
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "list_boards") {
+        return [
+          makeBoard({ id: "brd-1", name: "Roadmap", spaceId: "spc-default" }),
+        ] satisfies Board[];
+      }
+      if (cmd === "list_spaces") {
+        return [makeSpace()];
+      }
+      throw new Error(`unexpected command: ${cmd}`);
     });
 
+    // act() wrapper on the render keeps async state-updates from the
+    // post-mutation invalidation cycle (which doesn't run here) silent.
+    await act(async () => {
+      renderWithClient(<BoardsList />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("boards-list-grid")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId("boards-list-create-button")).toBeNull();
+    expect(
+      screen.queryByTestId("board-create-dialog-name-input"),
+    ).toBeNull();
     const createCalls = invokeMock.mock.calls.filter(
       ([cmd]) => cmd === "create_board",
     );
