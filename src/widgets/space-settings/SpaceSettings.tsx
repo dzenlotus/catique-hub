@@ -44,6 +44,7 @@ import {
   Scrollable,
 } from "@shared/ui";
 import { useToast } from "@app/providers/ToastProvider";
+import { cn } from "@shared/lib";
 
 import styles from "./SpaceSettings.module.css";
 
@@ -331,11 +332,23 @@ function RolesSection({ spaceId, spaceName }: RolesSectionProps): ReactElement {
       },
       {
         onSuccess: (board) => {
-          pushToast("success", `Role “${role.name}” attached to ${spaceName}`);
+          pushToast("success", `${role.name} attached`);
           setLocation(boardPath(board.id));
         },
         onError: (err) => {
-          pushToast("error", `Failed to attach role: ${err.message}`);
+          // UNIQUE(space_id, owner_role_id) collision → role already
+          // attached (likely cache lag). Show a friendly message
+          // instead of a SQL string.
+          const raw = err instanceof Error ? err.message : String(err);
+          const isDuplicate =
+            raw.toLowerCase().includes("unique constraint") ||
+            raw.toLowerCase().includes("conflict");
+          pushToast(
+            "error",
+            isDuplicate
+              ? `${role.name} is already attached to this space.`
+              : `Failed to attach: ${raw}`,
+          );
         },
       },
     );
@@ -368,10 +381,6 @@ function RolesSection({ spaceId, spaceName }: RolesSectionProps): ReactElement {
         <h3 id="space-settings-roles" className={styles.cardHeading}>
           Roles
         </h3>
-        <p className={styles.cardHint}>
-          Each role attached here gets its own board in this space.
-          The system Owner board is always present and not listed.
-        </p>
 
         {attachedRoles.length > 0 && (
           <ul className={styles.roleList} role="list">
@@ -416,41 +425,30 @@ function RolesSection({ spaceId, spaceName }: RolesSectionProps): ReactElement {
           </ul>
         )}
 
-        <div className={styles.rolePicker}>
-          <p className={styles.rolePickerLabel}>Available roles</p>
-          {rolesQuery.status === "pending" ? (
-            <p className={styles.cardHint}>Loading…</p>
-          ) : availableRoles.length === 0 ? (
-            <p className={styles.cardHint}>
-              All roles are already attached. Create a new role under
-              the Roles page to attach more.
-            </p>
-          ) : (
-            <ul className={styles.roleList} role="list">
-              {availableRoles.map((r) => (
-                <li key={r.id} className={styles.roleRow}>
-                  <button
-                    type="button"
-                    className={styles.roleChip}
-                    onClick={() => handleAttach(r)}
-                    disabled={createBoard.isPending}
-                    data-testid={`space-settings-roles-attach-${r.id}`}
-                  >
-                    {r.color !== null && (
-                      <span
-                        className={styles.roleSwatch}
-                        style={{ backgroundColor: r.color }}
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span className={styles.roleName}>{r.name}</span>
-                    <span className={styles.roleAction}>Attach →</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {availableRoles.length > 0 && (
+          <ul className={styles.roleList} role="list">
+            {availableRoles.map((r) => (
+              <li key={r.id} className={styles.roleRow}>
+                <button
+                  type="button"
+                  className={cn(styles.roleChip, styles.roleChipAvailable)}
+                  onClick={() => handleAttach(r)}
+                  disabled={createBoard.isPending}
+                  data-testid={`space-settings-roles-attach-${r.id}`}
+                >
+                  {r.color !== null && (
+                    <span
+                      className={styles.roleSwatch}
+                      style={{ backgroundColor: r.color }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span className={styles.roleName}>{r.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <ConfirmDialog

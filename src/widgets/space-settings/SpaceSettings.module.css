@@ -268,3 +268,8 @@
   font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
 }
+
+.roleChipAvailable {
+  border-style: dashed;
+  color: var(--color-text-muted);
+}
