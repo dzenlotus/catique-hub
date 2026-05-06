@@ -16,7 +16,7 @@ import { useState, type ReactElement } from "react";
 import { useCreateMcpToolMutation } from "@entities/mcp-tool";
 import type { McpTool } from "@entities/mcp-tool";
 import { AppErrorInstance } from "@entities/board";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 
 import styles from "./McpToolCreateDialog.module.css";
 
@@ -160,36 +160,15 @@ function McpToolCreateDialogContent({
         />
       </div>
 
-      {/* Color */}
+      {/* Color (canonical IconColorPicker — color-only mode). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {color !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: color }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={color === "" ? "#000000" : color}
-            onChange={(e) => setColor(e.target.value)}
-            aria-label="Tool color"
-            data-testid="mcp-tool-create-dialog-color-input"
-          />
-          {color !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setColor("")}
-              data-testid="mcp-tool-create-dialog-color-reset"
-            >
-              Reset
-            </Button>
-          )}
-        </div>
+        <IconColorPicker
+          value={{ icon: null, color: color === "" ? null : color }}
+          onChange={(next) => setColor(next.color ?? "")}
+          ariaLabel="Tool color"
+          data-testid="mcp-tool-create-dialog-color-input"
+        />
       </div>
 
       {/* Schema JSON */}

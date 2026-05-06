@@ -8,7 +8,7 @@
 
 import { useEffect, useState, type ReactElement } from "react";
 import { useSkill, useUpdateSkillMutation } from "@entities/skill";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import styles from "./SkillEditor.module.css";
@@ -268,35 +268,15 @@ export function SkillEditorContent({
         />
       </div>
 
-      {/* Color */}
+      {/* Color (canonical IconColorPicker — color-only mode). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {localColor !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: localColor }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={localColor === "" ? "#000000" : localColor}
-            onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Skill color"
-            data-testid="skill-editor-color-input"
-          />
-          {localColor !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setLocalColor("")}
-            >
-              Reset
-            </Button>
-          )}
-        </div>
+        <IconColorPicker
+          value={{ icon: null, color: localColor === "" ? null : localColor }}
+          onChange={(next) => setLocalColor(next.color ?? "")}
+          ariaLabel="Skill color"
+          data-testid="skill-editor-color-input"
+        />
       </div>
 
       {/* Footer */}

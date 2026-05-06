@@ -43,27 +43,29 @@ fn seed() -> (Connection, Vec<String>) {
     run_pending(&mut conn).expect("migrations");
 
     // 1 space, 5 boards, 5 columns (one per board), 5 roles.
+    // Migration 016 enforces UNIQUE(space_id, owner_role_id) — point
+    // each board at its own role row so the seeds coexist in `sp`.
     conn.execute_batch(
         "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
              VALUES ('sp', 'Bench', 'bn', 0, 0, 0, 0); \
-         INSERT INTO boards (id, name, space_id, position, created_at, updated_at, owner_role_id) VALUES \
-             ('bd1', 'B1', 'sp', 0, 0, 0, 'maintainer-system'), \
-             ('bd2', 'B2', 'sp', 1, 0, 0, 'maintainer-system'), \
-             ('bd3', 'B3', 'sp', 2, 0, 0, 'maintainer-system'), \
-             ('bd4', 'B4', 'sp', 3, 0, 0, 'maintainer-system'), \
-             ('bd5', 'B5', 'sp', 4, 0, 0, 'maintainer-system'); \
-         INSERT INTO columns (id, board_id, name, position, created_at) VALUES \
-             ('co1', 'bd1', 'C', 0, 0), \
-             ('co2', 'bd2', 'C', 0, 0), \
-             ('co3', 'bd3', 'C', 0, 0), \
-             ('co4', 'bd4', 'C', 0, 0), \
-             ('co5', 'bd5', 'C', 0, 0); \
          INSERT INTO roles (id, name, content, created_at, updated_at) VALUES \
              ('rl1', 'R1', '', 0, 0), \
              ('rl2', 'R2', '', 0, 0), \
              ('rl3', 'R3', '', 0, 0), \
              ('rl4', 'R4', '', 0, 0), \
-             ('rl5', 'R5', '', 0, 0);",
+             ('rl5', 'R5', '', 0, 0); \
+         INSERT INTO boards (id, name, space_id, position, created_at, updated_at, owner_role_id) VALUES \
+             ('bd1', 'B1', 'sp', 0, 0, 0, 'rl1'), \
+             ('bd2', 'B2', 'sp', 1, 0, 0, 'rl2'), \
+             ('bd3', 'B3', 'sp', 2, 0, 0, 'rl3'), \
+             ('bd4', 'B4', 'sp', 3, 0, 0, 'rl4'), \
+             ('bd5', 'B5', 'sp', 4, 0, 0, 'rl5'); \
+         INSERT INTO columns (id, board_id, name, position, created_at) VALUES \
+             ('co1', 'bd1', 'C', 0, 0), \
+             ('co2', 'bd2', 'C', 0, 0), \
+             ('co3', 'bd3', 'C', 0, 0), \
+             ('co4', 'bd4', 'C', 0, 0), \
+             ('co5', 'bd5', 'C', 0, 0);",
     )
     .expect("seed");
 

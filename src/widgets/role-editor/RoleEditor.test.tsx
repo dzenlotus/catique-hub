@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
@@ -112,7 +112,10 @@ describe("RoleEditor", () => {
     // by default — the testid points to the preview button. Assert the
     // visible text instead of a textarea `value`.
     expect(screen.getByTestId("role-editor-content-textarea")).toHaveTextContent("Содержимое роли");
-    expect((screen.getByTestId("role-editor-color-input") as HTMLInputElement).value).toBe("#ff0000");
+    // Round-19d: the standalone color input was replaced with a
+    // combined `<IconColorPicker>`. The trigger is rendered on the
+    // form; the actual color input lives inside the popover.
+    expect(screen.getByTestId("role-editor-color-input")).toBeInTheDocument();
   });
 
   it("name input is editable", async () => {
@@ -196,9 +199,14 @@ describe("RoleEditor", () => {
 
     await screen.findByTestId("role-editor-name-input");
 
-    // Click the "Reset" button to clear the color.
-    const resetButton = screen.getByText("Reset");
-    await user.click(resetButton);
+    // Open the IconColorPicker popover and click its Reset button.
+    // `fireEvent.click` is used inside the popover so RAC's press
+    // tracker does not race with the subsequent Save click.
+    await user.click(screen.getByTestId("role-editor-color-input"));
+    const resetButton = await screen.findByTestId(
+      "role-editor-color-input-color-clear",
+    );
+    fireEvent.click(resetButton);
 
     const saveButton = screen.getByTestId("role-editor-save");
     await user.click(saveButton);

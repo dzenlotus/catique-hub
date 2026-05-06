@@ -12,6 +12,7 @@ use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::{
         boards::{self as boards_repo, BoardDraft},
+        columns as columns_repo,
         inheritance::{self as inh, InheritanceScope},
         prompts::PromptRow,
         spaces::{self as repo, SpaceDraft, SpacePatch, SpaceRow},
@@ -27,15 +28,24 @@ use crate::{
 };
 
 /// Default name for the auto-created board landed in every newly
-/// created space (migration `009_default_boards.sql`). Kept generic so
-/// the user can rename it freely; uniqueness lives in `(space_id, id)`,
-/// not in the display name.
-const DEFAULT_BOARD_NAME: &str = "Main";
+/// created space. Maintainer feedback (D-006, 2026-05-06) standardised
+/// this on "Owner" — migration
+/// `016_default_board_naming_and_constraints.sql` rebrands every
+/// pre-existing default board to the same value. The user can still
+/// rename it freely afterwards; uniqueness lives in
+/// `(space_id, owner_role_id)`, not in the display name.
+const DEFAULT_BOARD_NAME: &str = "Owner";
 
 /// Default icon for the auto-created board. Mirrors the frontend's
 /// neutral-default convention (see `src/shared/ui/Icon/index.ts`); the
 /// backend stores the identifier as opaque text.
 const DEFAULT_BOARD_ICON: &str = "PixelInterfaceEssentialList";
+
+/// Default name for the mandatory default column auto-created on every
+/// new board (migration `016_default_board_naming_and_constraints.sql`).
+/// Same string as `DEFAULT_BOARD_NAME` because both signal "this is the
+/// canonical landing spot when the user has not yet curated names".
+const DEFAULT_COLUMN_NAME: &str = "Owner";
 
 const PREFIX_MAX_LEN: usize = 10;
 
@@ -148,7 +158,7 @@ impl<'a> SpacesUseCase<'a> {
         // Auto-provision the default board (migration 009). The
         // dropped tx in the error path rolls the space insert back
         // automatically.
-        boards_repo::insert(
+        let board_row = boards_repo::insert(
             &tx,
             &BoardDraft {
                 name: DEFAULT_BOARD_NAME.to_owned(),
@@ -163,6 +173,23 @@ impl<'a> SpacesUseCase<'a> {
                 // (Cat-as-Agent Phase 1 / memo Q1) — same default the
                 // IPC `create_board` uses.
                 owner_role_id: None,
+            },
+        )
+        .map_err(map_db_err)?;
+
+        // Auto-provision the default column on the freshly-minted
+        // board (migration `016_default_board_naming_and_constraints.sql`).
+        // The cross-board task-move IPC and the resolver both assume
+        // every board carries one default column; planting it here
+        // keeps that invariant true from the moment the space exists.
+        columns_repo::insert(
+            &tx,
+            &columns_repo::ColumnDraft {
+                board_id: board_row.id.clone(),
+                name: DEFAULT_COLUMN_NAME.to_owned(),
+                position: 0,
+                role_id: None,
+                is_default: true,
             },
         )
         .map_err(map_db_err)?;
@@ -703,7 +730,10 @@ mod tests {
         );
         let board = &boards[0];
         assert!(board.is_default, "auto-created board must carry is_default");
-        assert_eq!(board.name, "Main");
+        // D-006 (migration 016) standardised the default board name on
+        // "Owner". Migration 016 also renames every pre-existing one;
+        // the use-case factory mints fresh boards with the new name.
+        assert_eq!(board.name, "Owner");
         assert_eq!(board.icon.as_deref(), Some("PixelInterfaceEssentialList"));
         assert_eq!(board.description, None);
         assert_eq!(board.color, None);
@@ -711,6 +741,19 @@ mod tests {
             (board.position - 0.0).abs() < f64::EPSILON,
             "default board sits at position 0"
         );
+
+        // D-006: the auto-created board carries exactly one default
+        // column ("Owner"). Reuse the already-acquired `conn` rather
+        // than re-acquiring (the in-memory pool is single-connection
+        // — a second `acquire` would time out).
+        let default_col_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM columns WHERE board_id = ?1 AND is_default = 1",
+                rusqlite::params![board.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(default_col_count, 1, "exactly one default column");
     }
 
     #[test]

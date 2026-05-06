@@ -9,7 +9,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { useMcpTool, useUpdateMcpToolMutation } from "@entities/mcp-tool";
 import { AppErrorInstance } from "@entities/board";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import styles from "./McpToolEditor.module.css";
@@ -297,35 +297,15 @@ export function McpToolEditorContent({
         />
       </div>
 
-      {/* Color */}
+      {/* Color (canonical IconColorPicker — color-only mode). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {localColor !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: localColor }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={localColor === "" ? "#000000" : localColor}
-            onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Tool color"
-            data-testid="mcp-tool-editor-color-input"
-          />
-          {localColor !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setLocalColor("")}
-            >
-              Reset
-            </Button>
-          )}
-        </div>
+        <IconColorPicker
+          value={{ icon: null, color: localColor === "" ? null : localColor }}
+          onChange={(next) => setLocalColor(next.color ?? "")}
+          ariaLabel="Tool color"
+          data-testid="mcp-tool-editor-color-input"
+        />
       </div>
 
       {/* Schema JSON */}

@@ -265,6 +265,83 @@ impl<'a> TasksUseCase<'a> {
         }
     }
 
+    /// Route a task to a target board, dropping it into the board's
+    /// default column. D-006 (migration
+    /// `016_default_board_naming_and_constraints.sql`): every board
+    /// carries exactly one `is_default = 1` column, so cross-board
+    /// kanban drag-drop can always land somewhere without the caller
+    /// having to resolve the destination column up-front.
+    ///
+    /// Position defaults to `0.0` — the front of the destination
+    /// column. The caller can re-position via a follow-up `move_task`
+    /// if a more specific slot matters.
+    ///
+    /// **Preserved across the route:** task-level `role_id`, every
+    /// direct `task_prompts` row (`origin = 'direct'`). Inherited
+    /// rows (board/column origin) are not re-cascaded — same contract
+    /// as `move_task`.
+    ///
+    /// # Errors
+    ///
+    /// * `AppError::NotFound` — `task_id` or `target_board_id` does
+    ///   not exist, or the target board has no default column (a
+    ///   data-corruption signal — migration 016 guarantees one exists).
+    /// * Storage-layer errors as usual.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn route_task_to_board(
+        &self,
+        task_id: String,
+        target_board_id: String,
+    ) -> Result<Task, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+
+        // Resolve the destination board's default column. Pre-check
+        // the board itself so a missing target surfaces as a typed
+        // `NotFound { entity: "board" }` rather than the more cryptic
+        // "no default column" branch below.
+        let board_exists: bool = conn
+            .query_row(
+                "SELECT 1 FROM boards WHERE id = ?1",
+                params![target_board_id],
+                |_| Ok(()),
+            )
+            .map(|()| true)
+            .or_else(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => Ok(false),
+                other => Err(other),
+            })
+            .map_err(|e| map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e)))?;
+        if !board_exists {
+            return Err(AppError::NotFound {
+                entity: "board".into(),
+                id: target_board_id,
+            });
+        }
+
+        let default_column_id: String = conn
+            .query_row(
+                "SELECT id FROM columns WHERE board_id = ?1 AND is_default = 1 \
+                 ORDER BY position ASC LIMIT 1",
+                params![target_board_id],
+                |r| r.get::<_, String>(0),
+            )
+            .map(Some)
+            .or_else(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                other => Err(other),
+            })
+            .map_err(|e| map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e)))?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "default_column".into(),
+                id: target_board_id.clone(),
+            })?;
+
+        // Reuse `move_task` so the cross-board board_id patch and the
+        // direct-prompt preservation contract stay one path.
+        drop(conn);
+        self.move_task(task_id, default_column_id, Some(0.0))
+    }
+
     /// List the prompts attached to a task, ordered by join-table `position`.
     ///
     /// # Errors
@@ -990,11 +1067,15 @@ mod tests {
 
         let pool = fresh_pool();
         // Seed a second board with one column on the same space.
+        // Migration 016 enforces UNIQUE(space_id, owner_role_id), so bd2
+        // gets a distinct owner-role row to coexist with bd1 in `sp1`.
         {
             let conn = pool.get().unwrap();
             conn.execute_batch(
-                "INSERT INTO boards (id, name, space_id, position, created_at, updated_at) \
-                     VALUES ('bd2','B2','sp1',1,0,0); \
+                "INSERT INTO roles (id, name, content, created_at, updated_at) \
+                     VALUES ('rl-bd2','Owner of bd2','',0,0); \
+                 INSERT INTO boards (id, name, space_id, position, created_at, updated_at, owner_role_id) \
+                     VALUES ('bd2','B2','sp1',1,0,0,'rl-bd2'); \
                  INSERT INTO columns (id, board_id, name, position, created_at) \
                      VALUES ('cb2','bd2','Backlog',0,0); \
                  INSERT INTO prompts (id, name, content, created_at, updated_at) \
@@ -1019,6 +1100,93 @@ mod tests {
         let prompts = uc.list_task_prompts(&task.id).unwrap();
         assert_eq!(prompts.len(), 1);
         assert_eq!(prompts[0].id, "p-d");
+    }
+
+    // -----------------------------------------------------------------
+    // D-006 — `route_task_to_board` cross-board drop onto default column.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn route_task_to_board_lands_on_default_column() {
+        // Seed a second board with one default column on the same space.
+        // Migration 016 enforces UNIQUE(space_id, owner_role_id), so the
+        // new board points at its own role.
+        let pool = fresh_pool();
+        {
+            let conn = pool.get().unwrap();
+            conn.execute_batch(
+                "INSERT INTO roles (id, name, content, created_at, updated_at) \
+                     VALUES ('rl-bd2','Owner of bd2','',0,0); \
+                 INSERT INTO boards (id, name, space_id, position, created_at, updated_at, owner_role_id) \
+                     VALUES ('bd2','B2','sp1',1,0,0,'rl-bd2'); \
+                 INSERT INTO columns (id, board_id, name, position, role_id, is_default, created_at) VALUES \
+                     ('cb2-default','bd2','Owner',0,NULL,1,0), \
+                     ('cb2-other','bd2','Backlog',1,NULL,0,0);",
+            )
+            .unwrap();
+        }
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .unwrap();
+
+        let routed = uc
+            .route_task_to_board(task.id.clone(), "bd2".into())
+            .unwrap();
+        assert_eq!(routed.board_id, "bd2");
+        assert_eq!(
+            routed.column_id, "cb2-default",
+            "must land on the destination board's default column"
+        );
+    }
+
+    #[test]
+    fn route_task_to_board_returns_not_found_for_missing_board() {
+        let pool = fresh_pool();
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .unwrap();
+        match uc
+            .route_task_to_board(task.id, "ghost".into())
+            .expect_err("nf")
+        {
+            AppError::NotFound { entity, id } => {
+                assert_eq!(entity, "board");
+                assert_eq!(id, "ghost");
+            }
+            other => panic!("expected NotFound, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn route_task_to_board_returns_not_found_when_board_lacks_default_column() {
+        // The board exists but has no `is_default = 1` column. This is
+        // a data-corruption signal — migration 016 guarantees one
+        // exists. The use case surfaces it as a typed NotFound rather
+        // than panicking.
+        let pool = fresh_pool();
+        {
+            let conn = pool.get().unwrap();
+            conn.execute_batch(
+                "INSERT INTO roles (id, name, content, created_at, updated_at) \
+                     VALUES ('rl-bd3','Owner of bd3','',0,0); \
+                 INSERT INTO boards (id, name, space_id, position, created_at, updated_at, owner_role_id) \
+                     VALUES ('bd3','B3','sp1',2,0,0,'rl-bd3');",
+            )
+            .unwrap();
+        }
+        let uc = TasksUseCase::new(&pool);
+        let task = uc
+            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .unwrap();
+        match uc
+            .route_task_to_board(task.id, "bd3".into())
+            .expect_err("nf")
+        {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "default_column"),
+            other => panic!("expected NotFound, got {other:?}"),
+        }
     }
 
     #[test]

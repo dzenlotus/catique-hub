@@ -19,9 +19,6 @@ export type { InputProps } from "./Input";
 export { TextArea } from "./TextArea";
 export type { TextAreaProps } from "./TextArea";
 
-export { ColorField } from "./ColorField";
-export type { ColorFieldProps } from "./ColorField";
-
 export { Tabs, TabList, Tab, TabPanel } from "./Tabs";
 export type {
   TabsProps,

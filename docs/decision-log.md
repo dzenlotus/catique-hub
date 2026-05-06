@@ -15,3 +15,4 @@ Format: `D-NN | YYYY-MM-DD | Title | ADR ref`
 | D-003 | 2026-05-05 | MCP sidecar spike validated: cold-start 20–40 ms ≪ 2 s budget; Q-1 size revised to +30–35 MB (UPX incompatible with macOS codesign) | ADR-0002 + experiments/sidecar-spike/ |
 | D-004 | 2026-05-05 | Resolver strategy: write-time materialisation | ADR-0006 |
 | D-005 | 2026-05-05 | MCP server registry-only (v1) | ADR-0007 |
+| D-006 | 2026-05-06 | Default board name "Owner" + mandatory default column + 1:1 (space, owner_role) | (no ADR) |

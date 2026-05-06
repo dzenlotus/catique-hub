@@ -119,6 +119,7 @@ pub fn run() {
             handlers::tasks::move_task,
             handlers::tasks::rate_task,
             handlers::tasks::remove_task_prompt,
+            handlers::tasks::route_task_to_board,
             handlers::tasks::set_task_prompt_override,
             handlers::tasks::update_task,
             // ---------------- prompts (E2.4) ----------------

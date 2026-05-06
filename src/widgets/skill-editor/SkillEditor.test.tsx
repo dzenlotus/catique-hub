@@ -104,9 +104,10 @@ describe("SkillEditor", () => {
     expect(screen.getByTestId("skill-editor-description-input")).toHaveValue(
       "Строгая типизация для JS",
     );
-    expect(
-      (screen.getByTestId("skill-editor-color-input") as HTMLInputElement).value,
-    ).toBe("#3b82f6");
+    // Round-19d: the standalone color input was replaced with a
+    // combined `<IconColorPicker>`. The trigger is rendered on the
+    // form; the actual color input lives inside the popover.
+    expect(screen.getByTestId("skill-editor-color-input")).toBeInTheDocument();
   });
 
   it("name input is editable", async () => {
@@ -194,8 +195,11 @@ describe("SkillEditor", () => {
 
     await screen.findByTestId("skill-editor-name-input");
 
-    // Click the "Reset" button to clear the color.
-    const resetButton = screen.getByText("Reset");
+    // Open the IconColorPicker popover and click its Reset button.
+    await user.click(screen.getByTestId("skill-editor-color-input"));
+    const resetButton = await screen.findByTestId(
+      "skill-editor-color-input-color-clear",
+    );
     await user.click(resetButton);
 
     const saveButton = screen.getByTestId("skill-editor-save");

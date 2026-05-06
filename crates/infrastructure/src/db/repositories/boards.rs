@@ -434,6 +434,15 @@ mod tests {
     fn list_all_orders_by_position_then_name() {
         let conn = fresh_db();
         seed_space(&conn, "sp1", "abc");
+        // Migration 016 enforces UNIQUE(space_id, owner_role_id), so each
+        // board needs a distinct owner-role row to coexist.
+        conn.execute_batch(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) VALUES \
+                 ('rl-beta','Beta','',0,0), \
+                 ('rl-alpha','Alpha','',0,0), \
+                 ('rl-zeta','Zeta','',0,0);",
+        )
+        .unwrap();
         let _b = insert(
             &conn,
             &BoardDraft {
@@ -445,7 +454,7 @@ mod tests {
                 color: None,
                 icon: None,
                 is_default: false,
-                owner_role_id: None,
+                owner_role_id: Some("rl-beta".into()),
             },
         )
         .unwrap();
@@ -460,7 +469,7 @@ mod tests {
                 color: None,
                 icon: None,
                 is_default: false,
-                owner_role_id: None,
+                owner_role_id: Some("rl-alpha".into()),
             },
         )
         .unwrap();
@@ -475,7 +484,7 @@ mod tests {
                 color: None,
                 icon: None,
                 is_default: false,
-                owner_role_id: None,
+                owner_role_id: Some("rl-zeta".into()),
             },
         )
         .unwrap();
@@ -819,8 +828,30 @@ mod tests {
         let conn = fresh_db();
         seed_space(&conn, "sp1", "abc");
         seed_space(&conn, "sp2", "def");
+        // Migration 016: B1 / B2 share `sp1` so they must point at
+        // distinct owner-role rows. B3 lives in `sp2` alone.
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) \
+             VALUES ('rl-b2','RB2','',0,0)",
+            [],
+        )
+        .unwrap();
         let _b1 = insert(&conn, &empty_draft("B1", "sp1")).unwrap();
-        let _b2 = insert(&conn, &empty_draft("B2", "sp1")).unwrap();
+        let _b2 = insert(
+            &conn,
+            &BoardDraft {
+                name: "B2".into(),
+                space_id: "sp1".into(),
+                role_id: None,
+                position: None,
+                description: None,
+                color: None,
+                icon: None,
+                is_default: false,
+                owner_role_id: Some("rl-b2".into()),
+            },
+        )
+        .unwrap();
         let _b3 = insert(&conn, &empty_draft("B3", "sp2")).unwrap();
         let in_sp1 = list_by_space(&conn, "sp1").unwrap();
         let in_sp2 = list_by_space(&conn, "sp2").unwrap();

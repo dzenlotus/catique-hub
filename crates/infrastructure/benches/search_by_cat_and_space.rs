@@ -33,27 +33,29 @@ fn seed() -> (Connection, &'static str, &'static str) {
 
     // 1 space, 5 boards, 5 columns, 5 cats. The query JOINs `boards`
     // and filters `space_id`, so all 10k tasks must live under `sp`.
+    // Migration 016 enforces UNIQUE(space_id, owner_role_id), so each
+    // board points at its own cat row to coexist in `sp`.
     conn.execute_batch(
         "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
              VALUES ('sp', 'Bench', 'bn', 0, 0, 0, 0); \
-         INSERT INTO boards (id, name, space_id, position, created_at, updated_at, owner_role_id) VALUES \
-             ('bd1', 'B1', 'sp', 0, 0, 0, 'maintainer-system'), \
-             ('bd2', 'B2', 'sp', 1, 0, 0, 'maintainer-system'), \
-             ('bd3', 'B3', 'sp', 2, 0, 0, 'maintainer-system'), \
-             ('bd4', 'B4', 'sp', 3, 0, 0, 'maintainer-system'), \
-             ('bd5', 'B5', 'sp', 4, 0, 0, 'maintainer-system'); \
-         INSERT INTO columns (id, board_id, name, position, created_at) VALUES \
-             ('co1', 'bd1', 'C', 0, 0), \
-             ('co2', 'bd2', 'C', 0, 0), \
-             ('co3', 'bd3', 'C', 0, 0), \
-             ('co4', 'bd4', 'C', 0, 0), \
-             ('co5', 'bd5', 'C', 0, 0); \
          INSERT INTO roles (id, name, content, created_at, updated_at) VALUES \
              ('cat1', 'Cat1', '', 0, 0), \
              ('cat2', 'Cat2', '', 0, 0), \
              ('cat3', 'Cat3', '', 0, 0), \
              ('cat4', 'Cat4', '', 0, 0), \
-             ('cat5', 'Cat5', '', 0, 0);",
+             ('cat5', 'Cat5', '', 0, 0); \
+         INSERT INTO boards (id, name, space_id, position, created_at, updated_at, owner_role_id) VALUES \
+             ('bd1', 'B1', 'sp', 0, 0, 0, 'cat1'), \
+             ('bd2', 'B2', 'sp', 1, 0, 0, 'cat2'), \
+             ('bd3', 'B3', 'sp', 2, 0, 0, 'cat3'), \
+             ('bd4', 'B4', 'sp', 3, 0, 0, 'cat4'), \
+             ('bd5', 'B5', 'sp', 4, 0, 0, 'cat5'); \
+         INSERT INTO columns (id, board_id, name, position, created_at) VALUES \
+             ('co1', 'bd1', 'C', 0, 0), \
+             ('co2', 'bd2', 'C', 0, 0), \
+             ('co3', 'bd3', 'C', 0, 0), \
+             ('co4', 'bd4', 'C', 0, 0), \
+             ('co5', 'bd5', 'C', 0, 0);",
     )
     .expect("seed");
 

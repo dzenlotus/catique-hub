@@ -147,7 +147,8 @@ pub async fn update_task(
 pub async fn move_task(
     state: State<'_, AppState>,
     task_id: String,
-    column_id: String,
+    column_id: Option<String>,
+    board_id: Option<String>,
     position: Option<f64>,
 ) -> Result<Task, AppError> {
     // Snapshot the pre-move task so the post-emit logic can decide
@@ -155,7 +156,98 @@ pub async fn move_task(
     // mirrors `update_task`'s compare-and-emit shape.
     let uc = TasksUseCase::new(&state.pool);
     let before = uc.get(&task_id)?;
-    let after = uc.move_task(task_id, column_id, position)?;
+    // D-006: kanban drop-on-board-zone resolves to the board's
+    // default column when `column_id` is omitted. Either argument
+    // form is allowed; `column_id` wins when both are supplied so
+    // explicit caller intent never gets silently overridden.
+    let resolved_column = match (column_id, board_id) {
+        (Some(c), _) => c,
+        (None, Some(target_board)) => {
+            // Defer to `route_task_to_board` so the default-column
+            // resolution and `NotFound { entity: "default_column" }`
+            // mapping stay one source of truth.
+            let after = uc.route_task_to_board(task_id.clone(), target_board)?;
+            events::emit(
+                &state,
+                events::TASK_UPDATED,
+                json!({
+                    "id": after.id,
+                    "column_id": after.column_id,
+                    "board_id": after.board_id,
+                }),
+            );
+            if before.column_id != after.column_id {
+                events::emit(
+                    &state,
+                    events::TASK_MOVED,
+                    json!({
+                        "id": after.id,
+                        "from_column_id": before.column_id,
+                        "to_column_id": after.column_id,
+                        "board_id": after.board_id,
+                    }),
+                );
+            }
+            return Ok(after);
+        }
+        (None, None) => {
+            return Err(AppError::Validation {
+                field: "column_id".into(),
+                reason: "either columnId or boardId must be supplied".into(),
+            });
+        }
+    };
+    let after = uc.move_task(task_id, resolved_column, position)?;
+    events::emit(
+        &state,
+        events::TASK_UPDATED,
+        json!({
+            "id": after.id,
+            "column_id": after.column_id,
+            "board_id": after.board_id,
+        }),
+    );
+    if before.column_id != after.column_id {
+        events::emit(
+            &state,
+            events::TASK_MOVED,
+            json!({
+                "id": after.id,
+                "from_column_id": before.column_id,
+                "to_column_id": after.column_id,
+                "board_id": after.board_id,
+            }),
+        );
+    }
+    Ok(after)
+}
+
+/// IPC: drop a task onto another board's default column.
+///
+/// D-006 (migration `016_default_board_naming_and_constraints.sql`):
+/// every board owns exactly one `is_default = 1` column, so cross-board
+/// kanban drag-drop can always land without the caller having to look
+/// up the destination column id. This handler is a thin wrapper over
+/// `TasksUseCase::route_task_to_board` — it resolves the default column
+/// and forwards to `move_task` so the cross-board `board_id` patch and
+/// the direct-prompt preservation contract stay in one path.
+///
+/// Emits `task:updated` plus `task:moved` (when the column actually
+/// changed) — same shape as `move_task`.
+///
+/// # Errors
+///
+/// * `AppError::NotFound` — `task_id` or `target_board_id` is unknown,
+///   or the target board has no default column (data-corruption signal).
+#[tauri::command]
+pub async fn route_task_to_board(
+    state: State<'_, AppState>,
+    task_id: String,
+    target_board_id: String,
+) -> Result<Task, AppError> {
+    let uc = TasksUseCase::new(&state.pool);
+    let before = uc.get(&task_id)?;
+    let after = uc.route_task_to_board(task_id, target_board_id)?;
     events::emit(
         &state,
         events::TASK_UPDATED,

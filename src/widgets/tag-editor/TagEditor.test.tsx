@@ -104,7 +104,10 @@ describe("TagEditor", () => {
 
     await screen.findByTestId("tag-editor-name-input");
     expect(screen.getByTestId("tag-editor-name-input")).toHaveValue("Тестовый тег");
-    expect((screen.getByTestId("tag-editor-color-input") as HTMLInputElement).value).toBe("#ff0000");
+    // Round-19d: the standalone color input was replaced with a
+    // combined `<IconColorPicker>`. The trigger is rendered on the
+    // form; the actual color input lives inside the popover.
+    expect(screen.getByTestId("tag-editor-color-input")).toBeInTheDocument();
   });
 
   it("name input is editable", async () => {
@@ -182,8 +185,11 @@ describe("TagEditor", () => {
 
     await screen.findByTestId("tag-editor-name-input");
 
-    // Click the "Reset" button to clear the color.
-    const resetButton = screen.getByText("Reset");
+    // Open the IconColorPicker popover and click its Reset button.
+    await user.click(screen.getByTestId("tag-editor-color-input"));
+    const resetButton = await screen.findByTestId(
+      "tag-editor-color-input-color-clear",
+    );
     await user.click(resetButton);
 
     const saveButton = screen.getByTestId("tag-editor-save");

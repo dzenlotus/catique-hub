@@ -16,6 +16,7 @@ import {
   Dialog,
   EditorShell,
   Button,
+  IconColorPicker,
   Input,
   MarkdownField,
 } from "@shared/ui";
@@ -293,35 +294,15 @@ export function RoleEditorContent({
         />
       </div>
 
-      {/* Color */}
+      {/* Color (canonical IconColorPicker — color-only mode). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {localColor !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: localColor }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={localColor === "" ? "#000000" : localColor}
-            onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Role color"
-            data-testid="role-editor-color-input"
-          />
-          {localColor !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setLocalColor("")}
-            >
-              Reset
-            </Button>
-          )}
-        </div>
+        <IconColorPicker
+          value={{ icon: null, color: localColor === "" ? null : localColor }}
+          onChange={(next) => setLocalColor(next.color ?? "")}
+          ariaLabel="Role color"
+          data-testid="role-editor-color-input"
+        />
       </div>
 
       {/* Content — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}

@@ -13,7 +13,7 @@ import { useState, type ReactElement } from "react";
 
 import { useCreatePromptGroupMutation } from "@entities/prompt-group";
 import type { PromptGroup } from "@entities/prompt-group";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 
 import styles from "./PromptGroupCreateDialog.module.css";
 
@@ -112,24 +112,12 @@ function PromptGroupCreateDialogContent({
         data-testid="prompt-group-create-dialog-identity-row"
       >
         <div className={styles.identityPicker}>
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={color === "" ? "#000000" : color}
-            onChange={(e) => setColor(e.target.value)}
-            aria-label="Group color"
+          <IconColorPicker
+            value={{ icon: null, color: color === "" ? null : color }}
+            onChange={(next) => setColor(next.color ?? "")}
+            ariaLabel="Group color"
             data-testid="prompt-group-create-dialog-color-input"
           />
-          {color !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setColor("")}
-              data-testid="prompt-group-create-dialog-color-reset"
-            >
-              Reset
-            </Button>
-          )}
         </div>
         <div className={styles.identityFields}>
           <Input

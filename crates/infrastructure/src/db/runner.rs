@@ -398,6 +398,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn cat_as_agent_phase1_preserves_existing_data() {
         // Seed an empty DB with 001…003 + fixture data, *then* let
         // migration 004 land. Assert no rows lost and every board has
@@ -479,19 +480,40 @@ mod tests {
         );
         assert_eq!(applied[0].name, "004_cat_as_agent_phase1");
 
-        // Every seeded board's owner_role_id must be maintainer-system.
-        // Scope to the original ids (b1/b2/b3) so migration 010's
-        // default-board backfill — which lands a 4th board for the
-        // seeded space — does not perturb this 004-specific invariant.
-        let owner_row_count: i64 = conn
+        // Every seeded board originally pointed at Maintainer. Migration
+        // 016 (D-006) enforces UNIQUE(space_id, owner_role_id) and
+        // dedupes the conflict by minting a `synth-owner-<board_id>`
+        // role for every duplicate after the earliest-created one.
+        // Combined with migration 010's backfilled default board for
+        // sp1, four boards in this fixture share (sp1, maintainer-system)
+        // → exactly one (the earliest by created_at + id ASC) keeps the
+        // canonical owner; the others land on a synth role each.
+        let maintainer_owned: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM boards \
-                 WHERE id IN ('b1','b2','b3') AND owner_role_id = 'maintainer-system'",
+                 WHERE space_id = 'sp1' AND owner_role_id = 'maintainer-system'",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(owner_row_count, 3, "all boards must point at Maintainer");
+        assert_eq!(
+            maintainer_owned, 1,
+            "post-016: exactly one board per space keeps maintainer-system"
+        );
+        // Every other (b1..b3 + the backfilled default) row in sp1
+        // must carry a synth role id of the shape `synth-owner-<id>`.
+        let synth_owned: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM boards \
+                 WHERE space_id = 'sp1' AND owner_role_id LIKE 'synth-owner-%'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(
+            synth_owned >= 1,
+            "post-016: duplicates must repoint at synth-owner-* (got {synth_owned})"
+        );
 
         // No data lost from the 001-003 seed (the three original
         // boards survive the 004 table rebuild). Migration 010 adds
@@ -509,11 +531,15 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
             .unwrap();
         assert_eq!(task_count, 7);
-        // 5 user roles + 2 system rows seeded by 004.
+        // 5 user roles + 2 system rows seeded by 004 + N synth-owner
+        // roles minted by migration 016 for the duplicate-owner boards.
         let role_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM roles", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(role_count, 7);
+        assert!(
+            role_count >= 7,
+            "expected at least 5 user + 2 system roles, got {role_count}"
+        );
 
         // step_log defaults to '' on every existing task.
         let nonempty_step_logs: i64 = conn
@@ -650,7 +676,9 @@ mod tests {
         );
 
         // The two backfilled boards point at maintainer-system per
-        // memo Q1, with name='Main' and the canonical pixel icon.
+        // memo Q1, and migration 016 (D-006) renames every default
+        // board owned by maintainer-system to "Owner". Icon and FK
+        // stay unchanged.
         let backfilled: Vec<(String, String, Option<String>, String)> = conn
             .prepare(
                 "SELECT space_id, name, icon, owner_role_id FROM boards \
@@ -666,13 +694,13 @@ mod tests {
             vec![
                 (
                     "bare1".to_owned(),
-                    "Main".to_owned(),
+                    "Owner".to_owned(),
                     Some("PixelInterfaceEssentialList".to_owned()),
                     "maintainer-system".to_owned(),
                 ),
                 (
                     "bare2".to_owned(),
-                    "Main".to_owned(),
+                    "Owner".to_owned(),
                     Some("PixelInterfaceEssentialList".to_owned()),
                     "maintainer-system".to_owned(),
                 ),
@@ -684,6 +712,215 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM boards", [], |r| r.get(0))
             .unwrap();
         assert_eq!(after_total, 3);
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn default_board_naming_and_constraints_round_trip() {
+        // Migration `016_default_board_naming_and_constraints.sql` does
+        // three things:
+        //   1. Renames every default board owned by maintainer-system
+        //      to "Owner".
+        //   2. Adds `columns.is_default` and guarantees every board
+        //      owns exactly one default column.
+        //   3. Dedupes (space_id, owner_role_id) tuples and installs a
+        //      UNIQUE index. Duplicates get a `synth-owner-<board_id>`
+        //      role minted; the earliest-created keeps the canonical
+        //      owner.
+        //
+        // Strategy: hand-apply 001..015 with their SHAs recorded so we
+        // can seed pre-016 fixture rows that exercise every branch,
+        // then call `run_pending` so only 016 runs.
+        let mut conn = open_mem();
+        ensure_migrations_table(&conn).unwrap();
+        let now = now_millis();
+        let pre016 = [
+            "001_initial",
+            "002_skills_mcp_tools",
+            "003_board_description",
+            "004_cat_as_agent_phase1",
+            "005_prompt_icons",
+            "006_prompt_examples",
+            "007_prompt_group_icons",
+            "008_space_board_icons_colors",
+            "009_default_boards",
+            "010_backfill_default_boards",
+            "011_space_prompts",
+            "013_mcp_servers",
+            "014_board_column_space_skills",
+            "015_space_workflow_graph",
+        ];
+        for name in pre016 {
+            let file = MIGRATIONS
+                .files()
+                .find(|f| f.path().file_stem().and_then(|s| s.to_str()) == Some(name))
+                .expect("migration present in embedded set");
+            let body = file.contents_utf8().unwrap();
+            let sha = hex_sha256(body.as_bytes());
+            conn.execute_batch("PRAGMA foreign_keys = OFF;").unwrap();
+            conn.execute_batch(body).unwrap();
+            conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+            conn.execute(
+                "INSERT INTO _migrations (name, applied_at, applied_sha) VALUES (?1, ?2, ?3)",
+                rusqlite::params![name, now, sha],
+            )
+            .unwrap();
+        }
+
+        // Fixture: one space with three boards all owned by
+        // maintainer-system (the duplicate scenario migration 016
+        // dedupes). bd-keep is the earliest by created_at; bd-dup1 and
+        // bd-dup2 are the losers. Every board has zero columns so the
+        // backfill insert (2b) plants a default column on each.
+        // Migration 010 already inserted a "Main" default board for
+        // sp1 too, so the dedup must walk all four rows.
+        conn.execute_batch(
+            "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
+                 VALUES ('sp1','S','sp',0,0,0,0); \
+             INSERT INTO boards \
+                 (id, name, space_id, role_id, position, description, color, icon, \
+                  is_default, created_at, updated_at, owner_role_id) \
+             VALUES \
+                 ('bd-keep','Main','sp1',NULL,0,NULL,NULL,NULL,1,1000,1000,'maintainer-system'), \
+                 ('bd-dup1','Custom','sp1',NULL,1,NULL,NULL,NULL,0,2000,2000,'maintainer-system'), \
+                 ('bd-dup2','Custom2','sp1',NULL,2,NULL,NULL,NULL,0,3000,3000,'maintainer-system'); \
+             INSERT INTO columns (id, board_id, name, position, role_id, created_at) \
+                 VALUES ('co-keep-1','bd-keep','Todo',0,NULL,0), \
+                        ('co-keep-2','bd-keep','Done',1,NULL,0);",
+        )
+        .unwrap();
+
+        // Run pending — every migration after 015 should fire.
+        let applied = run_pending(&mut conn).expect("post-015 pending");
+        assert!(
+            applied
+                .iter()
+                .any(|m| m.name == "016_default_board_naming_and_constraints"),
+            "expected migration 016 to apply"
+        );
+
+        // 1. Rename: bd-keep was is_default=1 + maintainer-system →
+        // renamed to "Owner". bd-dup1/bd-dup2 stay because they were
+        // not flagged is_default.
+        let bd_keep_name: String = conn
+            .query_row(
+                "SELECT name FROM boards WHERE id = 'bd-keep'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(bd_keep_name, "Owner");
+
+        // 2a. bd-keep already has columns; the lowest-position one
+        // (`co-keep-1` at position 0) was promoted to is_default = 1.
+        let promoted: i64 = conn
+            .query_row(
+                "SELECT is_default FROM columns WHERE id = 'co-keep-1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(promoted, 1, "lowest-position column must be flagged default");
+        let other: i64 = conn
+            .query_row(
+                "SELECT is_default FROM columns WHERE id = 'co-keep-2'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(other, 0, "non-default column must stay is_default = 0");
+
+        // 2b. bd-dup1 and bd-dup2 had no columns → backfilled with a
+        // single default column each.
+        for board in ["bd-dup1", "bd-dup2"] {
+            let n: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM columns WHERE board_id = ?1 AND is_default = 1",
+                    rusqlite::params![board],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(n, 1, "{board} must have exactly one default column");
+        }
+
+        // Every board now owns exactly one default column.
+        let boards_without_default: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM boards b WHERE NOT EXISTS \
+                   (SELECT 1 FROM columns c WHERE c.board_id = b.id AND c.is_default = 1)",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            boards_without_default, 0,
+            "post-016: every board owns one default column"
+        );
+
+        // 3a/3b. Dedup: only one board per (space_id, owner_role_id).
+        // bd-keep is the earliest by created_at and keeps maintainer.
+        // bd-dup1 / bd-dup2 / the migration-010 backfilled board point
+        // at synth-owner-* roles.
+        let keep_owner: String = conn
+            .query_row(
+                "SELECT owner_role_id FROM boards WHERE id = 'bd-keep'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(keep_owner, "maintainer-system");
+
+        for loser in ["bd-dup1", "bd-dup2"] {
+            let owner: String = conn
+                .query_row(
+                    "SELECT owner_role_id FROM boards WHERE id = ?1",
+                    rusqlite::params![loser],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(owner, format!("synth-owner-{loser}"));
+            // The synth role exists, is_system = 0.
+            let is_sys: i64 = conn
+                .query_row(
+                    "SELECT is_system FROM roles WHERE id = ?1",
+                    rusqlite::params![format!("synth-owner-{loser}")],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(is_sys, 0, "synth-owner-* must be is_system = 0");
+        }
+
+        // 3c. UNIQUE index in place — a fresh duplicate insert is
+        // rejected with SQLITE_CONSTRAINT.
+        let err = conn
+            .execute(
+                "INSERT INTO boards \
+                    (id, name, space_id, role_id, position, description, color, icon, \
+                     is_default, created_at, updated_at, owner_role_id) \
+                 VALUES ('bd-conflict','C','sp1',NULL,9,NULL,NULL,NULL,0,9999,9999,'maintainer-system')",
+                [],
+            )
+            .expect_err("UNIQUE(space_id, owner_role_id) must reject duplicates");
+        match err {
+            rusqlite::Error::SqliteFailure(code, _) => {
+                assert_eq!(code.code, rusqlite::ErrorCode::ConstraintViolation);
+            }
+            other => panic!("expected ConstraintViolation, got {other:?}"),
+        }
+
+        // No board lost — bd-keep, bd-dup1, bd-dup2 all survive. The
+        // migration-010 default-board backfill ran on the empty
+        // `boards` table during the hand-apply phase (step 1), so it
+        // did not insert anything; the seed adds `is_default = 1`
+        // after the fact.
+        let total_boards: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM boards WHERE space_id = 'sp1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(total_boards, 3);
     }
 
     #[test]

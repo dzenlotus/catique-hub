@@ -16,4 +16,10 @@ pub struct Column {
     pub position: i64,
     pub role_id: Option<String>,
     pub created_at: i64,
+    /// `true` when this column is the board's mandatory default
+    /// (migration `016_default_board_naming_and_constraints.sql`).
+    /// Cross-board task moves drop tasks here. Cannot be deleted via
+    /// IPC; the only way to drop a default column is to delete the
+    /// owning board.
+    pub is_default: bool,
 }

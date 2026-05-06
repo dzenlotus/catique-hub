@@ -84,6 +84,12 @@ impl<'a> ColumnsUseCase<'a> {
                 name: trimmed,
                 position,
                 role_id: None,
+                // IPC-created columns are never the default — migration
+                // `016_*` stamps that flag once per board, and the
+                // delete path refuses to drop a default column. Allowing
+                // the IPC to mint extra defaults would break the
+                // single-default invariant the resolver relies on.
+                is_default: false,
             },
         )
         .map_err(map_db_err)?;
@@ -123,19 +129,38 @@ impl<'a> ColumnsUseCase<'a> {
 
     /// Delete a column.
     ///
+    /// Refuses to delete the board's mandatory default column
+    /// (migration `016_default_board_naming_and_constraints.sql`):
+    /// every board needs somewhere to land cross-board task moves, and
+    /// the resolver assumes a default exists. The only legitimate way
+    /// to drop a default column is to delete the owning board.
+    ///
     /// # Errors
     ///
-    /// `AppError::NotFound` if id is unknown.
+    /// * `AppError::NotFound` if id is unknown.
+    /// * `AppError::Forbidden` when the column is `is_default = 1`.
     pub fn delete(&self, id: &str) -> Result<(), AppError> {
         let conn = acquire(self.pool).map_err(map_db_err)?;
-        let removed = repo::delete(&conn, id).map_err(map_db_err)?;
-        if removed {
-            Ok(())
-        } else {
-            Err(AppError::NotFound {
+        match repo::get_by_id(&conn, id).map_err(map_db_err)? {
+            Some(row) if row.is_default => Err(AppError::Forbidden {
+                reason: "default column cannot be deleted".into(),
+            }),
+            Some(_) => {
+                let removed = repo::delete(&conn, id).map_err(map_db_err)?;
+                if removed {
+                    Ok(())
+                } else {
+                    // Race: deleted between get and delete.
+                    Err(AppError::NotFound {
+                        entity: "column".into(),
+                        id: id.to_owned(),
+                    })
+                }
+            }
+            None => Err(AppError::NotFound {
                 entity: "column".into(),
                 id: id.to_owned(),
-            })
+            }),
         }
     }
 
@@ -232,6 +257,7 @@ fn row_to_column(row: ColumnRow) -> Column {
         position: row.position,
         role_id: row.role_id,
         created_at: row.created_at,
+        is_default: row.is_default,
     }
 }
 
@@ -287,6 +313,53 @@ mod tests {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "column"),
             other => panic!("got {other:?}"),
         }
+    }
+
+    #[test]
+    fn delete_refuses_default_column() {
+        // D-006 / migration 016: a column flagged is_default = 1 must
+        // never be removed via the IPC. The forbidden variant is
+        // friendlier than the raw constraint failure.
+        let pool = fresh_pool_with_board();
+        // Mint a default column directly via the repo (the use-case
+        // create() always passes is_default = false).
+        let default_id = {
+            let conn = acquire(&pool).unwrap();
+            let row = repo::insert(
+                &conn,
+                &ColumnDraft {
+                    board_id: "bd1".into(),
+                    name: "Owner".into(),
+                    position: 0,
+                    role_id: None,
+                    is_default: true,
+                },
+            )
+            .unwrap();
+            row.id
+        };
+        let uc = ColumnsUseCase::new(&pool);
+        match uc.delete(&default_id).expect_err("forbidden") {
+            AppError::Forbidden { reason } => {
+                assert!(
+                    reason.contains("default column"),
+                    "unexpected reason: {reason}"
+                );
+            }
+            other => panic!("expected Forbidden, got {other:?}"),
+        }
+        // The default column is still there.
+        let got = uc.get(&default_id).unwrap();
+        assert!(got.is_default);
+    }
+
+    #[test]
+    fn delete_allows_non_default_column() {
+        let pool = fresh_pool_with_board();
+        let uc = ColumnsUseCase::new(&pool);
+        let c = uc.create("bd1".into(), "Todo".into(), 1).unwrap();
+        assert!(!c.is_default);
+        uc.delete(&c.id).expect("non-default column deletes");
     }
 
     #[test]

@@ -29,7 +29,14 @@ import {
   useRemovePromptGroupMemberMutation,
 } from "@entities/prompt-group";
 import { usePrompts, usePrompt } from "@entities/prompt";
-import { Dialog, Button, Input, Combobox, type ComboboxItem } from "@shared/ui";
+import {
+  Dialog,
+  Button,
+  IconColorPicker,
+  Input,
+  Combobox,
+  type ComboboxItem,
+} from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import styles from "./PromptGroupEditor.module.css";
@@ -249,35 +256,15 @@ function PromptGroupEditorContent({
         />
       </div>
 
-      {/* Color */}
+      {/* Color (canonical IconColorPicker — color-only mode). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {localColor !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: localColor }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={localColor === "" ? "#000000" : localColor}
-            onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Group color"
-            data-testid="prompt-group-editor-color-input"
-          />
-          {localColor !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setLocalColor("")}
-            >
-              Reset
-            </Button>
-          )}
-        </div>
+        <IconColorPicker
+          value={{ icon: null, color: localColor === "" ? null : localColor }}
+          onChange={(next) => setLocalColor(next.color ?? "")}
+          ariaLabel="Group color"
+          data-testid="prompt-group-editor-color-input"
+        />
       </div>
 
       {/* Members */}

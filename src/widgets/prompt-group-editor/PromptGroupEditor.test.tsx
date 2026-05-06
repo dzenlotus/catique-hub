@@ -118,13 +118,12 @@ describe("PromptGroupEditor", () => {
     expect(screen.getByTestId("prompt-group-editor-name-input")).toHaveValue(
       "Тестовая группа",
     );
+    // Round-19d: the standalone color input was replaced with a
+    // combined `<IconColorPicker>`. The trigger is rendered on the
+    // form; the actual color input lives inside the popover.
     expect(
-      (
-        screen.getByTestId(
-          "prompt-group-editor-color-input",
-        ) as HTMLInputElement
-      ).value,
-    ).toBe("#ff0000");
+      screen.getByTestId("prompt-group-editor-color-input"),
+    ).toBeInTheDocument();
     // audit-#12: position field is no longer exposed in the form.
     expect(
       screen.queryByTestId("prompt-group-editor-position-input"),
