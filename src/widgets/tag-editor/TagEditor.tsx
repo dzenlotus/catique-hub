@@ -55,12 +55,27 @@ export function TagEditor({ tagId, onClose }: TagEditorProps): ReactElement {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * `TagEditorPanel` — non-modal version mounted inline on the
+ * `/tags/:tagId` route per audit-#9.
+ */
+export function TagEditorPanel({
+  tagId,
+  onClose,
+}: { tagId: string; onClose: () => void }): ReactElement {
+  return (
+    <div className={styles.panel} data-testid="tag-editor-panel">
+      <TagEditorContent tagId={tagId} onClose={onClose} />
+    </div>
+  );
+}
+
 interface TagEditorContentProps {
   tagId: string;
   onClose: () => void;
 }
 
-function TagEditorContent({
+export function TagEditorContent({
   tagId,
   onClose,
 }: TagEditorContentProps): ReactElement {

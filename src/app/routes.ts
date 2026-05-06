@@ -30,6 +30,8 @@ export const routes = {
   role: "/roles/:roleId",
   /** /tags — no longer a sidebar nav item but route still valid */
   tags: "/tags",
+  /** /tags/:tagId — selected-tag editor in content (audit-#9). */
+  tag: "/tags/:tagId",
   /** /reports — no longer a sidebar nav item but route still valid */
   reports: "/reports",
   skills: "/skills",
@@ -82,6 +84,11 @@ export function skillPath(id: string): string {
 /** Build the concrete URL path for a specific mcp-tool editor page. */
 export function mcpToolPath(id: string): string {
   return `/mcp-tools/${id}`;
+}
+
+/** Build the concrete URL path for a specific tag editor page. */
+export function tagPath(id: string): string {
+  return `/tags/${id}`;
 }
 
 /**

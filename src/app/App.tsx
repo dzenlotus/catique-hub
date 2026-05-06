@@ -119,6 +119,9 @@ export default function App(): ReactElement {
           <Route path={routes.tags}>
             <TagsList />
           </Route>
+          <Route path={routes.tag}>
+            <TagsList />
+          </Route>
           <Route path={routes.reports}>
             <AgentReportsList />
           </Route>
