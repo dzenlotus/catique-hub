@@ -16,109 +16,24 @@
  * `cargo test -p catique-domain && cargo test -p catique-api`.
  */
 
-import { invoke } from "@shared/api";
-import type { AppError } from "@bindings/AppError";
+import {
+  AppErrorInstance,
+  invokeWithAppError,
+} from "@shared/api";
 import type { Board } from "@bindings/Board";
 
 /**
- * Typed error wrapper around the Rust `AppError` enum.
- *
- * Why a class? Promise rejections from Tauri come through as the
- * deserialised JSON object — instanceof-checking that against a class
- * gives us a stable JS-idiomatic catch path (`if (e instanceof
- * AppErrorInstance)`) AND keeps the typed `.error` payload available
- * for discriminated-union narrowing on `.kind`.
+ * Re-export the shared `AppErrorInstance` so existing
+ * `import { AppErrorInstance } from "@entities/board"` callers keep
+ * working. New code should import from `@shared/api` directly
+ * (audit-#17).
  */
-export class AppErrorInstance extends Error {
-  /** The discriminated-union payload from `bindings/AppError.ts`. */
-  public readonly error: AppError;
+export { AppErrorInstance };
 
-  public constructor(error: AppError) {
-    super(formatAppErrorMessage(error));
-    this.name = "AppErrorInstance";
-    this.error = error;
-    // Required so `instanceof` works after transpilation.
-    Object.setPrototypeOf(this, AppErrorInstance.prototype);
-  }
-
-  /** Convenience accessor — `error.kind` short-hand. */
-  public get kind(): AppError["kind"] {
-    return this.error.kind;
-  }
-}
-
-/** Render an AppError into a human-readable single line. */
-function formatAppErrorMessage(error: AppError): string {
-  switch (error.kind) {
-    case "validation":
-      return `Validation failed: ${error.data.field} — ${error.data.reason}`;
-    case "transactionRolledBack":
-      return `Transaction rolled back: ${error.data.reason}`;
-    case "dbBusy":
-      return "Database is busy. Please retry.";
-    case "lockTimeout":
-      return `Lock timeout on resource: ${error.data.resource}`;
-    case "internalPanic":
-      return `Internal panic in ${error.data.handler}: ${error.data.message}`;
-    case "notFound":
-      return `${error.data.entity} not found (id: ${error.data.id})`;
-    case "conflict":
-      return `Conflict on ${error.data.entity}: ${error.data.reason}`;
-    case "secretAccessDenied":
-      return `Access denied for secret: ${error.data.secretRef}`;
-    default: {
-      // exhaustiveness check
-      const _exhaustive: never = error;
-      return `Unknown error: ${JSON.stringify(_exhaustive)}`;
-    }
-  }
-}
-
-/**
- * Heuristic: a Tauri-rejected promise from a handler that returned
- * `Result<_, AppError>` carries the AppError JSON object. Anything else
- * (string, undefined, generic Error) is a transport-level failure.
- *
- * We accept any object with a string `kind` matching one of the known
- * variants — narrowing further requires the structural shape of `data`,
- * which we trust ts-rs to keep in sync via the bindings.
- */
-function isAppErrorShape(value: unknown): value is AppError {
-  if (typeof value !== "object" || value === null) return false;
-  const kind = (value as { kind?: unknown }).kind;
-  if (typeof kind !== "string") return false;
-  return (
-    kind === "validation" ||
-    kind === "transactionRolledBack" ||
-    kind === "dbBusy" ||
-    kind === "lockTimeout" ||
-    kind === "internalPanic" ||
-    kind === "notFound" ||
-    kind === "conflict" ||
-    kind === "secretAccessDenied"
-  );
-}
-
-/**
- * Invoke a Tauri command and remap any AppError-shaped rejection into
- * an `AppErrorInstance`. Non-AppError rejections (e.g. transport
- * failures, malformed responses) are re-thrown as-is — those represent
- * bugs at the FFI boundary and shouldn't be silently widened into the
- * domain-error type.
- */
-async function invokeWithAppError<T>(
-  command: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (raw) {
-    if (isAppErrorShape(raw)) {
-      throw new AppErrorInstance(raw);
-    }
-    throw raw;
-  }
-}
+// audit-#17: AppErrorInstance + invokeWithAppError + isAppErrorShape
+// + formatAppErrorMessage now live in `src/shared/api/invokeWithAppError.ts`.
+// The shared formatter also handles `forbidden` / `badRequest`
+// variants (the local copy used to fail exhaustiveness on those).
 
 /**
  * `list_boards` — return every board across all spaces, ordered by

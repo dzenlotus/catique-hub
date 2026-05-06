@@ -6,43 +6,11 @@
  * `entities/role/api/rolesApi.ts`.
  */
 
-import { invoke } from "@shared/api";
-import { AppErrorInstance } from "@entities/board";
-import type { AppError } from "@bindings/AppError";
+import { invokeWithAppError } from "@shared/api";
 import type { ClientInstructions } from "@bindings/ClientInstructions";
 import type { ConnectedClient } from "@bindings/ConnectedClient";
 import type { RoleSyncReport } from "@bindings/RoleSyncReport";
 import type { SyncedRoleFile } from "@bindings/SyncedRoleFile";
-
-function isAppErrorShape(value: unknown): value is AppError {
-  if (typeof value !== "object" || value === null) return false;
-  const kind = (value as { kind?: unknown }).kind;
-  if (typeof kind !== "string") return false;
-  return (
-    kind === "validation" ||
-    kind === "transactionRolledBack" ||
-    kind === "dbBusy" ||
-    kind === "lockTimeout" ||
-    kind === "internalPanic" ||
-    kind === "notFound" ||
-    kind === "conflict" ||
-    kind === "secretAccessDenied"
-  );
-}
-
-async function invokeWithAppError<T>(
-  command: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (raw) {
-    if (isAppErrorShape(raw)) {
-      throw new AppErrorInstance(raw);
-    }
-    throw raw;
-  }
-}
 
 /** `list_connected_clients` — return the persisted client list. */
 export async function listConnectedClients(): Promise<ConnectedClient[]> {

@@ -16,41 +16,8 @@
  * `isAppErrorShape` + `invokeWithAppError`.
  */
 
-import { invoke } from "@shared/api";
-import { AppErrorInstance } from "@entities/board";
-import type { AppError } from "@bindings/AppError";
+import { invokeWithAppError } from "@shared/api";
 import type { McpTool } from "@bindings/McpTool";
-
-/** Same `AppError` discriminator used in `boardsApi` / `rolesApi`. */
-function isAppErrorShape(value: unknown): value is AppError {
-  if (typeof value !== "object" || value === null) return false;
-  const kind = (value as { kind?: unknown }).kind;
-  if (typeof kind !== "string") return false;
-  return (
-    kind === "validation" ||
-    kind === "transactionRolledBack" ||
-    kind === "dbBusy" ||
-    kind === "lockTimeout" ||
-    kind === "internalPanic" ||
-    kind === "notFound" ||
-    kind === "conflict" ||
-    kind === "secretAccessDenied"
-  );
-}
-
-async function invokeWithAppError<T>(
-  command: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (raw) {
-    if (isAppErrorShape(raw)) {
-      throw new AppErrorInstance(raw);
-    }
-    throw raw;
-  }
-}
 
 /** `list_mcp_tools` — return every MCP tool. */
 export async function listMcpTools(): Promise<McpTool[]> {
