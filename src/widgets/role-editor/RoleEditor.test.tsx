@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
@@ -200,13 +200,13 @@ describe("RoleEditor", () => {
     await screen.findByTestId("role-editor-name-input");
 
     // Open the IconColorPicker popover and click its Reset button.
-    // `fireEvent.click` is used inside the popover so RAC's press
-    // tracker does not race with the subsequent Save click.
     await user.click(screen.getByTestId("role-editor-color-input"));
     const resetButton = await screen.findByTestId(
       "role-editor-color-input-color-clear",
     );
-    fireEvent.click(resetButton);
+    await user.click(resetButton);
+    // Dismiss the popover so its overlay does not eat the Save press.
+    await user.keyboard("{Escape}");
 
     const saveButton = screen.getByTestId("role-editor-save");
     await user.click(saveButton);

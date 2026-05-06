@@ -23,12 +23,19 @@ import { useEffect, useState, type ReactElement } from "react";
 import { useParams, useLocation } from "wouter";
 
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
-import { routes } from "@app/routes";
+import { boardPath, routes } from "@app/routes";
 import {
   useDeleteSpaceMutation,
   useSpace,
   useUpdateSpaceMutation,
 } from "@entities/space";
+import {
+  useBoards,
+  useCreateBoardMutation,
+  useDeleteBoardMutation,
+} from "@entities/board";
+import { useRoles } from "@entities/role";
+import type { Role } from "@entities/role";
 import {
   Button,
   ConfirmDialog,
@@ -269,7 +276,198 @@ function SpaceSettingsForm({
       </div>
       </section>
 
+      <RolesSection spaceId={spaceId} spaceName={initialName} />
+
       <DangerZone spaceId={spaceId} spaceName={initialName} />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Roles section — attach roles from the global pool to this space.
+// Each attached role corresponds to one board (1 role per space rule).
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RolesSectionProps {
+  spaceId: string;
+  spaceName: string;
+}
+
+function RolesSection({ spaceId, spaceName }: RolesSectionProps): ReactElement {
+  const [, setLocation] = useLocation();
+  const { pushToast } = useToast();
+  const rolesQuery = useRoles();
+  const boardsQuery = useBoards();
+  const createBoard = useCreateBoardMutation();
+  const deleteBoard = useDeleteBoardMutation();
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    boardId: string;
+    boardName: string;
+  } | null>(null);
+
+  const allRoles: Role[] = rolesQuery.data ?? [];
+  const allBoards = boardsQuery.data ?? [];
+  const boardsInSpace = allBoards.filter((b) => b.spaceId === spaceId);
+
+  // Map: roleId → board in this space (1:1).
+  const roleToBoard = new Map(
+    boardsInSpace.map((b) => [b.ownerRoleId, b]),
+  );
+
+  const attachedRoles = allRoles.filter(
+    (r) => !r.isSystem && roleToBoard.has(r.id),
+  );
+  const availableRoles = allRoles.filter(
+    (r) => !r.isSystem && !roleToBoard.has(r.id),
+  );
+
+  const handleAttach = (role: Role): void => {
+    createBoard.mutate(
+      {
+        name: role.name,
+        spaceId,
+        ownerRoleId: role.id,
+        ...(role.color !== null ? { color: role.color } : {}),
+      },
+      {
+        onSuccess: (board) => {
+          pushToast("success", `Role “${role.name}” attached to ${spaceName}`);
+          setLocation(boardPath(board.id));
+        },
+        onError: (err) => {
+          pushToast("error", `Failed to attach role: ${err.message}`);
+        },
+      },
+    );
+  };
+
+  const handleRemoveConfirmed = (): void => {
+    if (pendingRemoval === null) return;
+    deleteBoard.mutate(pendingRemoval.boardId, {
+      onSuccess: () => {
+        pushToast(
+          "success",
+          `Role detached from ${spaceName}`,
+        );
+        setPendingRemoval(null);
+      },
+      onError: (err) => {
+        pushToast("error", `Failed to detach role: ${err.message}`);
+        setPendingRemoval(null);
+      },
+    });
+  };
+
+  return (
+    <>
+      <section
+        className={styles.card}
+        aria-labelledby="space-settings-roles"
+        data-testid="space-settings-roles-section"
+      >
+        <h3 id="space-settings-roles" className={styles.cardHeading}>
+          Roles
+        </h3>
+        <p className={styles.cardHint}>
+          Each role attached here gets its own board in this space.
+          The system Owner board is always present and not listed.
+        </p>
+
+        {attachedRoles.length > 0 && (
+          <ul className={styles.roleList} role="list">
+            {attachedRoles.map((r) => {
+              const board = roleToBoard.get(r.id);
+              return (
+                <li key={r.id} className={styles.roleRow}>
+                  <button
+                    type="button"
+                    className={styles.roleChip}
+                    onClick={() => board && setLocation(boardPath(board.id))}
+                    data-testid={`space-settings-roles-attached-${r.id}`}
+                  >
+                    {r.color !== null && (
+                      <span
+                        className={styles.roleSwatch}
+                        style={{ backgroundColor: r.color }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className={styles.roleName}>{r.name}</span>
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onPress={() => {
+                      if (board) {
+                        setPendingRemoval({
+                          boardId: board.id,
+                          boardName: board.name,
+                        });
+                      }
+                    }}
+                    aria-label={`Detach role ${r.name}`}
+                    data-testid={`space-settings-roles-detach-${r.id}`}
+                  >
+                    Detach
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <div className={styles.rolePicker}>
+          <p className={styles.rolePickerLabel}>Available roles</p>
+          {rolesQuery.status === "pending" ? (
+            <p className={styles.cardHint}>Loading…</p>
+          ) : availableRoles.length === 0 ? (
+            <p className={styles.cardHint}>
+              All roles are already attached. Create a new role under
+              the Roles page to attach more.
+            </p>
+          ) : (
+            <ul className={styles.roleList} role="list">
+              {availableRoles.map((r) => (
+                <li key={r.id} className={styles.roleRow}>
+                  <button
+                    type="button"
+                    className={styles.roleChip}
+                    onClick={() => handleAttach(r)}
+                    disabled={createBoard.isPending}
+                    data-testid={`space-settings-roles-attach-${r.id}`}
+                  >
+                    {r.color !== null && (
+                      <span
+                        className={styles.roleSwatch}
+                        style={{ backgroundColor: r.color }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className={styles.roleName}>{r.name}</span>
+                    <span className={styles.roleAction}>Attach →</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      <ConfirmDialog
+        isOpen={pendingRemoval !== null}
+        title={
+          pendingRemoval
+            ? `Detach role and delete board "${pendingRemoval.boardName}"?`
+            : "Detach role?"
+        }
+        description="The board this role owns in the current space will be removed, along with its tasks and columns. The role itself stays in the global Roles list."
+        confirmLabel="Detach"
+        destructive
+        isPending={deleteBoard.status === "pending"}
+        onConfirm={handleRemoveConfirmed}
+        onCancel={() => setPendingRemoval(null)}
+        data-testid="space-settings-roles-detach-confirm"
+      />
     </>
   );
 }
