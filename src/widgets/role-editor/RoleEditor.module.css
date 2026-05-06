@@ -13,6 +13,19 @@
   gap: 0;
 }
 
+/* audit-#9: non-modal panel mount on /roles/:roleId. Same flex layout
+ * as the dialog body, plus a horizontal max-width so the editor stays
+ * readable on wide content panes. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  max-width: 760px;
+  padding: var(--space-16) var(--space-24);
+  margin: 0 auto;
+}
+
 /* ── Form sections ───────────────────────────────────────────────── */
 
 .section {

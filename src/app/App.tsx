@@ -112,6 +112,10 @@ export default function App(): ReactElement {
           <Route path={routes.roles}>
             <RolesPage />
           </Route>
+          {/* Selected-role editor in the content slot (audit-#9). */}
+          <Route path={routes.role}>
+            <RolesPage />
+          </Route>
           <Route path={routes.tags}>
             <TagsList />
           </Route>
@@ -121,7 +125,13 @@ export default function App(): ReactElement {
           <Route path={routes.skills}>
             <SkillsPage />
           </Route>
+          <Route path={routes.skill}>
+            <SkillsPage />
+          </Route>
           <Route path={routes.mcpTools}>
+            <McpToolsPage />
+          </Route>
+          <Route path={routes.mcpTool}>
             <McpToolsPage />
           </Route>
           <Route path={routes.spaceSettings}>

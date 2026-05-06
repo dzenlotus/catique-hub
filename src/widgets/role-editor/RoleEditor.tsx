@@ -63,12 +63,33 @@ export function RoleEditor({ roleId, onClose }: RoleEditorProps): ReactElement {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * `RoleEditorPanel` — non-modal version mounted inline on the
+ * `/roles/:roleId` route per audit-#9. The page renders this in its
+ * content slot so editing happens in the workspace, not over a
+ * scrim. Body sections + EditorShell.Footer fragment from
+ * `RoleEditorContent` render in a flex-column shell; the page's
+ * existing scroll wrapper owns scroll. The footer's
+ * `EditorShell.Footer` styled div lands as the last flex child →
+ * appears below the form sections.
+ */
+export function RoleEditorPanel({
+  roleId,
+  onClose,
+}: { roleId: string; onClose: () => void }): ReactElement {
+  return (
+    <div className={styles.panel} data-testid="role-editor-panel">
+      <RoleEditorContent roleId={roleId} onClose={onClose} />
+    </div>
+  );
+}
+
 interface RoleEditorContentProps {
   roleId: string;
   onClose: () => void;
 }
 
-function RoleEditorContent({
+export function RoleEditorContent({
   roleId,
   onClose,
 }: RoleEditorContentProps): ReactElement {

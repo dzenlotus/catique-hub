@@ -51,12 +51,27 @@ export function SkillEditor({ skillId, onClose }: SkillEditorProps): ReactElemen
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * `SkillEditorPanel` — non-modal version mounted inline on the
+ * `/skills/:skillId` route per audit-#9.
+ */
+export function SkillEditorPanel({
+  skillId,
+  onClose,
+}: { skillId: string; onClose: () => void }): ReactElement {
+  return (
+    <div className={styles.panel} data-testid="skill-editor-panel">
+      <SkillEditorContent skillId={skillId} onClose={onClose} />
+    </div>
+  );
+}
+
 interface SkillEditorContentProps {
   skillId: string;
   onClose: () => void;
 }
 
-function SkillEditorContent({
+export function SkillEditorContent({
   skillId,
   onClose,
 }: SkillEditorContentProps): ReactElement {

@@ -26,13 +26,19 @@ export const routes = {
   prompts: "/prompts",
   /** /roles — maps to "agent-roles" NavView */
   roles: "/roles",
+  /** /roles/:roleId — selected-role editor in content (audit-#9, wave-3). */
+  role: "/roles/:roleId",
   /** /tags — no longer a sidebar nav item but route still valid */
   tags: "/tags",
   /** /reports — no longer a sidebar nav item but route still valid */
   reports: "/reports",
   skills: "/skills",
+  /** /skills/:skillId — selected-skill editor in content (audit-#9). */
+  skill: "/skills/:skillId",
   /** /mcp-tools — maps to "mcp-servers" NavView */
   mcpTools: "/mcp-tools",
+  /** /mcp-tools/:mcpToolId — selected-mcp-tool editor in content (audit-#9). */
+  mcpTool: "/mcp-tools/:mcpToolId",
   spaces: "/spaces",
   /** Per-space settings page — editable name/description form. */
   spaceSettings: "/spaces/:spaceId/settings",
@@ -61,6 +67,21 @@ export function spaceSettingsPath(id: string): string {
 /** Build the concrete URL path for the per-board settings page. */
 export function boardSettingsPath(id: string): string {
   return `/boards/${id}/settings`;
+}
+
+/** Build the concrete URL path for a specific role editor page. */
+export function rolePath(id: string): string {
+  return `/roles/${id}`;
+}
+
+/** Build the concrete URL path for a specific skill editor page. */
+export function skillPath(id: string): string {
+  return `/skills/${id}`;
+}
+
+/** Build the concrete URL path for a specific mcp-tool editor page. */
+export function mcpToolPath(id: string): string {
+  return `/mcp-tools/${id}`;
 }
 
 /**
@@ -98,9 +119,9 @@ export function viewForPath(path: string): NavView {
   // Round-19c: /prompt-groups was merged into /prompts. The path is
   // kept as a redirect so any deep-link still lands on the new page.
   if (path === "/prompt-groups") return "prompts";
-  if (path === routes.roles) return "agent-roles";
-  if (path === routes.skills) return "skills";
-  if (path === routes.mcpTools) return "mcp-servers";
+  if (path === routes.roles || path.startsWith("/roles/")) return "agent-roles";
+  if (path === routes.skills || path.startsWith("/skills/")) return "skills";
+  if (path === routes.mcpTools || path.startsWith("/mcp-tools/")) return "mcp-servers";
   // Round-19e: standalone /spaces page was retired — the canonical
   // home shell already shows the sidebar with every space. Keep the
   // path resolvable so any old deep-link redirects to the home page

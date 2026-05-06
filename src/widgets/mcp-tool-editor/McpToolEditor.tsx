@@ -53,12 +53,27 @@ export function McpToolEditor({ toolId, onClose }: McpToolEditorProps): ReactEle
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * `McpToolEditorPanel` — non-modal version mounted inline on the
+ * `/mcp-tools/:mcpToolId` route per audit-#9.
+ */
+export function McpToolEditorPanel({
+  toolId,
+  onClose,
+}: { toolId: string; onClose: () => void }): ReactElement {
+  return (
+    <div className={styles.panel} data-testid="mcp-tool-editor-panel">
+      <McpToolEditorContent toolId={toolId} onClose={onClose} />
+    </div>
+  );
+}
+
 interface McpToolEditorContentProps {
   toolId: string;
   onClose: () => void;
 }
 
-function McpToolEditorContent({
+export function McpToolEditorContent({
   toolId,
   onClose,
 }: McpToolEditorContentProps): ReactElement {

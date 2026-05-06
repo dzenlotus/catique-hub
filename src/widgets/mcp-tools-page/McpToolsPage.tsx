@@ -1,22 +1,27 @@
 /**
  * McpToolsPage — two-pane shell wrapping the existing `<McpToolsList>`.
- * Same shape as RolesPage / SkillsPage.
+ * Same shape as RolesPage / SkillsPage. Audit-#9: editor is a routed
+ * PAGE on `/mcp-tools/:mcpToolId` rather than a modal.
  */
 
 import { useState, type ReactElement } from "react";
+import { useLocation, useRoute } from "wouter";
 
 import { useMcpTools } from "@entities/mcp-tool";
 import { Scrollable } from "@shared/ui";
 import { McpToolCreateDialog } from "@widgets/mcp-tool-create-dialog";
-import { McpToolEditor } from "@widgets/mcp-tool-editor";
+import { McpToolEditorPanel } from "@widgets/mcp-tool-editor";
 import { EntityListSidebar } from "@widgets/entity-list-sidebar";
 import { McpToolsList } from "@widgets/mcp-tools-list";
+import { mcpToolPath, routes } from "@app/routes";
 
 import shellStyles from "@widgets/entity-list-sidebar/EntityPageShell.module.css";
 
 export function McpToolsPage(): ReactElement {
   const toolsQuery = useMcpTools();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [, setLocation] = useLocation();
+  const [match, params] = useRoute<{ mcpToolId: string }>(routes.mcpTool);
+  const selectedId = match ? params?.mcpToolId ?? null : null;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   const items = (toolsQuery.data ?? []).map((t) => ({
@@ -24,6 +29,10 @@ export function McpToolsPage(): ReactElement {
     name: t.name,
     color: t.color,
   }));
+
+  const handleSelect = (id: string | null): void => {
+    setLocation(id ? mcpToolPath(id) : routes.mcpTools);
+  };
 
   return (
     <section className={shellStyles.root} data-testid="mcp-tools-page-root">
@@ -33,7 +42,7 @@ export function McpToolsPage(): ReactElement {
           ariaLabel="MCP tools navigation"
           items={items}
           selectedId={selectedId}
-          onSelect={setSelectedId}
+          onSelect={(id) => handleSelect(id)}
           addLabel="Add tool"
           onAdd={() => setIsCreateOpen(true)}
           emptyText="No MCP tools yet."
@@ -52,16 +61,19 @@ export function McpToolsPage(): ReactElement {
         className={shellStyles.contentSlot}
         data-testid="mcp-tools-page-content-scroll"
       >
-        <McpToolsList
-          onSelectTool={setSelectedId}
-          onCreate={() => setIsCreateOpen(true)}
-        />
+        {selectedId ? (
+          <McpToolEditorPanel
+            toolId={selectedId}
+            onClose={() => handleSelect(null)}
+          />
+        ) : (
+          <McpToolsList
+            onSelectTool={(id) => handleSelect(id)}
+            onCreate={() => setIsCreateOpen(true)}
+          />
+        )}
       </Scrollable>
 
-      <McpToolEditor
-        toolId={selectedId}
-        onClose={() => setSelectedId(null)}
-      />
       <McpToolCreateDialog
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}

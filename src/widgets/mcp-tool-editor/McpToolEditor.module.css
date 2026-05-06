@@ -13,6 +13,17 @@
   gap: 0;
 }
 
+/* audit-#9: non-modal panel mount on /mcp-tools/:mcpToolId. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  max-width: 760px;
+  padding: var(--space-16) var(--space-24);
+  margin: 0 auto;
+}
+
 /* ── Form sections ───────────────────────────────────────────────── */
 
 .section {
