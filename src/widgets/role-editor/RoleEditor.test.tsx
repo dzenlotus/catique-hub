@@ -7,9 +7,15 @@ import type { ReactElement } from "react";
 import type { Role } from "@entities/role";
 import { ToastProvider } from "@app/providers/ToastProvider";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { RoleEditor } from "./RoleEditor";

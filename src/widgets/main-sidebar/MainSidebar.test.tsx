@@ -20,9 +20,15 @@ const activeSpaceStore = new LocalStorageStore<string>({
 // Mock the Tauri invoke wrapper — ActiveSpaceProvider runs useSpaces() on
 // mount and we don't want a real IPC roundtrip here.
 // ---------------------------------------------------------------------------
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 

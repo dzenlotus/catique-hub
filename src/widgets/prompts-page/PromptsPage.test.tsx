@@ -10,9 +10,15 @@ import { ToastProvider } from "@app/providers/ToastProvider";
 // Mock the Tauri invoke wrapper at the shared/api boundary so the page's
 // fan-out queries (prompts, groups, per-group members) all run against
 // fixtures.
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { PromptsPage } from "./PromptsPage";

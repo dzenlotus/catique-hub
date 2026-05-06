@@ -13,9 +13,15 @@ import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 // error, empty, populated) plus the create-mutation flow can be
 // driven from here. We avoid mocking @entities/board itself to keep
 // the test exercising the real react-query store.
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { BoardsList } from "./BoardsList";

@@ -5,9 +5,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 // Mock @shared/api so IPC calls don't fail in unit tests.
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { ConnectedAgentsSection } from "./ConnectedAgentsSection";

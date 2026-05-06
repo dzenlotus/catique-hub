@@ -9,9 +9,15 @@ import type { Role } from "@entities/role";
 import type { Space } from "@entities/space";
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { BoardCreateDialog } from "./BoardCreateDialog";

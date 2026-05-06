@@ -5,9 +5,15 @@ import type { ReactElement } from "react";
 import type { SearchResult } from "@bindings/SearchResult";
 
 // Mock IPC at the shared/api boundary.
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { GlobalSearch } from "./GlobalSearch";

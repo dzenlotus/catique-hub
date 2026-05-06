@@ -7,9 +7,15 @@ import type { ReactElement } from "react";
 import type { PromptGroup } from "@entities/prompt-group";
 import type { Prompt } from "@entities/prompt";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { PromptGroupEditor } from "./PromptGroupEditor";

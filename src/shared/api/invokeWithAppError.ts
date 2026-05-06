@@ -7,8 +7,9 @@
  * keeps the discriminator + formatter aligned with the ts-rs binding.
  */
 
-import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import type { AppError } from "@bindings/AppError";
+
+import { invoke } from "./invoke";
 
 /**
  * Typed error wrapper around the Rust `AppError` enum.
@@ -96,7 +97,7 @@ export async function invokeWithAppError<T>(
   args?: Record<string, unknown>,
 ): Promise<T> {
   try {
-    return await tauriInvoke<T>(command, args);
+    return await invoke<T>(command, args);
   } catch (raw) {
     if (isAppErrorShape(raw)) {
       throw new AppErrorInstance(raw);

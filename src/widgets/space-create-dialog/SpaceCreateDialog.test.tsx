@@ -8,9 +8,15 @@ import type { Space } from "@entities/space";
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 import { LocalStorageStore, stringCodec } from "@shared/storage";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { SpaceCreateDialog } from "./SpaceCreateDialog";
