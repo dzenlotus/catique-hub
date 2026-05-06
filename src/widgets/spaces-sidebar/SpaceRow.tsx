@@ -5,24 +5,20 @@ import { cn } from "@shared/lib";
 import {
   Button,
   ConfirmDialog,
-  Dialog,
   KebabIcon,
   Menu,
   MenuItem,
   MarqueeText,
   MenuTrigger,
-  SidebarAddRow,
 } from "@shared/ui";
 import { SidebarNavItem } from "@shared/ui/SidebarShell";
 import { booleanCodec, useLocalStorage } from "@shared/storage";
 import type { Space } from "@entities/space";
 import {
   type Board,
-  useCreateBoardMutation,
   useDeleteBoardMutation,
 } from "@entities/board";
-import { useRoles } from "@entities/role";
-import { boardPath, boardSettingsPath, spaceSettingsPath } from "@app/routes";
+import { boardSettingsPath, spaceSettingsPath } from "@app/routes";
 import { useToast } from "@app/providers/ToastProvider";
 import { ChevronIcon } from "./ChevronIcon";
 import { BoardIcon, SpaceIcon } from "./icons";
@@ -78,12 +74,6 @@ export function SpaceRow({
     useState<Board | null>(null);
   const deleteBoardMutation = useDeleteBoardMutation();
   const { pushToast } = useToast();
-  // audit-#6: per-space "+ Add role" trigger replaces the standalone
-  // board create flow. Adding a role to a space materialises a board
-  // owned by that role as a side-effect — boards never exist on their
-  // own.
-  const [addRoleOpen, setAddRoleOpen] = useState(false);
-  const createBoardMutation = useCreateBoardMutation();
 
   function handleDeleteBoard(board: Board): void {
     setBoardPendingDelete(board);
@@ -151,47 +141,6 @@ export function SpaceRow({
           <MarqueeText text={space.name} className={styles.spaceNameText} />
         </button>
       </div>
-
-      {/* audit-#6: per-space "+ Add role" trigger. Sits below the
-          board list so creation is always one click away regardless of
-          how many boards are loaded. Hidden when the space row is
-          collapsed to keep the rail compact. */}
-      {isExpanded && (
-        <SidebarAddRow
-          label="Add role"
-          onPress={() => setAddRoleOpen(true)}
-          testId={`spaces-sidebar-add-role-${space.id}`}
-        />
-      )}
-
-      <AddRoleToSpaceDialog
-        isOpen={addRoleOpen}
-        onClose={() => setAddRoleOpen(false)}
-        space={space}
-        spaceBoards={spaceBoards}
-        onPicked={(role) => {
-          createBoardMutation.mutate(
-            {
-              name: role.name,
-              spaceId: space.id,
-              ownerRoleId: role.id,
-              ...(role.color !== null ? { color: role.color } : {}),
-            },
-            {
-              onSuccess: (board) => {
-                pushToast("success", `Board “${board.name}” added`);
-                setLocation(boardPath(board.id));
-              },
-              onError: (err) => {
-                pushToast(
-                  "error",
-                  `Failed to add role to space: ${err.message}`,
-                );
-              },
-            },
-          );
-        }}
-      />
 
       {/* Board rows inside expanded space */}
       {isExpanded && spaceBoards.length > 0 && (
@@ -271,92 +220,3 @@ export function SpaceRow({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * `AddRoleToSpaceDialog` — picker for adding an EXISTING role to a
- * space. Per the role model: roles live globally (managed under
- * `/roles`); each space picks roles from that pool, and one board
- * gets attached per role per space. This dialog does NOT create a
- * new role — it lets the user select one and triggers
- * `createBoard(name=role.name, spaceId, ownerRoleId=role.id)`.
- */
-interface AddRoleToSpaceDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  space: Space;
-  spaceBoards: Board[];
-  onPicked: (role: { id: string; name: string; color: string | null }) => void;
-}
-
-function AddRoleToSpaceDialog({
-  isOpen,
-  onClose,
-  space,
-  spaceBoards,
-  onPicked,
-}: AddRoleToSpaceDialogProps): ReactElement {
-  const rolesQuery = useRoles();
-  const allRoles = rolesQuery.data ?? [];
-
-  // Hide system roles (Maintainer / Dirizher) and roles already
-  // attached to a board in this space.
-  const usedRoleIds = new Set(spaceBoards.map((b) => b.ownerRoleId));
-  const candidates = allRoles.filter(
-    (r) => !r.isSystem && !usedRoleIds.has(r.id),
-  );
-
-  return (
-    <Dialog
-      title={`Add role to ${space.name}`}
-      isOpen={isOpen}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-      isDismissable
-      data-testid={`spaces-sidebar-add-role-dialog-${space.id}`}
-    >
-      {() => (
-        <div className={styles.addRoleDialogBody}>
-          {rolesQuery.status === "pending" ? (
-            <p>Loading roles…</p>
-          ) : candidates.length === 0 ? (
-            <p className={styles.addRoleEmpty}>
-              No more roles to add. Create one under <strong>Roles</strong> in
-              the workspace nav, then come back.
-            </p>
-          ) : (
-            <ul className={styles.addRoleList} role="list">
-              {candidates.map((r) => (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    className={styles.addRoleItem}
-                    onClick={() => {
-                      onPicked({
-                        id: r.id,
-                        name: r.name,
-                        color: r.color ?? null,
-                      });
-                      onClose();
-                    }}
-                    data-testid={`spaces-sidebar-add-role-pick-${r.id}`}
-                  >
-                    {r.color !== null ? (
-                      <span
-                        className={styles.addRoleSwatch}
-                        style={{ backgroundColor: r.color }}
-                        aria-hidden="true"
-                      />
-                    ) : null}
-                    <span>{r.name}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </Dialog>
-  );
-}
