@@ -36,6 +36,8 @@ import {
   Listbox,
   ListboxItem,
   MultiSelect,
+  Select,
+  SelectItem,
 } from "@shared/ui";
 import { useToast } from "@app/providers/ToastProvider";
 import { boardPath, routes } from "@app/routes";
@@ -370,34 +372,33 @@ function BoardSettingsForm({
 
           {/* Owner role — required (`boards.owner_role_id NOT NULL`).
               Saves immediately on change with optimistic cache update;
-              the General `Save` button below covers the other fields. */}
-          <label className={styles.fieldLabel}>
-            <span className={styles.fieldLabelText}>Owner role</span>
-            <select
-              className={styles.fieldSelect}
-              value={ownerRoleId}
-              onChange={(e) => {
-                const next = e.target.value;
-                if (next === ownerRoleId) return;
-                setOwnerMutation.mutate({ boardId, roleId: next });
-              }}
-              disabled={
-                rolesQuery.status !== "success" || setOwnerMutation.isPending
-              }
-              aria-label="Owner role"
-              data-testid="board-settings-owner-select"
-            >
-              {rolesQuery.status === "success"
-                ? rolesQuery.data.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))
-                : (
-                  <option value={ownerRoleId}>Loading…</option>
-                )}
-            </select>
-          </label>
+              the General `Save` button below covers the other fields.
+              Canonical `<Select>` per audit-#11 (no native bespoke
+              styling). */}
+          <Select
+            label="Owner role"
+            selectedKey={ownerRoleId}
+            onSelectionChange={(key) => {
+              const next = String(key);
+              if (next === ownerRoleId) return;
+              setOwnerMutation.mutate({ boardId, roleId: next });
+            }}
+            isDisabled={
+              rolesQuery.status !== "success" || setOwnerMutation.isPending
+            }
+            aria-label="Owner role"
+            data-testid="board-settings-owner-select"
+          >
+            {rolesQuery.status === "success"
+              ? rolesQuery.data.map((r) => (
+                  <SelectItem key={r.id} id={r.id}>
+                    {r.name}
+                  </SelectItem>
+                ))
+              : (
+                <SelectItem id={ownerRoleId}>Loading…</SelectItem>
+              )}
+          </Select>
 
           <label className={styles.fieldLabel}>
             <span className={styles.fieldLabelText}>Description</span>

@@ -43,14 +43,11 @@
   border-radius: var(--radius-sm);
   background-color: var(--color-surface-raised);
   cursor: text;
-  transition:
-    border-color 120ms ease-out,
-    box-shadow 120ms ease-out;
+  transition: border-color 120ms ease-out;
 }
 
 .fieldWrap:focus-within {
   border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 3px var(--color-accent-ring);
 }
 
 .fieldWrap[data-disabled="true"] {

@@ -406,7 +406,14 @@ export function PromptEditorPanel({
           )}
         </div>
 
-        {/* Token count — auto-recomputed on save (round-19d). */}
+        </div>
+      </Scrollable>
+      </div>
+
+      <div className={styles.footer}>
+        {/* Token count — auto-recomputed on save. Lives inline on the
+            footer's left edge so the action buttons stay right-aligned
+            (audit-3). */}
         <div
           className={styles.tokenRow}
           data-testid="prompt-editor-panel-token-row"
@@ -417,11 +424,6 @@ export function PromptEditorPanel({
               : "Current count: not computed"}
           </span>
         </div>
-        </div>
-      </Scrollable>
-      </div>
-
-      <div className={styles.footer}>
         {saveError ? (
           <p
             className={styles.saveError}
