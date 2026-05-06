@@ -20,7 +20,7 @@ import type { Board } from "@entities/board";
 import { useRoles } from "@entities/role";
 import { useSpaces } from "@entities/space";
 import { invoke } from "@shared/api";
-import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input, Select, SelectItem } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 
@@ -309,30 +309,27 @@ function BoardCreateDialogContent({
         </label>
       </div>
 
-      {/* Owner role picker — required (`boards.owner_role_id NOT NULL`). */}
+      {/* Owner role picker — required (`boards.owner_role_id NOT NULL`).
+          Canonical `<Select>` per audit-#11 — no native bespoke <select>. */}
       <div className={styles.section}>
-        <label className={styles.selectField}>
-          <span className={styles.selectLabel}>Owner role</span>
-          <select
-            className={styles.select}
-            value={ownerRoleId}
-            onChange={(e) => setOwnerRoleId(e.target.value)}
-            aria-label="Owner role"
-            data-testid="board-create-dialog-owner-select"
-          >
-            {rolesQuery.status === "success"
-              ? rolesQuery.data.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))
-              : (
-                <option value={DEFAULT_OWNER_ROLE_ID}>
-                  Loading…
-                </option>
-              )}
-          </select>
-        </label>
+        <Select
+          label="Owner role"
+          selectedKey={ownerRoleId}
+          onSelectionChange={(key) => setOwnerRoleId(String(key))}
+          isDisabled={rolesQuery.status !== "success"}
+          aria-label="Owner role"
+          data-testid="board-create-dialog-owner-select"
+        >
+          {rolesQuery.status === "success"
+            ? rolesQuery.data.map((r) => (
+                <SelectItem key={r.id} id={r.id}>
+                  {r.name}
+                </SelectItem>
+              ))
+            : (
+              <SelectItem id={DEFAULT_OWNER_ROLE_ID}>Loading…</SelectItem>
+            )}
+        </Select>
       </div>
 
       {/* Space picker */}
@@ -353,23 +350,23 @@ function BoardCreateDialogContent({
         </div>
       ) : (
         <div className={styles.section}>
-          <label className={styles.selectField}>
-            <span className={styles.selectLabel}>Space</span>
-            <select
-              className={styles.select}
-              value={resolvedSpaceId ?? ""}
-              onChange={(e) => setSpaceId(e.target.value)}
-              data-testid="board-create-dialog-space-select"
-            >
-              {spacesQuery.status === "success" && spacesQuery.data.length > 0
-                ? spacesQuery.data.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))
-                : <option value="">Loading…</option>}
-            </select>
-          </label>
+          <Select
+            label="Space"
+            selectedKey={resolvedSpaceId ?? ""}
+            onSelectionChange={(key) => setSpaceId(String(key))}
+            isDisabled={
+              spacesQuery.status !== "success" || spacesQuery.data.length === 0
+            }
+            data-testid="board-create-dialog-space-select"
+          >
+            {spacesQuery.status === "success" && spacesQuery.data.length > 0
+              ? spacesQuery.data.map((s) => (
+                  <SelectItem key={s.id} id={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))
+              : <SelectItem id="">Loading…</SelectItem>}
+          </Select>
         </div>
       )}
 
