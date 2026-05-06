@@ -40,6 +40,14 @@ pub struct CreateBoardArgs {
     pub color: Option<String>,
     /// Optional pixel-icon identifier — opaque to the backend.
     pub icon: Option<String>,
+    /// Optional explicit owner role id. `None` falls back to the
+    /// `boards.owner_role_id` SQL DEFAULT (`'maintainer-system'`).
+    /// Callers that materialise a board for a non-system role
+    /// (e.g. SpaceSettings RolesSection) MUST set this; otherwise
+    /// every board collapses onto the default Owner row and the
+    /// UNIQUE(space_id, owner_role_id) index rejects the second
+    /// insert with a confusing "already attached" toast.
+    pub owner_role_id: Option<String>,
     /// `true` flags the auto-created default board (migration
     /// `009_default_boards.sql`). The IPC `create_board` handler always
     /// passes `false`; the only caller that flips this on is
@@ -125,9 +133,10 @@ impl<'a> BoardsUseCase<'a> {
                 color: args.color,
                 icon: args.icon,
                 is_default: args.is_default,
-                // owner defaults to the seeded `maintainer-system`
-                // row (Cat-as-Agent Phase 1 / memo Q1).
-                owner_role_id: None,
+                // Honour the caller's explicit owner choice; falling
+                // back to the seeded `maintainer-system` row only when
+                // unset (Cat-as-Agent Phase 1 / memo Q1).
+                owner_role_id: args.owner_role_id,
             },
         )
         .map_err(map_db_err)?;
@@ -418,6 +427,7 @@ mod tests {
             description: None,
             color: None,
             icon: None,
+            owner_role_id: None,
             is_default: false,
         }
     }

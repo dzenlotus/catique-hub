@@ -61,6 +61,7 @@ pub async fn create_board(
     description: Option<String>,
     color: Option<String>,
     icon: Option<String>,
+    owner_role_id: Option<String>,
     is_default: Option<bool>,
 ) -> Result<Board, AppError> {
     let board = BoardsUseCase::new(&state.pool).create(CreateBoardArgs {
@@ -69,6 +70,7 @@ pub async fn create_board(
         description,
         color,
         icon,
+        owner_role_id,
         is_default: is_default.unwrap_or(false),
     })?;
     events::emit(&state, events::BOARD_CREATED, json!({ "id": board.id }));
