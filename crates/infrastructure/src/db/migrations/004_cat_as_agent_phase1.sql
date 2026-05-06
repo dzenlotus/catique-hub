@@ -41,13 +41,17 @@ ALTER TABLE roles ADD COLUMN is_system INTEGER NOT NULL DEFAULT 0;
 
 -- Maintainer (auto-assignment target for backfill below) and Dirizher
 -- (Pattern B coordinator). Both deterministic ids per memo Q1/Q3.
+-- 2026-05-06: maintainer renamed to "Owner" (matches the default
+-- board name); dirizher renamed to "Дирижер" (Cyrillic, system).
+-- Internal role ids (`maintainer-system`, `dirizher-system`) stay
+-- for code-level references — only the display name changed.
 INSERT OR IGNORE INTO roles (id, name, content, color, created_at, updated_at, is_system)
 VALUES
-  ('maintainer-system', 'Maintainer', '', NULL,
+  ('maintainer-system', 'Owner', '', NULL,
     (CAST(strftime('%s','now') AS INTEGER) * 1000),
     (CAST(strftime('%s','now') AS INTEGER) * 1000),
     1),
-  ('dirizher-system',   'Dirizher',   '', NULL,
+  ('dirizher-system',   'Дирижер',   '', NULL,
     (CAST(strftime('%s','now') AS INTEGER) * 1000),
     (CAST(strftime('%s','now') AS INTEGER) * 1000),
     1);
