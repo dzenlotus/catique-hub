@@ -93,7 +93,9 @@ function RoleCreateDialogContent({
         onClose();
       },
       onError: (err) => {
-        setSaveError(`Failed to create: ${err.message}`);
+        const detail =
+          err instanceof Error && err.message ? err.message : String(err);
+        setSaveError(`Failed to create: ${detail}`);
       },
     });
   };

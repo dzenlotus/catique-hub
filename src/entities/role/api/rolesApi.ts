@@ -39,10 +39,16 @@ export interface CreateRoleArgs {
   color?: string;
 }
 
-/** `create_role` — create a new role. */
+/** `create_role` — create a new role.
+ *  Note: `content` is required at the Tauri command boundary (Rust
+ *  side has it as non-optional `String`); we default to empty string
+ *  when the caller omits it, matching the previous "defaults to empty
+ *  on the Rust side" docstring contract. */
 export async function createRole(args: CreateRoleArgs): Promise<Role> {
-  const payload: Record<string, unknown> = { name: args.name };
-  if (args.content !== undefined) payload.content = args.content;
+  const payload: Record<string, unknown> = {
+    name: args.name,
+    content: args.content ?? "",
+  };
   if (args.color !== undefined) payload.color = args.color;
   return invokeWithAppError<Role>("create_role", payload);
 }
