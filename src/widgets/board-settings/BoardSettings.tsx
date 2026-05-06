@@ -38,6 +38,7 @@ import {
   MultiSelect,
   Select,
   SelectItem,
+  TextArea,
 } from "@shared/ui";
 import { useToast } from "@app/providers/ToastProvider";
 import { boardPath, routes } from "@app/routes";
@@ -371,47 +372,45 @@ function BoardSettingsForm({
           />
 
           {/* Owner role — required (`boards.owner_role_id NOT NULL`).
-              Saves immediately on change with optimistic cache update;
-              the General `Save` button below covers the other fields.
-              Canonical `<Select>` per audit-#11 (no native bespoke
-              styling). */}
-          <Select
-            label="Owner role"
-            selectedKey={ownerRoleId}
-            onSelectionChange={(key) => {
-              const next = String(key);
-              if (next === ownerRoleId) return;
-              setOwnerMutation.mutate({ boardId, roleId: next });
-            }}
-            isDisabled={
-              rolesQuery.status !== "success" || setOwnerMutation.isPending
-            }
-            aria-label="Owner role"
-            data-testid="board-settings-owner-select"
-          >
-            {rolesQuery.status === "success"
-              ? rolesQuery.data.map((r) => (
-                  <SelectItem key={r.id} id={r.id}>
-                    {r.name}
-                  </SelectItem>
-                ))
-              : (
-                <SelectItem id={ownerRoleId}>Loading…</SelectItem>
-              )}
-          </Select>
+              Default boards (per-space "Owner") are pinned to the
+              maintainer role and cannot be reassigned — block the
+              picker to make that contract visible. Per maintainer
+              feedback 2026-05-06. */}
+          {!isDefault ? (
+            <Select
+              label="Owner role"
+              selectedKey={ownerRoleId}
+              onSelectionChange={(key) => {
+                const next = String(key);
+                if (next === ownerRoleId) return;
+                setOwnerMutation.mutate({ boardId, roleId: next });
+              }}
+              isDisabled={
+                rolesQuery.status !== "success" || setOwnerMutation.isPending
+              }
+              aria-label="Owner role"
+              data-testid="board-settings-owner-select"
+            >
+              {rolesQuery.status === "success"
+                ? rolesQuery.data.map((r) => (
+                    <SelectItem key={r.id} id={r.id}>
+                      {r.name}
+                    </SelectItem>
+                  ))
+                : (
+                  <SelectItem id={ownerRoleId}>Loading…</SelectItem>
+                )}
+            </Select>
+          ) : null}
 
-          <label className={styles.fieldLabel}>
-            <span className={styles.fieldLabelText}>Description</span>
-            <textarea
-              className={styles.fieldTextarea}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional"
-              rows={3}
-              aria-label="Description"
-              data-testid="board-settings-description-input"
-            />
-          </label>
+          <TextArea
+            label="Description"
+            value={description}
+            onChange={setData => setDescription(setData)}
+            placeholder="Optional"
+            rows={3}
+            data-testid="board-settings-description-input"
+          />
 
           <div className={styles.fieldLabel}>
             <span className={styles.fieldLabelText}>Space</span>
