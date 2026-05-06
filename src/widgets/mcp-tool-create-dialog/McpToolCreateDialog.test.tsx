@@ -16,7 +16,7 @@ vi.mock("@shared/api", async () => {
   };
 });
 
-import { invoke } from "@shared/api";
+import { AppErrorInstance, invoke } from "@shared/api";
 import { McpToolCreateDialog } from "./McpToolCreateDialog";
 
 const invokeMock = vi.mocked(invoke);
@@ -210,7 +210,16 @@ describe("McpToolCreateDialog", () => {
   });
 
   it("shows 'Name already taken' on conflict error from backend", async () => {
-    invokeMock.mockRejectedValue({ kind: "conflict", data: { entity: "mcp_tool", reason: "name already exists" } });
+    // The dialog discriminates on `instanceof AppErrorInstance`. Since
+    // the test mocks the wrapper itself, hand it a real instance so the
+    // production code's narrowing branch runs (audit-#17 unified the
+    // wrapper but kept the discriminator class on the call-site).
+    invokeMock.mockRejectedValue(
+      new AppErrorInstance({
+        kind: "conflict",
+        data: { entity: "mcp_tool", reason: "name already exists" },
+      }),
+    );
 
     const { user } = renderWithClient(
       <McpToolCreateDialog isOpen onClose={() => undefined} />,
