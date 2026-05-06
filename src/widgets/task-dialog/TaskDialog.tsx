@@ -5,12 +5,11 @@
  *   1. Title (text input)
  *   2. Slug (read-only mono badge)
  *   3. Description (textarea + edit/preview toggle)
- *   4. Board (native select — useBoards filtered by active space)
- *   5. Status / Column (native select — useColumns(selectedBoardId))
- *   6. Role (native select — useRoles, nullable)
- *   7. Attached prompts (empty placeholder)
- *   8. Attachments (wired — upload/delete)
- *   9. Agent reports (wired)
+ *   4. Assignee (role; nullable) — audit-#10 dropped Board + Status
+ *      from the dialog; kanban drag handles re-ordering.
+ *   5. Attached prompts (multiselect)
+ *   6. Attachments (wired — upload/delete)
+ *   7. Agent reports (wired)
  *
  * Footer: trash-icon delete button (left) + Cancel + Save (right).
  */
@@ -31,10 +30,7 @@ import {
   useUploadAttachmentMutation,
   AttachmentRow,
 } from "@entities/attachment";
-import { useBoards } from "@entities/board";
-import { useColumns } from "@entities/column";
 import { useRoles } from "@entities/role";
-import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import {
   Dialog,
   EditorShell,
@@ -391,20 +387,17 @@ export function TaskDialogContent({
   const updateMutation = useUpdateTaskMutation();
   const deleteMutation = useDeleteTaskMutation();
   const { pushToast } = useToast();
-  const { activeSpaceId } = useActiveSpace();
 
-  // Local edit state.
+  // Local edit state. boardId/columnId stay in state (and in the
+  // mutation payload) so the task keeps its kanban location after
+  // edits — the dropdowns are gone (audit-#10) but the data is not.
   const [localTitle, setLocalTitle] = useState("");
   const [localDescription, setLocalDescription] = useState("");
-  const [localBoardId, setLocalBoardId] = useState("");
-  const [localColumnId, setLocalColumnId] = useState("");
   const [localRoleId, setLocalRoleId] = useState<string>(""); // "" = null (no role)
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Remote data for dropdowns.
-  const boardsQuery = useBoards();
-  const columnsQuery = useColumns(localBoardId);
+  // Remote data for the assignee dropdown.
   const rolesQuery = useRoles();
 
   // Sync local state when task data loads or taskId changes.
@@ -412,21 +405,14 @@ export function TaskDialogContent({
     if (query.data) {
       setLocalTitle(query.data.title);
       setLocalDescription(query.data.description ?? "");
-      setLocalBoardId(query.data.boardId);
-      setLocalColumnId(query.data.columnId);
       setLocalRoleId(query.data.roleId ?? "");
       setSaveError(null);
       setConfirmDelete(false);
     }
   }, [query.data, taskId]);
 
-  // Filter boards to the active space (same logic as BoardsList).
-  const allBoards = boardsQuery.data ?? [];
-  const filteredBoards = activeSpaceId
-    ? allBoards.filter((b) => b.spaceId === activeSpaceId)
-    : allBoards;
-
-  const allColumns = columnsQuery.data ?? [];
+  // audit-#10: board / column dropdowns removed from the dialog;
+  // assignee (role) is the only remaining selector.
   const allRoles = rolesQuery.data ?? [];
 
   // ── Pending ────────────────────────────────────────────────────────
@@ -535,12 +521,6 @@ export function TaskDialogContent({
 
   const task = query.data;
 
-  const handleBoardChange = (newBoardId: string): void => {
-    setLocalBoardId(newBoardId);
-    // Reset column selection when board changes — columns belong to a board.
-    setLocalColumnId("");
-  };
-
   const handleSave = (): void => {
     setSaveError(null);
     const trimmedTitle = localTitle.trim();
@@ -553,7 +533,7 @@ export function TaskDialogContent({
     // Build partial mutation payload — only include dirty fields.
     const mutationArgs: Parameters<typeof updateMutation.mutate>[0] = {
       id: task.id,
-      boardId: localBoardId || task.boardId,
+      boardId: task.boardId,
     };
 
     if (trimmedTitle !== task.title) {
@@ -562,9 +542,8 @@ export function TaskDialogContent({
     if (trimmedDescription !== task.description) {
       mutationArgs.description = trimmedDescription;
     }
-    if (localColumnId && localColumnId !== task.columnId) {
-      mutationArgs.columnId = localColumnId;
-    }
+    // audit-#10: column / board are no longer user-editable from the
+    // dialog; reordering happens via kanban drag.
     // roleId: "" maps to null (no role), otherwise the selected id.
     const newRoleId = localRoleId === "" ? null : localRoleId;
     if (newRoleId !== task.roleId) {
@@ -586,8 +565,6 @@ export function TaskDialogContent({
   const handleCancel = (): void => {
     setLocalTitle(task.title);
     setLocalDescription(task.description ?? "");
-    setLocalBoardId(task.boardId);
-    setLocalColumnId(task.columnId);
     setLocalRoleId(task.roleId ?? "");
     setSaveError(null);
     setConfirmDelete(false);
@@ -650,40 +627,19 @@ export function TaskDialogContent({
         />
       </div>
 
-      {/* Board + Column row */}
-      <div className={cn(styles.section, styles.rowSection)}>
-        <FieldSelect
-          label="Board"
-          value={localBoardId}
-          onChange={handleBoardChange}
-          options={
-            filteredBoards.length === 0
-              ? [{ id: localBoardId, label: localBoardId }]
-              : filteredBoards.map((b) => ({ id: b.id, label: b.name }))
-          }
-          disabled={boardsQuery.status === "pending"}
-          testId="task-dialog-board-select"
-        />
+      {/* audit-#10: Board + Column dropdowns removed from the task card.
+          A task already lives in a known board+column when this dialog
+          opens; reordering happens via kanban drag. The user-facing
+          field that matters is Assignee (the role responsible). */}
 
-        <FieldSelect
-          label="Status / Column"
-          value={localColumnId}
-          onChange={setLocalColumnId}
-          options={allColumns.map((c) => ({ id: c.id, label: c.name }))}
-          placeholder="— select —"
-          disabled={columnsQuery.status === "pending" || !localBoardId}
-          testId="task-dialog-column-select"
-        />
-      </div>
-
-      {/* Role */}
+      {/* Assignee (role) */}
       <div className={styles.section}>
         <FieldSelect
-          label="Role"
+          label="Assignee"
           value={localRoleId}
           onChange={setLocalRoleId}
           options={[
-            { id: "", label: "(no role)" },
+            { id: "", label: "(no assignee)" },
             ...allRoles.map((r) => ({ id: r.id, label: r.name })),
           ]}
           disabled={rolesQuery.status === "pending"}
