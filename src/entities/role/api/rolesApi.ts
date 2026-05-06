@@ -37,6 +37,8 @@ export interface CreateRoleArgs {
   /** Defaults to empty string on the Rust side when omitted. */
   content?: string;
   color?: string;
+  /** Pixel-icon identifier (matches `@shared/ui/Icon` keys). */
+  icon?: string;
 }
 
 /** `create_role` — create a new role.
@@ -50,6 +52,7 @@ export async function createRole(args: CreateRoleArgs): Promise<Role> {
     content: args.content ?? "",
   };
   if (args.color !== undefined) payload.color = args.color;
+  if (args.icon !== undefined) payload.icon = args.icon;
   return invokeWithAppError<Role>("create_role", payload);
 }
 

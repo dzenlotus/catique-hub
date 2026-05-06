@@ -69,6 +69,7 @@ function RoleCreateDialogContent({
   const [name, setName] = useState("");
   const [content, setContent] = useState("");
   const [color, setColor] = useState("");
+  const [icon, setIcon] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const canSubmit = name.trim().length > 0;
@@ -86,6 +87,7 @@ function RoleCreateDialogContent({
     // content defaults to "" on Rust side when omitted; send only when non-empty.
     if (content !== "") args.content = content;
     if (color !== "") args.color = color;
+    if (icon !== null) args.icon = icon;
 
     createMutation.mutate(args, {
       onSuccess: (role) => {
@@ -112,9 +114,12 @@ function RoleCreateDialogContent({
           create-dialog with an IconColorPicker. */}
       <div className={styles.identityRow}>
         <IconColorPicker
-          value={{ icon: null, color: color === "" ? null : color }}
-          onChange={(next) => setColor(next.color ?? "")}
-          ariaLabel="Role color"
+          value={{ icon, color: color === "" ? null : color }}
+          onChange={(next) => {
+            setIcon(next.icon);
+            setColor(next.color ?? "");
+          }}
+          ariaLabel="Role icon and color"
           data-testid="role-create-dialog-color-input"
         />
         <div className={styles.identityFields}>
