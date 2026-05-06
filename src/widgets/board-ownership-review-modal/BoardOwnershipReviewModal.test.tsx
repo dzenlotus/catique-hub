@@ -27,10 +27,16 @@ import type { Space } from "@entities/space";
 import { ToastProvider } from "@app/providers/ToastProvider";
 import { BoardOwnershipReviewMount } from "@app/providers/BoardOwnershipReviewMount";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-  on: vi.fn(() => Promise.resolve(() => {})),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+    on: vi.fn(() => Promise.resolve(() => {})),
+  };
+});
 
 import { invoke } from "@shared/api";
 
