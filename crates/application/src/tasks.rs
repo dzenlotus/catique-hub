@@ -630,6 +630,7 @@ fn role_row_to_role(row: RoleRow) -> Role {
         name: row.name,
         content: row.content,
         color: row.color,
+        icon: row.icon,
         created_at: row.created_at,
         updated_at: row.updated_at,
         is_system: row.is_system,

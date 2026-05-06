@@ -24,6 +24,10 @@ pub struct RoleRow {
     pub name: String,
     pub content: String,
     pub color: Option<String>,
+    /// Optional pixel-icon identifier (migration `018_role_icon.sql`).
+    /// The frontend maps this string onto a React component from
+    /// `src/shared/ui/Icon/`.
+    pub icon: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
     /// `true` for app-owned rows (Maintainer, Dirizher) seeded by
@@ -40,6 +44,7 @@ impl RoleRow {
             name: row.get("name")?,
             content: row.get("content")?,
             color: row.get("color")?,
+            icon: row.get("icon")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
             is_system: is_system_int != 0,
@@ -53,6 +58,8 @@ pub struct RoleDraft {
     pub name: String,
     pub content: String,
     pub color: Option<String>,
+    /// Pixel-icon identifier (`None` means no icon).
+    pub icon: Option<String>,
 }
 
 /// Partial update payload.
@@ -61,6 +68,10 @@ pub struct RolePatch {
     pub name: Option<String>,
     pub content: Option<String>,
     pub color: Option<Option<String>>,
+    /// `None` = leave alone; `Some(None)` = clear; `Some(Some(s))` = set.
+    /// Mirrors the `color` encoding used everywhere else in the repo
+    /// layer.
+    pub icon: Option<Option<String>>,
 }
 
 /// `SELECT … FROM roles ORDER BY name ASC`.
@@ -70,7 +81,7 @@ pub struct RolePatch {
 /// Surfaces rusqlite errors.
 pub fn list_all(conn: &Connection) -> Result<Vec<RoleRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, content, color, created_at, updated_at, is_system \
+        "SELECT id, name, content, color, icon, created_at, updated_at, is_system \
          FROM roles ORDER BY name ASC",
     )?;
     let rows = stmt.query_map([], RoleRow::from_row)?;
@@ -88,7 +99,7 @@ pub fn list_all(conn: &Connection) -> Result<Vec<RoleRow>, DbError> {
 /// Surfaces rusqlite errors.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<RoleRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, content, color, created_at, updated_at, is_system \
+        "SELECT id, name, content, color, icon, created_at, updated_at, is_system \
          FROM roles WHERE id = ?1",
     )?;
     Ok(stmt.query_row(params![id], RoleRow::from_row).optional()?)
@@ -104,7 +115,7 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<RoleRow>, DbError
 /// Surfaces rusqlite errors.
 pub fn list_system_roles(conn: &Connection) -> Result<Vec<RoleRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, content, color, created_at, updated_at, is_system \
+        "SELECT id, name, content, color, icon, created_at, updated_at, is_system \
          FROM roles WHERE is_system = 1 ORDER BY name ASC",
     )?;
     let rows = stmt.query_map([], RoleRow::from_row)?;
@@ -124,15 +135,16 @@ pub fn insert(conn: &Connection, draft: &RoleDraft) -> Result<RoleRow, DbError> 
     let id = new_id();
     let now = now_millis();
     conn.execute(
-        "INSERT INTO roles (id, name, content, color, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
-        params![id, draft.name, draft.content, draft.color, now],
+        "INSERT INTO roles (id, name, content, color, icon, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+        params![id, draft.name, draft.content, draft.color, draft.icon, now],
     )?;
     Ok(RoleRow {
         id,
         name: draft.name.clone(),
         content: draft.content.clone(),
         color: draft.color.clone(),
+        icon: draft.icon.clone(),
         created_at: now,
         updated_at: now,
         // User-created roles are never system rows. The seeded
@@ -148,26 +160,43 @@ pub fn insert(conn: &Connection, draft: &RoleDraft) -> Result<RoleRow, DbError> 
 ///
 /// Surfaces rusqlite errors.
 pub fn update(conn: &Connection, id: &str, patch: &RolePatch) -> Result<Option<RoleRow>, DbError> {
+    use std::fmt::Write as _;
+    // `color` and `icon` are both `Option<Option<String>>` — a single
+    // `UPDATE … COALESCE …` cannot express the "set me to NULL" branch
+    // for either, so we build the statement dynamically. Mirrors the
+    // `prompts` repo (see `update` in `prompts.rs`) — at most four
+    // combinations of (color, icon) presence, every one is a straight
+    // UPDATE that SQLite optimises identically. `name` / `content`
+    // keep the COALESCE pattern.
     let now = now_millis();
-    let updated = match &patch.color {
-        Some(new_color) => conn.execute(
-            "UPDATE roles SET \
-                 name = COALESCE(?1, name), \
-                 content = COALESCE(?2, content), \
-                 color = ?3, \
-                 updated_at = ?4 \
-             WHERE id = ?5",
-            params![patch.name, patch.content, new_color, now, id],
-        )?,
-        None => conn.execute(
-            "UPDATE roles SET \
-                 name = COALESCE(?1, name), \
-                 content = COALESCE(?2, content), \
-                 updated_at = ?3 \
-             WHERE id = ?4",
-            params![patch.name, patch.content, now, id],
-        )?,
-    };
+    let color_new = patch.color.as_ref();
+    let icon_new = patch.icon.as_ref();
+
+    let mut sql = String::from(
+        "UPDATE roles SET name = COALESCE(?1, name), content = COALESCE(?2, content)",
+    );
+    let mut next_param = 3_usize;
+    let mut params_vec: Vec<rusqlite::types::Value> =
+        vec![patch.name.clone().into(), patch.content.clone().into()];
+    if let Some(c) = color_new {
+        let _ = write!(sql, ", color = ?{next_param}");
+        params_vec.push(rusqlite::types::Value::from(c.clone()));
+        next_param += 1;
+    }
+    if let Some(i) = icon_new {
+        let _ = write!(sql, ", icon = ?{next_param}");
+        params_vec.push(rusqlite::types::Value::from(i.clone()));
+        next_param += 1;
+    }
+    let _ = write!(
+        sql,
+        ", updated_at = ?{next_param} WHERE id = ?{}",
+        next_param + 1
+    );
+    params_vec.push(rusqlite::types::Value::from(now));
+    params_vec.push(rusqlite::types::Value::from(id.to_owned()));
+
+    let updated = conn.execute(&sql, rusqlite::params_from_iter(params_vec.iter()))?;
     if updated == 0 {
         return Ok(None);
     }
@@ -323,6 +352,7 @@ mod tests {
                 name: "Backend".into(),
                 content: "rust dev".into(),
                 color: Some("#abcdef".into()),
+                icon: Some("PixelInterfaceEssentialList".into()),
             },
         )
         .unwrap();
@@ -339,6 +369,7 @@ mod tests {
                 name: "Same".into(),
                 content: String::new(),
                 color: None,
+                icon: None,
             },
         )
         .unwrap();
@@ -348,6 +379,7 @@ mod tests {
                 name: "Same".into(),
                 content: String::new(),
                 color: None,
+                icon: None,
             },
         )
         .expect_err("UNIQUE");
@@ -368,6 +400,79 @@ mod tests {
     }
 
     #[test]
+    fn update_round_trips_icon_set_and_clear() {
+        // Migration 018 added the `icon` column. The patch is
+        // `Option<Option<String>>`: `Some(Some(_))` sets, `Some(None)`
+        // clears, `None` leaves the column alone. Verify all three.
+        let conn = fresh_db();
+        let row = insert(
+            &conn,
+            &RoleDraft {
+                name: "Iconful".into(),
+                content: String::new(),
+                color: None,
+                icon: Some("PixelInterfaceEssentialList".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(row.icon.as_deref(), Some("PixelInterfaceEssentialList"));
+
+        // Set to a different identifier.
+        let updated = update(
+            &conn,
+            &row.id,
+            &RolePatch {
+                icon: Some(Some("PixelInterfaceEssentialStar".into())),
+                ..RolePatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(updated.icon.as_deref(), Some("PixelInterfaceEssentialStar"));
+
+        // Clear via Some(None).
+        let cleared = update(
+            &conn,
+            &row.id,
+            &RolePatch {
+                icon: Some(None),
+                ..RolePatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert!(cleared.icon.is_none());
+
+        // Untouched (icon: None) leaves the column at its current value
+        // — set a fresh identifier first so we can observe the no-op.
+        update(
+            &conn,
+            &row.id,
+            &RolePatch {
+                icon: Some(Some("PixelInterfaceEssentialHeart".into())),
+                ..RolePatch::default()
+            },
+        )
+        .unwrap();
+        let untouched = update(
+            &conn,
+            &row.id,
+            &RolePatch {
+                name: Some("Renamed".into()),
+                ..RolePatch::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(untouched.name, "Renamed");
+        assert_eq!(
+            untouched.icon.as_deref(),
+            Some("PixelInterfaceEssentialHeart"),
+            "icon: None on the patch must not touch the column"
+        );
+    }
+
+    #[test]
     fn delete_returns_true_then_false() {
         let conn = fresh_db();
         let row = insert(
@@ -376,6 +481,7 @@ mod tests {
                 name: "R".into(),
                 content: String::new(),
                 color: None,
+                icon: None,
             },
         )
         .unwrap();
@@ -392,6 +498,7 @@ mod tests {
                 name: "R".into(),
                 content: String::new(),
                 color: None,
+                icon: None,
             },
         )
         .unwrap();
@@ -437,6 +544,7 @@ mod tests {
                 name: "Plain".into(),
                 content: String::new(),
                 color: None,
+                icon: None,
             },
         )
         .unwrap();
@@ -455,6 +563,7 @@ mod tests {
                 name: "R".into(),
                 content: String::new(),
                 color: None,
+                icon: None,
             },
         )
         .unwrap();

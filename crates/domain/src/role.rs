@@ -26,6 +26,12 @@ pub struct Role {
     pub name: String,
     pub content: String,
     pub color: Option<String>,
+    /// Optional pixel-icon identifier (migration `018_role_icon.sql`).
+    /// The TS layer maps this string onto a React component from
+    /// `src/shared/ui/Icon/`. `None` (and any identifier the frontend
+    /// does not recognise) renders no icon. Mirrors the
+    /// `Prompt` / `Skill` / `McpTool` / `Space` / `Board` shape.
+    pub icon: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
     /// `true` for application-owned rows (Maintainer, Dirizher). UI

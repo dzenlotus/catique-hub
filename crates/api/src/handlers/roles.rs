@@ -56,8 +56,9 @@ pub async fn create_role(
     name: String,
     content: String,
     color: Option<String>,
+    icon: Option<String>,
 ) -> Result<Role, AppError> {
-    let role = RolesUseCase::new(&state.pool).create(name, content, color)?;
+    let role = RolesUseCase::new(&state.pool).create(name, content, color, icon)?;
     events::emit(&state, events::ROLE_CREATED, json!({ "id": role.id }));
     Ok(role)
 }
@@ -74,8 +75,9 @@ pub async fn update_role(
     name: Option<String>,
     content: Option<String>,
     color: Option<Option<String>>,
+    icon: Option<Option<String>>,
 ) -> Result<Role, AppError> {
-    let role = RolesUseCase::new(&state.pool).update(id, name, content, color)?;
+    let role = RolesUseCase::new(&state.pool).update(id, name, content, color, icon)?;
     events::emit(&state, events::ROLE_UPDATED, json!({ "id": role.id }));
     Ok(role)
 }

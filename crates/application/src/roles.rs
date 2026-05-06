@@ -66,6 +66,7 @@ impl<'a> RolesUseCase<'a> {
         name: String,
         content: String,
         color: Option<String>,
+        icon: Option<String>,
     ) -> Result<Role, AppError> {
         let trimmed = validate_non_empty("name", &name)?;
         validate_optional_color("color", color.as_deref())?;
@@ -76,6 +77,7 @@ impl<'a> RolesUseCase<'a> {
                 name: trimmed,
                 content,
                 color,
+                icon,
             },
         )
         .map_err(|e| map_db_err_unique(e, "role"))?;
@@ -94,6 +96,7 @@ impl<'a> RolesUseCase<'a> {
         name: Option<String>,
         content: Option<String>,
         color: Option<Option<String>>,
+        icon: Option<Option<String>>,
     ) -> Result<Role, AppError> {
         if let Some(n) = name.as_deref() {
             validate_non_empty("name", n)?;
@@ -106,6 +109,7 @@ impl<'a> RolesUseCase<'a> {
             name: name.map(|n| n.trim().to_owned()),
             content,
             color,
+            icon,
         };
         match repo::update(&conn, &id, &patch).map_err(|e| map_db_err_unique(e, "role"))? {
             Some(row) => Ok(row_to_role(row)),
@@ -256,6 +260,7 @@ fn row_to_role(row: RoleRow) -> Role {
         name: row.name,
         content: row.content,
         color: row.color,
+        icon: row.icon,
         created_at: row.created_at,
         updated_at: row.updated_at,
         is_system: row.is_system,
@@ -281,7 +286,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = RolesUseCase::new(&pool);
         match uc
-            .create("R".into(), String::new(), Some("not-a-color".into()))
+            .create("R".into(), String::new(), Some("not-a-color".into()), None)
             .expect_err("v")
         {
             AppError::Validation { field, .. } => assert_eq!(field, "color"),
@@ -293,9 +298,9 @@ mod tests {
     fn duplicate_name_returns_conflict() {
         let pool = fresh_pool();
         let uc = RolesUseCase::new(&pool);
-        uc.create("Same".into(), String::new(), None).unwrap();
+        uc.create("Same".into(), String::new(), None, None).unwrap();
         match uc
-            .create("Same".into(), String::new(), None)
+            .create("Same".into(), String::new(), None, None)
             .expect_err("c")
         {
             AppError::Conflict { entity, .. } => assert_eq!(entity, "role"),
@@ -307,7 +312,7 @@ mod tests {
     fn create_then_list() {
         let pool = fresh_pool();
         let uc = RolesUseCase::new(&pool);
-        uc.create("R".into(), String::new(), Some("#abcdef".into()))
+        uc.create("R".into(), String::new(), Some("#abcdef".into()), None)
             .unwrap();
         let list = uc.list().unwrap();
         // Migration `004_cat_as_agent_phase1.sql` seeds `Maintainer`
@@ -356,9 +361,14 @@ mod tests {
     #[test]
     fn delete_role_rejects_when_boards_reference_it() {
         // Set up a user role that owns one board, then try to delete it.
+        // The fixture name avoids "Owner" — that's the post-017 display
+        // name of the seeded `maintainer-system` row, and `roles.name`
+        // carries a UNIQUE constraint.
         let pool = fresh_pool();
         let uc = RolesUseCase::new(&pool);
-        let role = uc.create("Owner".into(), String::new(), None).unwrap();
+        let role = uc
+            .create("BoardOwner".into(), String::new(), None, None)
+            .unwrap();
 
         // Seed a space + a board owned by the new role directly via
         // SQL — going through the boards use-case would hide the
@@ -397,7 +407,7 @@ mod tests {
     fn delete_role_succeeds_when_no_references() {
         let pool = fresh_pool();
         let uc = RolesUseCase::new(&pool);
-        let role = uc.create("Solo".into(), String::new(), None).unwrap();
+        let role = uc.create("Solo".into(), String::new(), None, None).unwrap();
         uc.delete(&role.id).expect("delete unguarded user role");
         match uc.get(&role.id).expect_err("gone") {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "role"),
@@ -415,7 +425,7 @@ mod tests {
     fn seed_role_prompts_fixture() -> (Pool, String) {
         let pool = fresh_pool();
         let role = RolesUseCase::new(&pool)
-            .create("Reviewer".into(), String::new(), None)
+            .create("Reviewer".into(), String::new(), None, None)
             .unwrap();
         {
             let conn = acquire(&pool).unwrap();

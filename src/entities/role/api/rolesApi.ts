@@ -67,6 +67,11 @@ export interface UpdateRoleArgs {
   color?: string | null;
   /** Skip = `undefined`, clear-to-NULL = `null`. */
   content?: string | null;
+  /**
+   * Skip = `undefined`, set = string, clear-to-NULL = `null`.
+   * Mirrors Rust's `Option<Option<String>>` — same shape as `color`.
+   */
+  icon?: string | null;
 }
 
 /** `update_role` — partial update. */
@@ -75,6 +80,7 @@ export async function updateRole(args: UpdateRoleArgs): Promise<Role> {
   if (args.name !== undefined) payload.name = args.name;
   if (args.color !== undefined) payload.color = args.color;
   if (args.content !== undefined) payload.content = args.content;
+  if (args.icon !== undefined) payload.icon = args.icon;
   return invokeWithAppError<Role>("update_role", payload);
 }
 
