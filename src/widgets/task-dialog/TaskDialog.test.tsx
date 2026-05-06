@@ -181,7 +181,7 @@ describe("TaskDialog", () => {
 
   // ── v1 fields rendering ──────────────────────────────────────────
 
-  it("renders all 7 v1 fields in loaded state", async () => {
+  it("renders the v1 fields in loaded state (audit-#10: no Board/Status)", async () => {
     const task = makeTask();
     invokeMock.mockImplementation(defaultInvokeHandler(task));
     const onClose = vi.fn();
@@ -199,20 +199,45 @@ describe("TaskDialog", () => {
     // so the testid points to the preview button. Assert visible text.
     expect(screen.getByTestId("task-dialog-description-textarea")).toHaveTextContent("Описание задачи");
 
-    // 4. Board select
-    expect(screen.getByTestId("task-dialog-board-select")).toBeInTheDocument();
-
-    // 5. Column/Status select
-    expect(screen.getByTestId("task-dialog-column-select")).toBeInTheDocument();
-
-    // 6. Role select
+    // 4. Assignee select (audit-#10 renamed Role → Assignee)
     expect(screen.getByTestId("task-dialog-role-select")).toBeInTheDocument();
 
-    // 7. Attached prompts section
+    // 5. Attached prompts section
     expect(screen.getByTestId("task-dialog-prompts-section")).toBeInTheDocument();
+
+    // audit-#10: Board + Column dropdowns are no longer rendered. The
+    // task already lives in a known board+column when this dialog
+    // opens; reordering happens via kanban drag.
+    expect(screen.queryByTestId("task-dialog-board-select")).toBeNull();
+    expect(screen.queryByTestId("task-dialog-column-select")).toBeNull();
   });
 
-  it("board select is populated with boards from active space", async () => {
+  it("board select is removed from the dialog (audit-#10)", async () => {
+    // audit-#10: the Board dropdown is gone from the task card. The
+    // task already lives in a known board when this dialog opens; the
+    // user moves it across boards via kanban drag, not a select.
+    const task = makeTask();
+    invokeMock.mockImplementation(defaultInvokeHandler(task));
+    const onClose = vi.fn();
+    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await screen.findByTestId("task-dialog-title-input");
+    expect(screen.queryByTestId("task-dialog-board-select")).toBeNull();
+  });
+
+  it("column select is removed from the dialog (audit-#10)", async () => {
+    // audit-#10: the Column/Status dropdown is gone — kanban drag owns
+    // moving a task between columns.
+    const task = makeTask();
+    invokeMock.mockImplementation(defaultInvokeHandler(task));
+    const onClose = vi.fn();
+    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+
+    await screen.findByTestId("task-dialog-title-input");
+    expect(screen.queryByTestId("task-dialog-column-select")).toBeNull();
+  });
+
+  it("Assignee select includes '(no assignee)' as first option and loaded roles", async () => {
     const task = makeTask();
     invokeMock.mockImplementation(defaultInvokeHandler(task));
     const onClose = vi.fn();
@@ -222,60 +247,26 @@ describe("TaskDialog", () => {
 
     await screen.findByTestId("task-dialog-title-input");
 
-    // Round-19c: native <select> replaced by shared RAC <Select>.
-    // Assert options by opening the popover and reading role="option".
-    const boardTrigger = screen.getByTestId("task-dialog-board-select");
-    await user.click(boardTrigger);
-    await waitFor(() => {
-      expect(screen.getByRole("option", { name: "Sprint Board" })).toBeInTheDocument();
-    });
-  });
-
-  it("column select is populated from useColumns(boardId)", async () => {
-    const task = makeTask();
-    invokeMock.mockImplementation(defaultInvokeHandler(task));
-    const onClose = vi.fn();
-    const { user } = renderWithClient(
-      <TaskDialog taskId="tsk-1" onClose={onClose} />,
-    );
-
-    await screen.findByTestId("task-dialog-title-input");
-
-    const columnTrigger = screen.getByTestId("task-dialog-column-select");
-    await user.click(columnTrigger);
-    await waitFor(() => {
-      expect(screen.getByRole("option", { name: "Todo" })).toBeInTheDocument();
-      expect(
-        screen.getByRole("option", { name: "In Progress" }),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("role select includes '(no role)' as first option and loaded roles", async () => {
-    const task = makeTask();
-    invokeMock.mockImplementation(defaultInvokeHandler(task));
-    const onClose = vi.fn();
-    const { user } = renderWithClient(
-      <TaskDialog taskId="tsk-1" onClose={onClose} />,
-    );
-
-    await screen.findByTestId("task-dialog-title-input");
-
-    const roleTrigger = screen.getByTestId("task-dialog-role-select");
-    await user.click(roleTrigger);
+    // audit-#10 renamed Role → Assignee; the testid was kept for
+    // backwards compat with existing call-sites.
+    const assigneeTrigger = screen.getByTestId("task-dialog-role-select");
+    await user.click(assigneeTrigger);
     await waitFor(() => {
       const options = screen.getAllByRole("option");
       const texts = options.map((o) => o.textContent ?? "");
-      expect(texts[0]).toBe("(no role)");
+      expect(texts[0]).toBe("(no assignee)");
       expect(texts).toContain("Dev Agent");
     });
   });
 
-  // ── Board → Column cascade ───────────────────────────────────────
+  // ── audit-#10: Board → Column cascade is gone ────────────────────
 
-  it("changing Board resets column selection and fetches columns for new board", async () => {
+  it("does NOT cascade column selection from a board change (audit-#10)", async () => {
+    // audit-#10 dropped both dropdowns from the dialog so the cascade
+    // is no longer a user-facing flow. Assert both selects are absent
+    // even when boards / columns are populated upstream — the dialog
+    // never queries them once mounted in the new shape.
     const task = makeTask();
-    // list_columns returns ALL columns (client-side filtering by boardId happens in columnsApi)
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return task;
       if (cmd === "list_attachments") return [];
@@ -294,34 +285,16 @@ describe("TaskDialog", () => {
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
-    const { user } = renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
+    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
     await screen.findByTestId("task-dialog-title-input");
-
-    const boardTrigger = screen.getByTestId("task-dialog-board-select");
-    const columnTrigger = screen.getByTestId("task-dialog-column-select");
-
-    // Change board to brd-2 by clicking trigger then Board 2 option
-    await user.click(boardTrigger);
-    await user.click(await screen.findByRole("option", { name: "Board 2" }));
-
-    // Column selection resets to placeholder ("— select —")
-    await waitFor(() => {
-      expect(columnTrigger).toHaveTextContent("— select —");
-    });
-
-    // After cascade, brd-2 columns load — verify by opening column popover
-    await user.click(columnTrigger);
-    await waitFor(() => {
-      expect(
-        screen.getByRole("option", { name: "New Column" }),
-      ).toBeInTheDocument();
-    });
+    expect(screen.queryByTestId("task-dialog-board-select")).toBeNull();
+    expect(screen.queryByTestId("task-dialog-column-select")).toBeNull();
   });
 
   // ── Save mutation payload ────────────────────────────────────────
 
-  it("clicking Save fires the mutation with all dirty fields (title, columnId, roleId)", async () => {
+  it("clicking Save fires the mutation with the dirty title + assignee (audit-#10)", async () => {
     const task = makeTask();
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return task;
@@ -346,16 +319,11 @@ describe("TaskDialog", () => {
     await user.clear(titleInput);
     await user.type(titleInput, "Обновлённое название");
 
-    // Change column — open trigger, click "In Progress" option
-    const columnTrigger = screen.getByTestId("task-dialog-column-select");
-    await user.click(columnTrigger);
-    await user.click(
-      await screen.findByRole("option", { name: "In Progress" }),
-    );
-
-    // Set role — open trigger, click "Dev Agent" option
-    const roleTrigger = screen.getByTestId("task-dialog-role-select");
-    await user.click(roleTrigger);
+    // audit-#10: column / board selects are gone — only the assignee
+    // (role) field is editable from the dialog now. Pick "Dev Agent"
+    // via the RAC <Select> trigger + listbox.
+    const assigneeTrigger = screen.getByTestId("task-dialog-role-select");
+    await user.click(assigneeTrigger);
     await user.click(await screen.findByRole("option", { name: "Dev Agent" }));
 
     const saveButton = screen.getByTestId("task-dialog-save");
@@ -367,9 +335,11 @@ describe("TaskDialog", () => {
       expect(updateCall?.[1]).toMatchObject({
         id: "tsk-1",
         title: "Обновлённое название",
-        columnId: "col-2",
         roleId: "role-1",
       });
+      // columnId is no longer dirty-checked from the dialog (audit-#10).
+      const payload = updateCall?.[1] as Record<string, unknown>;
+      expect(payload.columnId).toBeUndefined();
     });
   });
 
