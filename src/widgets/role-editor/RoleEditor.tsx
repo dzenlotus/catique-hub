@@ -102,6 +102,7 @@ export function RoleEditorContent({
   // Local edit state — initialised from the loaded role.
   const [localName, setLocalName] = useState("");
   const [localColor, setLocalColor] = useState("");
+  const [localIcon, setLocalIcon] = useState<string | null>(null);
   const [localContent, setLocalContent] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -110,6 +111,7 @@ export function RoleEditorContent({
     if (query.data) {
       setLocalName(query.data.name);
       setLocalColor(query.data.color ?? "");
+      setLocalIcon((query.data as { icon?: string | null }).icon ?? null);
       setLocalContent(query.data.content);
       setSaveError(null);
     }
@@ -227,6 +229,8 @@ export function RoleEditorContent({
 
     // Empty string → clear to null; non-empty → use value as-is.
     const resolvedColor = localColor === "" ? null : localColor;
+    const storedIcon =
+      (role as { icon?: string | null }).icon ?? null;
 
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
     const mutationArgs: MutationArgs = { id: role.id };
@@ -241,6 +245,10 @@ export function RoleEditorContent({
     // For nullable color: only include when the resolved value differs from stored.
     if (resolvedColor !== role.color) {
       mutationArgs.color = resolvedColor;
+    }
+    // For nullable icon: same skip-on-equal pattern.
+    if (localIcon !== storedIcon) {
+      (mutationArgs as { icon?: string | null }).icon = localIcon;
     }
 
     updateMutation.mutate(mutationArgs, {
@@ -259,6 +267,7 @@ export function RoleEditorContent({
     // Reset local state back to role values before closing.
     setLocalName(role.name);
     setLocalColor(role.color ?? "");
+    setLocalIcon((role as { icon?: string | null }).icon ?? null);
     setLocalContent(role.content);
     setSaveError(null);
     onClose();
@@ -294,12 +303,15 @@ export function RoleEditorContent({
         />
       </div>
 
-      {/* Color (canonical IconColorPicker — color-only mode). */}
+      {/* Identity row (icon + color). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Color</p>
         <IconColorPicker
-          value={{ icon: null, color: localColor === "" ? null : localColor }}
-          onChange={(next) => setLocalColor(next.color ?? "")}
+          value={{ icon: localIcon, color: localColor === "" ? null : localColor }}
+          onChange={(next) => {
+            setLocalIcon(next.icon);
+            setLocalColor(next.color ?? "");
+          }}
           ariaLabel="Role color"
           data-testid="role-editor-color-input"
         />
