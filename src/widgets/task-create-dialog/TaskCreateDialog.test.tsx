@@ -100,6 +100,8 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 function renderDialog(
   isOpen = true,
   onClose = vi.fn(),
+  defaultBoardId: string | null = "brd-1",
+  defaultColumnId: string | null = "col-1",
 ): { user: ReturnType<typeof userEvent.setup> } {
   const client = new QueryClient({
     defaultOptions: {
@@ -112,7 +114,12 @@ function renderDialog(
     <QueryClientProvider client={client}>
       <ActiveSpaceProvider>
         <ToastProvider>
-          <TaskCreateDialog isOpen={isOpen} onClose={onClose} />
+          <TaskCreateDialog
+            isOpen={isOpen}
+            onClose={onClose}
+            defaultBoardId={defaultBoardId}
+            defaultColumnId={defaultColumnId}
+          />
         </ToastProvider>
       </ActiveSpaceProvider>
     </QueryClientProvider>
@@ -169,22 +176,12 @@ describe("TaskCreateDialog", () => {
     expect(saveBtn).toBeDisabled();
   });
 
-  it("Save button is enabled once title and board and column are selected", async () => {
+  it("Save button enables once title is filled (board / column come from props)", async () => {
     setupDefaultMocks();
     const { user } = renderDialog();
 
     const titleInput = await screen.findByTestId("task-create-dialog-title-input");
     await user.type(titleInput, "My task");
-
-    // Select the board.
-    const boardSelect = await screen.findByTestId("task-create-dialog-board-select");
-    const boardOption = boardSelect.querySelector("[role='option']");
-    if (boardOption) await user.click(boardOption);
-
-    // Wait for columns to appear, then select.
-    const columnSelect = await screen.findByTestId("task-create-dialog-column-select");
-    const columnOption = columnSelect.querySelector("[role='option']");
-    if (columnOption) await user.click(columnOption);
 
     await waitFor(() => {
       expect(screen.getByTestId("task-create-dialog-save")).not.toBeDisabled();
@@ -206,37 +203,7 @@ describe("TaskCreateDialog", () => {
     expect(createCalls).toHaveLength(0);
   });
 
-  it("board→column cascade: changing board resets column selection", async () => {
-    const board2 = makeBoard({ id: "brd-2", name: "Board 2" });
-    const col2 = makeColumn({ id: "col-2", name: "Backlog", boardId: "brd-2" });
-
-    invokeMock.mockImplementation(async (cmd, args) => {
-      if (cmd === "list_boards") return [makeBoard(), board2];
-      if (cmd === "list_columns") {
-        const boardId = (args as Record<string, unknown>)?.boardId;
-        if (boardId === "brd-2") return [col2];
-        return [makeColumn()];
-      }
-      if (cmd === "list_roles") return [];
-      if (cmd === "list_spaces") return [];
-      return [];
-    });
-
-    const { user } = renderDialog();
-
-    // Select first board.
-    const boardSelect = await screen.findByTestId("task-create-dialog-board-select");
-    const options = boardSelect.querySelectorAll("[role='option']");
-    // Select board1 first.
-    if (options[0]) await user.click(options[0]);
-    // Then select board2 — column should reset.
-    if (options[1]) await user.click(options[1]);
-
-    // After board change, column should be reset (save still disabled because no column).
-    expect(screen.getByTestId("task-create-dialog-save")).toBeDisabled();
-  });
-
-  it("fires create_task mutation with correct payload on submit", async () => {
+  it("fires create_task mutation with payload from props + title", async () => {
     const newTask = makeTask();
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "list_boards") return [makeBoard()];
@@ -252,14 +219,6 @@ describe("TaskCreateDialog", () => {
 
     const titleInput = await screen.findByTestId("task-create-dialog-title-input");
     await user.type(titleInput, "Test task");
-
-    const boardSelect = await screen.findByTestId("task-create-dialog-board-select");
-    const boardOpt = boardSelect.querySelector("[role='option']");
-    if (boardOpt) await user.click(boardOpt);
-
-    const columnSelect = await screen.findByTestId("task-create-dialog-column-select");
-    const colOpt = columnSelect.querySelector("[role='option']");
-    if (colOpt) await user.click(colOpt);
 
     await waitFor(() => {
       expect(screen.getByTestId("task-create-dialog-save")).not.toBeDisabled();
@@ -293,14 +252,6 @@ describe("TaskCreateDialog", () => {
 
     const titleInput = await screen.findByTestId("task-create-dialog-title-input");
     await user.type(titleInput, "Fail task");
-
-    const boardSelect = await screen.findByTestId("task-create-dialog-board-select");
-    const boardOpt = boardSelect.querySelector("[role='option']");
-    if (boardOpt) await user.click(boardOpt);
-
-    const columnSelect = await screen.findByTestId("task-create-dialog-column-select");
-    const colOpt = columnSelect.querySelector("[role='option']");
-    if (colOpt) await user.click(colOpt);
 
     await waitFor(() => {
       expect(screen.getByTestId("task-create-dialog-save")).not.toBeDisabled();
@@ -342,16 +293,6 @@ describe("TaskCreateDialog", () => {
     // Fill title.
     const titleInput = await screen.findByTestId("task-create-dialog-title-input");
     await user.type(titleInput, "Role task");
-
-    // Select board.
-    const boardSelect = await screen.findByTestId("task-create-dialog-board-select");
-    const boardOpt = boardSelect.querySelector("[role='option']");
-    if (boardOpt) await user.click(boardOpt);
-
-    // Select column.
-    const columnSelect = await screen.findByTestId("task-create-dialog-column-select");
-    const colOpt = columnSelect.querySelector("[role='option']");
-    if (colOpt) await user.click(colOpt);
 
     // Select the role (second option in the role listbox — first is "(no role)").
     const roleSelect = await screen.findByTestId("task-create-dialog-role-select");
