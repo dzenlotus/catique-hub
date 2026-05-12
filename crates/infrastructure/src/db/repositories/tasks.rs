@@ -805,7 +805,9 @@ pub fn resolve_task_mcp_tools(
     let mut stmt = conn.prepare(
         "SELECT tm.origin, tm.position, \
                 m.id, m.name, m.description, m.schema_json, m.color, \
-                m.position AS mcp_tool_position, m.created_at, m.updated_at \
+                m.position AS mcp_tool_position, \
+                m.server_id, m.upstream_name, m.source, m.last_synced_at, \
+                m.created_at, m.updated_at \
          FROM task_mcp_tools tm \
          JOIN mcp_tools m ON m.id = tm.mcp_tool_id \
          WHERE tm.task_id = ?1 \
@@ -814,6 +816,8 @@ pub fn resolve_task_mcp_tools(
     let rows = stmt.query_map(params![task_id], |row| {
         let origin: String = row.get("origin")?;
         let position: f64 = row.get("position")?;
+        let source_text: String = row.get("source")?;
+        let source = super::mcp_tools::McpToolSourceRow::from_str_pub(&source_text)?;
         let mcp_tool = super::mcp_tools::McpToolRow {
             id: row.get("id")?,
             name: row.get("name")?,
@@ -821,6 +825,10 @@ pub fn resolve_task_mcp_tools(
             schema_json: row.get("schema_json")?,
             color: row.get("color")?,
             position: row.get("mcp_tool_position")?,
+            server_id: row.get("server_id")?,
+            upstream_name: row.get("upstream_name")?,
+            source,
+            last_synced_at: row.get("last_synced_at")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
         };

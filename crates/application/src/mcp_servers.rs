@@ -1,8 +1,9 @@
 //! MCP servers use case (ctq-115).
 //!
-//! Spec: ADR-0007 (registry-only mode). Catique HUB stores connection
-//! metadata for upstream MCP servers; it does NOT relay traffic and it
-//! does NOT hold the upstream auth tokens.
+//! Spec: ADR-0008 (pass-through proxy, supersedes ADR-0007). Catique
+//! HUB owns the upstream connection AND the OS-keychain entry that
+//! holds the upstream credential. The DB row stores only a reference;
+//! the secret never lives in `auth_json`.
 //!
 //! ## Auth-reference shape guard
 //!
@@ -10,22 +11,28 @@
 //! the JSON encoding of an *auth reference*:
 //!
 //! ```json
-//! {"type":"keychain","key":"catique.mcp.github_token"}
+//! {"type":"keychain","key":"catique.mcp.{server_id}"}
 //! {"type":"env","key":"GITHUB_TOKEN"}
 //! ```
 //!
+//! For `type == "keychain"` the `key` MUST equal exactly
+//! `catique.mcp.{server_id}` — Catique owns the namespace. This stops
+//! one server's `auth_json` from pointing at a different server's
+//! secret. `type == "env"` stays as the escape hatch for users who
+//! want to reuse a system env var; no namespace check applies there.
+//!
 //! Any other shape — including the most common foot-gun, an inline
 //! `{"raw_token":"..."}` — is rejected at write time with
-//! [`AppError::BadRequest`]. The validator is an *allowlist*: only the
-//! two known shapes pass, every other JSON object (or non-object value)
-//! is rejected. Mirrors the validation pattern used by
-//! [`crate::mcp_tools`] for `schema_json` validation.
+//! [`AppError::BadRequest`].
 
 use catique_domain::{McpServer, Transport};
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
-    repositories::mcp_servers::{
-        self as repo, McpServerDraft, McpServerPatch, McpServerRow, TransportKind,
+    repositories::{
+        mcp_servers::{
+            self as repo, McpServerDraft, McpServerPatch, McpServerRow, TransportKind,
+        },
+        pre_mint_id,
     },
 };
 
@@ -160,12 +167,17 @@ impl<'a> McpServersUseCase<'a> {
     ) -> Result<McpServer, AppError> {
         let trimmed = validate_non_empty("name", &name)?;
         validate_url_command_split(transport, url.as_deref(), command.as_deref())?;
+        // ADR-0008: validator needs the server id to enforce the
+        // keychain namespace. Pre-mint the id, validate against it,
+        // then INSERT with the same id.
+        let server_id = pre_mint_id();
         if let Some(ref a) = auth_json {
-            validate_auth_ref(a)?;
+            validate_auth_ref(a, &server_id)?;
         }
         let conn = acquire(self.pool).map_err(map_db_err)?;
-        let row = repo::insert(
+        let row = repo::insert_with_id(
             &conn,
+            &server_id,
             &McpServerDraft {
                 name: trimmed,
                 transport: transport_to_kind(transport),
@@ -205,7 +217,7 @@ impl<'a> McpServersUseCase<'a> {
             validate_non_empty("name", n)?;
         }
         if let Some(Some(a)) = auth_json.as_ref() {
-            validate_auth_ref(a)?;
+            validate_auth_ref(a, &id)?;
         }
 
         let conn = acquire(self.pool).map_err(map_db_err)?;
@@ -266,10 +278,17 @@ impl<'a> McpServersUseCase<'a> {
     }
 }
 
-/// Allowlist validator for the `auth_json` reference shape. Returns
+/// Build the canonical keychain key for a given server id. Single
+/// source of truth so callers do not hand-format the string.
+pub fn keychain_key_for(server_id: &str) -> String {
+    format!("catique.mcp.{server_id}")
+}
+
+/// Allowlist validator for the `auth_json` reference shape, plus the
+/// ADR-0008 namespace check for `type = keychain`. Returns
 /// `AppError::BadRequest` for anything other than the two recognised
 /// reference objects (see module docs).
-fn validate_auth_ref(s: &str) -> Result<(), AppError> {
+fn validate_auth_ref(s: &str, server_id: &str) -> Result<(), AppError> {
     let value: serde_json::Value = serde_json::from_str(s).map_err(|e| AppError::BadRequest {
         reason: format!("auth_json must be valid JSON: {e}"),
     })?;
@@ -299,6 +318,18 @@ fn validate_auth_ref(s: &str) -> Result<(), AppError> {
         return Err(AppError::BadRequest {
             reason: "auth_json `key` must be a non-empty string".into(),
         });
+    }
+    // ADR-0008 namespace check: keychain keys must point at the row's
+    // own slot under Catique's namespace. `env` refs are exempt.
+    if type_val == "keychain" {
+        let expected = keychain_key_for(server_id);
+        if key_val != expected {
+            return Err(AppError::BadRequest {
+                reason: format!(
+                    "auth_json keychain `key` must equal `{expected}` (ADR-0008 namespace)"
+                ),
+            });
+        }
     }
     Ok(())
 }
@@ -487,20 +518,45 @@ mod tests {
     }
 
     #[test]
-    fn create_with_keychain_auth_ref_is_accepted() {
+    fn create_with_wrong_namespace_keychain_ref_is_rejected() {
+        // ADR-0008: keychain refs MUST point at `catique.mcp.{server_id}`.
+        // The user-facing create() pre-mints the id internally, so the
+        // caller cannot know it ahead of time — the keychain wire-up
+        // (PROXY-S3) writes the secret to the right slot and assembles
+        // auth_json from the same id. Any caller still trying to set
+        // auth_json directly with a hand-chosen keychain key must fail
+        // here so the rule is impossible to subvert.
         let pool = fresh_pool();
         let uc = McpServersUseCase::new(&pool);
-        let server = uc
+        let err = uc
             .create(
                 "github".into(),
                 Transport::Http,
                 Some("https://api.example.com/mcp".into()),
                 None,
-                Some(r#"{"type":"keychain","key":"catique.mcp.github_token"}"#.into()),
+                Some(r#"{"type":"keychain","key":"my-personal-vault"}"#.into()),
                 true,
             )
-            .unwrap();
-        assert!(server.auth_json.is_some());
+            .expect_err("namespace mismatch must be rejected");
+        match err {
+            AppError::BadRequest { reason } => {
+                assert!(
+                    reason.contains("catique.mcp."),
+                    "error must explain the namespace, got: {reason}"
+                );
+            }
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_auth_ref_accepts_matching_namespace() {
+        // Direct unit test on the validator — the integration-level
+        // create() will exercise this same path once PROXY-S3 wires
+        // keychain auth-input through the use-case.
+        let server_id = "abc123";
+        let raw = format!(r#"{{"type":"keychain","key":"catique.mcp.{server_id}"}}"#);
+        assert!(super::validate_auth_ref(&raw, server_id).is_ok());
     }
 
     #[test]
@@ -682,6 +738,10 @@ mod tests {
 
     #[test]
     fn get_connection_hint_returns_metadata_only() {
+        // Server created without auth_json (the keychain-ref happy path
+        // moved to a direct validator test under ADR-0008 — the
+        // public create() no longer lets the caller hand-pick the
+        // keychain key). Hint must still surface metadata.
         let pool = fresh_pool();
         let uc = McpServersUseCase::new(&pool);
         let server = uc
@@ -690,7 +750,7 @@ mod tests {
                 Transport::Http,
                 Some("https://api.example.com/mcp".into()),
                 None,
-                Some(r#"{"type":"keychain","key":"k"}"#.into()),
+                None,
                 true,
             )
             .unwrap();
@@ -699,11 +759,7 @@ mod tests {
         assert_eq!(hint.transport, Transport::Http);
         assert_eq!(hint.url.as_deref(), Some("https://api.example.com/mcp"));
         assert!(hint.command.is_none());
-        // The hint carries the *reference* JSON, not a resolved secret.
-        assert_eq!(
-            hint.auth_ref_json.as_deref(),
-            Some(r#"{"type":"keychain","key":"k"}"#)
-        );
+        assert!(hint.auth_ref_json.is_none());
     }
 
     #[test]

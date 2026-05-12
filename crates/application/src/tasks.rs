@@ -588,6 +588,8 @@ fn skill_row_to_skill(row: SkillRow) -> Skill {
 }
 
 fn mcp_tool_row_to_mcp_tool(row: McpToolRow) -> McpTool {
+    use catique_domain::McpToolSource;
+    use catique_infrastructure::db::repositories::mcp_tools::McpToolSourceRow;
     McpTool {
         id: row.id,
         name: row.name,
@@ -595,6 +597,13 @@ fn mcp_tool_row_to_mcp_tool(row: McpToolRow) -> McpTool {
         schema_json: row.schema_json,
         color: row.color,
         position: row.position,
+        server_id: row.server_id,
+        upstream_name: row.upstream_name,
+        source: match row.source {
+            McpToolSourceRow::Upstream => McpToolSource::Upstream,
+            McpToolSourceRow::Manual => McpToolSource::Manual,
+        },
+        last_synced_at: row.last_synced_at,
         created_at: row.created_at,
         updated_at: row.updated_at,
     }

@@ -75,13 +75,7 @@ impl<'a> McpToolsUseCase<'a> {
         let conn = acquire(self.pool).map_err(map_db_err)?;
         let row = repo::insert(
             &conn,
-            &McpToolDraft {
-                name: trimmed,
-                description,
-                schema_json,
-                color,
-                position,
-            },
+            &McpToolDraft::manual(trimmed, description, schema_json, color, position),
         )
         .map_err(|e| map_db_err_unique(e, "mcp_tool"))?;
         Ok(row_to_mcp_tool(row))
@@ -219,6 +213,8 @@ fn validate_schema_json(s: &str) -> Result<(), AppError> {
 }
 
 fn row_to_mcp_tool(row: McpToolRow) -> McpTool {
+    use catique_domain::McpToolSource;
+    use catique_infrastructure::db::repositories::mcp_tools::McpToolSourceRow;
     McpTool {
         id: row.id,
         name: row.name,
@@ -226,6 +222,13 @@ fn row_to_mcp_tool(row: McpToolRow) -> McpTool {
         schema_json: row.schema_json,
         color: row.color,
         position: row.position,
+        server_id: row.server_id,
+        upstream_name: row.upstream_name,
+        source: match row.source {
+            McpToolSourceRow::Upstream => McpToolSource::Upstream,
+            McpToolSourceRow::Manual => McpToolSource::Manual,
+        },
+        last_synced_at: row.last_synced_at,
         created_at: row.created_at,
         updated_at: row.updated_at,
     }

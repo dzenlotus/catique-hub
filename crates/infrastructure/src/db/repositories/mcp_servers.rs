@@ -211,7 +211,23 @@ pub fn get_with_tools(
 /// CHECK violations (transport/url/command split) surface as
 /// [`DbError::Sqlite`] with the constraint code.
 pub fn insert(conn: &Connection, draft: &McpServerDraft) -> Result<McpServerRow, DbError> {
-    let id = new_id();
+    insert_with_id(conn, &new_id(), draft)
+}
+
+/// Variant of [`insert`] that accepts a caller-generated id.
+///
+/// Used by the application-layer keychain-namespace check (ADR-0008):
+/// the use-case pre-generates the id so it can validate that
+/// `auth_json.key == "catique.mcp.{id}"` BEFORE the INSERT.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn insert_with_id(
+    conn: &Connection,
+    id: &str,
+    draft: &McpServerDraft,
+) -> Result<McpServerRow, DbError> {
     let now = now_millis();
     conn.execute(
         "INSERT INTO mcp_servers \
@@ -229,7 +245,7 @@ pub fn insert(conn: &Connection, draft: &McpServerDraft) -> Result<McpServerRow,
         ],
     )?;
     Ok(McpServerRow {
-        id,
+        id: id.to_owned(),
         name: draft.name.clone(),
         transport: draft.transport,
         url: draft.url.clone(),
@@ -536,13 +552,13 @@ mod tests {
         // Seed an mcp_tool row using the existing repository helper.
         let tool = super::super::mcp_tools::insert(
             &conn,
-            &super::super::mcp_tools::McpToolDraft {
-                name: "search".into(),
-                description: None,
-                schema_json: "{}".into(),
-                color: None,
-                position: 0.0,
-            },
+            &super::super::mcp_tools::McpToolDraft::manual(
+                "search".into(),
+                None,
+                "{}".into(),
+                None,
+                0.0,
+            ),
         )
         .unwrap();
 
@@ -575,13 +591,13 @@ mod tests {
         let server = insert(&conn, &http_draft("a")).unwrap();
         let tool = super::super::mcp_tools::insert(
             &conn,
-            &super::super::mcp_tools::McpToolDraft {
-                name: "search".into(),
-                description: None,
-                schema_json: "{}".into(),
-                color: None,
-                position: 0.0,
-            },
+            &super::super::mcp_tools::McpToolDraft::manual(
+                "search".into(),
+                None,
+                "{}".into(),
+                None,
+                0.0,
+            ),
         )
         .unwrap();
         set_tools(&conn, &server.id, std::slice::from_ref(&tool.id)).unwrap();
@@ -604,13 +620,13 @@ mod tests {
         let server = insert(&conn, &http_draft("a")).unwrap();
         let tool = super::super::mcp_tools::insert(
             &conn,
-            &super::super::mcp_tools::McpToolDraft {
-                name: "search".into(),
-                description: None,
-                schema_json: "{}".into(),
-                color: None,
-                position: 0.0,
-            },
+            &super::super::mcp_tools::McpToolDraft::manual(
+                "search".into(),
+                None,
+                "{}".into(),
+                None,
+                0.0,
+            ),
         )
         .unwrap();
         set_tools(&conn, &server.id, std::slice::from_ref(&tool.id)).unwrap();
