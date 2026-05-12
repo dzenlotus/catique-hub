@@ -40,6 +40,7 @@ function renderWithClient(ui: ReactElement): {
 }
 
 function makeTool(overrides: Partial<McpTool> = {}): McpTool {
+  // PROXY-S6: McpTool gained server-link / source fields on the wire.
   return {
     id: "tool-1",
     name: "Search Tool",
@@ -47,6 +48,10 @@ function makeTool(overrides: Partial<McpTool> = {}): McpTool {
     schemaJson: "{}",
     color: null,
     position: 0,
+    serverId: null,
+    upstreamName: null,
+    source: "manual",
+    lastSyncedAt: null,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,

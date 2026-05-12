@@ -77,8 +77,9 @@ describe("pathForView", () => {
     expect(pathForView("skills")).toBe("/skills");
   });
 
-  it("maps mcp-servers → /mcp-tools", () => {
-    expect(pathForView("mcp-servers")).toBe("/mcp-tools");
+  // PROXY-S6: canonical path was renamed `/mcp-tools` → `/mcp-servers`.
+  it("maps mcp-servers → /mcp-servers", () => {
+    expect(pathForView("mcp-servers")).toBe("/mcp-servers");
   });
 
   it("maps spaces → /spaces", () => {
@@ -131,7 +132,11 @@ describe("viewForPath", () => {
     expect(viewForPath("/skills")).toBe("skills");
   });
 
-  it("maps /mcp-tools → mcp-servers (renamed in Round 4)", () => {
+  it("maps /mcp-servers → mcp-servers (PROXY-S6 canonical path)", () => {
+    expect(viewForPath("/mcp-servers")).toBe("mcp-servers");
+  });
+
+  it("maps /mcp-tools → mcp-servers (PROXY-S6 legacy alias)", () => {
     expect(viewForPath("/mcp-tools")).toBe("mcp-servers");
   });
 

@@ -9,7 +9,7 @@ import { RolesPage } from "@widgets/roles-page";
 import { TagsList } from "@widgets/tags-list";
 import { AgentReportsList } from "@widgets/agent-reports-list";
 import { SkillsPage } from "@widgets/skills-page";
-import { McpToolsPage } from "@widgets/mcp-tools-page";
+import { McpServersPage } from "@widgets/mcp-servers-page";
 import { SettingsView } from "@widgets/settings-view";
 import { SpaceSettings } from "@widgets/space-settings";
 import { BoardSettings } from "@widgets/board-settings";
@@ -131,11 +131,13 @@ export default function App(): ReactElement {
           <Route path={routes.skill}>
             <SkillsPage />
           </Route>
-          <Route path={routes.mcpTools}>
-            <McpToolsPage />
+          {/* PROXY-S6: canonical path + one-release legacy alias. Both
+              render the same page so deep-links to `/mcp-tools` resolve. */}
+          <Route path={routes.mcpServers}>
+            <McpServersPage />
           </Route>
-          <Route path={routes.mcpTool}>
-            <McpToolsPage />
+          <Route path={routes.mcpServersLegacy}>
+            <McpServersPage />
           </Route>
           <Route path={routes.spaceSettings}>
             <SpaceSettings />

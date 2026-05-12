@@ -95,6 +95,10 @@ export type AppEvent =
   | { type: "mcp_tool:created"; payload: { id: string } }
   | { type: "mcp_tool:updated"; payload: { id: string } }
   | { type: "mcp_tool:deleted"; payload: { id: string } }
+  // ---------------- mcp servers (PROXY-S6 / ADR-0008) ----------------
+  | { type: "mcp_server:created"; payload: { id: string } }
+  | { type: "mcp_server:updated"; payload: { id: string } }
+  | { type: "mcp_server:deleted"; payload: { id: string } }
   // ---------------- agent reports ----------------
   | {
       type: "agent_report:created";

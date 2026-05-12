@@ -22,6 +22,7 @@ import { McpToolEditor } from "./McpToolEditor";
 const invokeMock = vi.mocked(invoke);
 
 function makeTool(overrides: Partial<McpTool> = {}): McpTool {
+  // PROXY-S6: McpTool gained server-link / source fields on the wire.
   return {
     id: "tool-1",
     name: "Тестовый инструмент",
@@ -29,6 +30,10 @@ function makeTool(overrides: Partial<McpTool> = {}): McpTool {
     schemaJson: '{"type":"object"}',
     color: "#ff0000",
     position: 0,
+    serverId: null,
+    upstreamName: null,
+    source: "manual",
+    lastSyncedAt: null,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,

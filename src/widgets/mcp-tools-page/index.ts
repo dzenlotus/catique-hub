@@ -1,1 +1,0 @@
-export { McpToolsPage } from "./McpToolsPage";

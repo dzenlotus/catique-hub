@@ -20,6 +20,7 @@ import { boardsKeys } from "@entities/board";
 import { columnsKeys } from "@entities/column";
 import { tasksKeys } from "@entities/task";
 import { connectedClientsKeys } from "@entities/connected-client";
+import { mcpServersKeys } from "@entities/mcp-server";
 import { on } from "@shared/api";
 
 /** Top-level provider — wire listeners and tear them down on unmount. */
@@ -231,6 +232,34 @@ export function EventsProvider({
     sub(
       on("mcp_tool:deleted", () => {
         void qc.invalidateQueries({ queryKey: ["mcp_tools"] });
+      }),
+    );
+
+    // ---------------- mcp servers (PROXY-S6 / ADR-0008) ----------------
+    // Per-server status and per-server tool lists hang off the same
+    // root key (`["mcp_servers"]`) — invalidating the root cascades.
+    // The Rust side emits `mcp_server:updated` whenever the row OR its
+    // status changes (refresh + introspect-on-create both bump status),
+    // so the dot and the tools list stay live without polling.
+    sub(
+      on("mcp_server:created", () => {
+        void qc.invalidateQueries({ queryKey: mcpServersKeys.all });
+      }),
+    );
+    sub(
+      on("mcp_server:updated", ({ id }) => {
+        void qc.invalidateQueries({ queryKey: mcpServersKeys.list() });
+        void qc.invalidateQueries({ queryKey: mcpServersKeys.detail(id) });
+        void qc.invalidateQueries({ queryKey: mcpServersKeys.status(id) });
+        void qc.invalidateQueries({ queryKey: mcpServersKeys.tools(id) });
+      }),
+    );
+    sub(
+      on("mcp_server:deleted", ({ id }) => {
+        void qc.invalidateQueries({ queryKey: mcpServersKeys.list() });
+        qc.removeQueries({ queryKey: mcpServersKeys.detail(id) });
+        qc.removeQueries({ queryKey: mcpServersKeys.status(id) });
+        qc.removeQueries({ queryKey: mcpServersKeys.tools(id) });
       }),
     );
 

@@ -1,0 +1,282 @@
+/*
+ * McpServersPage — server-grouped view (PROXY-S6 / ADR-0008).
+ *
+ * All colour values come from design tokens — no hex / rgb literals.
+ * Theme switching falls out of `data-theme="light|dark"` on the html
+ * element via `tokens.generated.css`.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-24);
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-16);
+}
+
+.headingGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.headingIcon {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-family-display, var(--font-family-sans));
+  font-size: var(--font-size-headline);
+  color: var(--color-text-default);
+}
+
+.description {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.headerActions {
+  display: flex;
+  gap: var(--space-8);
+}
+
+/* ── List / cards ────────────────────────────────────────────────── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.errorPanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--color-status-danger);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-danger-soft);
+}
+
+.errorMessage {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+.skeletonCard {
+  height: 96px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-default);
+  background-color: var(--color-surface-raised);
+  opacity: 0.5;
+}
+
+/* ── Server section header ───────────────────────────────────────── */
+
+.serverSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  overflow: hidden;
+}
+
+.serverHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-12) var(--space-16);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.serverIdentity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.statusDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-color: var(--color-text-subtle);
+}
+
+.statusDotHealthy {
+  background-color: var(--color-status-success);
+}
+
+.statusDotDegraded {
+  background-color: var(--color-status-warning);
+}
+
+.statusDotUnreachable {
+  background-color: var(--color-status-danger);
+}
+
+.serverName {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.serverMeta {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.serverActions {
+  display: flex;
+  gap: var(--space-4);
+  flex-shrink: 0;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--color-text-default);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background-color: var(--color-surface-hover, var(--color-surface-raised));
+}
+
+.iconButton[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.iconButton[data-pending] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .iconButton[data-pending] svg {
+    animation: catique-mcp-spin 1.2s linear infinite;
+  }
+}
+
+@keyframes catique-mcp-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Tools list ──────────────────────────────────────────────────── */
+
+.toolsList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-10) var(--space-16);
+  border-bottom: 1px solid var(--color-border-subtle, var(--color-border-default));
+}
+
+.toolItem:last-child {
+  border-bottom: none;
+}
+
+.toolHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.toolName {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+}
+
+.toolNameSoftDeleted {
+  text-decoration: line-through;
+  color: var(--color-text-subtle);
+}
+
+.toolDescription {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.toolChevron {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: var(--space-2) var(--space-6);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: var(--font-size-caption);
+}
+
+.toolChevron[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.schemaPreview {
+  margin: var(--space-4) 0 0;
+  padding: var(--space-8) var(--space-12);
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono, var(--font-sans));
+  font-size: var(--font-size-caption);
+  color: var(--color-text-default);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.toolsEmpty {
+  padding: var(--space-16);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+}
