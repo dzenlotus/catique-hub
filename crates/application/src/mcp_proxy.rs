@@ -128,14 +128,18 @@ impl<'a, C: UpstreamCaller + ?Sized> McpProxyUseCase<'a, C> {
         drop(conn);
 
         // Step 3: delegate to the wire.
-        let outcome_in = serde_json::to_vec(&args).ok().map(|b| b.len() as i64);
+        let outcome_in = serde_json::to_vec(&args)
+            .ok()
+            .and_then(|b| i64::try_from(b.len()).ok());
         let wire_result = self.caller.call_upstream(server_id, tool_name, args).await;
 
         // Step 4: finalize log + map result.
         let conn = acquire(self.pool).map_err(map_db_err)?;
         match &wire_result {
             Ok(value) => {
-                let outcome_out = serde_json::to_vec(value).ok().map(|b| b.len() as i64);
+                let outcome_out = serde_json::to_vec(value)
+                    .ok()
+                    .and_then(|b| i64::try_from(b.len()).ok());
                 let _ = log_repo::finalize_call(
                     &conn,
                     &log_id,
@@ -267,7 +271,11 @@ mod tests {
         let uc = McpProxyUseCase::new(&pool, &caller);
 
         let value = uc
-            .call(&server_id, "atlassian.create_issue", serde_json::json!({"title": "x"}))
+            .call(
+                &server_id,
+                "atlassian.create_issue",
+                serde_json::json!({"title": "x"}),
+            )
             .await
             .unwrap();
         assert_eq!(value, serde_json::json!({"ok": true}));
@@ -312,7 +320,10 @@ mod tests {
         let caller = StubCaller::ok(serde_json::json!({}));
         let uc = McpProxyUseCase::new(&pool, &caller);
 
-        let err = uc.call("ghost", "x", serde_json::json!({})).await.expect_err("nf");
+        let err = uc
+            .call("ghost", "x", serde_json::json!({}))
+            .await
+            .expect_err("nf");
         assert!(matches!(err, AppError::NotFound { .. }));
     }
 

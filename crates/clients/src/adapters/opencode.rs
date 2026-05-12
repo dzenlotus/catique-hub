@@ -213,6 +213,7 @@ mod tests {
                 name: "Reviewer".into(),
                 content: "Be thorough.".into(),
                 prompts: vec![],
+                mcp_tools: vec![],
             }],
             mcp: None,
         };

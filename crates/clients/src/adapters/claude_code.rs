@@ -339,6 +339,7 @@ mod tests {
                 name: "Style".into(),
                 content: "Use snake_case.".into(),
             }],
+            mcp_tools: vec![],
         }
     }
 

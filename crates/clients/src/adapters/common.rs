@@ -18,7 +18,9 @@ use std::path::Path;
 
 use tokio::io::AsyncWriteExt;
 
-use crate::{ProviderError, ResolvedRole, CATIQUE_FILE_PREFIX, CATIQUE_MANAGED_KEY};
+use crate::{
+    ProviderError, ResolvedMcpTool, ResolvedRole, CATIQUE_FILE_PREFIX, CATIQUE_MANAGED_KEY,
+};
 
 /// Resolve the user's home directory or surface a typed error.
 pub(crate) fn home_dir() -> Result<std::path::PathBuf, ProviderError> {
@@ -115,6 +117,100 @@ pub(crate) fn render_md_agent(role: &ResolvedRole, now_ms: i64) -> String {
         }
     }
 
+    // ADR-0008 + ADR-0005 round-21 amendment: per-tool `<mcp-tool>`
+    // blocks at the end of the body so the LLM agent learns which
+    // tools are reachable through the Catique HUB MCP endpoint.
+    if !role.mcp_tools.is_empty() {
+        out.push('\n');
+        out.push_str(&render_mcp_tool_blocks(&role.mcp_tools));
+    }
+
+    out
+}
+
+/// Render every attached MCP tool as a `<mcp-tool>` block, sorted
+/// alphabetically by qualified name for deterministic round-trips.
+///
+/// Format (per ADR-0005 round-21 amendment):
+///
+/// ```xml
+/// <mcp-tool server="catique" name="{qualified_name}">
+///   <description>{description}</description>
+///   <input-schema>{input_schema_json}</input-schema>
+/// </mcp-tool>
+/// ```
+///
+/// `description` and `input_schema_json` are XML-escaped (`<`, `>`,
+/// `&` substituted for entities). The JSON inside `<input-schema>`
+/// is shipped verbatim — Catique's `tools/list` already validates it
+/// as JSON before persisting; the renderer is the wrong place to
+/// re-parse.
+///
+/// Returns an empty string when the slice is empty (the caller is
+/// expected to skip the leading newline in that case).
+pub(crate) fn render_mcp_tool_blocks(tools: &[ResolvedMcpTool]) -> String {
+    use std::fmt::Write as _;
+
+    if tools.is_empty() {
+        return String::new();
+    }
+    // Stable alphabetical order by qualified name — protects the
+    // diff-friendliness invariant ADR-0005 §3 calls out for the
+    // overall file shape.
+    let mut sorted: Vec<&ResolvedMcpTool> = tools.iter().collect();
+    sorted.sort_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
+
+    let mut out = String::new();
+    for tool in sorted {
+        let name = xml_escape_attr(&tool.qualified_name);
+        let _ = writeln!(out, "<mcp-tool server=\"catique\" name=\"{name}\">");
+        let description = tool.description.as_deref().unwrap_or("");
+        let _ = writeln!(
+            out,
+            "  <description>{}</description>",
+            xml_escape_text(description)
+        );
+        let _ = writeln!(
+            out,
+            "  <input-schema>{}</input-schema>",
+            xml_escape_text(&tool.input_schema_json)
+        );
+        out.push_str("</mcp-tool>\n");
+    }
+    out
+}
+
+/// XML-escape character data: `<`, `>`, `&` only. Quotes and
+/// apostrophes are safe in element content per XML 1.0 §2.4 and we
+/// deliberately keep them verbatim so the embedded JSON does not get
+/// pretty-printed twice.
+pub(crate) fn xml_escape_text(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '&' => out.push_str("&amp;"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// XML-escape an attribute value (`<`, `>`, `&`, `"`). We pick the
+/// double-quote attribute style for `name=` / `server=` so the only
+/// extra delimiter to escape is `"`.
+pub(crate) fn xml_escape_attr(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '&' => out.push_str("&amp;"),
+            '"' => out.push_str("&quot;"),
+            other => out.push(other),
+        }
+    }
     out
 }
 
@@ -237,11 +333,94 @@ mod tests {
             name: "Code Reviewer".into(),
             content: "Review code carefully.".into(),
             prompts: vec![],
+            mcp_tools: vec![],
         };
         let body = render_md_agent(&role, 1_700_000_000_000);
         assert!(body.contains("catique_managed: true"));
         assert!(body.contains("catique_role_slug: reviewer"));
         assert!(body.contains("name: \"Code Reviewer\""));
         assert!(body.contains("Review code carefully."));
+        // No tools attached → no `<mcp-tool>` blocks rendered.
+        assert!(!body.contains("<mcp-tool"));
+    }
+
+    #[test]
+    fn xml_escape_text_handles_lt_gt_amp() {
+        assert_eq!(xml_escape_text("a<b>c&d"), "a&lt;b&gt;c&amp;d");
+        // Quotes are NOT escaped inside character data (XML 1.0 §2.4)
+        // so embedded JSON stays readable.
+        assert_eq!(xml_escape_text(r#""hello""#), r#""hello""#);
+        assert_eq!(xml_escape_text(""), "");
+    }
+
+    #[test]
+    fn xml_escape_attr_also_escapes_double_quote() {
+        assert_eq!(xml_escape_attr(r#"a"b"#), "a&quot;b");
+        assert_eq!(xml_escape_attr("a<>&"), "a&lt;&gt;&amp;");
+    }
+
+    #[test]
+    fn render_mcp_tool_blocks_empty_returns_empty_string() {
+        assert_eq!(render_mcp_tool_blocks(&[]), "");
+    }
+
+    #[test]
+    fn render_mcp_tool_blocks_sorts_alphabetically_by_qualified_name() {
+        let tools = vec![
+            ResolvedMcpTool {
+                qualified_name: "github.search".into(),
+                description: Some("Search GitHub".into()),
+                input_schema_json: r#"{"type":"object"}"#.into(),
+            },
+            ResolvedMcpTool {
+                qualified_name: "atlassian.create_issue".into(),
+                description: None,
+                input_schema_json: "{}".into(),
+            },
+            ResolvedMcpTool {
+                qualified_name: "legacy_search".into(),
+                description: Some("Old <legacy> tool".into()),
+                input_schema_json: r#"{"x":"y & z"}"#.into(),
+            },
+        ];
+        let out = render_mcp_tool_blocks(&tools);
+
+        // Ordering: atlassian.create_issue, github.search, legacy_search.
+        let i_atlassian = out.find("atlassian.create_issue").unwrap();
+        let i_github = out.find("github.search").unwrap();
+        let i_legacy = out.find("legacy_search").unwrap();
+        assert!(i_atlassian < i_github);
+        assert!(i_github < i_legacy);
+
+        // XML escaping inside description + schema.
+        assert!(out.contains("Old &lt;legacy&gt; tool"));
+        assert!(out.contains("y &amp; z"));
+
+        // server="catique" attribute on every block.
+        assert_eq!(out.matches(r#"server="catique""#).count(), 3);
+
+        // One opening + one closing tag per tool.
+        assert_eq!(out.matches("<mcp-tool ").count(), 3);
+        assert_eq!(out.matches("</mcp-tool>").count(), 3);
+    }
+
+    #[test]
+    fn render_md_agent_appends_mcp_tool_blocks() {
+        let role = ResolvedRole {
+            id: "r-1".into(),
+            slug: "reviewer".into(),
+            name: "Code Reviewer".into(),
+            content: "Review code carefully.".into(),
+            prompts: vec![],
+            mcp_tools: vec![ResolvedMcpTool {
+                qualified_name: "github.search".into(),
+                description: Some("Search code".into()),
+                input_schema_json: r#"{"type":"object"}"#.into(),
+            }],
+        };
+        let body = render_md_agent(&role, 0);
+        assert!(body.contains(r#"<mcp-tool server="catique" name="github.search">"#));
+        assert!(body.contains("<description>Search code</description>"));
+        assert!(body.contains(r#"<input-schema>{"type":"object"}</input-schema>"#));
     }
 }

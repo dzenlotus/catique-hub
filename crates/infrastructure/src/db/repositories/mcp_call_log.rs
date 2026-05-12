@@ -62,11 +62,7 @@ impl McpCallLogRow {
 /// # Errors
 ///
 /// Surfaces rusqlite errors (FK violation if `server_id` is unknown).
-pub fn open_call(
-    conn: &Connection,
-    server_id: &str,
-    tool_name: &str,
-) -> Result<String, DbError> {
+pub fn open_call(conn: &Connection, server_id: &str, tool_name: &str) -> Result<String, DbError> {
     let id = new_id();
     let now = now_millis();
     conn.execute(
@@ -96,11 +92,7 @@ pub struct CallOutcome {
 ///
 /// Surfaces rusqlite errors. Updating an already-finalised row is a
 /// no-op (idempotent for retries).
-pub fn finalize_call(
-    conn: &Connection,
-    id: &str,
-    outcome: &CallOutcome,
-) -> Result<(), DbError> {
+pub fn finalize_call(conn: &Connection, id: &str, outcome: &CallOutcome) -> Result<(), DbError> {
     let now = now_millis();
     conn.execute(
         "UPDATE mcp_call_log \

@@ -76,6 +76,31 @@ pub struct ResolvedPrompt {
     pub content: String,
 }
 
+/// One MCP tool resolved for inclusion in a rendered role file under
+/// ADR-0008 (pass-through proxy).
+///
+/// The application layer resolves the qualified name per the
+/// ADR-0005 round-21 amendment:
+///
+/// * `source = Manual` rows → `qualified_name = mcp_tool.name`. There
+///   is no upstream server, so the qualifier carries the local name as-is.
+/// * `source = Upstream` rows → `qualified_name = "{server.name}.{upstream_name}"`,
+///   matching what Catique HUB's MCP `tools/list` advertises to
+///   external agents.
+///
+/// `input_schema_json` is the JSON-encoded MCP `inputSchema` as stored
+/// in `mcp_tools.schema_json`. The renderer ships it verbatim inside
+/// the `<input-schema>` element, XML-escaping `<`, `>`, `&` only.
+#[derive(Debug, Clone)]
+pub struct ResolvedMcpTool {
+    /// The `name` attribute on the rendered `<mcp-tool>` element.
+    pub qualified_name: String,
+    /// Optional one-line description (XML-escaped on render).
+    pub description: Option<String>,
+    /// JSON-encoded MCP `inputSchema` (XML-escaped on render).
+    pub input_schema_json: String,
+}
+
 /// One Catique role resolved into a flat shape ready to be projected
 /// onto a provider's on-disk format.
 #[derive(Debug, Clone)]
@@ -91,6 +116,10 @@ pub struct ResolvedRole {
     pub content: String,
     /// Attached prompts in resolver order.
     pub prompts: Vec<ResolvedPrompt>,
+    /// MCP tools attached to the role. Rendered as `<mcp-tool>` XML
+    /// blocks at the end of the agent file (ADR-0008 / ADR-0005
+    /// round-21 amendment). Empty for roles with no tools.
+    pub mcp_tools: Vec<ResolvedMcpTool>,
 }
 
 /// One MCP server entry destined for the catique-owned slot in a

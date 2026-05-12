@@ -25,9 +25,14 @@
 
 use std::sync::Arc;
 
-use catique_clients::{McpEntry, ResolvedPrompt, ResolvedRole, RoleBundle};
+use catique_clients::{McpEntry, ResolvedMcpTool, ResolvedPrompt, ResolvedRole, RoleBundle};
 use catique_domain::{SyncState, SyncStatus};
 use catique_infrastructure::db::pool::{acquire, Pool};
+use catique_infrastructure::db::repositories::{
+    mcp_servers as servers_repo,
+    mcp_tools::{self as tools_repo, McpToolRow, McpToolSourceRow},
+};
+use std::collections::HashMap;
 use tokio::sync::{broadcast, mpsc, watch, Mutex};
 
 use crate::clients::ConnectedProvidersUseCase;
@@ -240,6 +245,10 @@ fn build_bundle(pool: &Pool) -> Result<RoleBundle, AppError> {
         .filter_map(Result::ok)
         .collect();
 
+    // Cache server-id → server-name lookups across all roles in the
+    // bundle. The bundle build is one transaction; we reuse hits.
+    let mut server_name_cache: HashMap<String, String> = HashMap::new();
+
     let mut roles = Vec::with_capacity(role_rows.len());
     for (id, name, content) in role_rows {
         let mut pstmt = conn
@@ -266,12 +275,31 @@ fn build_bundle(pool: &Pool) -> Result<RoleBundle, AppError> {
             })?
             .filter_map(Result::ok)
             .collect();
+
+        // ADR-0008: every MCP tool attached to the role becomes a
+        // `<mcp-tool>` block in the rendered file. We pre-resolve the
+        // qualified name here so providers don't need DB access.
+        let tool_rows =
+            tools_repo::list_for_role(&conn, &id).map_err(|e| AppError::TransactionRolledBack {
+                reason: format!("orchestrator mcp_tool query for role {id}: {e}"),
+            })?;
+        let mut mcp_tools = Vec::with_capacity(tool_rows.len());
+        for row in tool_rows {
+            let qualified_name = qualified_tool_name(&conn, &row, &mut server_name_cache)?;
+            mcp_tools.push(ResolvedMcpTool {
+                qualified_name,
+                description: row.description,
+                input_schema_json: row.schema_json,
+            });
+        }
+
         roles.push(ResolvedRole {
             slug: slugify(&name, &id),
             id,
             name,
             content,
             prompts,
+            mcp_tools,
         });
     }
 
@@ -279,6 +307,58 @@ fn build_bundle(pool: &Pool) -> Result<RoleBundle, AppError> {
         roles,
         mcp: Some(default_mcp_entry()),
     })
+}
+
+/// Resolve the qualified name an `<mcp-tool>` block uses for an
+/// `mcp_tools` row (ADR-0005 round-21 amendment).
+///
+/// * `Manual` rows ship as `mcp_tool.name` — there is no upstream
+///   server, so no qualifier prefix.
+/// * `Upstream` rows ship as `{server.name}.{upstream_name}` — matches
+///   what Catique's `tools/list` advertises to external agents.
+///
+/// Defence in depth: if an `Upstream` row is missing `server_id`,
+/// `upstream_name`, or the server row itself has been deleted, we
+/// fall back to the local `name` column. The row would not normally
+/// reach this path in that state (introspection clears `server_id` on
+/// cascade delete) but the fallback keeps the role file renderable.
+fn qualified_tool_name(
+    conn: &rusqlite::Connection,
+    row: &McpToolRow,
+    cache: &mut HashMap<String, String>,
+) -> Result<String, AppError> {
+    match row.source {
+        McpToolSourceRow::Manual => Ok(row.name.clone()),
+        McpToolSourceRow::Upstream => {
+            let (Some(server_id), Some(upstream_name)) =
+                (row.server_id.as_ref(), row.upstream_name.as_ref())
+            else {
+                // Corrupt upstream row — surface the local name so
+                // the rendered file remains valid XML.
+                return Ok(row.name.clone());
+            };
+            let server_name = if let Some(cached) = cache.get(server_id) {
+                cached.clone()
+            } else {
+                let server = servers_repo::get_by_id(conn, server_id).map_err(|e| {
+                    AppError::TransactionRolledBack {
+                        reason: format!("orchestrator mcp_server lookup `{server_id}`: {e}"),
+                    }
+                })?;
+                match server {
+                    Some(s) => {
+                        cache.insert(server_id.clone(), s.name.clone());
+                        s.name
+                    }
+                    None => {
+                        // Server vanished — fall back to local name.
+                        return Ok(row.name.clone());
+                    }
+                }
+            };
+            Ok(format!("{server_name}.{upstream_name}"))
+        }
+    }
 }
 
 /// Stable kebab-case slug derived from the role name. Falls back to

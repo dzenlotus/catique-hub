@@ -30,11 +30,8 @@ use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::{
         mcp_call_log as call_log_repo,
-        mcp_servers::{
-            self as repo, McpServerDraft, McpServerPatch, McpServerRow, TransportKind,
-        },
-        mcp_tools as tools_repo,
-        pre_mint_id,
+        mcp_servers::{self as repo, McpServerDraft, McpServerPatch, McpServerRow, TransportKind},
+        mcp_tools as tools_repo, pre_mint_id,
     },
 };
 use serde::Serialize;
@@ -205,8 +202,9 @@ pub trait UpstreamIntrospector: Send + Sync {
     fn list_tools(
         &self,
         meta: &ServerWireMeta,
-    ) -> impl std::future::Future<Output = Result<Vec<UpstreamToolDecl>, crate::mcp_proxy::UpstreamError>>
-           + Send;
+    ) -> impl std::future::Future<
+        Output = Result<Vec<UpstreamToolDecl>, crate::mcp_proxy::UpstreamError>,
+    > + Send;
 }
 
 impl<'a> McpServersUseCase<'a> {
@@ -422,10 +420,12 @@ impl<'a> McpServersUseCase<'a> {
     /// consumes at startup. PROXY-S4 round 1.
     ///
     /// Rows that satisfy ALL of:
-    ///   * `mcp_servers.enabled = 1`
-    ///   * `mcp_tools.source    = 'upstream'`
-    ///   * `mcp_tools.last_synced_at IS NOT NULL` (excludes
-    ///     soft-deleted-after-refresh rows)
+    ///
+    /// * `mcp_servers.enabled = 1`
+    /// * `mcp_tools.source    = 'upstream'`
+    /// * `mcp_tools.last_synced_at IS NOT NULL` (excludes
+    ///   soft-deleted-after-refresh rows)
+    ///
     /// are mapped to one [`ProxiedTool`]. `qualified_name` is built
     /// from `{server.name}.{tool.upstream_name}`; `input_schema` is
     /// parsed back from the stored JSON string (defensive against a
@@ -499,9 +499,8 @@ impl<'a> McpServersUseCase<'a> {
             // `tool_name` for legacy rows that pre-date migration 023.
             // The qualified form uses the explicit upstream name so
             // refreshes stay stable across local renames.
-            let upstream = match upstream_name.clone().or(tool_name.clone()) {
-                Some(n) => n,
-                None => continue,
+            let Some(upstream) = upstream_name.clone().or(tool_name.clone()) else {
+                continue;
             };
             let transport = match transport_text.as_str() {
                 "stdio" => Transport::Stdio,
@@ -584,17 +583,18 @@ impl<'a> McpServersUseCase<'a> {
             }
         };
         // Wire call — async, no DB connection held.
-        let upstream_tools = introspector
-            .list_tools(&meta)
-            .await
-            .map_err(|err| AppError::Upstream {
-                kind: match err {
-                    crate::mcp_proxy::UpstreamError::Transport(_) => "transport".into(),
-                    crate::mcp_proxy::UpstreamError::UpstreamIsError(_) => "isError".into(),
-                    crate::mcp_proxy::UpstreamError::Timeout => "timeout".into(),
-                },
-                message: err.to_string(),
-            })?;
+        let upstream_tools =
+            introspector
+                .list_tools(&meta)
+                .await
+                .map_err(|err| AppError::Upstream {
+                    kind: match err {
+                        crate::mcp_proxy::UpstreamError::Transport(_) => "transport".into(),
+                        crate::mcp_proxy::UpstreamError::UpstreamIsError(_) => "isError".into(),
+                        crate::mcp_proxy::UpstreamError::Timeout => "timeout".into(),
+                    },
+                    message: err.to_string(),
+                })?;
         // Reconcile in a fresh connection. Persistence is best-effort
         // per-row to keep one bad tool from blocking the rest.
         let conn = acquire(self.pool).map_err(map_db_err)?;
@@ -603,6 +603,11 @@ impl<'a> McpServersUseCase<'a> {
 
     /// Public alias around [`Self::introspect_and_persist`]. Provided
     /// because the UI's user-facing affordance is labelled "Refresh".
+    ///
+    /// # Errors
+    ///
+    /// Forwards every error type [`Self::introspect_and_persist`]
+    /// can produce.
     pub async fn refresh<I: UpstreamIntrospector>(
         &self,
         server_id: &str,
@@ -693,6 +698,7 @@ impl<'a> McpServersUseCase<'a> {
 
 /// Build the canonical keychain key for a given server id. Single
 /// source of truth so callers do not hand-format the string.
+#[must_use]
 pub fn keychain_key_for(server_id: &str) -> String {
     format!("catique.mcp.{server_id}")
 }
@@ -824,54 +830,50 @@ fn reconcile_tools(
     }
 
     let mut report = RefreshReport::default();
-    let mut seen_upstream_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen_upstream_names: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
 
     for decl in upstream_tools {
         let schema_str = serde_json::to_string(&decl.input_schema).unwrap_or_else(|_| "{}".into());
         seen_upstream_names.insert(decl.name.clone());
 
-        match existing_by_upstream.get(&decl.name) {
-            Some(row) => {
-                let same_schema = row.schema_json == schema_str;
-                let updated = tools_repo::mark_upstream_synced(
-                    conn,
-                    &row.id,
-                    decl.description.as_deref(),
-                    &schema_str,
-                    now_millis(),
-                )
-                .map_err(map_db_err)?;
-                if updated {
-                    if same_schema {
-                        report.still_present += 1;
-                    } else {
-                        report.schema_changed += 1;
-                    }
+        if let Some(row) = existing_by_upstream.get(&decl.name) {
+            let same_schema = row.schema_json == schema_str;
+            let updated = tools_repo::mark_upstream_synced(
+                conn,
+                &row.id,
+                decl.description.as_deref(),
+                &schema_str,
+                now_millis(),
+            )
+            .map_err(map_db_err)?;
+            if updated {
+                if same_schema {
+                    report.still_present += 1;
+                } else {
+                    report.schema_changed += 1;
                 }
             }
-            None => {
-                let draft = tools_repo::McpToolDraft {
-                    name: decl.name.clone(),
-                    description: decl.description.clone(),
-                    schema_json: schema_str,
-                    color: None,
-                    position: 0.0,
-                    server_id: Some(server_id.to_owned()),
-                    upstream_name: Some(decl.name.clone()),
-                    source: tools_repo::McpToolSourceRow::Upstream,
-                    last_synced_at: Some(now_millis()),
-                };
-                tools_repo::insert(conn, &draft).map_err(map_db_err)?;
-                report.added += 1;
-            }
+        } else {
+            let draft = tools_repo::McpToolDraft {
+                name: decl.name.clone(),
+                description: decl.description.clone(),
+                schema_json: schema_str,
+                color: None,
+                position: 0.0,
+                server_id: Some(server_id.to_owned()),
+                upstream_name: Some(decl.name.clone()),
+                source: tools_repo::McpToolSourceRow::Upstream,
+                last_synced_at: Some(now_millis()),
+            };
+            tools_repo::insert(conn, &draft).map_err(map_db_err)?;
+            report.added += 1;
         }
     }
 
     // Soft-delete: rows that exist in DB but not in the fresh list.
     for (upstream_name, row) in &existing_by_upstream {
-        if !seen_upstream_names.contains(upstream_name)
-            && row.last_synced_at.is_some()
-        {
+        if !seen_upstream_names.contains(upstream_name) && row.last_synced_at.is_some() {
             let deleted = tools_repo::soft_delete_upstream(conn, &row.id).map_err(map_db_err)?;
             if deleted {
                 report.soft_deleted += 1;
@@ -1449,7 +1451,11 @@ mod tests {
         seed_upstream_tool(&pool, &server.id, "bad", "not-json", Some(2));
 
         let tools = uc.list_proxied_tools().unwrap();
-        assert_eq!(tools.len(), 1, "malformed schema row is skipped, not propagated");
+        assert_eq!(
+            tools.len(),
+            1,
+            "malformed schema row is skipped, not propagated"
+        );
         assert_eq!(tools[0].upstream_name, "ok");
     }
 
@@ -1737,7 +1743,11 @@ mod tests {
         seed_upstream_tool(&pool, &server.id, "soft", "{}", None);
 
         let tools = uc.list_tools_by_server(&server.id).unwrap();
-        assert_eq!(tools.len(), 2, "UI needs soft-deleted rows for strikethrough");
+        assert_eq!(
+            tools.len(),
+            2,
+            "UI needs soft-deleted rows for strikethrough"
+        );
         let names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
         assert!(names.contains(&"alpha.live"));
         assert!(names.contains(&"alpha.soft"));

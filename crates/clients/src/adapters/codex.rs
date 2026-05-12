@@ -283,6 +283,7 @@ mod tests {
             name: format!("Role {slug}"),
             content: format!("Body of {slug}"),
             prompts: vec![],
+            mcp_tools: vec![],
         }
     }
 

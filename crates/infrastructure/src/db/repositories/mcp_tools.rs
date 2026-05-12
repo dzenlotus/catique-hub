@@ -20,6 +20,8 @@ pub enum McpToolSourceRow {
 }
 
 impl McpToolSourceRow {
+    /// Wire value as stored in the DB.
+    #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Upstream => "upstream",
@@ -29,6 +31,13 @@ impl McpToolSourceRow {
 
     /// Cross-module accessor used by repository code that hand-builds
     /// an [`McpToolRow`] from a JOIN row (see `tasks::resolve_task_mcp_tools`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`rusqlite::Error::FromSqlConversionFailure`] when `s`
+    /// is neither `"upstream"` nor `"manual"` — i.e. the DB row is
+    /// corrupt (the CHECK constraint should make this unreachable
+    /// on a healthy DB).
     pub fn from_str_pub(s: &str) -> rusqlite::Result<Self> {
         Self::from_str(s)
     }
@@ -109,6 +118,7 @@ pub struct McpToolDraft {
 impl McpToolDraft {
     /// Convenience constructor for the manual (user-typed) path — sets
     /// `source = Manual` and leaves the four upstream fields `None`.
+    #[must_use]
     pub fn manual(
         name: String,
         description: Option<String>,
@@ -353,10 +363,7 @@ pub fn delete(conn: &Connection, id: &str) -> Result<bool, DbError> {
 /// # Errors
 ///
 /// Surfaces rusqlite errors.
-pub fn list_for_server(
-    conn: &Connection,
-    server_id: &str,
-) -> Result<Vec<McpToolRow>, DbError> {
+pub fn list_for_server(conn: &Connection, server_id: &str) -> Result<Vec<McpToolRow>, DbError> {
     let mut stmt = conn.prepare(
         "SELECT id, name, description, schema_json, color, position, \
                 server_id, upstream_name, source, last_synced_at, \
