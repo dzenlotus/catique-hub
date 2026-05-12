@@ -49,13 +49,12 @@ export function ConnectedAgentsSection(): ReactElement {
     setIsAddOpen(false);
   };
 
-  // The list-shape filter (the maintainer asked for one shape; we lock
-  // it onto `enabled === true` because that's the field already shipped
-  // through the existing `ConnectedClient` binding. The forthcoming
-  // `connectionStatus` field will collapse into the same predicate
-  // when the backend renames it).
-  const connected: ConnectedClient[] =
-    (providers ?? []).filter((p) => p.enabled);
+  // Every row in `connected_providers` is by definition connected —
+  // round-21 dropped the soft-disable state when it renamed the field
+  // from `enabled` to `connectionStatus` (Idle / Syncing / Error). A
+  // failed-sync row is still a connected row; the failure surfaces via
+  // the per-row sync pill below, not by hiding the card.
+  const connected: ConnectedClient[] = providers ?? [];
 
   return (
     <div className={styles.root} data-testid="connected-agents-section">

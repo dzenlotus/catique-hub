@@ -33,24 +33,22 @@ const invokeMock = vi.mocked(invoke);
 interface ProviderStub {
   id: string;
   displayName: string;
-  configDir: string;
-  signatureFile: string;
-  installed: boolean;
-  enabled: boolean;
-  lastSeenAt: bigint;
-  supportsRoleSync: boolean;
+  connectionStatus: "connected" | "syncing" | "error";
+  lastSyncedAt: bigint;
+  lastError: string | null;
+  createdAt: bigint;
+  updatedAt: bigint;
 }
 
 function makeProvider(overrides: Partial<ProviderStub> = {}): ProviderStub {
   return {
     id: "claude-code",
     displayName: "Claude Code",
-    configDir: "/Users/test/.claude",
-    signatureFile: "/Users/test/.claude/settings.json",
-    installed: true,
-    enabled: true,
-    lastSeenAt: 0n,
-    supportsRoleSync: true,
+    connectionStatus: "connected",
+    lastSyncedAt: 0n,
+    lastError: null,
+    createdAt: 0n,
+    updatedAt: 0n,
     ...overrides,
   };
 }
@@ -114,7 +112,7 @@ describe("ConnectedAgentsSection (round-21)", () => {
       if (cmd === "list_connected_providers") {
         return Promise.resolve([
           makeProvider({ id: "claude-code", displayName: "Claude Code" }),
-          makeProvider({ id: "cursor", displayName: "Cursor" }),
+          makeProvider({ id: "codex", displayName: "Codex" }),
         ]);
       }
       if (cmd === "get_sync_status") return Promise.resolve({ state: "idle" });
@@ -128,19 +126,25 @@ describe("ConnectedAgentsSection (round-21)", () => {
       screen.getByTestId("connected-agents-row-claude-code"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("connected-agents-row-cursor"),
-    ).toBeInTheDocument();
-    expect(
       screen.getByTestId("connected-agents-row-remove-claude-code"),
     ).toBeInTheDocument();
   });
 
-  it("hides providers whose enabled flag is false", async () => {
+  it("renders every row returned by list_connected_providers", async () => {
+    // Round-21 dropped the `enabled` soft-disable state. Every row in
+    // `connected_providers` is connected; failed sync surfaces in the
+    // per-row pill (see `ConnectionStatus = 'error'`), not by hiding
+    // the card.
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === "list_connected_providers") {
         return Promise.resolve([
-          makeProvider({ id: "claude-code", enabled: true }),
-          makeProvider({ id: "cline", enabled: false }),
+          makeProvider({ id: "claude-code" }),
+          makeProvider({
+            id: "codex",
+            displayName: "Codex",
+            connectionStatus: "error",
+            lastError: "upstream unreachable",
+          }),
         ]);
       }
       if (cmd === "get_sync_status") return Promise.resolve({ state: "idle" });
@@ -153,8 +157,8 @@ describe("ConnectedAgentsSection (round-21)", () => {
       ).toBeInTheDocument();
     });
     expect(
-      screen.queryByTestId("connected-agents-row-cline"),
-    ).not.toBeInTheDocument();
+      screen.getByTestId("connected-agents-row-codex"),
+    ).toBeInTheDocument();
   });
 
   it("shows Syncing… in row pill when sync state is syncing", async () => {
@@ -180,13 +184,13 @@ describe("ConnectedAgentsSection (round-21)", () => {
       if (cmd === "list_connected_providers") {
         return Promise.resolve([
           makeProvider({ id: "claude-code" }),
-          makeProvider({ id: "cursor", displayName: "Cursor" }),
+          makeProvider({ id: "codex", displayName: "Codex" }),
         ]);
       }
       if (cmd === "get_sync_status") {
         return Promise.resolve({
           state: "error",
-          failingProviders: ["cursor"],
+          failingProviders: ["codex"],
         });
       }
       return Promise.resolve(undefined);
@@ -194,7 +198,7 @@ describe("ConnectedAgentsSection (round-21)", () => {
     setup();
     await waitFor(() => {
       expect(
-        screen.getByTestId("connected-agents-row-sync-cursor"),
+        screen.getByTestId("connected-agents-row-sync-codex"),
       ).toHaveTextContent("Sync error");
     });
     // The unaffected row stays Synced.

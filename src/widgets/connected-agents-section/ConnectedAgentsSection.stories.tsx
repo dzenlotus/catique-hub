@@ -27,12 +27,11 @@ function stubProvider(overrides?: Partial<ConnectedClient>): ConnectedClient {
   return {
     id: "claude-code",
     displayName: "Claude Code",
-    configDir: "/Users/dev/.claude",
-    signatureFile: "/Users/dev/.claude/settings.json",
-    installed: true,
-    enabled: true,
-    lastSeenAt: 0n,
-    supportsRoleSync: true,
+    connectionStatus: "connected",
+    lastSyncedAt: 0n,
+    lastError: null,
+    createdAt: 0n,
+    updatedAt: 0n,
     ...overrides,
   };
 }
@@ -43,10 +42,8 @@ const sampleProviders: ConnectedClient[] = [
     displayName: "Claude Code",
   }),
   stubProvider({
-    id: "cursor",
-    displayName: "Cursor",
-    configDir: "/Users/dev/.cursor",
-    signatureFile: "/Users/dev/.cursor/settings.json",
+    id: "codex",
+    displayName: "Codex",
   }),
 ];
 
