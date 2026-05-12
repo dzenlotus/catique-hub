@@ -40,6 +40,12 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
+import {
+  callUpstreamTool,
+  closeAll as closeAllUpstreams,
+  getClient as getUpstreamClient,
+} from "./upstream-clients.js";
+
 const LOG_PREFIX = "[catique-sidecar]";
 /** SOH — sentinel that distinguishes supervisor frames from MCP frames. */
 const SUPERVISOR_SENTINEL = 0x01;
@@ -172,6 +178,112 @@ async function loadToolManifest() {
 }
 
 // ---------------------------------------------------------------------------
+// Proxied-tools registry (ADR-0008 / PROXY-S2).
+//
+// Built once at startup from `list_proxied_tools` (Rust → Node over the
+// supervisor channel). The Rust side returns one entry per upstream
+// tool with denormalised server metadata; Node derives two maps:
+//
+//   * `proxiedByName: Map<qualifiedName, ProxiedTool>` — used by
+//     `tools/list` (merge) and `tools/call` (route).
+//   * `serversById:   Map<serverId,     ServerMeta>`   — used by the
+//     `call_upstream` supervisor handler when it needs to open or
+//     reuse a client for one upstream server.
+//
+// PROXY-S3 round 1 ships `list_proxied_tools` returning `[]`, so the
+// registry is empty until PROXY-S4 lands the real body. The merge +
+// route logic still runs (a no-op pass-through) so the integration
+// surface is in place.
+// ---------------------------------------------------------------------------
+
+/**
+ * @typedef {object} ProxiedTool
+ * @property {string} qualifiedName       e.g. "atlassian.create_issue"
+ * @property {string} serverId
+ * @property {string} upstreamName        unqualified name as upstream sees it
+ * @property {object} inputSchema         JSON Schema for the tool args
+ * @property {string} [description]
+ */
+
+/** @type {Map<string, ProxiedTool>} */
+const proxiedByName = new Map();
+/** @type {Map<string, import("./upstream-clients.js").ServerMeta>} */
+const serversById = new Map();
+
+/**
+ * Bounded-wait around `ipc_call`. Startup must not deadlock if the
+ * Rust dispatcher is misconfigured or slow to respond — the sidecar
+ * is allowed to come up with an empty registry and serve native
+ * tools only.
+ *
+ * @template T
+ * @param {Promise<T>} promise
+ * @param {number} ms
+ * @param {string} label
+ */
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms} ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/** Wall-clock budget for the startup `list_proxied_tools` round-trip. */
+const REGISTRY_REFRESH_TIMEOUT_MS = 2000;
+
+/**
+ * Fetch + cache the proxied-tools registry. Idempotent — replaces the
+ * previous registry contents. Called once at startup and (TODO) on
+ * `notifications/tools/list_changed` triggers.
+ *
+ * @param {(method: string, params: object|null) => Promise<any>} ipcCallFn
+ */
+async function refreshProxiedRegistry(ipcCallFn) {
+  let result;
+  try {
+    result = await withTimeout(
+      ipcCallFn("list_proxied_tools", null),
+      REGISTRY_REFRESH_TIMEOUT_MS,
+      "list_proxied_tools",
+    );
+  } catch (err) {
+    log(`list_proxied_tools failed: ${err && err.message ? err.message : err}`);
+    return;
+  }
+  proxiedByName.clear();
+  serversById.clear();
+  if (!Array.isArray(result)) {
+    log(`list_proxied_tools: expected array, got ${typeof result}`);
+    return;
+  }
+  for (const entry of result) {
+    if (
+      !entry ||
+      typeof entry.qualifiedName !== "string" ||
+      typeof entry.serverId !== "string" ||
+      typeof entry.upstreamName !== "string"
+    ) {
+      log(`list_proxied_tools: skipping malformed entry`);
+      continue;
+    }
+    proxiedByName.set(entry.qualifiedName, {
+      qualifiedName: entry.qualifiedName,
+      serverId: entry.serverId,
+      upstreamName: entry.upstreamName,
+      inputSchema: entry.inputSchema ?? { type: "object" },
+      description: entry.description,
+    });
+    if (entry.server && typeof entry.server === "object") {
+      serversById.set(entry.serverId, entry.server);
+    }
+  }
+  log(
+    `proxied registry: ${proxiedByName.size} tool(s) across ${serversById.size} server(s)`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Reverse channel: `ipc_call` from Node → Rust → use-case → response.
 // ---------------------------------------------------------------------------
 
@@ -235,7 +347,7 @@ function handleSupervisorFrame(json, writeSupervisor) {
     return;
   }
   // Request branch: Rust→Node lifecycle. Replies share the supervisor channel.
-  const { id, method } = req || {};
+  const { id, method, params } = req || {};
   if (method === "__ping") {
     writeSupervisor(JSON.stringify({
       jsonrpc: "2.0",
@@ -247,7 +359,15 @@ function handleSupervisorFrame(json, writeSupervisor) {
   if (method === "__shutdown") {
     writeSupervisor(JSON.stringify({ jsonrpc: "2.0", id, result: { ok: true } }));
     log("__shutdown received, exiting 0");
-    setTimeout(() => process.exit(0), 50);
+    // Close any upstream clients before the process exits so stdio
+    // children get a clean disconnect and SIGTERM-handler chain runs.
+    closeAllUpstreams(log).finally(() => {
+      setTimeout(() => process.exit(0), 50);
+    });
+    return;
+  }
+  if (method === "call_upstream") {
+    handleCallUpstream(id, params, writeSupervisor);
     return;
   }
   log(`supervisor: unknown method=${String(method)} id=${String(id)}`);
@@ -257,6 +377,63 @@ function handleSupervisorFrame(json, writeSupervisor) {
       id,
       error: { code: -32601, message: `Method not found: ${String(method)}` },
     }));
+  }
+}
+
+/**
+ * Rust→Node `call_upstream` request. The Rust mcp_bridge's
+ * `SidecarUpstream::call_upstream` adapter dispatches one of these
+ * per relayed `tools/call`; Node opens (or reuses) the upstream
+ * client and proxies the call through.
+ *
+ *   params: { server_id, tool_name, args }
+ *
+ * The reply mirrors the upstream's MCP `tools/call` shape
+ * (`{ content, isError? }`). The Rust adapter detects `isError: true`
+ * and surfaces it as `UpstreamError::UpstreamIsError`.
+ *
+ * Synchronous protocol-level errors (no registered server, malformed
+ * params) come back as JSON-RPC `error` so the supervisor channel
+ * vocabulary stays consistent with the `__ping` / `__shutdown`
+ * convention.
+ */
+async function handleCallUpstream(id, params, writeSupervisor) {
+  const replyError = (code, message) => {
+    writeSupervisor(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id,
+        error: { code, message },
+      }),
+    );
+  };
+  const serverId = params?.server_id;
+  const toolName = params?.tool_name;
+  const args = params?.args ?? {};
+  if (typeof serverId !== "string" || typeof toolName !== "string") {
+    return replyError(-32602, "call_upstream: server_id and tool_name required");
+  }
+  // The unqualified upstream tool name is what the upstream server
+  // exposes; Rust passes the QUALIFIED form (`{server_name}.{tool}`).
+  // The proxied registry resolves the qualified name back to its
+  // upstream tool entry, and supplies the server meta for the client.
+  const entry = proxiedByName.get(toolName);
+  const meta = entry ? serversById.get(entry.serverId) : serversById.get(serverId);
+  if (!meta) {
+    return replyError(
+      -32004,
+      `call_upstream: no proxied tool registered as "${toolName}" (registry empty? — refresh after PROXY-S4)`,
+    );
+  }
+  try {
+    const client = await getUpstreamClient(meta);
+    const upstreamName = entry ? entry.upstreamName : toolName;
+    const result = await callUpstreamTool(client, upstreamName, args);
+    writeSupervisor(JSON.stringify({ jsonrpc: "2.0", id, result }));
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    log(`call_upstream error server=${serverId} tool=${toolName}: ${message}`);
+    return replyError(-32603, `upstream call failed: ${message}`);
   }
 }
 
@@ -284,21 +461,79 @@ async function main() {
   const tools = await loadToolManifest();
   log(`loaded ${tools.length} tool(s) from tool-manifest.json`);
 
+  // Pre-build the proxied-tools registry so the first `tools/list` from
+  // the external agent already sees the merged surface. Errors in this
+  // call are logged (the sidecar keeps running with native tools only)
+  // — see `refreshProxiedRegistry` for the contract.
+  const ipcCallFn = (method, params) => ipcCall(writeSupervisor, method, params);
+  await refreshProxiedRegistry(ipcCallFn);
+
   const server = new Server(
     { name: "catique-sidecar", version: "0.1.0" },
     { capabilities: { tools: {} } },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: tools.map((t) => ({
-      name: t.name,
-      description: t.description,
-      inputSchema: t.inputSchema,
-    })),
-  }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    // Merge native (from manifest) + proxied (from dynamic registry).
+    // Native tools win on name collision — Catique reserves its own
+    // namespace and a proxied tool MUST already be qualified
+    // (`{server_name}.{tool_name}`) so collisions should not happen
+    // in practice.
+    const proxiedShapes = [];
+    for (const tool of proxiedByName.values()) {
+      proxiedShapes.push({
+        name: tool.qualifiedName,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      });
+    }
+    return {
+      tools: [
+        ...tools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          inputSchema: t.inputSchema,
+        })),
+        ...proxiedShapes,
+      ],
+    };
+  });
 
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const { name, arguments: args } = req.params || {};
+    // Proxied path: qualified name resolves to an upstream server.
+    // We hop through Rust (`proxy_tool_call`) so that the enabled
+    // check + mcp_call_log accounting run server-side. Rust will
+    // then come back to us via the `call_upstream` supervisor frame
+    // to actually open the wire — two Node hops by design (see
+    // ADR-0008 architecture note).
+    const proxied = proxiedByName.get(name);
+    if (proxied) {
+      try {
+        const result = await ipcCall(writeSupervisor, "proxy_tool_call", {
+          server_id: proxied.serverId,
+          tool_name: name,
+          args: args ?? {},
+        });
+        // Upstream's reply was `{ content, isError? }`. Pass it through
+        // verbatim so a tool that emitted `isError: true` survives the
+        // round-trip without the external agent thinking *we* failed.
+        return result && typeof result === "object" && Array.isArray(result.content)
+          ? result
+          : {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            };
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        log(`proxy_tool_call error name=${name}: ${msg}`);
+        return {
+          isError: true,
+          content: [{ type: "text", text: msg }],
+        };
+      }
+    }
+    // Native path: the tool is in the manifest; dispatch into Rust
+    // by the bare method name (matches the existing ipc_call flow).
     const known = tools.find((t) => t.name === name);
     if (!known) {
       return {

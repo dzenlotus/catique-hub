@@ -27,10 +27,27 @@ Supervisor channel methods:
 | Method | Direction | Purpose |
 |---|---|---|
 | `__ping` | Rust → Node | Heartbeat. Reply: `{ pong: true, ts: <ms> }`. |
-| `__shutdown` | Rust → Node | Graceful exit. Reply: `{ ok: true }`, then `process.exit(0)`. |
-| `ipc_call` | Node → Rust | Reverse dispatch. `params: { method, params }` — Rust resolves with the use-case JSON, or `error` on failure. |
+| `__shutdown` | Rust → Node | Graceful exit. Reply: `{ ok: true }`, then `process.exit(0)`. Closes the upstream-clients pool first. |
+| `ipc_call` | Node → Rust | Reverse dispatch. `params: { method, params }` — Rust resolves with the use-case JSON, or `error` on failure. Backs `proxy_tool_call`, `list_proxied_tools`, `resolve_keychain` (post-ADR-0008). |
+| `call_upstream` | Rust → Node | ADR-0008 pass-through proxy. `params: { server_id, tool_name, args }` — Node opens (or reuses) the upstream MCP client via `upstream-clients.js`, issues `tools/call`, returns the upstream's `{ content, isError? }` payload. |
 
 The Rust transport lives in `crates/sidecar/src/lib.rs`; the dispatch table from `(method, params)` to use-case calls lives in `crates/api/src/mcp_bridge/mod.rs`.
+
+## Pass-through proxy (ADR-0008 / PROXY-S2)
+
+`sidecar/upstream-clients.js` holds a per-`server_id` pool of MCP clients (stdio / streamable-http / sse) opened on demand via `@modelcontextprotocol/sdk`'s client API. At startup the sidecar fetches `list_proxied_tools` over the supervisor channel and builds two maps:
+
+- `proxiedByName: Map<qualifiedName, ProxiedTool>` — feeds `tools/list` (merged with the native manifest) and routes `tools/call`.
+- `serversById: Map<serverId, ServerMeta>` — used by the `call_upstream` handler when it opens a client.
+
+Two Node hops per relayed call:
+
+1. **External agent → Node MCP server**: `tools/call atlassian.create_issue`.
+2. **Node → Rust** via `ipc_call('proxy_tool_call', …)`: enabled check + `mcp_call_log` open.
+3. **Rust → Node** via `call_upstream`: open/reuse the upstream client and issue `tools/call`.
+4. Reply flows back through the same chain in reverse.
+
+The middle Rust hop owns observability (`mcp_call_log`) and the central enabled-check. Latency is dominated by upstream wall-clock; the second hop costs roughly one localhost stdio round-trip (≪ 5 ms on macOS / Linux).
 
 ## Run standalone for debugging
 
@@ -57,4 +74,5 @@ Diagnostic output goes to **stderr** with the `[catique-sidecar]` prefix so it n
 ## Related ADRs
 
 - `docs/adr/ADR-0002-mcp-sidecar-architecture.md` — process-shape decision.
-- `docs/adr/ADR-0007-mcp-server-registry.md` — registry-only scope.
+- `docs/adr/ADR-0007-mcp-server-registry.md` — *Superseded.* Original registry-only framing.
+- `docs/adr/ADR-0008-mcp-pass-through-proxy.md` — Active. Catique HUB owns the relay.
