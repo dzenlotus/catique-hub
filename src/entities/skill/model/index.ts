@@ -7,3 +7,10 @@ export {
   useUpdateSkillMutation,
   useDeleteSkillMutation,
 } from "./store";
+export {
+  skillAttachmentsKeys,
+  useSkillAttachments,
+  useAddSkillFileAttachmentMutation,
+  useAddSkillGitAttachmentMutation,
+  useRemoveSkillAttachmentMutation,
+} from "./skillAttachmentsStore";

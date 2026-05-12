@@ -91,6 +91,15 @@ export type AppEvent =
   | { type: "skill:created"; payload: { id: string } }
   | { type: "skill:updated"; payload: { id: string } }
   | { type: "skill:deleted"; payload: { id: string } }
+  // ---------------- skill attachments (SKILL-S10 / S12) ----------------
+  | {
+      type: "skill:attachment_added";
+      payload: { skillId: string; attachmentId: string };
+    }
+  | {
+      type: "skill:attachment_removed";
+      payload: { skillId: string; attachmentId: string };
+    }
   // ---------------- mcp tools ----------------
   | { type: "mcp_tool:created"; payload: { id: string } }
   | { type: "mcp_tool:updated"; payload: { id: string } }

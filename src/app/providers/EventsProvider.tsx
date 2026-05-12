@@ -21,6 +21,7 @@ import { columnsKeys } from "@entities/column";
 import { tasksKeys } from "@entities/task";
 import { connectedClientsKeys } from "@entities/connected-client";
 import { mcpServersKeys } from "@entities/mcp-server";
+import { skillAttachmentsKeys } from "@entities/skill";
 import { on } from "@shared/api";
 
 /** Top-level provider — wire listeners and tear them down on unmount. */
@@ -217,6 +218,25 @@ export function EventsProvider({
     sub(
       on("skill:deleted", () => {
         void qc.invalidateQueries({ queryKey: ["skills"] });
+      }),
+    );
+    // ---------------- skill attachments (SKILL-S10 / S12) ----------------
+    // Backend emits these when a file/git attachment row is inserted or
+    // dropped. Both events carry `skillId` so we can invalidate only the
+    // single per-skill list — broader invalidation would be wasteful on
+    // pages that list many skills' editor panels.
+    sub(
+      on("skill:attachment_added", ({ skillId }) => {
+        void qc.invalidateQueries({
+          queryKey: skillAttachmentsKeys.byList(skillId),
+        });
+      }),
+    );
+    sub(
+      on("skill:attachment_removed", ({ skillId }) => {
+        void qc.invalidateQueries({
+          queryKey: skillAttachmentsKeys.byList(skillId),
+        });
       }),
     );
     sub(

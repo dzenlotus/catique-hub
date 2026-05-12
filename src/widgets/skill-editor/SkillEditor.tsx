@@ -11,6 +11,7 @@ import { useSkill, useUpdateSkillMutation } from "@entities/skill";
 import { Dialog, Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 
+import { SkillAttachmentsSection } from "./SkillAttachmentsSection";
 import styles from "./SkillEditor.module.css";
 
 export interface SkillEditorProps {
@@ -261,6 +262,9 @@ export function SkillEditorContent({
           data-testid="skill-editor-description-input"
         />
       </div>
+
+      {/* Attachments (SKILL-S12) */}
+      <SkillAttachmentsSection skillId={skill.id} />
 
       {/* Footer */}
       <div className={styles.footer}>

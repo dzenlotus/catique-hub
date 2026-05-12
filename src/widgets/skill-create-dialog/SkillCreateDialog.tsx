@@ -133,6 +133,19 @@ function SkillCreateDialogContent({
         />
       </div>
 
+      {/*
+        SKILL-S12: attachments are intentionally NOT collected here.
+        Modal-only-for-creation invariant — the create modal stays
+        minimal, attachments are managed on the editor page once the
+        skill row exists.
+      */}
+      <p
+        className={styles.attachmentsHint}
+        data-testid="skill-create-dialog-attachments-hint"
+      >
+        Files and git references can be added after creation.
+      </p>
+
       {/* Footer */}
       <div className={styles.footer}>
         {saveError ? (

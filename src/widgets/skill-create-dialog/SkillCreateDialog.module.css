@@ -68,6 +68,14 @@
   outline-offset: 2px;
 }
 
+/* SKILL-S12: deferred attachments hint — sits between description and footer. */
+.attachmentsHint {
+  margin: 0;
+  padding: var(--space-8) 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
 /* ── Footer ──────────────────────────────────────────────────────── */
 
 .footer {
