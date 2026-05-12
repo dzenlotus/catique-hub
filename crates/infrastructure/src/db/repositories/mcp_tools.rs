@@ -283,6 +283,52 @@ pub fn update(
     get_by_id(conn, id)
 }
 
+/// Mark an existing `source = 'upstream'` row as freshly synced.
+/// Updates `description`, `schema_json`, `last_synced_at`, and
+/// `updated_at` to `now_millis()`. ADR-0008 / PROXY-S4 round 2.
+///
+/// Returns `true` iff a row was actually updated (1 → matched id +
+/// `source = 'upstream'` filter). `false` means the id was not
+/// found or it was a `Manual` row.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn mark_upstream_synced(
+    conn: &Connection,
+    id: &str,
+    description: Option<&str>,
+    schema_json: &str,
+    last_synced_at: i64,
+) -> Result<bool, DbError> {
+    let now = now_millis();
+    let n = conn.execute(
+        "UPDATE mcp_tools \
+         SET description = ?1, schema_json = ?2, last_synced_at = ?3, updated_at = ?4 \
+         WHERE id = ?5 AND source = 'upstream'",
+        params![description, schema_json, last_synced_at, now, id],
+    )?;
+    Ok(n > 0)
+}
+
+/// Soft-delete an upstream tool — clears `last_synced_at` so the
+/// row stays for audit but UI marks it as removed-upstream.
+/// ADR-0008 / PROXY-S4 round 2.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn soft_delete_upstream(conn: &Connection, id: &str) -> Result<bool, DbError> {
+    let now = now_millis();
+    let n = conn.execute(
+        "UPDATE mcp_tools \
+         SET last_synced_at = NULL, updated_at = ?1 \
+         WHERE id = ?2 AND source = 'upstream'",
+        params![now, id],
+    )?;
+    Ok(n > 0)
+}
+
 /// Delete one MCP tool by id. Cascades to `role_mcp_tools` and
 /// `task_mcp_tools` via `ON DELETE CASCADE`.
 ///

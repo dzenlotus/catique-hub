@@ -153,6 +153,62 @@ pub enum McpServerHealthState {
     Unreachable,
 }
 
+/// One tool declaration the upstream MCP server advertised in its
+/// `tools/list` response. Plumbed across the supervisor channel; the
+/// application layer persists rows into `mcp_tools`.
+#[derive(Debug, Clone, serde::Deserialize, PartialEq)]
+pub struct UpstreamToolDecl {
+    pub name: String,
+    pub description: Option<String>,
+    /// JSON-encoded `inputSchema` — opaque to us; persisted into
+    /// `mcp_tools.schema_json` and rendered back to the external
+    /// agent verbatim on `tools/list`.
+    pub input_schema: serde_json::Value,
+}
+
+/// Result of one `introspect_and_persist` / `refresh` run. Backs the
+/// "what changed?" toast / log entry the UI will surface after the
+/// user clicks "Refresh".
+#[derive(TS, Serialize, Clone, Debug, Default, PartialEq, Eq)]
+#[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct RefreshReport {
+    /// Tool names that were not in the previous inventory.
+    pub added: i64,
+    /// Tools whose schema_json differs from the previous inventory.
+    pub schema_changed: i64,
+    /// Tools whose schema is identical; `last_synced_at` was bumped.
+    pub still_present: i64,
+    /// Tools that were in the previous inventory but missing in the
+    /// fresh `tools/list` — soft-deleted (`last_synced_at` cleared).
+    pub soft_deleted: i64,
+}
+
+/// Wire transport for one server's connection metadata. The
+/// `SidecarUpstream` adapter passes this inline so the Node side
+/// can open or reuse the upstream client without a round-trip back
+/// to Rust for the server row.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct ServerWireMeta {
+    pub id: String,
+    pub name: String,
+    pub transport: Transport,
+    pub url: Option<String>,
+    pub command: Option<String>,
+}
+
+/// Abstraction over the wire that fetches an upstream server's
+/// `tools/list`. The production implementation lives in
+/// `crates/api/src/mcp_bridge/mod.rs` (paired with the
+/// `UpstreamCaller` impl).
+pub trait UpstreamIntrospector: Send + Sync {
+    fn list_tools(
+        &self,
+        meta: &ServerWireMeta,
+    ) -> impl std::future::Future<Output = Result<Vec<UpstreamToolDecl>, crate::mcp_proxy::UpstreamError>>
+           + Send;
+}
+
 impl<'a> McpServersUseCase<'a> {
     /// Constructor.
     #[must_use]
@@ -480,6 +536,81 @@ impl<'a> McpServersUseCase<'a> {
         Ok(out)
     }
 
+    /// Run `tools/list` against the upstream server, reconcile the
+    /// result against the `mcp_tools` table, return a
+    /// [`RefreshReport`] summarising what changed.
+    ///
+    /// Reconciliation rules (closed):
+    /// * Upstream tool name not in DB → INSERT (source = upstream,
+    ///   last_synced_at = now).
+    /// * Upstream tool name in DB, schema_json different →
+    ///   UPDATE schema_json + last_synced_at + description. Counts as
+    ///   `schema_changed`.
+    /// * Upstream tool name in DB, schema_json identical → UPDATE
+    ///   last_synced_at + description only. Counts as `still_present`.
+    /// * DB row (source = upstream) whose upstream_name is NOT in the
+    ///   fresh list → UPDATE last_synced_at = NULL (soft-delete).
+    ///
+    /// Failure of the upstream call does NOT roll back any state.
+    /// The caller decides whether to surface the error (refresh:
+    /// surface) or swallow it (create-time best-effort).
+    ///
+    /// ADR-0008 / PROXY-S4 round 2.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound` if the server id is unknown; otherwise
+    /// `AppError::Upstream` carrying the introspector's failure;
+    /// `AppError::TransactionRolledBack` if the DB write fails.
+    pub async fn introspect_and_persist<I: UpstreamIntrospector>(
+        &self,
+        server_id: &str,
+        introspector: &I,
+    ) -> Result<RefreshReport, AppError> {
+        let meta = {
+            let conn = acquire(self.pool).map_err(map_db_err)?;
+            let server = repo::get_by_id(&conn, server_id)
+                .map_err(map_db_err)?
+                .ok_or_else(|| AppError::NotFound {
+                    entity: "mcp_server".into(),
+                    id: server_id.to_owned(),
+                })?;
+            ServerWireMeta {
+                id: server.id.clone(),
+                name: server.name.clone(),
+                transport: kind_to_transport(server.transport),
+                url: server.url.clone(),
+                command: server.command.clone(),
+            }
+        };
+        // Wire call — async, no DB connection held.
+        let upstream_tools = introspector
+            .list_tools(&meta)
+            .await
+            .map_err(|err| AppError::Upstream {
+                kind: match err {
+                    crate::mcp_proxy::UpstreamError::Transport(_) => "transport".into(),
+                    crate::mcp_proxy::UpstreamError::UpstreamIsError(_) => "isError".into(),
+                    crate::mcp_proxy::UpstreamError::Timeout => "timeout".into(),
+                },
+                message: err.to_string(),
+            })?;
+        // Reconcile in a fresh connection. Persistence is best-effort
+        // per-row to keep one bad tool from blocking the rest.
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        reconcile_tools(&conn, server_id, &upstream_tools)
+    }
+
+    /// Public alias around [`Self::introspect_and_persist`]. Provided
+    /// because the UI's user-facing affordance is labelled "Refresh".
+    pub async fn refresh<I: UpstreamIntrospector>(
+        &self,
+        server_id: &str,
+        introspector: &I,
+    ) -> Result<RefreshReport, AppError> {
+        self.introspect_and_persist(server_id, introspector).await
+    }
+
     /// List the `mcp_tools` rows linked to one MCP server, ordered by
     /// `position ASC, name ASC`. Returns both `Upstream` and any
     /// `Manual` rows tagged with this server id. Soft-deleted upstream
@@ -668,6 +799,95 @@ fn kind_to_transport(k: TransportKind) -> Transport {
         TransportKind::Http => Transport::Http,
         TransportKind::Sse => Transport::Sse,
     }
+}
+
+/// Reconcile a fresh `tools/list` against the persisted inventory for
+/// `server_id`. See [`McpServersUseCase::introspect_and_persist`] for
+/// the rule set; this is the private worker that operates on a
+/// borrowed connection.
+fn reconcile_tools(
+    conn: &rusqlite::Connection,
+    server_id: &str,
+    upstream_tools: &[UpstreamToolDecl],
+) -> Result<RefreshReport, AppError> {
+    use std::collections::HashMap;
+
+    // Existing upstream rows for this server, by upstream_name.
+    let existing = tools_repo::list_for_server(conn, server_id).map_err(map_db_err)?;
+    let mut existing_by_upstream: HashMap<String, tools_repo::McpToolRow> = HashMap::new();
+    for row in existing {
+        if matches!(row.source, tools_repo::McpToolSourceRow::Upstream) {
+            if let Some(name) = row.upstream_name.clone() {
+                existing_by_upstream.insert(name, row);
+            }
+        }
+    }
+
+    let mut report = RefreshReport::default();
+    let mut seen_upstream_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for decl in upstream_tools {
+        let schema_str = serde_json::to_string(&decl.input_schema).unwrap_or_else(|_| "{}".into());
+        seen_upstream_names.insert(decl.name.clone());
+
+        match existing_by_upstream.get(&decl.name) {
+            Some(row) => {
+                let same_schema = row.schema_json == schema_str;
+                let updated = tools_repo::mark_upstream_synced(
+                    conn,
+                    &row.id,
+                    decl.description.as_deref(),
+                    &schema_str,
+                    now_millis(),
+                )
+                .map_err(map_db_err)?;
+                if updated {
+                    if same_schema {
+                        report.still_present += 1;
+                    } else {
+                        report.schema_changed += 1;
+                    }
+                }
+            }
+            None => {
+                let draft = tools_repo::McpToolDraft {
+                    name: decl.name.clone(),
+                    description: decl.description.clone(),
+                    schema_json: schema_str,
+                    color: None,
+                    position: 0.0,
+                    server_id: Some(server_id.to_owned()),
+                    upstream_name: Some(decl.name.clone()),
+                    source: tools_repo::McpToolSourceRow::Upstream,
+                    last_synced_at: Some(now_millis()),
+                };
+                tools_repo::insert(conn, &draft).map_err(map_db_err)?;
+                report.added += 1;
+            }
+        }
+    }
+
+    // Soft-delete: rows that exist in DB but not in the fresh list.
+    for (upstream_name, row) in &existing_by_upstream {
+        if !seen_upstream_names.contains(upstream_name)
+            && row.last_synced_at.is_some()
+        {
+            let deleted = tools_repo::soft_delete_upstream(conn, &row.id).map_err(map_db_err)?;
+            if deleted {
+                report.soft_deleted += 1;
+            }
+        }
+    }
+
+    Ok(report)
+}
+
+fn now_millis() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|d| i64::try_from(d.as_millis()).ok())
+        .unwrap_or(0)
 }
 
 fn row_to_mcp_tool(row: tools_repo::McpToolRow) -> McpTool {
@@ -1301,6 +1521,201 @@ mod tests {
         let pool = fresh_pool();
         let uc = McpServersUseCase::new(&pool);
         let err = uc.list_tools_by_server("ghost").expect_err("nf");
+        assert!(matches!(err, AppError::NotFound { .. }));
+    }
+
+    // ---- PROXY-S4 round 2 — introspect_and_persist reconciliation
+
+    struct StubIntrospector {
+        result: std::sync::Mutex<Result<Vec<UpstreamToolDecl>, crate::mcp_proxy::UpstreamError>>,
+    }
+
+    impl StubIntrospector {
+        fn ok(tools: Vec<UpstreamToolDecl>) -> Self {
+            Self {
+                result: std::sync::Mutex::new(Ok(tools)),
+            }
+        }
+        fn err(msg: &str) -> Self {
+            Self {
+                result: std::sync::Mutex::new(Err(crate::mcp_proxy::UpstreamError::Transport(
+                    msg.into(),
+                ))),
+            }
+        }
+    }
+
+    impl UpstreamIntrospector for StubIntrospector {
+        async fn list_tools(
+            &self,
+            _meta: &ServerWireMeta,
+        ) -> Result<Vec<UpstreamToolDecl>, crate::mcp_proxy::UpstreamError> {
+            match &*self.result.lock().unwrap() {
+                Ok(v) => Ok(v.clone()),
+                Err(_) => Err(crate::mcp_proxy::UpstreamError::Transport("stub".into())),
+            }
+        }
+    }
+
+    fn decl(name: &str, schema: &str) -> UpstreamToolDecl {
+        UpstreamToolDecl {
+            name: name.into(),
+            description: Some(format!("desc {name}")),
+            input_schema: serde_json::from_str(schema).unwrap_or(serde_json::json!({})),
+        }
+    }
+
+    #[tokio::test]
+    async fn introspect_inserts_new_tools_on_first_run() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let server = uc
+            .create(
+                "alpha".into(),
+                Transport::Http,
+                Some("https://example.invalid/mcp".into()),
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+
+        let stub = StubIntrospector::ok(vec![
+            decl("create_issue", r#"{"type":"object"}"#),
+            decl("list_issues", r#"{"type":"object"}"#),
+        ]);
+        let report = uc.introspect_and_persist(&server.id, &stub).await.unwrap();
+        assert_eq!(report.added, 2);
+        assert_eq!(report.still_present, 0);
+        assert_eq!(report.schema_changed, 0);
+        assert_eq!(report.soft_deleted, 0);
+
+        let tools = uc.list_proxied_tools().unwrap();
+        assert_eq!(tools.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn introspect_marks_unchanged_tools_as_still_present() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let server = uc
+            .create(
+                "alpha".into(),
+                Transport::Http,
+                Some("https://example.invalid/mcp".into()),
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+
+        let stub1 = StubIntrospector::ok(vec![decl("x", r#"{"type":"object"}"#)]);
+        uc.introspect_and_persist(&server.id, &stub1).await.unwrap();
+
+        let stub2 = StubIntrospector::ok(vec![decl("x", r#"{"type":"object"}"#)]);
+        let report = uc.introspect_and_persist(&server.id, &stub2).await.unwrap();
+        assert_eq!(report.added, 0);
+        assert_eq!(report.still_present, 1);
+        assert_eq!(report.schema_changed, 0);
+        assert_eq!(report.soft_deleted, 0);
+    }
+
+    #[tokio::test]
+    async fn introspect_flags_schema_changes() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let server = uc
+            .create(
+                "alpha".into(),
+                Transport::Http,
+                Some("https://example.invalid/mcp".into()),
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+
+        let stub1 = StubIntrospector::ok(vec![decl("x", r#"{"type":"object"}"#)]);
+        uc.introspect_and_persist(&server.id, &stub1).await.unwrap();
+
+        let stub2 = StubIntrospector::ok(vec![decl(
+            "x",
+            r#"{"type":"object","properties":{"a":{"type":"string"}}}"#,
+        )]);
+        let report = uc.introspect_and_persist(&server.id, &stub2).await.unwrap();
+        assert_eq!(report.added, 0);
+        assert_eq!(report.schema_changed, 1);
+        assert_eq!(report.still_present, 0);
+    }
+
+    #[tokio::test]
+    async fn introspect_soft_deletes_removed_tools() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let server = uc
+            .create(
+                "alpha".into(),
+                Transport::Http,
+                Some("https://example.invalid/mcp".into()),
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+
+        let stub1 = StubIntrospector::ok(vec![
+            decl("kept", r#"{"type":"object"}"#),
+            decl("gone", r#"{"type":"object"}"#),
+        ]);
+        uc.introspect_and_persist(&server.id, &stub1).await.unwrap();
+        assert_eq!(uc.list_proxied_tools().unwrap().len(), 2);
+
+        let stub2 = StubIntrospector::ok(vec![decl("kept", r#"{"type":"object"}"#)]);
+        let report = uc.introspect_and_persist(&server.id, &stub2).await.unwrap();
+        assert_eq!(report.still_present, 1);
+        assert_eq!(report.soft_deleted, 1);
+
+        let live = uc.list_proxied_tools().unwrap();
+        assert_eq!(live.len(), 1);
+        assert_eq!(live[0].upstream_name, "kept");
+
+        // Soft-deleted row stays in the per-server list.
+        let all = uc.list_tools_by_server(&server.id).unwrap();
+        assert_eq!(all.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn introspect_propagates_upstream_failure_without_db_writes() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let server = uc
+            .create(
+                "alpha".into(),
+                Transport::Http,
+                Some("https://example.invalid/mcp".into()),
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+        let stub = StubIntrospector::err("pipe broke");
+        let err = uc
+            .introspect_and_persist(&server.id, &stub)
+            .await
+            .expect_err("upstream");
+        assert!(matches!(err, AppError::Upstream { .. }));
+        assert!(uc.list_tools_by_server(&server.id).unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn introspect_unknown_server_returns_not_found() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let stub = StubIntrospector::ok(vec![]);
+        let err = uc
+            .introspect_and_persist("ghost", &stub)
+            .await
+            .expect_err("nf");
         assert!(matches!(err, AppError::NotFound { .. }));
     }
 

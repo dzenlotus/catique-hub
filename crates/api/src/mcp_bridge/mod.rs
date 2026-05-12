@@ -45,7 +45,9 @@ use catique_application::{
     boards::BoardsUseCase,
     columns::ColumnsUseCase,
     mcp_proxy::{McpProxyUseCase, UpstreamCaller, UpstreamError},
-    mcp_servers::McpServersUseCase,
+    mcp_servers::{
+        McpServersUseCase, ServerWireMeta, UpstreamIntrospector, UpstreamToolDecl,
+    },
     tasks::TasksUseCase,
     AppError,
 };
@@ -65,9 +67,17 @@ const UPSTREAM_CALL_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Adapter that lets [`McpProxyUseCase`] reach the wire through the
 /// concrete `SidecarManager` without the application crate depending
-/// on `catique-sidecar`.
-struct SidecarUpstream {
+/// on `catique-sidecar`. Exposed via [`sidecar_upstream`] so command
+/// handlers can build one against the live `AppState.sidecar` clone.
+pub struct SidecarUpstream {
     mgr: SidecarManager,
+}
+
+/// Construct a [`SidecarUpstream`] bound to the given manager. Cheap —
+/// `SidecarManager::clone` is Arc-backed.
+#[must_use]
+pub fn sidecar_upstream(mgr: &SidecarManager) -> SidecarUpstream {
+    SidecarUpstream { mgr: mgr.clone() }
 }
 
 impl UpstreamCaller for SidecarUpstream {
@@ -96,6 +106,65 @@ impl UpstreamCaller for SidecarUpstream {
             Err(SidecarError::IpcTimeout(_)) => Err(UpstreamError::Timeout),
             Err(other) => Err(UpstreamError::Transport(other.to_string())),
         }
+    }
+}
+
+/// Wire impl of [`UpstreamIntrospector`]. Dispatches one
+/// `introspect_upstream` supervisor frame to the Node side, which
+/// opens (or reuses) the upstream MCP client and replies with the
+/// `tools/list` payload.
+const INTROSPECT_TIMEOUT: Duration = Duration::from_secs(15);
+
+impl UpstreamIntrospector for SidecarUpstream {
+    async fn list_tools(
+        &self,
+        meta: &ServerWireMeta,
+    ) -> Result<Vec<UpstreamToolDecl>, UpstreamError> {
+        let params = json!({
+            "server_id": meta.id,
+            "meta": {
+                "id": meta.id,
+                "name": meta.name,
+                "transport": meta.transport,
+                "url": meta.url,
+                "command": meta.command,
+            },
+        });
+        let raw = self
+            .mgr
+            .call_ipc("introspect_upstream", params, INTROSPECT_TIMEOUT)
+            .await
+            .map_err(|e| match e {
+                SidecarError::IpcTimeout(_) => UpstreamError::Timeout,
+                other => UpstreamError::Transport(other.to_string()),
+            })?;
+        // Node returns { tools: [{ name, description?, inputSchema }] }.
+        let tools = raw
+            .get("tools")
+            .and_then(Value::as_array)
+            .ok_or_else(|| UpstreamError::Transport("introspect_upstream: missing tools[]".into()))?;
+        let mut out = Vec::with_capacity(tools.len());
+        for entry in tools {
+            let name = entry
+                .get("name")
+                .and_then(Value::as_str)
+                .ok_or_else(|| UpstreamError::Transport("tool missing name".into()))?
+                .to_owned();
+            let description = entry
+                .get("description")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let input_schema = entry
+                .get("inputSchema")
+                .cloned()
+                .unwrap_or_else(|| json!({"type": "object"}));
+            out.push(UpstreamToolDecl {
+                name,
+                description,
+                input_schema,
+            });
+        }
+        Ok(out)
     }
 }
 

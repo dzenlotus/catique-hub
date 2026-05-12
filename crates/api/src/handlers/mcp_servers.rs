@@ -8,10 +8,12 @@
 //! secret value.
 
 use catique_application::{
-    mcp_servers::{ConnectionHint, McpServerStatus, McpServersUseCase},
+    mcp_servers::{ConnectionHint, McpServerStatus, McpServersUseCase, RefreshReport},
     AppError,
 };
 use catique_domain::{McpServer, McpTool, Transport};
+
+use crate::mcp_bridge::sidecar_upstream;
 use serde::Serialize;
 use serde_json::json;
 use tauri::State;
@@ -87,10 +89,46 @@ pub async fn create_mcp_server(
     auth_json: Option<String>,
     enabled: bool,
 ) -> Result<McpServer, AppError> {
-    let server = McpServersUseCase::new(&state.pool)
-        .create(name, transport, url, command, auth_json, enabled)?;
+    let uc = McpServersUseCase::new(&state.pool);
+    let server = uc.create(name, transport, url, command, auth_json, enabled)?;
     crate::events::emit(&state, MCP_SERVER_CREATED, json!({ "id": server.id }));
+
+    // ADR-0008 / PROXY-S4 round 2: best-effort introspect on create.
+    // The server row is already committed; an upstream that is
+    // unreachable today leaves status = Unreachable, the UI prompts a
+    // manual refresh later. We log the failure but do NOT propagate
+    // it — `create_mcp_server` returning OK is contractual.
+    let introspector = sidecar_upstream(&state.sidecar);
+    if let Err(err) = uc.introspect_and_persist(&server.id, &introspector).await {
+        eprintln!(
+            "[catique-hub] create_mcp_server: introspect-on-create failed for {} ({err})",
+            server.id
+        );
+    }
     Ok(server)
+}
+
+/// IPC: refresh an MCP server's tool inventory by re-running
+/// introspection against the upstream. Returns a `RefreshReport`
+/// summarising what changed.
+///
+/// ADR-0008 / PROXY-S4 round 2.
+///
+/// # Errors
+///
+/// `AppError::NotFound` if the id is unknown; `AppError::Upstream` if
+/// the wire call to the upstream server fails.
+#[tauri::command]
+pub async fn refresh_mcp_server(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<RefreshReport, AppError> {
+    let introspector = sidecar_upstream(&state.sidecar);
+    let report = McpServersUseCase::new(&state.pool)
+        .refresh(&id, &introspector)
+        .await?;
+    crate::events::emit(&state, MCP_SERVER_UPDATED, json!({ "id": id }));
+    Ok(report)
 }
 
 /// IPC: partial-update an MCP server.

@@ -44,6 +44,7 @@ import {
   callUpstreamTool,
   closeAll as closeAllUpstreams,
   getClient as getUpstreamClient,
+  listUpstreamTools,
 } from "./upstream-clients.js";
 
 const LOG_PREFIX = "[catique-sidecar]";
@@ -370,6 +371,10 @@ function handleSupervisorFrame(json, writeSupervisor) {
     handleCallUpstream(id, params, writeSupervisor);
     return;
   }
+  if (method === "introspect_upstream") {
+    handleIntrospectUpstream(id, params, writeSupervisor);
+    return;
+  }
   log(`supervisor: unknown method=${String(method)} id=${String(id)}`);
   if (id !== undefined && id !== null) {
     writeSupervisor(JSON.stringify({
@@ -397,6 +402,47 @@ function handleSupervisorFrame(json, writeSupervisor) {
  * vocabulary stays consistent with the `__ping` / `__shutdown`
  * convention.
  */
+/**
+ * Rust → Node `introspect_upstream` request. ADR-0008 / PROXY-S4
+ * round 2. Used during introspect-on-create and manual refresh:
+ * Catique HUB opens the upstream client, issues `tools/list`, and
+ * returns the array verbatim. The Rust side persists into
+ * `mcp_tools` with `source = 'upstream'`.
+ *
+ *   params: { server_id, meta: { id, name, transport, url, command } }
+ *
+ * On success replies with `{ tools: [...] }` (the SDK's
+ * `client.listTools()` shape). On failure replies with a JSON-RPC
+ * error.
+ */
+async function handleIntrospectUpstream(id, params, writeSupervisor) {
+  const replyError = (code, message) => {
+    writeSupervisor(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id,
+        error: { code, message },
+      }),
+    );
+  };
+  const meta = params?.meta;
+  if (!meta || typeof meta.id !== "string" || typeof meta.transport !== "string") {
+    return replyError(-32602, "introspect_upstream: meta { id, transport, ... } required");
+  }
+  // Cache the meta so subsequent `call_upstream` requests can reuse
+  // the open client without a second introspect call.
+  serversById.set(meta.id, meta);
+  try {
+    const client = await getUpstreamClient(meta);
+    const result = await listUpstreamTools(client);
+    writeSupervisor(JSON.stringify({ jsonrpc: "2.0", id, result }));
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    log(`introspect_upstream error server=${meta.id}: ${message}`);
+    return replyError(-32603, `introspect failed: ${message}`);
+  }
+}
+
 async function handleCallUpstream(id, params, writeSupervisor) {
   const replyError = (code, message) => {
     writeSupervisor(
