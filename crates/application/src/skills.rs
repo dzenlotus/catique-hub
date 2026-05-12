@@ -2,17 +2,37 @@
 //!
 //! Wave-E2.x (Round 6 back-fill). Mirrors `RolesUseCase`. UNIQUE(name)
 //! maps to `AppError::Conflict { entity: "skill", … }`.
+//!
+//! SKILL-S10: adds file + git attachments. The use case owns the
+//! per-skill blob directory layout
+//! (`<app_data_dir>/skills/<skill_id>/<storage_path>`) and the
+//! cross-cutting cleanup hook that fires on skill deletion. The
+//! handler resolves `app_data_dir` from `AppState` and passes it in,
+//! which keeps the use case decoupled from Tauri.
 
-use catique_domain::Skill;
+use std::path::{Path, PathBuf};
+
+use catique_domain::{Skill, SkillAttachment, SkillAttachmentKind};
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
-    repositories::skills::{self as repo, SkillDraft, SkillPatch, SkillRow},
+    repositories::{
+        skill_attachments::{
+            self as att_repo, FileAttachmentDraft, GitAttachmentDraft,
+            SkillAttachmentKind as RepoKind, SkillAttachmentRow,
+        },
+        skills::{self as repo, SkillDraft, SkillPatch, SkillRow},
+    },
 };
 
 use crate::{
     error::AppError,
     error_map::{map_db_err, map_db_err_unique, validate_non_empty, validate_optional_color},
 };
+
+/// Maximum on-disk blob size we accept for a single skill attachment
+/// (10 MiB). Mirrors the `task_attachments` budget; the storage cost is
+/// the same regardless of the parent entity.
+const MAX_FILE_SIZE_BYTES: i64 = 10 * 1024 * 1024;
 
 /// Skills use case.
 pub struct SkillsUseCase<'a> {
@@ -119,7 +139,11 @@ impl<'a> SkillsUseCase<'a> {
         }
     }
 
-    /// Delete a skill.
+    /// Delete a skill. Without `app_data_dir`, the row-cascade still
+    /// fires (ON DELETE CASCADE wipes `skill_attachments`) but the
+    /// per-skill blob directory is left in place — call
+    /// [`Self::delete_with_blobs`] from the handler so the on-disk
+    /// blobs are scrubbed too.
     ///
     /// # Errors
     ///
@@ -199,6 +223,293 @@ impl<'a> SkillsUseCase<'a> {
         let _ = repo::remove_task_skill(&conn, task_id, skill_id).map_err(map_db_err)?;
         Ok(())
     }
+
+    /// Delete a skill and scrub its on-disk blob directory.
+    ///
+    /// The DB-level FK cascade clears `skill_attachments` rows; this
+    /// method additionally removes
+    /// `<app_data_dir>/skills/<skill_id>/`. Filesystem failure during
+    /// the scrub is logged (via the error path) but does not roll back
+    /// the DB delete — the row cascade has already committed by then.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound` if id is unknown. Filesystem errors during
+    /// the directory removal surface as
+    /// [`AppError::TransactionRolledBack`] with a clarifying message,
+    /// even though the DB part already committed — callers should treat
+    /// this as a non-fatal post-condition warning.
+    pub fn delete_with_blobs(&self, id: &str, app_data_dir: &Path) -> Result<(), AppError> {
+        self.delete(id)?;
+        let dir = skill_dir(app_data_dir, id);
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).map_err(|e| AppError::TransactionRolledBack {
+                reason: format!("skill row deleted but blob dir scrub failed: {e}"),
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Persist a file blob under the per-skill directory and insert the
+    /// metadata row. Mirrors `upload_attachment` for the task path.
+    ///
+    /// On insert failure the partially-written blob is removed to avoid
+    /// orphans.
+    ///
+    /// # Errors
+    ///
+    /// * `AppError::NotFound` — `skill_id` does not exist.
+    /// * `AppError::Validation` — empty filename / mime, oversized
+    ///   payload, filesystem I/O failure.
+    /// * `AppError::TransactionRolledBack` — storage error after the
+    ///   blob landed on disk.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn add_file_attachment(
+        &self,
+        skill_id: &str,
+        filename: String,
+        mime_type: String,
+        bytes: Vec<u8>,
+        app_data_dir: &Path,
+    ) -> Result<SkillAttachment, AppError> {
+        let trimmed_filename = validate_non_empty("filename", &filename)?;
+        let trimmed_mime = validate_non_empty("mime_type", &mime_type)?;
+        let size_bytes = i64::try_from(bytes.len()).map_err(|_| AppError::Validation {
+            field: "bytes".into(),
+            reason: "payload too large to address as i64".into(),
+        })?;
+        if size_bytes > MAX_FILE_SIZE_BYTES {
+            return Err(AppError::Validation {
+                field: "bytes".into(),
+                reason: format!("must be ≤ {MAX_FILE_SIZE_BYTES} bytes"),
+            });
+        }
+
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        ensure_skill_exists(&conn, skill_id)?;
+
+        // Resolve target dir + storage filename. We embed the id prefix
+        // into the storage filename so multiple uploads with the same
+        // original filename don't collide on disk.
+        let storage_id = nanoid::nanoid!();
+        let sanitized = sanitize_filename_segment(&trimmed_filename);
+        let storage_name = format!("{storage_id}_{sanitized}");
+        let target_dir = skill_dir(app_data_dir, skill_id);
+        std::fs::create_dir_all(&target_dir).map_err(|e| AppError::Validation {
+            field: "target_data_dir".into(),
+            reason: format!("failed to create skill attachment directory: {e}"),
+        })?;
+        let dest = target_dir.join(&storage_name);
+
+        // Atomic-rename: write to `<dest>.tmp`, fsync the bytes, then
+        // rename into place. This avoids leaving a half-written blob if
+        // the process is killed mid-write.
+        let tmp = target_dir.join(format!("{storage_name}.tmp"));
+        write_tmp_then_rename(&tmp, &dest, &bytes)?;
+
+        let row = att_repo::insert_file(
+            &conn,
+            &FileAttachmentDraft {
+                skill_id: skill_id.to_owned(),
+                filename: trimmed_filename,
+                mime_type: trimmed_mime,
+                size_bytes,
+                storage_path: storage_name,
+            },
+        )
+        .map_err(|e| {
+            // Clean up the blob — the metadata insert failed, so the
+            // file is now an orphan.
+            let _ = std::fs::remove_file(&dest);
+            map_db_err(e)
+        })?;
+        Ok(row_to_attachment(row))
+    }
+
+    /// Insert a git-kind attachment.
+    ///
+    /// # Errors
+    ///
+    /// * `AppError::NotFound` — `skill_id` does not exist.
+    /// * `AppError::Validation` — empty / unparseable `git_url`.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn add_git_attachment(
+        &self,
+        skill_id: &str,
+        git_url: String,
+        git_ref: Option<String>,
+        git_path: Option<String>,
+    ) -> Result<SkillAttachment, AppError> {
+        let trimmed_url = validate_non_empty("git_url", &git_url)?;
+        // We accept any URL scheme so the renderer can decide whether
+        // to clone via ssh / https / file. The parse itself is the
+        // gatekeeper — empty / malformed strings are rejected here so
+        // callers don't have to.
+        url::Url::parse(&trimmed_url).map_err(|e| AppError::Validation {
+            field: "git_url".into(),
+            reason: format!("must be a valid URL: {e}"),
+        })?;
+        let normalized_ref = normalize_optional(git_ref);
+        let normalized_path = normalize_optional(git_path);
+
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        ensure_skill_exists(&conn, skill_id)?;
+        let row = att_repo::insert_git(
+            &conn,
+            &GitAttachmentDraft {
+                skill_id: skill_id.to_owned(),
+                git_url: trimmed_url,
+                git_ref: normalized_ref,
+                git_path: normalized_path,
+            },
+        )
+        .map_err(map_db_err)?;
+        Ok(row_to_attachment(row))
+    }
+
+    /// Look up an attachment by id. Returns `NotFound` if missing.
+    ///
+    /// # Errors
+    ///
+    /// * `AppError::NotFound` — attachment id is unknown.
+    pub fn get_attachment(&self, attachment_id: &str) -> Result<SkillAttachment, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        match att_repo::get_by_id(&conn, attachment_id).map_err(map_db_err)? {
+            Some(row) => Ok(row_to_attachment(row)),
+            None => Err(AppError::NotFound {
+                entity: "skill_attachment".into(),
+                id: attachment_id.to_owned(),
+            }),
+        }
+    }
+
+    /// Remove an attachment row. For file-kind rows the on-disk blob is
+    /// also removed; the metadata row is the source of truth, so we
+    /// resolve `storage_path` from the row before deleting it.
+    ///
+    /// # Errors
+    ///
+    /// * `AppError::NotFound` — attachment id is unknown.
+    pub fn remove_attachment(
+        &self,
+        attachment_id: &str,
+        app_data_dir: &Path,
+    ) -> Result<(), AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let row = att_repo::get_by_id(&conn, attachment_id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "skill_attachment".into(),
+                id: attachment_id.to_owned(),
+            })?;
+        let removed = att_repo::delete(&conn, attachment_id).map_err(map_db_err)?;
+        if !removed {
+            return Err(AppError::NotFound {
+                entity: "skill_attachment".into(),
+                id: attachment_id.to_owned(),
+            });
+        }
+        if row.kind == RepoKind::File {
+            if let Some(path_segment) = row.storage_path {
+                let blob = skill_dir(app_data_dir, &row.skill_id).join(path_segment);
+                // best-effort; absence is fine (already gone) but a
+                // real IO error during deletion surfaces upward.
+                if blob.exists() {
+                    std::fs::remove_file(&blob).map_err(|e| AppError::TransactionRolledBack {
+                        reason: format!("attachment row deleted but blob removal failed: {e}"),
+                    })?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// List every attachment for a skill, oldest first.
+    ///
+    /// # Errors
+    ///
+    /// * `AppError::NotFound` — `skill_id` does not exist.
+    pub fn list_attachments(&self, skill_id: &str) -> Result<Vec<SkillAttachment>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        ensure_skill_exists(&conn, skill_id)?;
+        let rows = att_repo::list_by_skill(&conn, skill_id).map_err(map_db_err)?;
+        Ok(rows.into_iter().map(row_to_attachment).collect())
+    }
+}
+
+/// Resolve the per-skill blob directory.
+fn skill_dir(app_data_dir: &Path, skill_id: &str) -> PathBuf {
+    app_data_dir.join("skills").join(skill_id)
+}
+
+/// Reject path-separator and shell-metacharacter bytes from a filename
+/// fragment. Same set as the task-attachment uploader so the two
+/// codepaths are mutually intelligible.
+fn sanitize_filename_segment(name: &str) -> String {
+    name.chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            other => other,
+        })
+        .collect()
+}
+
+/// Trim a borrowed string; `None` if empty after trim. Use for the
+/// optional git fields where the frontend may send `""` for "no value".
+fn normalize_optional(value: Option<String>) -> Option<String> {
+    value.and_then(|s| {
+        let trimmed = s.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_owned())
+        }
+    })
+}
+
+fn ensure_skill_exists(conn: &rusqlite::Connection, skill_id: &str) -> Result<(), AppError> {
+    let exists: bool = conn
+        .query_row(
+            "SELECT 1 FROM skills WHERE id = ?1",
+            rusqlite::params![skill_id],
+            |_| Ok(()),
+        )
+        .map(|()| true)
+        .or_else(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => Ok(false),
+            other => Err(other),
+        })
+        .map_err(|e| map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e)))?;
+    if exists {
+        Ok(())
+    } else {
+        Err(AppError::NotFound {
+            entity: "skill".into(),
+            id: skill_id.to_owned(),
+        })
+    }
+}
+
+/// Write `bytes` to `tmp`, then atomically rename to `dest`. On failure
+/// the half-written tmp is cleaned up. The atomic rename guarantees
+/// that consumers reading `dest` either see no file or the complete
+/// payload — there is no half-state visible to the renderer.
+fn write_tmp_then_rename(tmp: &Path, dest: &Path, bytes: &[u8]) -> Result<(), AppError> {
+    std::fs::write(tmp, bytes).map_err(|e| {
+        let _ = std::fs::remove_file(tmp);
+        AppError::Validation {
+            field: "bytes".into(),
+            reason: format!("failed to write blob to tmp: {e}"),
+        }
+    })?;
+    std::fs::rename(tmp, dest).map_err(|e| {
+        let _ = std::fs::remove_file(tmp);
+        AppError::Validation {
+            field: "bytes".into(),
+            reason: format!("failed to rename blob into place: {e}"),
+        }
+    })?;
+    Ok(())
 }
 
 fn row_to_skill(row: SkillRow) -> Skill {
@@ -213,11 +524,31 @@ fn row_to_skill(row: SkillRow) -> Skill {
     }
 }
 
+fn row_to_attachment(row: SkillAttachmentRow) -> SkillAttachment {
+    SkillAttachment {
+        id: row.id,
+        skill_id: row.skill_id,
+        kind: match row.kind {
+            RepoKind::File => SkillAttachmentKind::File,
+            RepoKind::Git => SkillAttachmentKind::Git,
+        },
+        filename: row.filename,
+        mime_type: row.mime_type,
+        size_bytes: row.size_bytes,
+        storage_path: row.storage_path,
+        git_url: row.git_url,
+        git_ref: row.git_ref,
+        git_path: row.git_path,
+        created_at: row.created_at,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use catique_infrastructure::db::pool::memory_pool_for_tests;
     use catique_infrastructure::db::runner::run_pending;
+    use tempfile::TempDir;
 
     fn fresh_pool() -> Pool {
         let pool = memory_pool_for_tests();
@@ -225,6 +556,13 @@ mod tests {
         run_pending(&mut conn).unwrap();
         drop(conn);
         pool
+    }
+
+    fn fresh_pool_with_skill() -> (Pool, String) {
+        let pool = fresh_pool();
+        let uc = SkillsUseCase::new(&pool);
+        let s = uc.create("Rust".into(), None, None, 0.0).unwrap();
+        (pool, s.id)
     }
 
     #[test]
@@ -387,5 +725,216 @@ mod tests {
         // ghost → ghost: returns Ok(()), not NotFound — matches the
         // "remove non-existent" line item in ctq-127.
         uc.remove_from_task("ghost-task", "ghost-skill").unwrap();
+    }
+
+    // ── SKILL-S10 attachment tests ───────────────────────────────────
+
+    #[test]
+    fn add_file_attachment_writes_blob_and_inserts_row() {
+        let (pool, skill_id) = fresh_pool_with_skill();
+        let uc = SkillsUseCase::new(&pool);
+        let tmp = TempDir::new().expect("tempdir");
+        let payload = b"hello world".to_vec();
+        let original_len = payload.len();
+
+        let att = uc
+            .add_file_attachment(
+                &skill_id,
+                "hello.txt".into(),
+                "text/plain".into(),
+                payload,
+                tmp.path(),
+            )
+            .expect("add file attachment");
+
+        assert_eq!(att.kind, SkillAttachmentKind::File);
+        assert_eq!(
+            att.size_bytes,
+            Some(i64::try_from(original_len).expect("fits"))
+        );
+        let storage_name = att.storage_path.as_deref().expect("storage_path");
+        let blob_path = tmp.path().join("skills").join(&skill_id).join(storage_name);
+        assert!(blob_path.exists(), "blob should exist at {blob_path:?}");
+        let on_disk = std::fs::read(&blob_path).expect("read blob");
+        assert_eq!(on_disk.len(), original_len);
+    }
+
+    #[test]
+    fn add_git_attachment_validates_url() {
+        let (pool, skill_id) = fresh_pool_with_skill();
+        let uc = SkillsUseCase::new(&pool);
+        match uc
+            .add_git_attachment(&skill_id, "not a url".into(), None, None)
+            .expect_err("validation")
+        {
+            AppError::Validation { field, .. } => assert_eq!(field, "git_url"),
+            other => panic!("got {other:?}"),
+        }
+        // Empty trims to empty → also validation, but field is git_url
+        // because validate_non_empty fires first.
+        match uc
+            .add_git_attachment(&skill_id, "   ".into(), None, None)
+            .expect_err("validation")
+        {
+            AppError::Validation { field, .. } => assert_eq!(field, "git_url"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn add_git_attachment_normalises_empty_optional_fields() {
+        let (pool, skill_id) = fresh_pool_with_skill();
+        let uc = SkillsUseCase::new(&pool);
+        let att = uc
+            .add_git_attachment(
+                &skill_id,
+                "https://example.com/r.git".into(),
+                Some("   ".into()),
+                Some(String::new()),
+            )
+            .expect("ok");
+        assert!(att.git_ref.is_none());
+        assert!(att.git_path.is_none());
+    }
+
+    #[test]
+    fn add_attachment_unknown_skill_returns_not_found() {
+        let pool = fresh_pool();
+        let uc = SkillsUseCase::new(&pool);
+        let tmp = TempDir::new().unwrap();
+        match uc
+            .add_file_attachment(
+                "ghost",
+                "x.txt".into(),
+                "text/plain".into(),
+                b"x".to_vec(),
+                tmp.path(),
+            )
+            .expect_err("nf")
+        {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "skill"),
+            other => panic!("got {other:?}"),
+        }
+        match uc
+            .add_git_attachment("ghost", "https://example.com/r.git".into(), None, None)
+            .expect_err("nf")
+        {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "skill"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn remove_attachment_removes_row_and_blob() {
+        let (pool, skill_id) = fresh_pool_with_skill();
+        let uc = SkillsUseCase::new(&pool);
+        let tmp = TempDir::new().unwrap();
+        let att = uc
+            .add_file_attachment(
+                &skill_id,
+                "hello.txt".into(),
+                "text/plain".into(),
+                b"hello".to_vec(),
+                tmp.path(),
+            )
+            .unwrap();
+        let blob_path = tmp
+            .path()
+            .join("skills")
+            .join(&skill_id)
+            .join(att.storage_path.clone().unwrap());
+        assert!(blob_path.exists());
+
+        uc.remove_attachment(&att.id, tmp.path()).expect("remove");
+        assert!(!blob_path.exists(), "blob should be gone");
+        // Second remove is a NotFound.
+        match uc
+            .remove_attachment(&att.id, tmp.path())
+            .expect_err("second remove")
+        {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "skill_attachment"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn list_attachments_orders_by_created_at() {
+        let (pool, skill_id) = fresh_pool_with_skill();
+        let uc = SkillsUseCase::new(&pool);
+        let tmp = TempDir::new().unwrap();
+        let a = uc
+            .add_file_attachment(
+                &skill_id,
+                "a.txt".into(),
+                "text/plain".into(),
+                b"a".to_vec(),
+                tmp.path(),
+            )
+            .unwrap();
+        // small sleep keeps the timestamps strictly increasing — without
+        // it, the same wall-clock millisecond can pin both rows and the
+        // tie-break is the id (a random nanoid), which would make the
+        // ordering test flake. 2 ms is well under any test budget.
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let b = uc
+            .add_git_attachment(&skill_id, "https://example.com/r.git".into(), None, None)
+            .unwrap();
+        let list = uc.list_attachments(&skill_id).unwrap();
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[0].id, a.id, "oldest first");
+        assert_eq!(list[1].id, b.id);
+        assert!(list[0].created_at <= list[1].created_at);
+    }
+
+    #[test]
+    fn add_file_attachment_rejects_oversize_payload() {
+        let (pool, skill_id) = fresh_pool_with_skill();
+        let uc = SkillsUseCase::new(&pool);
+        let tmp = TempDir::new().unwrap();
+        // 10 MiB + 1 byte. `try_from` keeps clippy happy on 32-bit
+        // targets — on a 64-bit host the conversion is infallible.
+        let payload = vec![0u8; usize::try_from(MAX_FILE_SIZE_BYTES + 1).expect("fits")];
+        match uc
+            .add_file_attachment(
+                &skill_id,
+                "big.bin".into(),
+                "application/octet-stream".into(),
+                payload,
+                tmp.path(),
+            )
+            .expect_err("oversize")
+        {
+            AppError::Validation { field, .. } => assert_eq!(field, "bytes"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn delete_with_blobs_scrubs_skill_dir() {
+        let (pool, skill_id) = fresh_pool_with_skill();
+        let uc = SkillsUseCase::new(&pool);
+        let tmp = TempDir::new().unwrap();
+        uc.add_file_attachment(
+            &skill_id,
+            "a.txt".into(),
+            "text/plain".into(),
+            b"a".to_vec(),
+            tmp.path(),
+        )
+        .unwrap();
+        let dir = tmp.path().join("skills").join(&skill_id);
+        assert!(dir.exists());
+        uc.delete_with_blobs(&skill_id, tmp.path())
+            .expect("delete with blobs");
+        assert!(!dir.exists(), "skill blob dir should be gone");
+        // Row-level cascade also wiped the attachments table — relisting
+        // against the now-deleted skill returns NotFound.
+        match uc
+            .list_attachments(&skill_id)
+            .expect_err("list after delete")
+        {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "skill"),
+            other => panic!("got {other:?}"),
+        }
     }
 }

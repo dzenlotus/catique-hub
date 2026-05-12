@@ -35,6 +35,16 @@ serde_json.workspace = true
 # mpsc channels and a Tokio runtime to spawn the background task.
 tokio = { workspace = true, features = ["sync", "rt", "macros", "time"] }
 
+# SKILL-S10: validate git-attachment URLs at the use-case boundary so
+# the same check fires regardless of the caller (IPC handler, future
+# CLI, integration test). See SkillsUseCase::add_git_attachment.
+url.workspace = true
+
+# SKILL-S10: collision-safe storage-id prefix for blob filenames. Same
+# alphabet as `infrastructure::repositories::util::new_id` so the IDs
+# stay readable across the codebase.
+nanoid.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros", "time", "rt-multi-thread"] }

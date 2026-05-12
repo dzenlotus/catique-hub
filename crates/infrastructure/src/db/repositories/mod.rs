@@ -24,6 +24,7 @@ pub mod prompts;
 pub mod roles;
 pub mod search;
 pub mod settings;
+pub mod skill_attachments;
 pub mod skills;
 pub mod spaces;
 pub mod tags;

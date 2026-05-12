@@ -83,6 +83,16 @@ tauri-build = { version = "2.5", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
 
+# SKILL-S10: URL parsing for git-attachment validation. Already in the
+# lockfile transitively (via tauri / reqwest); promoting to a direct
+# workspace dep keeps the validator visible at the crate boundary.
+url = "2"
+
+# SKILL-S10: base64 decode for file-blob IPC payloads (the frontend
+# sends raw bytes wrapped in base64). 0.22 = current LTS line; already
+# present transitively via reqwest.
+base64 = "0.22"
+
 # Test helpers — not pulled into production binaries.
 tempfile = "3"
 

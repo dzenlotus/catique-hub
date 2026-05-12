@@ -226,14 +226,18 @@ pub fn run() {
             handlers::roles::remove_role_skill,
             handlers::roles::set_role_prompts,
             handlers::roles::update_role,
-            // ---------------- skills (E2.x + ctq-117 + ctq-127) ----------------
+            // ---------------- skills (E2.x + ctq-117 + ctq-127 + SKILL-S10) ----------------
+            handlers::skills::add_skill_file_attachment,
+            handlers::skills::add_skill_git_attachment,
             handlers::skills::add_task_skill,
             handlers::skills::create_skill,
             handlers::skills::delete_skill,
             handlers::skills::get_skill,
             handlers::skills::list_role_skills,
+            handlers::skills::list_skill_attachments,
             handlers::skills::list_skills,
             handlers::skills::list_task_skills,
+            handlers::skills::remove_skill_attachment,
             handlers::skills::remove_task_skill,
             handlers::skills::update_skill,
             // ---------------- mcp tools (E2.x + ctq-117 + ctq-127) ----------------

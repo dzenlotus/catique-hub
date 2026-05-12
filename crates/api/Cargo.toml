@@ -58,12 +58,11 @@ once_cell = "1.21"
 # util::new_id() so the id alphabet is consistent across the codebase.
 nanoid.workspace = true
 
-# ctq-110 (`upload_attachment_blob`): MCP agents publish attachment
-# bodies as base64-encoded JSON strings (binary IPC payloads aren't
-# part of Tauri's serde contract). The crate is small, audited, and
-# 0.22 is the version the rest of the dependency graph already pulls
-# in transitively (verified in Cargo.lock). Caret-allowed because the
-# decoder is a stable interface — no schema impact.
+# ctq-110 (`upload_attachment_blob`) + SKILL-S10 (skill file
+# attachments): both decode base64-encoded blob payloads coming over
+# IPC. The crate is small, audited, and 0.22 is the version the rest
+# of the dependency graph already pulls in transitively. Caret-allowed
+# because the decoder is a stable interface — no schema impact.
 base64 = "0.22"
 
 # ctq-112 (mcp_bridge): the bridge dispatches MCP `tools/call` onto
@@ -73,8 +72,8 @@ base64 = "0.22"
 tokio = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]
-# ctq-110: handler-level tests stand up a temp data root + in-memory
-# DB pool to exercise the full upload path without spinning up Tauri.
+# ctq-110 + SKILL-S10: handler-level tests stand up a temp data root
+# + in-memory DB pool to exercise the upload path without Tauri.
 tempfile.workspace = true
 
 [lints.clippy]

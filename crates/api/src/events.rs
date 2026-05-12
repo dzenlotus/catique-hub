@@ -115,6 +115,18 @@ pub const SKILL_CREATED: &str = "skill:created";
 pub const SKILL_UPDATED: &str = "skill:updated";
 /// `skill:deleted` — payload `{ id }`.
 pub const SKILL_DELETED: &str = "skill:deleted";
+/// `skill:attachment_added` — payload `{ skillId, attachmentId }`.
+///
+/// SKILL-S10. Fires after a successful `add_skill_file_attachment` or
+/// `add_skill_git_attachment` IPC call so the role-file renderer can
+/// rebuild without polling the list endpoint.
+pub const SKILL_ATTACHMENT_ADDED: &str = "skill:attachment_added";
+/// `skill:attachment_removed` — payload `{ skillId, attachmentId }`.
+///
+/// SKILL-S10. Fires after a successful `remove_skill_attachment` IPC
+/// call. The payload mirrors `attachment_added` so a single listener
+/// can dedupe and refresh both adds and removes.
+pub const SKILL_ATTACHMENT_REMOVED: &str = "skill:attachment_removed";
 
 /// `mcp_tool:created` — payload `{ id }`.
 pub const MCP_TOOL_CREATED: &str = "mcp_tool:created";
@@ -262,6 +274,8 @@ mod tests {
             SKILL_CREATED,
             SKILL_UPDATED,
             SKILL_DELETED,
+            SKILL_ATTACHMENT_ADDED,
+            SKILL_ATTACHMENT_REMOVED,
             MCP_TOOL_CREATED,
             MCP_TOOL_UPDATED,
             MCP_TOOL_DELETED,

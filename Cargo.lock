@@ -486,6 +486,7 @@ dependencies = [
  "catique-clients",
  "catique-domain",
  "catique-infrastructure",
+ "nanoid",
  "rusqlite",
  "serde",
  "serde_json",
@@ -493,6 +494,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "ts-rs",
+ "url",
 ]
 
 [[package]]
