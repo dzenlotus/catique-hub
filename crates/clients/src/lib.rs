@@ -246,6 +246,7 @@ pub trait ClientProvider: Send + Sync {
 pub fn all_providers() -> Vec<Box<dyn ClientProvider>> {
     vec![
         Box::new(adapters::claude_code::ClaudeCodeProvider),
+        Box::new(adapters::claude_desktop::ClaudeDesktopProvider),
         Box::new(adapters::codex::CodexProvider),
         Box::new(adapters::opencode::OpenCodeProvider),
     ]

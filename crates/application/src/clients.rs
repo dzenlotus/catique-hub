@@ -381,16 +381,28 @@ mod tests {
     }
 
     #[test]
-    fn list_supported_returns_three_providers() {
+    fn list_supported_returns_four_providers() {
         let pool = fresh_pool();
         let uc = ConnectedProvidersUseCase::new(&pool);
         let supported = uc.list_supported();
         let ids: Vec<&str> = supported.iter().map(|p| p.id.as_str()).collect();
-        assert_eq!(ids, vec!["claude-code", "codex", "opencode"]);
+        assert_eq!(
+            ids,
+            vec!["claude-code", "claude-desktop", "codex", "opencode"]
+        );
+        // Every provider supports MCP. Agent-files support is true for
+        // claude-code / codex / opencode and false for claude-desktop
+        // (MCP-only — Anthropic's desktop app reads prompts from app
+        // state, not from on-disk files).
         for p in &supported {
-            assert!(p.supports_agent_files);
             assert!(p.supports_mcp);
         }
+        let with_agent_files: Vec<&str> = supported
+            .iter()
+            .filter(|p| p.supports_agent_files)
+            .map(|p| p.id.as_str())
+            .collect();
+        assert_eq!(with_agent_files, vec!["claude-code", "codex", "opencode"]);
     }
 
     #[tokio::test]

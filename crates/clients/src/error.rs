@@ -40,6 +40,13 @@ pub enum ProviderError {
     /// alone and surface a clear "manual cleanup needed" message.
     #[error("provider state malformed: {0}")]
     Malformed(String),
+
+    /// Provider is known but not distributed for the current platform
+    /// or environment (e.g. Claude Desktop on Linux, where Anthropic
+    /// does not ship a build). Distinct from `HomeDirUnavailable`:
+    /// the abstraction is sound, the integration target is missing.
+    #[error("provider unsupported on this platform: {0}")]
+    Unsupported(String),
 }
 
 /// Compile-time guard that `ProviderError` is `Send + Sync` so the
