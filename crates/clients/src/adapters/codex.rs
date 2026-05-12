@@ -284,6 +284,7 @@ mod tests {
             content: format!("Body of {slug}"),
             prompts: vec![],
             mcp_tools: vec![],
+            skills: vec![],
         }
     }
 

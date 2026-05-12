@@ -25,14 +25,18 @@
 
 use std::sync::Arc;
 
-use catique_clients::{McpEntry, ResolvedMcpTool, ResolvedPrompt, ResolvedRole, RoleBundle};
+use catique_clients::{
+    McpEntry, ResolvedMcpTool, ResolvedPrompt, ResolvedRole, ResolvedSkill, RoleBundle,
+};
 use catique_domain::{SyncState, SyncStatus};
 use catique_infrastructure::db::pool::{acquire, Pool};
 use catique_infrastructure::db::repositories::{
     mcp_servers as servers_repo,
     mcp_tools::{self as tools_repo, McpToolRow, McpToolSourceRow},
+    skills as skills_repo,
 };
 use std::collections::HashMap;
+use std::path::PathBuf;
 use tokio::sync::{broadcast, mpsc, watch, Mutex};
 
 use crate::clients::ConnectedProvidersUseCase;
@@ -222,6 +226,13 @@ fn drain_pending(rx: &mut mpsc::UnboundedReceiver<SyncTrigger>) {
 /// the trait surface accepts whatever resolved shape we hand it.
 fn build_bundle(pool: &Pool) -> Result<RoleBundle, AppError> {
     let conn = acquire(pool).map_err(map_db_err)?;
+    // Resolve `<app_data_dir>/skills/` once up front so per-skill
+    // attachment paths share the same root. Falls back to a relative
+    // `./skills/` segment when the platform's data-local-dir is
+    // unavailable — the renderer ships whatever path we hand it and
+    // a relative segment is more debuggable than an empty string.
+    let skills_root = catique_infrastructure::paths::app_data_dir()
+        .map_or_else(|_| PathBuf::from("skills"), |p| p.join("skills"));
     let mut stmt = conn
         .prepare(
             "SELECT id, name, content FROM roles \
@@ -293,6 +304,28 @@ fn build_bundle(pool: &Pool) -> Result<RoleBundle, AppError> {
             });
         }
 
+        // SKILL-S11: every skill attached to the role becomes a
+        // `<skill>` block in the rendered file. The skill row itself
+        // (name + description) is sourced from the existing `skills`
+        // table; per-skill attachments are resolved in
+        // `resolve_skill_attachments` against the
+        // `<app_data_dir>/skills/<skill_id>/` layout SKILL-S10 commits.
+        let skill_rows = skills_repo::list_for_role(&conn, &id).map_err(|e| {
+            AppError::TransactionRolledBack {
+                reason: format!("orchestrator skill query for role {id}: {e}"),
+            }
+        })?;
+        let mut skills = Vec::with_capacity(skill_rows.len());
+        for srow in skill_rows {
+            let attachments = resolve_skill_attachments(&conn, &srow.id, &skills_root)?;
+            skills.push(ResolvedSkill {
+                id: srow.id,
+                name: srow.name,
+                description: srow.description,
+                attachments,
+            });
+        }
+
         roles.push(ResolvedRole {
             slug: slugify(&name, &id),
             id,
@@ -300,6 +333,7 @@ fn build_bundle(pool: &Pool) -> Result<RoleBundle, AppError> {
             content,
             prompts,
             mcp_tools,
+            skills,
         });
     }
 
@@ -307,6 +341,36 @@ fn build_bundle(pool: &Pool) -> Result<RoleBundle, AppError> {
         roles,
         mcp: Some(default_mcp_entry()),
     })
+}
+
+/// Resolve every attachment row for a single skill into the
+/// `ResolvedSkillAttachment` shape the renderer consumes (SKILL-S11).
+///
+/// Paired with SKILL-S10 which lands the `skill_attachments` schema +
+/// repository (`crates/infrastructure/src/db/repositories/skill_attachments.rs`).
+/// Until that commit merges this resolver returns an empty `Vec` —
+/// `build_bundle` still emits the `<skill>` block (description alone is
+/// useful to the agent), and the integration test exercises the
+/// renderer by constructing `RoleBundle` instances directly.
+///
+/// Post-merge cherry-pick wires the query:
+///
+/// ```text
+/// let rows = skill_attachments::list_for_skill(conn, skill_id)?;
+/// // map each row → ResolvedSkillAttachment with
+/// // absolute_path = skills_root.join(skill_id).join(storage_path)
+/// ```
+///
+/// `_skills_root` and `_conn` are kept on the signature so the
+/// cherry-pick is a body-only edit; clippy is silenced via the leading
+/// underscores.
+#[allow(clippy::unnecessary_wraps)]
+fn resolve_skill_attachments(
+    _conn: &rusqlite::Connection,
+    _skill_id: &str,
+    _skills_root: &std::path::Path,
+) -> Result<Vec<catique_clients::ResolvedSkillAttachment>, AppError> {
+    Ok(Vec::new())
 }
 
 /// Resolve the qualified name an `<mcp-tool>` block uses for an

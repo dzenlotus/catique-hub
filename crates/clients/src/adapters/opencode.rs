@@ -214,6 +214,7 @@ mod tests {
                 content: "Be thorough.".into(),
                 prompts: vec![],
                 mcp_tools: vec![],
+                skills: vec![],
             }],
             mcp: None,
         };

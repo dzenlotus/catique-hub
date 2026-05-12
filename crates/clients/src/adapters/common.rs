@@ -19,7 +19,8 @@ use std::path::Path;
 use tokio::io::AsyncWriteExt;
 
 use crate::{
-    ProviderError, ResolvedMcpTool, ResolvedRole, CATIQUE_FILE_PREFIX, CATIQUE_MANAGED_KEY,
+    ProviderError, ResolvedMcpTool, ResolvedRole, ResolvedSkill, ResolvedSkillAttachment,
+    ResolvedSkillAttachmentKind, CATIQUE_FILE_PREFIX, CATIQUE_MANAGED_KEY,
 };
 
 /// Resolve the user's home directory or surface a typed error.
@@ -125,6 +126,15 @@ pub(crate) fn render_md_agent(role: &ResolvedRole, now_ms: i64) -> String {
         out.push_str(&render_mcp_tool_blocks(&role.mcp_tools));
     }
 
+    // SKILL-S11: per-skill `<skill>` blocks rendered after the
+    // `<mcp-tool>` section. Stable position so file diffs stay readable
+    // across syncs; alphabetical ordering by skill name handled inside
+    // the renderer.
+    if !role.skills.is_empty() {
+        out.push('\n');
+        out.push_str(&render_skill_blocks(&role.skills));
+    }
+
     out
 }
 
@@ -178,6 +188,139 @@ pub(crate) fn render_mcp_tool_blocks(tools: &[ResolvedMcpTool]) -> String {
         out.push_str("</mcp-tool>\n");
     }
     out
+}
+
+/// Render every attached skill as a `<skill>` block (SKILL-S11), sorted
+/// alphabetically by `name` for deterministic round-trips. Per-skill
+/// attachments are sorted alphabetically by `filename` (File kind) then
+/// `git_url` (Git kind) so file diffs stay readable across syncs.
+///
+/// Format:
+///
+/// ```xml
+/// <skill name="bash-runner">
+///   <description>Execute bash commands locally</description>
+///   <file path="/abs/path/to/run.sh" filename="run.sh" mime="text/x-shellscript" />
+///   <git url="https://github.com/user/repo" ref="main" path="scripts/run.sh" />
+/// </skill>
+/// ```
+///
+/// Rules:
+///
+/// * One `<skill>` block per skill — even when `attachments` is empty,
+///   the `<description>` alone carries useful context to the agent.
+/// * `<description>` is always emitted (empty body when None / blank)
+///   so the block shape is uniform.
+/// * `<file>` is self-closing; `path` / `filename` / `mime` attributes
+///   are emitted only when the corresponding field is `Some` so the
+///   output stays terse.
+/// * `<git>` is self-closing; `url` is required, `ref` and `path` are
+///   conditional. Emitting an empty attribute would be noisy.
+/// * Every attribute value is run through [`xml_escape_attr`]; the
+///   description body through [`xml_escape_text`].
+///
+/// Returns an empty string when `skills` is empty — the caller skips
+/// the leading newline in that case.
+pub(crate) fn render_skill_blocks(skills: &[ResolvedSkill]) -> String {
+    use std::fmt::Write as _;
+
+    if skills.is_empty() {
+        return String::new();
+    }
+    // Alphabetical by name — diff-stable across syncs.
+    let mut sorted: Vec<&ResolvedSkill> = skills.iter().collect();
+    sorted.sort_by(|a, b| a.name.cmp(&b.name));
+
+    let mut out = String::new();
+    for skill in sorted {
+        let name = xml_escape_attr(&skill.name);
+        let _ = writeln!(out, "<skill name=\"{name}\">");
+        let description = skill.description.as_deref().unwrap_or("");
+        let _ = writeln!(
+            out,
+            "  <description>{}</description>",
+            xml_escape_text(description)
+        );
+
+        // Alphabetical sort key per attachment: filename for File kind,
+        // git_url for Git kind. Falls back to id so identical filenames
+        // (or missing keys) stay deterministic.
+        let mut atts: Vec<&ResolvedSkillAttachment> = skill.attachments.iter().collect();
+        atts.sort_by(|a, b| {
+            let key_a = attachment_sort_key(a);
+            let key_b = attachment_sort_key(b);
+            key_a.cmp(&key_b)
+        });
+        for att in atts {
+            match att.kind {
+                ResolvedSkillAttachmentKind::File => {
+                    let line = render_file_attachment(att);
+                    if !line.is_empty() {
+                        let _ = writeln!(out, "  {line}");
+                    }
+                }
+                ResolvedSkillAttachmentKind::Git => {
+                    let line = render_git_attachment(att);
+                    if !line.is_empty() {
+                        let _ = writeln!(out, "  {line}");
+                    }
+                }
+            }
+        }
+
+        out.push_str("</skill>\n");
+    }
+    out
+}
+
+/// Build the alphabetical sort key for a `ResolvedSkillAttachment`.
+/// File kind keys on `filename`; Git kind keys on `git_url`. Falls back
+/// to `id` for missing fields so the order is total.
+fn attachment_sort_key(att: &ResolvedSkillAttachment) -> String {
+    match att.kind {
+        ResolvedSkillAttachmentKind::File => att.filename.clone().unwrap_or_else(|| att.id.clone()),
+        ResolvedSkillAttachmentKind::Git => att.git_url.clone().unwrap_or_else(|| att.id.clone()),
+    }
+}
+
+/// Render a `<file …/>` self-closing element. Skips emission entirely
+/// when none of `absolute_path` / `filename` / `mime_type` is set — a
+/// completely empty `<file/>` element would carry no actionable info
+/// for the agent.
+fn render_file_attachment(att: &ResolvedSkillAttachment) -> String {
+    use std::fmt::Write as _;
+    let mut attrs = String::new();
+    if let Some(path) = &att.absolute_path {
+        let _ = write!(attrs, " path=\"{}\"", xml_escape_attr(path));
+    }
+    if let Some(filename) = &att.filename {
+        let _ = write!(attrs, " filename=\"{}\"", xml_escape_attr(filename));
+    }
+    if let Some(mime) = &att.mime_type {
+        let _ = write!(attrs, " mime=\"{}\"", xml_escape_attr(mime));
+    }
+    if attrs.is_empty() {
+        return String::new();
+    }
+    format!("<file{attrs} />")
+}
+
+/// Render a `<git …/>` self-closing element. Skips emission entirely
+/// when `git_url` is missing — a `<git>` element without a URL has no
+/// way for the agent to resolve the reference.
+fn render_git_attachment(att: &ResolvedSkillAttachment) -> String {
+    use std::fmt::Write as _;
+    let Some(url) = &att.git_url else {
+        return String::new();
+    };
+    let mut attrs = format!(" url=\"{}\"", xml_escape_attr(url));
+    if let Some(git_ref) = &att.git_ref {
+        let _ = write!(attrs, " ref=\"{}\"", xml_escape_attr(git_ref));
+    }
+    if let Some(path) = &att.git_path {
+        let _ = write!(attrs, " path=\"{}\"", xml_escape_attr(path));
+    }
+    format!("<git{attrs} />")
 }
 
 /// XML-escape character data: `<`, `>`, `&` only. Quotes and
@@ -334,6 +477,7 @@ mod tests {
             content: "Review code carefully.".into(),
             prompts: vec![],
             mcp_tools: vec![],
+            skills: vec![],
         };
         let body = render_md_agent(&role, 1_700_000_000_000);
         assert!(body.contains("catique_managed: true"));
@@ -342,6 +486,8 @@ mod tests {
         assert!(body.contains("Review code carefully."));
         // No tools attached → no `<mcp-tool>` blocks rendered.
         assert!(!body.contains("<mcp-tool"));
+        // No skills attached → no `<skill>` blocks rendered.
+        assert!(!body.contains("<skill "));
     }
 
     #[test]
@@ -417,10 +563,211 @@ mod tests {
                 description: Some("Search code".into()),
                 input_schema_json: r#"{"type":"object"}"#.into(),
             }],
+            skills: vec![],
         };
         let body = render_md_agent(&role, 0);
         assert!(body.contains(r#"<mcp-tool server="catique" name="github.search">"#));
         assert!(body.contains("<description>Search code</description>"));
         assert!(body.contains(r#"<input-schema>{"type":"object"}</input-schema>"#));
+    }
+
+    // -- SKILL-S11 unit tests --------------------------------------
+
+    fn file_att(
+        id: &str,
+        filename: &str,
+        path: &str,
+        mime: Option<&str>,
+    ) -> ResolvedSkillAttachment {
+        ResolvedSkillAttachment {
+            id: id.into(),
+            kind: ResolvedSkillAttachmentKind::File,
+            filename: Some(filename.into()),
+            mime_type: mime.map(str::to_owned),
+            absolute_path: Some(path.into()),
+            git_url: None,
+            git_ref: None,
+            git_path: None,
+        }
+    }
+
+    fn git_att(
+        id: &str,
+        url: &str,
+        gref: Option<&str>,
+        path: Option<&str>,
+    ) -> ResolvedSkillAttachment {
+        ResolvedSkillAttachment {
+            id: id.into(),
+            kind: ResolvedSkillAttachmentKind::Git,
+            filename: None,
+            mime_type: None,
+            absolute_path: None,
+            git_url: Some(url.into()),
+            git_ref: gref.map(str::to_owned),
+            git_path: path.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn render_skill_blocks_empty_returns_empty_string() {
+        assert_eq!(render_skill_blocks(&[]), "");
+    }
+
+    #[test]
+    fn render_skill_blocks_sorts_alphabetically_by_name() {
+        let skills = vec![
+            ResolvedSkill {
+                id: "s-b".into(),
+                name: "bash-runner".into(),
+                description: Some("Run bash".into()),
+                attachments: vec![file_att(
+                    "a1",
+                    "run.sh",
+                    "/abs/skills/s-b/run.sh",
+                    Some("text/x-shellscript"),
+                )],
+            },
+            ResolvedSkill {
+                id: "s-a".into(),
+                name: "analytics".into(),
+                description: Some("Crunch numbers <fast>".into()),
+                attachments: vec![
+                    file_att(
+                        "a2",
+                        "report.py",
+                        "/abs/skills/s-a/report.py",
+                        Some("text/x-python"),
+                    ),
+                    git_att(
+                        "a3",
+                        "https://github.com/user/repo",
+                        Some("main"),
+                        Some("scripts/run.sh"),
+                    ),
+                ],
+            },
+        ];
+        let out = render_skill_blocks(&skills);
+
+        // Skill order: analytics before bash-runner.
+        let i_analytics = out.find(r#"<skill name="analytics">"#).unwrap();
+        let i_bash = out.find(r#"<skill name="bash-runner">"#).unwrap();
+        assert!(i_analytics < i_bash);
+
+        // XML escaping in description.
+        assert!(out.contains("Crunch numbers &lt;fast&gt;"));
+
+        // <file> + <git> children for analytics.
+        assert!(out.contains(
+            r#"<file path="/abs/skills/s-a/report.py" filename="report.py" mime="text/x-python" />"#
+        ));
+        assert!(out.contains(
+            r#"<git url="https://github.com/user/repo" ref="main" path="scripts/run.sh" />"#
+        ));
+
+        // bash-runner has one <file> child.
+        assert!(out.contains(
+            r#"<file path="/abs/skills/s-b/run.sh" filename="run.sh" mime="text/x-shellscript" />"#
+        ));
+
+        // Exactly two <skill> blocks.
+        assert_eq!(out.matches("<skill ").count(), 2);
+        assert_eq!(out.matches("</skill>").count(), 2);
+        // Every block carries a <description>.
+        assert_eq!(out.matches("<description>").count(), 2);
+    }
+
+    #[test]
+    fn render_skill_blocks_emits_block_when_attachments_empty() {
+        let skills = vec![ResolvedSkill {
+            id: "s".into(),
+            name: "lonely".into(),
+            description: None,
+            attachments: vec![],
+        }];
+        let out = render_skill_blocks(&skills);
+        // Description body is empty but the element is present.
+        assert!(out.contains(r#"<skill name="lonely">"#));
+        assert!(out.contains("<description></description>"));
+        assert!(out.contains("</skill>"));
+        assert!(!out.contains("<file"));
+        assert!(!out.contains("<git"));
+    }
+
+    #[test]
+    fn render_skill_blocks_omits_empty_git_attrs() {
+        let skills = vec![ResolvedSkill {
+            id: "s".into(),
+            name: "g".into(),
+            description: None,
+            attachments: vec![git_att("a", "https://example.com/r", None, None)],
+        }];
+        let out = render_skill_blocks(&skills);
+        assert!(out.contains(r#"<git url="https://example.com/r" />"#));
+        // No empty `ref=""` / `path=""` attributes leaked through.
+        assert!(!out.contains("ref=\"\""));
+        assert!(!out.contains("path=\"\""));
+    }
+
+    #[test]
+    fn render_skill_blocks_xml_escapes_url_and_path() {
+        let skills = vec![ResolvedSkill {
+            id: "s".into(),
+            name: "tricky".into(),
+            description: None,
+            attachments: vec![
+                file_att("a1", "a&b.sh", r#"/abs/skills/s/a"b.sh"#, None),
+                git_att("a2", "https://example.com/<x>", Some("v&w"), None),
+            ],
+        }];
+        let out = render_skill_blocks(&skills);
+        // Double-quote in path → `&quot;` per `xml_escape_attr`.
+        assert!(out.contains(r#"path="/abs/skills/s/a&quot;b.sh""#));
+        // Ampersand in filename.
+        assert!(out.contains(r#"filename="a&amp;b.sh""#));
+        // Angle bracket in git URL.
+        assert!(out.contains(r#"url="https://example.com/&lt;x&gt;""#));
+        // Ampersand in git ref.
+        assert!(out.contains(r#"ref="v&amp;w""#));
+    }
+
+    #[test]
+    fn render_md_agent_appends_skill_blocks_after_mcp_tools() {
+        let role = ResolvedRole {
+            id: "r-1".into(),
+            slug: "reviewer".into(),
+            name: "Code Reviewer".into(),
+            content: "Review code carefully.".into(),
+            prompts: vec![],
+            mcp_tools: vec![ResolvedMcpTool {
+                qualified_name: "github.search".into(),
+                description: Some("Search code".into()),
+                input_schema_json: r#"{"type":"object"}"#.into(),
+            }],
+            skills: vec![ResolvedSkill {
+                id: "s".into(),
+                name: "bash-runner".into(),
+                description: Some("Run bash".into()),
+                attachments: vec![file_att(
+                    "a",
+                    "run.sh",
+                    "/abs/skills/s/run.sh",
+                    Some("text/x-shellscript"),
+                )],
+            }],
+        };
+        let body = render_md_agent(&role, 0);
+        let i_mcp = body
+            .find("<mcp-tool")
+            .expect("mcp-tool block must be present");
+        let i_skill = body.find("<skill ").expect("skill block must be present");
+        assert!(
+            i_mcp < i_skill,
+            "skill blocks must appear after mcp-tool blocks; body:\n{body}",
+        );
+        assert!(body.contains(r#"<skill name="bash-runner">"#));
+        assert!(body.contains("<description>Run bash</description>"));
+        assert!(body.contains(r#"<file path="/abs/skills/s/run.sh""#));
     }
 }

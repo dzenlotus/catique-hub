@@ -76,6 +76,85 @@ pub struct ResolvedPrompt {
     pub content: String,
 }
 
+/// Kind discriminant for a [`ResolvedSkillAttachment`].
+///
+/// SKILL-S11: the two attachment flavours the renderer knows how to
+/// project into XML. `File` is a local path on the user's machine
+/// (resolved at bundle-build time from `<app_data_dir>/skills/<skill_id>/<storage_path>`);
+/// `Git` is metadata only — the agent decides how (if) to fetch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResolvedSkillAttachmentKind {
+    /// A file living under `<app_data_dir>/skills/<skill_id>/`.
+    File,
+    /// A git reference. Metadata-only; the renderer does NOT clone.
+    Git,
+}
+
+/// One skill attachment resolved for inclusion in a rendered role file
+/// (SKILL-S11).
+///
+/// Two shapes coexist behind one struct so the renderer can iterate a
+/// single `Vec`:
+///
+/// * `kind = File` → `filename` + `mime_type` + `absolute_path` MAY be
+///   set; `git_*` fields are `None`.
+/// * `kind = Git`  → `git_url` is set; `git_ref` / `git_path` MAY be
+///   set; `filename` / `mime_type` / `absolute_path` are `None`.
+///
+/// `absolute_path` is computed by the application layer at bundle-build
+/// time from `<app_data_dir>/skills/<skill_id>/<storage_path>` so the
+/// agent (running on the user's machine) can `read()` it without
+/// re-deriving the path itself.
+///
+/// NOTE: SKILL-S11 ships this shape ahead of SKILL-S10 (which adds the
+/// `skill_attachments` schema + IPC). Until SKILL-S10 lands the
+/// application layer populates `attachments: Vec::new()` and the
+/// integration test seeds the resolver layer directly. Post-merge
+/// cherry-pick wires the DB query; the renderer's XML format is the
+/// load-bearing contract.
+#[derive(Debug, Clone)]
+pub struct ResolvedSkillAttachment {
+    pub id: String,
+    pub kind: ResolvedSkillAttachmentKind,
+    /// File kind only. Display name shipped on the `filename=` attribute.
+    pub filename: Option<String>,
+    /// File kind only. RFC-6838 MIME, shipped on `mime=`.
+    pub mime_type: Option<String>,
+    /// File kind only. Absolute path on the user's machine, shipped on
+    /// `path=`.
+    pub absolute_path: Option<String>,
+    /// Git kind only. Shipped on the `url=` attribute.
+    pub git_url: Option<String>,
+    /// Git kind only. Shipped on the `ref=` attribute when present.
+    pub git_ref: Option<String>,
+    /// Git kind only. Shipped on the `path=` attribute when present
+    /// (subpath inside the repository).
+    pub git_path: Option<String>,
+}
+
+/// One skill resolved for inclusion in a rendered role file (SKILL-S11).
+///
+/// A skill is a named, optionally-described bundle of attachments
+/// (local files + git references) that an agent can read on demand.
+/// The renderer emits one `<skill>` block per skill regardless of
+/// whether `attachments` is empty — the description alone is useful to
+/// the agent.
+#[derive(Debug, Clone)]
+pub struct ResolvedSkill {
+    /// Stable skill id (DB primary key).
+    pub id: String,
+    /// Human-readable skill name. Rendered on the `name=` attribute
+    /// (XML-escaped).
+    pub name: String,
+    /// Optional one-line summary. Rendered into the `<description>`
+    /// child element (XML-escaped). Empty / None → empty
+    /// `<description></description>`.
+    pub description: Option<String>,
+    /// Attachments in resolver order. The renderer applies its own
+    /// alphabetical sort for diff-friendliness.
+    pub attachments: Vec<ResolvedSkillAttachment>,
+}
+
 /// One MCP tool resolved for inclusion in a rendered role file under
 /// ADR-0008 (pass-through proxy).
 ///
@@ -120,6 +199,10 @@ pub struct ResolvedRole {
     /// blocks at the end of the agent file (ADR-0008 / ADR-0005
     /// round-21 amendment). Empty for roles with no tools.
     pub mcp_tools: Vec<ResolvedMcpTool>,
+    /// Skills attached to the role. Rendered as `<skill>` XML blocks
+    /// (SKILL-S11) appended after the `<mcp-tool>` section. Empty for
+    /// roles with no skills attached.
+    pub skills: Vec<ResolvedSkill>,
 }
 
 /// One MCP server entry destined for the catique-owned slot in a

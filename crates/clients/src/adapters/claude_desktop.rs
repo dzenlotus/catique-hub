@@ -45,8 +45,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     adapters::{claude_code::mutate_claude_json, common::home_dir},
-    ClientProvider, McpEntry, ProviderError, RemoveReport, RoleBundle, SyncReport,
-    CATIQUE_MCP_KEY,
+    ClientProvider, McpEntry, ProviderError, RemoveReport, RoleBundle, SyncReport, CATIQUE_MCP_KEY,
 };
 
 /// Provider for Anthropic's Claude Desktop app.

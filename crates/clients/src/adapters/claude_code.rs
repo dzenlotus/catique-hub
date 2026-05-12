@@ -340,6 +340,7 @@ mod tests {
                 content: "Use snake_case.".into(),
             }],
             mcp_tools: vec![],
+            skills: vec![],
         }
     }
 
