@@ -99,4 +99,13 @@ pub enum AppError {
     /// collision, not a request-shape issue).
     #[error("bad request: {reason}")]
     BadRequest { reason: String },
+
+    /// An upstream MCP server (reached via the pass-through proxy —
+    /// ADR-0008) failed to fulfil a `tools/call`. `kind` is the short
+    /// structured token (`transport` / `isError` / `timeout` / …),
+    /// `message` is the human-readable detail. Distinct from
+    /// `InternalPanic` because the failure is upstream, not in our
+    /// own handler.
+    #[error("upstream `{kind}`: {message}")]
+    Upstream { kind: String, message: String },
 }

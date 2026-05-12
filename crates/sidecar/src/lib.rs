@@ -337,6 +337,34 @@ impl SidecarManager {
         Ok(micros)
     }
 
+    /// Dispatch an outbound MCP tool call onto the Node side
+    /// (ADR-0008 / PROXY-S3). The Node sidecar owns the upstream
+    /// MCP client pool (`upstream-clients.js` in PROXY-S2); Rust
+    /// delegates to it via the existing supervisor `ipc_call`
+    /// channel using a stable method name `call_upstream`.
+    ///
+    /// `tool_name` is the qualified `{server_name}.{tool_name}` form
+    /// the external agent already saw in `tools/list`. Args are
+    /// passed through as opaque JSON.
+    ///
+    /// # Errors
+    ///
+    /// Forwards every [`SidecarError`] from [`Self::call_ipc`].
+    pub async fn call_upstream(
+        &self,
+        server_id: &str,
+        tool_name: &str,
+        args: Value,
+        timeout_dur: Duration,
+    ) -> Result<Value, SidecarError> {
+        let params = serde_json::json!({
+            "server_id": server_id,
+            "tool_name": tool_name,
+            "args": args,
+        });
+        self.call_ipc("call_upstream", params, timeout_dur).await
+    }
+
     /// Send a JSON-RPC request to the Node sidecar over the supervisor
     /// channel and resolve when the matching response arrives.
     ///

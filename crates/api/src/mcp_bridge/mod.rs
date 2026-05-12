@@ -39,23 +39,83 @@
 //! to attach to our stdio is already inside the trust boundary.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use catique_application::{
-    boards::BoardsUseCase, columns::ColumnsUseCase, tasks::TasksUseCase, AppError,
+    boards::BoardsUseCase,
+    columns::ColumnsUseCase,
+    mcp_proxy::{McpProxyUseCase, UpstreamCaller, UpstreamError},
+    tasks::TasksUseCase,
+    AppError,
 };
-use catique_infrastructure::db::pool::Pool;
-use catique_sidecar::{IpcHandler, SidecarManager};
+use catique_infrastructure::{
+    db::{
+        pool::{acquire, Pool},
+        repositories::mcp_servers as servers_repo,
+    },
+    secrets,
+};
+use catique_sidecar::{IpcHandler, SidecarError, SidecarManager};
 use serde_json::{json, Value};
 
+/// Wire timeout for one upstream MCP `tools/call`. Matches
+/// [`catique_application::mcp_proxy::DEFAULT_UPSTREAM_TIMEOUT`].
+const UPSTREAM_CALL_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Adapter that lets [`McpProxyUseCase`] reach the wire through the
+/// concrete `SidecarManager` without the application crate depending
+/// on `catique-sidecar`.
+struct SidecarUpstream {
+    mgr: SidecarManager,
+}
+
+impl UpstreamCaller for SidecarUpstream {
+    async fn call_upstream(
+        &self,
+        server_id: &str,
+        tool_name: &str,
+        args: Value,
+    ) -> Result<Value, UpstreamError> {
+        match self
+            .mgr
+            .call_upstream(server_id, tool_name, args, UPSTREAM_CALL_TIMEOUT)
+            .await
+        {
+            Ok(v) => {
+                // ADR-0008: Node side surfaces upstream-side `isError:
+                // true` by returning a payload of shape `{ "isError":
+                // true, "content": [...] }`. Detect it here so the
+                // proxy use case can categorise the failure.
+                if v.get("isError").and_then(Value::as_bool) == Some(true) {
+                    Err(UpstreamError::UpstreamIsError(v.to_string()))
+                } else {
+                    Ok(v)
+                }
+            }
+            Err(SidecarError::IpcTimeout(_)) => Err(UpstreamError::Timeout),
+            Err(other) => Err(UpstreamError::Transport(other.to_string())),
+        }
+    }
+}
+
 /// Install the MCP bridge handler onto `mgr`. The handler captures a
-/// cheap `Pool` clone and routes every `ipc_call` through [`dispatch`].
+/// cheap `Pool` clone and routes every `ipc_call` through [`dispatch`]
+/// (sync arms) or [`dispatch_async`] (the proxy arm that needs the
+/// wire).
 ///
 /// Idempotent: subsequent calls overwrite the previous handler.
 pub async fn install(mgr: &SidecarManager, pool: Pool) {
     let pool = Arc::new(pool);
+    let captured_mgr = mgr.clone();
     let handler: IpcHandler = Arc::new(move |method, params| {
         let pool = Arc::clone(&pool);
+        let mgr = captured_mgr.clone();
         Box::pin(async move {
+            // Async-first: the proxy arm needs the sidecar wire and
+            // therefore cannot live in the sync `spawn_blocking` path.
+            if method == "proxy_tool_call" {
+                return proxy_tool_call_arm(&pool, &mgr, params).await;
+            }
             // Use cases are sync (rusqlite is sync); offload onto a
             // blocking thread so the reader task can keep draining
             // stdout while a long DB call runs.
@@ -65,6 +125,24 @@ pub async fn install(mgr: &SidecarManager, pool: Pool) {
         })
     });
     mgr.set_ipc_handler(handler).await;
+}
+
+/// Async path for `proxy_tool_call`. Constructs a fresh
+/// [`McpProxyUseCase`] per call (the inner state is purely the pool +
+/// the upstream caller, both cheap to compose).
+async fn proxy_tool_call_arm(
+    pool: &Pool,
+    mgr: &SidecarManager,
+    params: Value,
+) -> Result<Value, String> {
+    let server_id = decode_string(&params, "server_id")?;
+    let tool_name = decode_string(&params, "tool_name")?;
+    let args = params.get("args").cloned().unwrap_or(json!({}));
+    let caller = SidecarUpstream { mgr: mgr.clone() };
+    McpProxyUseCase::new(pool, &caller)
+        .call(&server_id, &tool_name, args)
+        .await
+        .map_err(stringify_app)
 }
 
 /// Look up `method` in the dispatch table, decode `params`, run the
@@ -96,12 +174,54 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
             let columns = ColumnsUseCase::new(pool).list().map_err(stringify_app)?;
             json_or_err(&columns)
         }
+        "list_proxied_tools" => list_proxied_tools_arm(pool),
         "list_tasks" => {
             let tasks = TasksUseCase::new(pool).list().map_err(stringify_app)?;
             json_or_err(&tasks)
         }
+        "resolve_keychain" => resolve_keychain_arm(pool, &params),
         other => Err(format!("Unknown ipc_call method: {other}")),
     }
+}
+
+/// Internal supervisor-channel arm (Node → Rust): hand back the list
+/// of proxied tools the Node side should merge into its dynamic
+/// `tools/list` response. PROXY-S3 round 1 returns an empty list —
+/// PROXY-S4 wires `McpServersUseCase::list_proxied_tools` whose body
+/// joins `mcp_servers` × `mcp_tools` for `source = upstream AND
+/// enabled = 1 AND last_synced_at IS NOT NULL`.
+fn list_proxied_tools_arm(_pool: &Pool) -> Result<Value, String> {
+    // TODO(ctq-131 / PROXY-S4): replace with the real implementation.
+    Ok(json!([]))
+}
+
+/// Internal supervisor-channel arm (Node → Rust): resolve the secret
+/// referenced by `mcp_servers.auth_json` for `server_id`. The secret
+/// crosses the pipe exactly once per upstream call (ADR-0008 risk
+/// axis 1) and Node never caches.
+///
+/// Error path: missing keychain entry → `keychain_missing`; backend
+/// not wired yet → `not_implemented`. Strings are deliberate short
+/// tokens that the Node side can stuff into `isError` content
+/// without leaking the actual key.
+fn resolve_keychain_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let server_id = decode_string(params, "server_id")?;
+    let conn = acquire(pool).map_err(|e| format!("db acquire: {e}"))?;
+    let server = servers_repo::get_by_id(&conn, &server_id)
+        .map_err(|e| format!("db: {e}"))?
+        .ok_or_else(|| format!("not_found: mcp_server `{server_id}`"))?;
+    let auth_ref = secrets::AuthRef::parse(server.auth_json.as_deref())
+        .map_err(|e| format!("malformed_ref: {e}"))?
+        .ok_or_else(|| "no_auth_configured".to_owned())?;
+    let secret = secrets::resolve(&auth_ref).map_err(|e| match e {
+        secrets::SecretError::NotFound => "keychain_missing".to_owned(),
+        secrets::SecretError::NotImplemented(_) => "not_implemented".to_owned(),
+        secrets::SecretError::MalformedRef(m) => format!("malformed_ref: {m}"),
+    })?;
+    // The secret crosses the pipe in the response body. Node must
+    // use it once and forget — see `sidecar/upstream-clients.js`
+    // (PROXY-S2).
+    Ok(json!({ "secret": secret }))
 }
 
 /// Decode a required string field from the inbound `params` object.
