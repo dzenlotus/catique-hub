@@ -1,10 +1,18 @@
 # ADR-0007 — External MCP Server Registry vs Pass-Through Proxy (ctq-114)
 
-**Status:** Accepted
+> **⚠️ Superseded by [ADR-0008](ADR-0008-mcp-pass-through-proxy.md) on 2026-05-12.**
+> This ADR picked Option A (registry-only). The product model always required
+> Option B (pass-through proxy with create-time introspection). ADR-0008
+> records the corrected decision and the migration path. Do not implement
+> against this document; read it only for the trade-off history and the
+> `mcp_servers` schema sketch, which is reused unchanged.
+
+**Status:** Superseded by ADR-0008
 **Date:** 2026-05-05
+**Superseded:** 2026-05-12
 **Author:** tech-analyst agent
 **Roadmap item:** ctq-114
-**Unblocks:** ctq-115 (`mcp_servers` schema), ctq-126 (registry MCP tools)
+**Unblocks:** ctq-115 (`mcp_servers` schema — still valid), ctq-126 (registry MCP tools — rewritten under ADR-0008)
 
 ---
 
