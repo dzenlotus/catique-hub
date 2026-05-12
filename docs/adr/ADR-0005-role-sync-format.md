@@ -1,10 +1,45 @@
 # ADR-0005 — Role-file Sync: marker, format, attached-prompts handling (ctq-69)
 
-**Status:** Accepted
+**Status:** Accepted (round-21 amendment applied 2026-05-12)
 **Date:** 2026-05-01
 **Author:** Catique HUB team
 **Roadmap item:** ctq-69 (Roles sync — Catique Hub roles → agent files in connected clients)
 **Depends on:** ADR-0003 (Adapter Pattern), ADR-0004 (Instructions Editor)
+
+---
+
+## Round-21 amendment (2026-05-12)
+
+Under ADR-0008 (MCP pass-through proxy), the rendered role file
+gains a new section type: a **per-tool MCP block** for every tool
+attached to the role (whether via whole-MCP-server attachment or
+cherry-picked tool-level attachment).
+
+Each block carries only the metadata the LLM needs to invoke the
+tool through Catique HUB; the upstream MCP server is intentionally
+opaque to the role file (the agent only knows Catique HUB as its
+MCP endpoint).
+
+Sketch (final shape lives with the ctq-126 implementation):
+
+```xml
+<mcp-tool server="catique" name="atlassian.create_issue">
+  <description>Create a Jira issue …</description>
+  <input-schema>{ "type": "object", "properties": { … } }</input-schema>
+</mcp-tool>
+```
+
+The `name` attribute is the qualified `{server_name}.{tool_name}`
+the external MCP client sees in Catique's `tools/list`. Renaming an
+upstream tool flows through introspection and re-renders the role
+file on the next sync; the qualified name is stable as long as the
+upstream server's tool name is.
+
+ADR-0004 (`ClientInstructionsEditor`) was retired in round 21 — the
+instructions-editor concept and widget are gone end-to-end. The
+"Depends on: ADR-0004" line above is left for history only.
+
+Sections below preserve the original v1 framing.
 
 ---
 

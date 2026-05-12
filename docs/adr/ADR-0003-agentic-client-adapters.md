@@ -1,10 +1,36 @@
 # ADR-0003 — Agentic Client Adapter Pattern (ctq-67)
 
-**Status:** Accepted  
-**Date:** 2026-05-01  
-**Author:** Catique HUB team  
-**Roadmap item:** ctq-67 (Auto-discovery of installed agentic clients)  
+**Status:** Accepted (round-21 amendment applied 2026-05-12)
+**Date:** 2026-05-01
+**Author:** Catique HUB team
+**Roadmap item:** ctq-67 (Auto-discovery of installed agentic clients)
 **Unblocks:** ctq-68 (Global instructions editor), ctq-69 (Roles sync)
+
+---
+
+## Round-21 amendment (2026-05-12)
+
+Two changes against the original v1 plan:
+
+1. **Adapter set trimmed.** The v1 adapter list `{claude_code,
+   claude_desktop, cursor, qwen}` is reduced to `{claude_code, codex,
+   opencode}` — the three providers that ship BOTH managed agent files
+   AND managed MCP configuration. claude_desktop / cursor / qwen are
+   removed end-to-end on `crates/clients/src/adapters/*`. See the
+   round-21 Connected Providers commit and the deletions in
+   `crates/clients/src/adapters/`.
+
+2. **MCP configuration write-side now follows ADR-0008.** Under the
+   pass-through proxy model, the adapter's `write_mcp_config` method
+   (where it exists per provider) writes a **single** MCP server entry
+   pointing at Catique HUB's own sidecar — not one entry per upstream
+   server registered in Catique HUB. Upstream connections are HUB's
+   internal concern; the external agent's `mcp.json` (or equivalent)
+   sees only HUB. This is the inverse of the registry-only sketch
+   that ADR-0007 implied. The detail belongs to ctq-126; this banner
+   exists so a reader does not implement the wrong write shape.
+
+Sections below preserve the original v1 framing for history.
 
 ---
 
