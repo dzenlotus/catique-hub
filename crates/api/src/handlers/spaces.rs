@@ -58,6 +58,7 @@ pub async fn create_space(
     color: Option<String>,
     icon: Option<String>,
     is_default: bool,
+    project_folder_path: Option<String>,
 ) -> Result<Space, AppError> {
     let space = SpacesUseCase::new(&state.pool).create(CreateSpaceArgs {
         name,
@@ -66,6 +67,7 @@ pub async fn create_space(
         color,
         icon,
         is_default,
+        project_folder_path,
     })?;
     events::emit(&state, events::SPACE_CREATED, json!({ "id": space.id }));
     Ok(space)
@@ -91,6 +93,7 @@ pub async fn update_space(
     icon: Option<Option<String>>,
     is_default: Option<bool>,
     position: Option<f64>,
+    project_folder_path: Option<Option<String>>,
 ) -> Result<Space, AppError> {
     let space = SpacesUseCase::new(&state.pool).update(UpdateSpaceArgs {
         id,
@@ -100,6 +103,7 @@ pub async fn update_space(
         icon,
         is_default,
         position,
+        project_folder_path,
     })?;
     events::emit(&state, events::SPACE_UPDATED, json!({ "id": space.id }));
     Ok(space)

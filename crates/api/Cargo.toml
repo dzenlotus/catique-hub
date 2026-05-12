@@ -66,6 +66,12 @@ nanoid.workspace = true
 # decoder is a stable interface — no schema impact.
 base64 = "0.22"
 
+# ctq-112 (mcp_bridge): the bridge dispatches MCP `tools/call` onto
+# rusqlite-backed (sync) use-cases via `tokio::task::spawn_blocking` so
+# the sidecar reader task can keep draining stdout. We pull tokio with
+# only the `rt` feature — the runtime itself is owned by Tauri.
+tokio = { workspace = true, features = ["rt"] }
+
 [dev-dependencies]
 # ctq-110: handler-level tests stand up a temp data root + in-memory
 # DB pool to exercise the full upload path without spinning up Tauri.

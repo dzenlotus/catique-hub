@@ -65,7 +65,7 @@ fn upload_smoke_creates_metadata_row() {
     assert!(attachment.uploaded_by.is_none());
 
     // Confirm the row is findable via list.
-    let rows = uc.list().expect("list");
+    let rows = uc.list(None).expect("list");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].id, attachment.id);
 }

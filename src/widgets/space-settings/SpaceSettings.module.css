@@ -142,6 +142,19 @@
   width: fit-content;
 }
 
+/* ── Project folder + Reveal-in-Finder (round-21) ──────────────────── */
+
+.projectFolderRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-8);
+}
+
+.projectFolderInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* ── Empty / loading / error shells ──────────────────────────────── */
 
 .statusPanel {

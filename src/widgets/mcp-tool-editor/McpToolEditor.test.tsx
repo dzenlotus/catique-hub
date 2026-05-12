@@ -104,10 +104,9 @@ describe("McpToolEditor", () => {
     expect(screen.getByTestId("mcp-tool-editor-name-input")).toHaveValue("Тестовый инструмент");
     expect(screen.getByTestId("mcp-tool-editor-description-input")).toHaveValue("Описание инструмента");
     expect(screen.getByTestId("mcp-tool-editor-schema-input")).toHaveValue('{"type":"object"}');
-    // Round-19d: the standalone color input was replaced with a
-    // combined `<IconColorPicker>`. The trigger is rendered on the
-    // form; the actual color input lives inside the popover.
-    expect(screen.getByTestId("mcp-tool-editor-color-input")).toBeInTheDocument();
+    // Round-21: colour affordance dropped — McpTool has no `icon` field,
+    // so the IconColorPicker popover read as confused UI.
+    expect(screen.queryByTestId("mcp-tool-editor-color-input")).toBeNull();
   });
 
   it("name input is editable", async () => {
@@ -195,40 +194,8 @@ describe("McpToolEditor", () => {
     expect(updateCall).toBeUndefined();
   });
 
-  it("empty color gets sent as null on update", async () => {
-    const tool = makeTool({ color: "#ff0000" });
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_mcp_tool") return tool;
-      if (cmd === "update_mcp_tool") return { ...tool, color: null };
-      if (cmd === "list_mcp_tools") return [tool];
-      throw new Error(`unexpected: ${cmd}`);
-    });
-    const onClose = vi.fn();
-    const { user } = renderWithClient(<McpToolEditor toolId="tool-1" onClose={onClose} />);
-
-    await screen.findByTestId("mcp-tool-editor-name-input");
-
-    // Open the IconColorPicker popover and click its Reset button.
-    await user.click(screen.getByTestId("mcp-tool-editor-color-input"));
-    const resetButton = await screen.findByTestId(
-      "mcp-tool-editor-color-input-color-clear",
-    );
-    await user.click(resetButton);
-    // Dismiss the popover so its overlay does not eat the Save press.
-    await user.keyboard("{Escape}");
-
-    const saveButton = screen.getByTestId("mcp-tool-editor-save");
-    await user.click(saveButton);
-
-    await waitFor(() => {
-      const updateCall = invokeMock.mock.calls.find(([cmd]) => cmd === "update_mcp_tool");
-      expect(updateCall).toBeDefined();
-      expect(updateCall?.[1]).toMatchObject({
-        id: "tool-1",
-        color: null,
-      });
-    });
-  });
+  // Round-21: the colour affordance was removed from McpToolEditor —
+  // the legacy "empty color gets sent as null" test no longer applies.
 
   it("empty description gets sent as null on update", async () => {
     const tool = makeTool({ description: "Старое описание" });

@@ -1210,10 +1210,7 @@ mod tests {
         let task = uc
             .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
             .unwrap();
-        match uc
-            .move_task(task.id, "ghost".into(), None)
-            .expect_err("nf")
-        {
+        match uc.move_task(task.id, "ghost".into(), None).expect_err("nf") {
             AppError::NotFound { entity, id } => {
                 assert_eq!(entity, "column");
                 assert_eq!(id, "ghost");

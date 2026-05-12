@@ -1,160 +1,223 @@
-//! Catique HUB — agentic client adapter layer (ctq-67).
+//! Catique HUB — connected-provider layer.
 //!
-//! Each agentic client (Claude Code, Claude Desktop, Cursor, Qwen CLI) is
-//! represented by a small `ClientAdapter` implementation (~50 LOC). The
-//! adapter probes the filesystem to determine whether the client is
-//! installed on the current machine.
+//! Round-21 (Connected Providers refactor): renamed
+//! `ClientAdapter` → [`ClientProvider`], dropped the
+//! "instructions file" + "registry-on-disk" surfaces, replaced
+//! `detect/scan/sync_roles_to_client/list_synced_client_roles` with the
+//! pair of async methods [`ClientProvider::sync`] and
+//! [`ClientProvider::remove`]. Each provider now owns BOTH agent files
+//! and managed MCP-server entries for that client.
 //!
-//! ## Adding a new client
+//! The brief, post-rename, is one sentence: "given a [`RoleBundle`]
+//! resolved by the application layer, project the relevant on-disk
+//! state for one provider, idempotently and atomically, without
+//! touching foreign content".
 //!
-//! 1. Create `src/adapters/<name>.rs` implementing [`ClientAdapter`].
-//! 2. Add it to the [`all_adapters`] factory below.
-//! 3. No other changes required — the registry, use case, and IPC handler
-//!    all iterate `all_adapters()`.
+//! ## v1 provider set
 //!
-//! ## Platform semantics
+//! | id            | display name | agent files                                    | MCP                                    |
+//! |---------------|--------------|------------------------------------------------|----------------------------------------|
+//! | `claude-code` | Claude Code  | `~/.claude/agents/catique-<slug>.md`           | `~/.claude.json`                        |
+//! | `codex`       | Codex        | `~/.agents/skills/catique-<slug>/SKILL.md`     | `~/.codex/config.toml`                  |
+//! | `opencode`    | OpenCode     | `~/.config/opencode/agents/catique-<slug>.md`  | `~/.config/opencode/opencode.json`      |
 //!
-//! All adapters are macOS-first (the product ships macOS-only in v1).
-//! Each adapter's [`ClientAdapter::detect`] returns `Ok(false)` on
-//! non-macOS targets without probing the filesystem.
+//! All three providers also report `supports_agent_files = true` and
+//! `supports_mcp = true`. The `supports_*` accessors stay on the trait
+//! so future providers (e.g. Claude Desktop, which is MCP-only) can opt
+//! out of one or the other branch.
+//!
+//! ## Atomicity contract
+//!
+//! Every sync MUST write to `<target>.tmp` first and rename onto the
+//! final path. JSON/TOML config files MUST be read in full, mutated in
+//! place under the catique-owned key only, and written via the same
+//! tmp+rename dance. Concurrent CLI launches that read the file at any
+//! point during the operation must observe either the pre- or
+//! post-state — never a torn write.
 
 pub mod adapters;
 mod error;
 
-pub use error::AdapterError;
+pub use error::ProviderError;
 
-use std::path::PathBuf;
+use async_trait::async_trait;
 
-/// Minimal contract every client adapter must satisfy.
+// ---------------------------------------------------------------------
+// Bundle / report types — produced by the application layer, consumed
+// by every [`ClientProvider`] impl. They live in this crate so the
+// trait is self-contained (no circular dep on `catique-application`).
+// ---------------------------------------------------------------------
+
+/// Frontmatter marker key + value written at the top of every managed
+/// agent file. Defence-in-depth alongside the `catique-` filename
+/// prefix: a hand-edit that strips the marker leaves the file intact
+/// (sync skips it next round); a hand-edit that strips the prefix is
+/// caught by the marker check.
+pub const CATIQUE_MANAGED_KEY: &str = "catique_managed";
+
+/// MCP server entry name written into the catique-owned slot inside
+/// every provider's MCP config. `~/.claude.json` →
+/// `mcpServers["catique-hub"]`; Codex →
+/// `[mcp_servers.catique-hub]`; OpenCode →
+/// `mcp.catique-hub`.
+pub const CATIQUE_MCP_KEY: &str = "catique-hub";
+
+/// Filename prefix every catique-owned managed file MUST start with.
+/// For Codex Skills the prefix lives on the *directory* name
+/// (`catique-<slug>/`) rather than the file (`SKILL.md`).
+pub const CATIQUE_FILE_PREFIX: &str = "catique-";
+
+/// One prompt resolved + flattened by the application-layer inheritance
+/// resolver. Mirrors the frontend's `Prompt` type after resolution.
+#[derive(Debug, Clone)]
+pub struct ResolvedPrompt {
+    pub id: String,
+    pub name: String,
+    pub content: String,
+}
+
+/// One Catique role resolved into a flat shape ready to be projected
+/// onto a provider's on-disk format.
+#[derive(Debug, Clone)]
+pub struct ResolvedRole {
+    /// Stable role id (DB primary key — see ctq-83 invariant).
+    pub id: String,
+    /// Kebab-case slug used in filenames + Codex skill directory names.
+    /// MUST be `[a-z0-9-]+` — the application layer guarantees this.
+    pub slug: String,
+    /// Human-readable role name (rendered into frontmatter).
+    pub name: String,
+    /// Long-form role content (markdown body of the agent file).
+    pub content: String,
+    /// Attached prompts in resolver order.
+    pub prompts: Vec<ResolvedPrompt>,
+}
+
+/// One MCP server entry destined for the catique-owned slot in a
+/// provider's MCP config. The shape is intentionally minimal: the
+/// stdio-launch convention is the same across all three providers
+/// (command + args + env), so we don't try to model HTTP transports
+/// here — extend the enum if/when a provider needs it.
+#[derive(Debug, Clone)]
+pub struct McpEntry {
+    /// Executable to launch (absolute path, recommended).
+    pub command: String,
+    /// Argv for the launched process (positional CLI args).
+    pub args: Vec<String>,
+    /// Environment variables passed to the launched process.
+    pub env: Vec<(String, String)>,
+}
+
+/// Complete payload one [`ClientProvider::sync`] call needs to do its
+/// work. Built by the application layer using the existing inheritance
+/// resolver.
+#[derive(Debug, Clone)]
+pub struct RoleBundle {
+    pub roles: Vec<ResolvedRole>,
+    pub mcp: Option<McpEntry>,
+}
+
+/// What [`ClientProvider::sync`] just did. Reported back so the
+/// orchestrator can log + emit observability events without re-reading
+/// the filesystem.
+#[derive(Debug, Clone, Default)]
+pub struct SyncReport {
+    /// Absolute paths the sync wrote (created or overwrote).
+    pub written: Vec<String>,
+    /// Absolute paths the sync removed because the role no longer
+    /// exists in the bundle.
+    pub removed: Vec<String>,
+    /// Filenames inside the agents directory the sync deliberately did
+    /// not touch (no catique-managed marker).
+    pub skipped: Vec<String>,
+}
+
+/// What [`ClientProvider::remove`] just did. Mirrors [`SyncReport`] but
+/// with no "written" axis — `remove` only ever deletes.
+#[derive(Debug, Clone, Default)]
+pub struct RemoveReport {
+    pub removed: Vec<String>,
+    pub skipped: Vec<String>,
+}
+
+// ---------------------------------------------------------------------
+// Trait
+// ---------------------------------------------------------------------
+
+/// Object-safe contract every connected provider implements.
 ///
-/// Implementations live under [`adapters`]. The trait is object-safe so
-/// the registry can hold a `Vec<Box<dyn ClientAdapter>>`.
-pub trait ClientAdapter: Send + Sync {
-    /// Stable kebab-case identifier, e.g. `"claude-code"`.
+/// Implementations live under [`adapters`]. The trait is `async` (sync
+/// + remove are filesystem-bound) and uses [`async_trait`] to stay
+/// boxable behind `Box<dyn ClientProvider>`.
+#[async_trait]
+pub trait ClientProvider: Send + Sync {
+    /// Stable kebab-case identifier (e.g. `"claude-code"`).
     fn id(&self) -> &'static str;
 
     /// Human-readable display name shown in the Settings UI.
     fn display_name(&self) -> &'static str;
 
-    /// Absolute path to the client's config directory.
-    ///
-    /// On non-macOS this still returns the expected path (useful for
-    /// rendering in the UI) but [`detect`] will return `Ok(false)`.
-    ///
-    /// # Errors
-    ///
-    /// [`AdapterError::HomeDirUnavailable`] when `dirs::home_dir()`
-    /// returns `None`.
-    fn config_dir(&self) -> Result<PathBuf, AdapterError>;
-
-    /// Absolute path to the signature file probed by [`detect`].
+    /// `true` when this provider's `agents_dir` exists on disk —
+    /// indicates the CLI/app is installed. Only consumed by the
+    /// first-launch zero-state bootstrap; afterwards the user adds
+    /// providers manually via the new modal.
     ///
     /// # Errors
     ///
-    /// Propagates [`config_dir`]'s error.
-    fn signature_file(&self) -> Result<PathBuf, AdapterError>;
+    /// [`ProviderError::HomeDirUnavailable`] when `dirs::home_dir()`
+    /// returns `None`. Filesystem stat failures collapse into
+    /// `Ok(false)` so a permission-denied probe doesn't bubble all the
+    /// way out to the IPC boundary.
+    async fn detect(&self) -> Result<bool, ProviderError>;
 
-    /// Returns `true` when the signature file exists on disk.
+    /// `true` when this provider supports managed agent files.
+    fn supports_agent_files(&self) -> bool;
+
+    /// `true` when this provider supports a managed MCP server entry.
+    fn supports_mcp(&self) -> bool;
+
+    /// Resolve a Catique role bundle to disk. Idempotent. Atomic per
+    /// file (tmp+rename). Preserves foreign content. Returns the paths
+    /// written / removed.
     ///
-    /// Always returns `Ok(false)` on non-macOS targets without touching
-    /// the filesystem.
+    /// Concretely the implementation MUST:
+    ///
+    /// 1. For each role in the bundle, render the agent file using the
+    ///    provider's format and write it under the catique-managed
+    ///    filename (`catique-<slug>.<ext>`) inside the provider's
+    ///    agents directory. Atomic via tmp+rename.
+    /// 2. Scan the agents directory for catique-managed files
+    ///    (filename prefix + frontmatter marker) whose role is no
+    ///    longer in the bundle and delete them.
+    /// 3. If `bundle.mcp.is_some()` and `supports_mcp`, mutate the
+    ///    catique-owned slot in the provider's MCP config; otherwise
+    ///    leave the slot alone (do NOT auto-clear — `remove` does that).
     ///
     /// # Errors
     ///
-    /// [`AdapterError::HomeDirUnavailable`] when the home directory
-    /// cannot be resolved.
-    fn detect(&self) -> Result<bool, AdapterError>;
+    /// Any [`ProviderError`] surfaces unchanged. The orchestrator turns
+    /// it into a `failing_providers` entry on `SyncStatus`.
+    async fn sync(&self, bundle: &RoleBundle) -> Result<SyncReport, ProviderError>;
 
-    /// Absolute path to the canonical "global instructions" file for
-    /// this client.
-    ///
-    /// Per-client mapping (v1):
-    ///
-    /// | Client         | Path                                                       |
-    /// |----------------|------------------------------------------------------------|
-    /// | Claude Code    | `~/.claude/CLAUDE.md`                                      |
-    /// | Claude Desktop | `~/Library/Application Support/Claude/CLAUDE.md`           |
-    /// | Cursor         | `~/.cursor/rules.mdc`                                      |
-    /// | Qwen CLI       | `~/.qwen/QWEN.md`                                          |
-    ///
-    /// If the file does not exist on disk, callers should treat reads as
-    /// an empty string — this method only returns the *expected* path; it
-    /// never errors because the file is absent.
+    /// Wipe every catique-owned agent file and the catique-owned MCP
+    /// entry. Idempotent — re-calling on a clean tree is a no-op.
+    /// MUST NOT touch files that lack the catique-managed marker.
     ///
     /// # Errors
     ///
-    /// Propagates [`config_dir`]'s error
-    /// ([`AdapterError::HomeDirUnavailable`]).
-    fn instructions_file(&self) -> Result<PathBuf, AdapterError>;
-
-    // ── Role-sync extension (ctq-69) ───────────────────────────────────────
-
-    /// `true` when this adapter supports one-way role-file sync from
-    /// Catique Hub.
-    ///
-    /// Per-client v1 support matrix:
-    ///
-    /// | Client         | supported |
-    /// |----------------|-----------|
-    /// | Claude Code    | true      |
-    /// | Claude Desktop | false     |
-    /// | Cursor         | true      |
-    /// | Qwen CLI       | false     |
-    fn supports_role_sync(&self) -> bool;
-
-    /// Directory where managed agent-definition files are written.
-    ///
-    /// Only called when [`supports_role_sync`] returns `true`.
-    ///
-    /// | Client      | Path                  |
-    /// |-------------|-----------------------|
-    /// | Claude Code | `~/.claude/agents/`   |
-    /// | Cursor      | `~/.cursor/rules/`    |
-    ///
-    /// # Errors
-    ///
-    /// - [`AdapterError::SyncNotSupported`] when the adapter does not
-    ///   support sync.
-    /// - [`AdapterError::HomeDirUnavailable`] propagated from
-    ///   [`config_dir`].
-    fn agents_dir(&self) -> Result<PathBuf, AdapterError>;
-
-    /// Filename for the managed file for a given `role_id`.
-    ///
-    /// **ctq-83**: this MUST take the *stable* id (the database
-    /// primary key — what the product calls `cat_id` after the
-    /// agent-as-cat rename), never the human-readable display name.
-    /// Renaming a cat must not move the on-disk file or break the
-    /// frontmatter `role-id` ↔ filename invariant: the sync's stale
-    /// detection compares `agent_filename(role.id)` against on-disk
-    /// `catique-…` files, so any function of the *display name* would
-    /// orphan + recreate a file on every rename.
-    ///
-    /// Includes the `catique-` prefix (defence-in-depth: files are
-    /// identifiable even if frontmatter is hand-edited away) and the
-    /// correct extension per client format.
-    ///
-    /// | Client      | Pattern                   |
-    /// |-------------|---------------------------|
-    /// | Claude Code | `catique-{role_id}.md`    |
-    /// | Cursor      | `catique-{role_id}.mdc`   |
-    ///
-    /// Always returns a valid filename string (no path separators).
-    fn agent_filename(&self, role_id: &str) -> String;
+    /// Any [`ProviderError`] surfaces unchanged.
+    async fn remove(&self) -> Result<RemoveReport, ProviderError>;
 }
 
-/// Build the canonical ordered list of v1 adapters.
+/// Build the canonical ordered list of v1 providers.
 ///
-/// The order determines display order in the Settings UI and in the
-/// registry JSON on disk.
+/// The order determines display order in the "Add provider" modal and
+/// in the `list_supported_providers` IPC.
 #[must_use]
-pub fn all_adapters() -> Vec<Box<dyn ClientAdapter>> {
+pub fn all_providers() -> Vec<Box<dyn ClientProvider>> {
     vec![
-        Box::new(adapters::claude_code::ClaudeCodeAdapter),
-        Box::new(adapters::claude_desktop::ClaudeDesktopAdapter),
-        Box::new(adapters::codex::CodexAdapter),
-        Box::new(adapters::cursor::CursorAdapter),
-        Box::new(adapters::opencode::OpenCodeAdapter),
-        Box::new(adapters::qwen::QwenAdapter),
+        Box::new(adapters::claude_code::ClaudeCodeProvider),
+        Box::new(adapters::codex::CodexProvider),
+        Box::new(adapters::opencode::OpenCodeProvider),
     ]
 }

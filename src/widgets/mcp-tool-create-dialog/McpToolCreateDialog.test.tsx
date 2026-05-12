@@ -71,9 +71,11 @@ describe("McpToolCreateDialog", () => {
     expect(
       screen.getByTestId("mcp-tool-create-dialog-schema-input"),
     ).toBeInTheDocument();
+    // Round-21: colour affordance dropped — McpTool has no `icon` field,
+    // so the IconColorPicker popover read as confused UI.
     expect(
-      screen.getByTestId("mcp-tool-create-dialog-color-input"),
-    ).toBeInTheDocument();
+      screen.queryByTestId("mcp-tool-create-dialog-color-input"),
+    ).toBeNull();
   });
 
   it("Save button is disabled when name is empty", () => {

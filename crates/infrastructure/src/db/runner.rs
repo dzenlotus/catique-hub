@@ -803,11 +803,9 @@ mod tests {
         // renamed to "Owner". bd-dup1/bd-dup2 stay because they were
         // not flagged is_default.
         let bd_keep_name: String = conn
-            .query_row(
-                "SELECT name FROM boards WHERE id = 'bd-keep'",
-                [],
-                |r| r.get(0),
-            )
+            .query_row("SELECT name FROM boards WHERE id = 'bd-keep'", [], |r| {
+                r.get(0)
+            })
             .unwrap();
         assert_eq!(bd_keep_name, "Owner");
 
@@ -820,7 +818,10 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(promoted, 1, "lowest-position column must be flagged default");
+        assert_eq!(
+            promoted, 1,
+            "lowest-position column must be flagged default"
+        );
         let other: i64 = conn
             .query_row(
                 "SELECT is_default FROM columns WHERE id = 'co-keep-2'",

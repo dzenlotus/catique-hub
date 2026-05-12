@@ -172,9 +172,8 @@ pub fn update(conn: &Connection, id: &str, patch: &RolePatch) -> Result<Option<R
     let color_new = patch.color.as_ref();
     let icon_new = patch.icon.as_ref();
 
-    let mut sql = String::from(
-        "UPDATE roles SET name = COALESCE(?1, name), content = COALESCE(?2, content)",
-    );
+    let mut sql =
+        String::from("UPDATE roles SET name = COALESCE(?1, name), content = COALESCE(?2, content)");
     let mut next_param = 3_usize;
     let mut params_vec: Vec<rusqlite::types::Value> =
         vec![patch.name.clone().into(), patch.content.clone().into()];

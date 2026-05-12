@@ -376,15 +376,9 @@ pub fn cascade_skill_detachment(
 /// # Errors
 ///
 /// Surfaces rusqlite errors.
-pub fn cascade_clear_skill_scope(
-    conn: &Connection,
-    scope: &AttachScope,
-) -> Result<usize, DbError> {
+pub fn cascade_clear_skill_scope(conn: &Connection, scope: &AttachScope) -> Result<usize, DbError> {
     let origin = origin_tag(scope);
-    let n = conn.execute(
-        "DELETE FROM task_skills WHERE origin = ?1",
-        params![origin],
-    )?;
+    let n = conn.execute("DELETE FROM task_skills WHERE origin = ?1", params![origin])?;
     Ok(n)
 }
 
@@ -714,13 +708,8 @@ mod tests {
     fn cascade_skill_attachment_materialises_for_column_scope() {
         let conn = fresh_db();
         let _ = seed_two_tasks_on_column(&conn);
-        let n = cascade_skill_attachment(
-            &conn,
-            &AttachScope::Column("co".into()),
-            "sk1",
-            1.0,
-        )
-        .unwrap();
+        let n =
+            cascade_skill_attachment(&conn, &AttachScope::Column("co".into()), "sk1", 1.0).unwrap();
         assert_eq!(n, 2);
         let origin: String = conn
             .query_row(
@@ -863,9 +852,8 @@ mod tests {
     fn cascade_mcp_tool_attachment_materialises_for_space_scope() {
         let conn = fresh_db();
         let _ = seed_two_tasks_on_column(&conn);
-        let n =
-            cascade_mcp_tool_attachment(&conn, &AttachScope::Space("sp".into()), "mt1", 0.0)
-                .unwrap();
+        let n = cascade_mcp_tool_attachment(&conn, &AttachScope::Space("sp".into()), "mt1", 0.0)
+            .unwrap();
         assert_eq!(n, 2, "both tasks live in space sp");
         let origin: String = conn
             .query_row(
@@ -925,8 +913,8 @@ mod tests {
                  ('tc','bd','co','sp-c','T3','rl2',2,0,0);",
         )
         .unwrap();
-        let n = cascade_skill_attachment(&conn, &AttachScope::Role("rl1".into()), "sk1", 1.0)
-            .unwrap();
+        let n =
+            cascade_skill_attachment(&conn, &AttachScope::Role("rl1".into()), "sk1", 1.0).unwrap();
         assert_eq!(n, 2, "rl1 has exactly two tasks");
         let off_count: i64 = conn
             .query_row(

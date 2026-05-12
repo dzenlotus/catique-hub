@@ -20,8 +20,28 @@ serde_json.workspace = true
 thiserror.workspace = true
 dirs.workspace = true
 
+# Round-21 Connected Providers refactor (D-026): the ClientProvider
+# trait is `async` (sync + remove are filesystem-bound and must run on
+# the Tauri runtime without blocking). `async-trait` 0.1.x lets us keep
+# the trait object-safe; pinned exact per NFR §5.3 protocol-touching dep
+# rule because it influences the trait's vtable shape.
+async-trait = "=0.1.83"
+
+# `tokio::fs` is used inside provider impls for atomic write+rename and
+# `tokio::sync` is the broadcast/mpsc channels the orchestrator uses on
+# the application side. The `clients` crate itself only needs the FS +
+# IO bits.
+tokio = { workspace = true, features = ["fs", "io-util"] }
+
+# TOML round-trip preservation for Codex's `~/.codex/config.toml`.
+# `toml_edit` keeps comments + key ordering unlike `toml`'s
+# Serialize/Deserialize round-trip. Pinned exact because it touches the
+# user's hand-edited config file (NFR §5.3).
+toml_edit = "=0.22.22"
+
 [dev-dependencies]
 tempfile.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "rt"] }
 
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }

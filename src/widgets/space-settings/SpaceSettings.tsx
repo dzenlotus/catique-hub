@@ -24,6 +24,7 @@ import { useParams, useLocation } from "wouter";
 
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { boardPath, routes } from "@app/routes";
+import { invoke } from "@shared/api";
 import {
   useDeleteSpaceMutation,
   useSpace,
@@ -121,6 +122,7 @@ export function SpaceSettings(): ReactElement {
           initialIcon={spaceQuery.data.icon ?? null}
           initialColor={spaceQuery.data.color ?? ""}
           prefix={spaceQuery.data.prefix}
+          initialProjectFolderPath={spaceQuery.data.projectFolderPath ?? ""}
         />
       </div>
     </Scrollable>
@@ -140,6 +142,8 @@ interface SpaceSettingsFormProps {
   /** Hex color or `""` if unset. */
   initialColor: string;
   prefix: string;
+  /** Round-21: absolute project folder path or `""` if unset. */
+  initialProjectFolderPath: string;
 }
 
 function SpaceSettingsForm({
@@ -148,25 +152,52 @@ function SpaceSettingsForm({
   initialIcon,
   initialColor,
   prefix,
+  initialProjectFolderPath,
 }: SpaceSettingsFormProps): ReactElement {
   const updateMutation = useUpdateSpaceMutation();
 
   const [name, setName] = useState(initialName);
   const [icon, setIcon] = useState<string | null>(initialIcon);
   const [color, setColor] = useState<string>(initialColor);
+  const [projectFolderPath, setProjectFolderPath] = useState<string>(
+    initialProjectFolderPath,
+  );
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const trimmedName = name.trim();
   const resolvedColor = color === "" ? null : color;
   const initialResolvedColor = initialColor === "" ? null : initialColor;
+  const trimmedProjectFolderPath = projectFolderPath.trim();
+  const resolvedProjectFolderPath: string | null =
+    trimmedProjectFolderPath.length === 0 ? null : trimmedProjectFolderPath;
+  const initialResolvedProjectFolderPath: string | null =
+    initialProjectFolderPath.trim().length === 0
+      ? null
+      : initialProjectFolderPath.trim();
 
   const isDirty =
     trimmedName !== initialName.trim() ||
     icon !== initialIcon ||
-    resolvedColor !== initialResolvedColor;
+    resolvedColor !== initialResolvedColor ||
+    resolvedProjectFolderPath !== initialResolvedProjectFolderPath;
 
   const canSubmit = trimmedName.length > 0 && isDirty;
+
+  const handleRevealProjectFolder = (): void => {
+    if (resolvedProjectFolderPath === null) return;
+    // TODO(round-21-backend): expose `reveal_path_in_default_app` (or
+    // similar) IPC. The frontend forwards the path; the Rust side opens
+    // the folder in Finder / Explorer using whichever Tauri plugin
+    // (`opener` / `shell`) the backend chooses to install. Falls back
+    // to a no-op if the IPC isn't wired yet — surfacing an error toast
+    // would be premature noise during the round-21 ship.
+    void invoke("reveal_path_in_default_app", {
+      path: resolvedProjectFolderPath,
+    }).catch(() => {
+      // Silent: backend handler may not be installed yet.
+    });
+  };
 
   const handleSave = (): void => {
     setError(null);
@@ -182,6 +213,9 @@ function SpaceSettingsForm({
     if (trimmedName !== initialName) args.name = trimmedName;
     if (icon !== initialIcon) args.icon = icon;
     if (resolvedColor !== initialResolvedColor) args.color = resolvedColor;
+    if (resolvedProjectFolderPath !== initialResolvedProjectFolderPath) {
+      args.projectFolderPath = resolvedProjectFolderPath;
+    }
 
     updateMutation.mutate(args, {
       onSuccess: () => {
@@ -241,6 +275,29 @@ function SpaceSettingsForm({
             >
               {prefix}
             </span>
+          </div>
+
+          {/* Round-21: project folder + Reveal-in-Finder affordance. */}
+          <div className={styles.projectFolderRow}>
+            <Input
+              label="Project folder"
+              value={projectFolderPath}
+              onChange={setProjectFolderPath}
+              placeholder="/Users/you/projects/my-app"
+              description="Optional. Used by the “Reveal in Finder” affordance below."
+              className={styles.projectFolderInput}
+              data-testid="space-settings-project-folder-input"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={handleRevealProjectFolder}
+              isDisabled={resolvedProjectFolderPath === null}
+              aria-label="Reveal project folder in Finder"
+              data-testid="space-settings-project-folder-reveal"
+            >
+              Reveal in Finder
+            </Button>
           </div>
         </div>
 

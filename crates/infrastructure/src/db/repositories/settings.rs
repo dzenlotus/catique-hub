@@ -83,22 +83,18 @@ mod tests {
         let conn = fresh_db();
         set_setting(&conn, "k", "v1").unwrap();
         let first_ts: i64 = conn
-            .query_row(
-                "SELECT updated_at FROM settings WHERE key = 'k'",
-                [],
-                |r| r.get(0),
-            )
+            .query_row("SELECT updated_at FROM settings WHERE key = 'k'", [], |r| {
+                r.get(0)
+            })
             .unwrap();
         std::thread::sleep(std::time::Duration::from_millis(2));
         set_setting(&conn, "k", "v2").unwrap();
         let got = get_setting(&conn, "k").unwrap();
         assert_eq!(got.as_deref(), Some("v2"));
         let second_ts: i64 = conn
-            .query_row(
-                "SELECT updated_at FROM settings WHERE key = 'k'",
-                [],
-                |r| r.get(0),
-            )
+            .query_row("SELECT updated_at FROM settings WHERE key = 'k'", [], |r| {
+                r.get(0)
+            })
             .unwrap();
         assert!(second_ts >= first_ts, "updated_at must be refreshed");
     }

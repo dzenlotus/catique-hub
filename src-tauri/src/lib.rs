@@ -36,6 +36,23 @@ pub fn run() {
     };
 
     let app = match tauri::Builder::default()
+        // Round-21 (maintainer feedback): a fresh `tauri dev` rebuild
+        // would happily open a new OS window every iteration while
+        // older instances still owned the SQLite WAL — multiple
+        // windows accumulated and confused the user. The single-
+        // instance plugin short-circuits the second launch by
+        // forwarding to the running process; the callback below
+        // un-minimises and focuses the existing main window so a
+        // double-click on the dock icon (or a parallel `tauri dev`)
+        // surfaces the running instance instead of spawning a new
+        // shell.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+                let _ = window.show();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .manage(state)
         .setup(|app| {
@@ -47,7 +64,66 @@ pub fn run() {
             let state = app.state::<AppState>();
             state.set_app_handle(handle);
 
-            // ADR-0002 spike (ctq-56): spawn the Node sidecar at startup.
+            // Round-21 Connected Providers: spawn the orchestrator
+            // task and stash its handle in AppState. The handle is
+            // cheap (Arc-backed channels) and is read by both the
+            // `add_provider` IPC (to fire a post-add trigger) and the
+            // `get_sync_status` IPC (to read the watch channel).
+            //
+            // We spawn the orchestrator BEFORE the bootstrap so the
+            // first-launch detected providers have a sync target
+            // ready when their first user-driven mutation lands.
+            //
+            // `spawn_orchestrator` internally calls `tokio::spawn`,
+            // which requires an active tokio runtime context. Tauri's
+            // `setup` runs on the main thread BEFORE the runtime
+            // context is entered there, so a bare call panics with
+            // "there is no reactor running" — the panic crosses the
+            // Cocoa FFI boundary and surfaces as `panic_cannot_unwind`
+            // in `tao::app_delegate::did_finish_launching` (round-21
+            // crash report). `block_on` enters the runtime context so
+            // the inner `tokio::spawn` lands cleanly.
+            let orchestrator = tauri::async_runtime::block_on(async {
+                catique_application::connected_providers::spawn_orchestrator(state.pool.clone())
+            });
+            // Hook the orchestrator's status broadcast to the Tauri
+            // event bus so the frontend gets `sync:status_changed`.
+            let mut status_rx = orchestrator.subscribe_status();
+            let app_for_events = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                use tauri::Emitter;
+                while let Ok(status) = status_rx.recv().await {
+                    if let Err(e) =
+                        app_for_events.emit(catique_api::events::SYNC_STATUS_CHANGED, &status)
+                    {
+                        eprintln!("[catique-hub] sync:status_changed emit failed: {e}");
+                    }
+                }
+            });
+            state.set_orchestrator(orchestrator);
+
+            // First-launch zero-state bootstrap. The KV flag in the
+            // settings table guarantees this runs at most once.
+            let bootstrap_pool = state.pool.clone();
+            tauri::async_runtime::spawn(async move {
+                let uc =
+                    catique_application::clients::ConnectedProvidersUseCase::new(&bootstrap_pool);
+                match uc.bootstrap_first_launch_if_needed().await {
+                    Ok(ids) if !ids.is_empty() => {
+                        eprintln!("[catique-hub] first-launch detected providers: {ids:?}");
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("[catique-hub] first-launch bootstrap failed: {e}");
+                    }
+                }
+            });
+
+            // ADR-0002 spike (ctq-56) + ctq-112 / E5 round 1: spawn the
+            // Node sidecar at startup AND install the MCP bridge so
+            // `tools/call` over MCP reaches a Rust use-case directly
+            // (no Tauri IPC re-entry).
+            //
             // Failure is non-fatal — the sidecar badge in Settings will
             // reflect the Stopped / Crashed state.
             //
@@ -59,7 +135,11 @@ pub fn run() {
             // point for async work scheduled from setup.
             let sidecar_dir = state.sidecar_dir.clone();
             let sidecar_mgr = state.sidecar.clone();
+            let pool = state.pool.clone();
             tauri::async_runtime::spawn(async move {
+                // Install the bridge BEFORE spawning the child so the
+                // very first `ipc_call` from Node has a handler ready.
+                catique_api::mcp_bridge::install(&sidecar_mgr, pool).await;
                 match sidecar_mgr.start(&sidecar_dir).await {
                     Ok(pid) => eprintln!("[catique-hub] sidecar started, pid={pid}"),
                     Err(e) => eprintln!("[catique-hub] sidecar spawn failed: {e}"),
@@ -220,14 +300,12 @@ pub fn run() {
             handlers::sidecar::sidecar_status,
             handlers::sidecar::sidecar_ping,
             handlers::sidecar::sidecar_restart,
-            // ---------------- connected clients (ctq-67 / ctq-68 / ctq-69) ----------------
-            handlers::clients::discover_clients,
-            handlers::clients::list_connected_clients,
-            handlers::clients::set_client_enabled,
-            handlers::clients::read_client_instructions,
-            handlers::clients::write_client_instructions,
-            handlers::clients::list_synced_client_roles,
-            handlers::clients::sync_roles_to_client,
+            // ---------------- connected providers (round-21) ----------------
+            handlers::clients::add_provider,
+            handlers::clients::get_sync_status,
+            handlers::clients::list_connected_providers,
+            handlers::clients::list_supported_providers,
+            handlers::clients::remove_provider,
         ])
         .build(tauri::generate_context!())
     {

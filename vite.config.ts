@@ -91,6 +91,10 @@ export default defineConfig(({ command }) => ({
     environment: "jsdom",
     setupFiles: ["./src/app/test-setup.ts"],
     css: true,
+    // Frontend tests live under src/. The Node-side sidecar smoke test
+    // (`sidecar/tests/smoke.test.mjs`) uses the `node:test` runner and
+    // must not be picked up by vitest's discovery.
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

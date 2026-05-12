@@ -95,11 +95,7 @@ pub async fn set_column_prompts(
     prompt_ids: Vec<String>,
 ) -> Result<(), AppError> {
     ColumnsUseCase::new(&state.pool).set_column_prompts(column_id.clone(), prompt_ids)?;
-    events::emit(
-        &state,
-        events::COLUMN_UPDATED,
-        json!({ "id": column_id }),
-    );
+    events::emit(&state, events::COLUMN_UPDATED, json!({ "id": column_id }));
     Ok(())
 }
 

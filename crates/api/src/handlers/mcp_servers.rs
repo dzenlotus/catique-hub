@@ -66,10 +66,7 @@ pub async fn list_mcp_servers(state: State<'_, AppState>) -> Result<Vec<McpServe
 ///
 /// Forwards every error from `McpServersUseCase::get`.
 #[tauri::command]
-pub async fn get_mcp_server(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<McpServer, AppError> {
+pub async fn get_mcp_server(state: State<'_, AppState>, id: String) -> Result<McpServer, AppError> {
     McpServersUseCase::new(&state.pool).get(&id)
 }
 
@@ -90,14 +87,9 @@ pub async fn create_mcp_server(
     auth_json: Option<String>,
     enabled: bool,
 ) -> Result<McpServer, AppError> {
-    let server = McpServersUseCase::new(&state.pool).create(
-        name, transport, url, command, auth_json, enabled,
-    )?;
-    crate::events::emit(
-        &state,
-        MCP_SERVER_CREATED,
-        json!({ "id": server.id }),
-    );
+    let server = McpServersUseCase::new(&state.pool)
+        .create(name, transport, url, command, auth_json, enabled)?;
+    crate::events::emit(&state, MCP_SERVER_CREATED, json!({ "id": server.id }));
     Ok(server)
 }
 
@@ -118,14 +110,9 @@ pub async fn update_mcp_server(
     auth_json: Option<Option<String>>,
     enabled: Option<bool>,
 ) -> Result<McpServer, AppError> {
-    let server = McpServersUseCase::new(&state.pool).update(
-        id, name, transport, url, command, auth_json, enabled,
-    )?;
-    crate::events::emit(
-        &state,
-        MCP_SERVER_UPDATED,
-        json!({ "id": server.id }),
-    );
+    let server = McpServersUseCase::new(&state.pool)
+        .update(id, name, transport, url, command, auth_json, enabled)?;
+    crate::events::emit(&state, MCP_SERVER_UPDATED, json!({ "id": server.id }));
     Ok(server)
 }
 
@@ -135,10 +122,7 @@ pub async fn update_mcp_server(
 ///
 /// Forwards every error from `McpServersUseCase::delete`.
 #[tauri::command]
-pub async fn delete_mcp_server(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), AppError> {
+pub async fn delete_mcp_server(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
     McpServersUseCase::new(&state.pool).delete(&id)?;
     crate::events::emit(&state, MCP_SERVER_DELETED, json!({ "id": id }));
     Ok(())

@@ -8,7 +8,7 @@
 
 import { useEffect, useState, type ReactElement } from "react";
 import { useSkill, useUpdateSkillMutation } from "@entities/skill";
-import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
+import { Dialog, Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import styles from "./SkillEditor.module.css";
@@ -21,7 +21,9 @@ export interface SkillEditorProps {
 }
 
 /**
- * `SkillEditor` — modal for viewing and editing a skill's name, description and color.
+ * `SkillEditor` — modal for viewing and editing a skill's name and
+ * description. Round-21: the colour affordance was dropped — Skill has
+ * no `icon` field, so the IconColorPicker popover read as confused UI.
  *
  * Delegates open/close tracking to `skillId` — when null the `<Dialog>`
  * `isOpen` prop is false, so RAC handles exit animations and focus restoration.
@@ -80,7 +82,6 @@ export function SkillEditorContent({
 
   // Local edit state — initialised from the loaded skill.
   const [localName, setLocalName] = useState("");
-  const [localColor, setLocalColor] = useState("");
   const [localDescription, setLocalDescription] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -88,7 +89,6 @@ export function SkillEditorContent({
   useEffect(() => {
     if (query.data) {
       setLocalName(query.data.name);
-      setLocalColor(query.data.color ?? "");
       setLocalDescription(query.data.description ?? "");
       setSaveError(null);
     }
@@ -205,7 +205,6 @@ export function SkillEditorContent({
     }
 
     // Empty string → clear to null; non-empty → use value as-is.
-    const resolvedColor = localColor === "" ? null : localColor;
     const resolvedDescription = localDescription.trim() === "" ? null : localDescription;
 
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
@@ -217,10 +216,6 @@ export function SkillEditorContent({
     // For nullable description: only include when resolved value differs from stored.
     if (resolvedDescription !== skill.description) {
       mutationArgs.description = resolvedDescription;
-    }
-    // For nullable color: only include when the resolved value differs from stored.
-    if (resolvedColor !== skill.color) {
-      mutationArgs.color = resolvedColor;
     }
 
     updateMutation.mutate(mutationArgs, {
@@ -236,7 +231,6 @@ export function SkillEditorContent({
   const handleCancel = (): void => {
     // Reset local state back to skill values before closing.
     setLocalName(skill.name);
-    setLocalColor(skill.color ?? "");
     setLocalDescription(skill.description ?? "");
     setSaveError(null);
     onClose();
@@ -265,17 +259,6 @@ export function SkillEditorContent({
           placeholder="Short description of the skill"
           className={styles.fullWidthInput}
           data-testid="skill-editor-description-input"
-        />
-      </div>
-
-      {/* Color (canonical IconColorPicker — color-only mode). */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
-        <IconColorPicker
-          value={{ icon: null, color: localColor === "" ? null : localColor }}
-          onChange={(next) => setLocalColor(next.color ?? "")}
-          ariaLabel="Skill color"
-          data-testid="skill-editor-color-input"
         />
       </div>
 

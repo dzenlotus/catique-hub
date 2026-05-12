@@ -199,10 +199,10 @@ describe("TaskDialog", () => {
     // so the testid points to the preview button. Assert visible text.
     expect(screen.getByTestId("task-dialog-description-textarea")).toHaveTextContent("Описание задачи");
 
-    // 4. Assignee select (audit-#10 renamed Role → Assignee)
-    expect(screen.getByTestId("task-dialog-role-select")).toBeInTheDocument();
-
-    // 5. Attached prompts section
+    // 4. Attached prompts section. Round-21: the Assignee picker is gone
+    // — a task's role follows the owning board's role, resolved
+    // server-side.
+    expect(screen.queryByTestId("task-dialog-role-select")).toBeNull();
     expect(screen.getByTestId("task-dialog-prompts-section")).toBeInTheDocument();
 
     // audit-#10: Board + Column dropdowns are no longer rendered. The
@@ -237,26 +237,15 @@ describe("TaskDialog", () => {
     expect(screen.queryByTestId("task-dialog-column-select")).toBeNull();
   });
 
-  it("Assignee select includes '(no assignee)' as first option and loaded roles", async () => {
+  it("does not render an Assignee picker (round-21 — role follows the board)", async () => {
     const task = makeTask();
     invokeMock.mockImplementation(defaultInvokeHandler(task));
     const onClose = vi.fn();
-    const { user } = renderWithClient(
-      <TaskDialog taskId="tsk-1" onClose={onClose} />,
-    );
+    renderWithClient(<TaskDialog taskId="tsk-1" onClose={onClose} />);
 
     await screen.findByTestId("task-dialog-title-input");
-
-    // audit-#10 renamed Role → Assignee; the testid was kept for
-    // backwards compat with existing call-sites.
-    const assigneeTrigger = screen.getByTestId("task-dialog-role-select");
-    await user.click(assigneeTrigger);
-    await waitFor(() => {
-      const options = screen.getAllByRole("option");
-      const texts = options.map((o) => o.textContent ?? "");
-      expect(texts[0]).toBe("(no assignee)");
-      expect(texts).toContain("Dev Agent");
-    });
+    expect(screen.queryByTestId("task-dialog-role-select")).toBeNull();
+    expect(screen.queryByText("(no assignee)")).toBeNull();
   });
 
   // ── audit-#10: Board → Column cascade is gone ────────────────────
@@ -294,7 +283,7 @@ describe("TaskDialog", () => {
 
   // ── Save mutation payload ────────────────────────────────────────
 
-  it("clicking Save fires the mutation with the dirty title + assignee (audit-#10)", async () => {
+  it("clicking Save fires the mutation with the dirty title only (round-21)", async () => {
     const task = makeTask();
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_task") return task;
@@ -319,13 +308,9 @@ describe("TaskDialog", () => {
     await user.clear(titleInput);
     await user.type(titleInput, "Обновлённое название");
 
-    // audit-#10: column / board selects are gone — only the assignee
-    // (role) field is editable from the dialog now. Pick "Dev Agent"
-    // via the RAC <Select> trigger + listbox.
-    const assigneeTrigger = screen.getByTestId("task-dialog-role-select");
-    await user.click(assigneeTrigger);
-    await user.click(await screen.findByRole("option", { name: "Dev Agent" }));
-
+    // audit-#10: column / board selects are gone. Round-21: assignee
+    // picker is gone too — title is the only user-editable field on
+    // this path.
     const saveButton = screen.getByTestId("task-dialog-save");
     await user.click(saveButton);
 
@@ -335,11 +320,12 @@ describe("TaskDialog", () => {
       expect(updateCall?.[1]).toMatchObject({
         id: "tsk-1",
         title: "Обновлённое название",
-        roleId: "role-1",
       });
-      // columnId is no longer dirty-checked from the dialog (audit-#10).
       const payload = updateCall?.[1] as Record<string, unknown>;
       expect(payload.columnId).toBeUndefined();
+      // Round-21: the dialog never writes roleId; the server resolves it
+      // from the owning board.
+      expect(payload.roleId).toBeUndefined();
     });
   });
 

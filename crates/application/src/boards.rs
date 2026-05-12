@@ -14,6 +14,7 @@ use catique_domain::Board;
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::boards::{self as repo, BoardDraft, BoardPatch, BoardRow},
+    repositories::columns as columns_repo,
     repositories::inheritance::{self as inh, InheritanceScope},
     repositories::tasks::{cascade_clear_scope, cascade_prompt_attachment, AttachScope},
 };
@@ -22,6 +23,17 @@ use crate::{
     error::AppError,
     error_map::{map_db_err, validate_non_empty, validate_optional_color},
 };
+
+/// Default column auto-provisioned on every freshly-minted board.
+/// Kept in sync with `SpacesUseCase`'s `DEFAULT_COLUMN_NAME` so the
+/// space-bootstrapped board and a user-bootstrapped board read
+/// identically. Migration `016_default_board_naming_and_constraints.sql`
+/// codifies the invariant ("every board owns exactly one
+/// `is_default = 1` column"); migration
+/// `019_default_columns_backfill.sql` renames the column to
+/// kanban-idiomatic "To Do" — a bucket for incoming work to be done,
+/// distinct from the board itself reading as the owning role.
+const DEFAULT_COLUMN_NAME: &str = "To Do";
 
 /// Boards use case — borrows the application's connection pool.
 pub struct BoardsUseCase<'a> {
@@ -115,15 +127,24 @@ impl<'a> BoardsUseCase<'a> {
     pub fn create(&self, args: CreateBoardArgs) -> Result<Board, AppError> {
         let trimmed = validate_non_empty("name", &args.name)?;
         validate_optional_color("color", args.color.as_deref())?;
-        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
         if !repo::space_exists(&conn, &args.space_id).map_err(map_db_err)? {
             return Err(AppError::NotFound {
                 entity: "space".into(),
                 id: args.space_id,
             });
         }
+        // Wrap the board insert + default-column insert in one
+        // transaction so the post-D-006 invariant ("every board owns
+        // exactly one is_default = 1 column") holds for boards minted
+        // through this path too. Previously only `SpacesUseCase::create`
+        // seeded a default column; boards created through the
+        // SpaceSettings RolesSection (the only other caller of
+        // `create_board`) ended up empty, which broke cross-board task
+        // moves and the kanban "drop tasks here" affordance.
+        let tx = conn.transaction().map_err(|e| map_db_err(e.into()))?;
         let row = repo::insert(
-            &conn,
+            &tx,
             &BoardDraft {
                 name: trimmed,
                 space_id: args.space_id,
@@ -140,6 +161,18 @@ impl<'a> BoardsUseCase<'a> {
             },
         )
         .map_err(map_db_err)?;
+        columns_repo::insert(
+            &tx,
+            &columns_repo::ColumnDraft {
+                board_id: row.id.clone(),
+                name: DEFAULT_COLUMN_NAME.to_owned(),
+                position: 0,
+                role_id: None,
+                is_default: true,
+            },
+        )
+        .map_err(map_db_err)?;
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
         Ok(row_to_board(row))
     }
 
@@ -348,8 +381,7 @@ impl<'a> BoardsUseCase<'a> {
     /// id roll the transaction back; the pre-call state survives.
     pub fn set_skills(&self, board_id: &str, skill_ids: &[String]) -> Result<(), AppError> {
         let mut conn = acquire(self.pool).map_err(map_db_err)?;
-        inh::set_skills(&mut conn, InheritanceScope::Board, board_id, skill_ids)
-            .map_err(map_db_err)
+        inh::set_skills(&mut conn, InheritanceScope::Board, board_id, skill_ids).map_err(map_db_err)
     }
 
     /// Replace the board's MCP-tool list with `mcp_tool_ids`.
@@ -359,19 +391,10 @@ impl<'a> BoardsUseCase<'a> {
     /// # Errors
     ///
     /// Forwards storage-layer errors.
-    pub fn set_mcp_tools(
-        &self,
-        board_id: &str,
-        mcp_tool_ids: &[String],
-    ) -> Result<(), AppError> {
+    pub fn set_mcp_tools(&self, board_id: &str, mcp_tool_ids: &[String]) -> Result<(), AppError> {
         let mut conn = acquire(self.pool).map_err(map_db_err)?;
-        inh::set_mcp_tools(
-            &mut conn,
-            InheritanceScope::Board,
-            board_id,
-            mcp_tool_ids,
-        )
-        .map_err(map_db_err)
+        inh::set_mcp_tools(&mut conn, InheritanceScope::Board, board_id, mcp_tool_ids)
+            .map_err(map_db_err)
     }
 }
 
@@ -701,12 +724,14 @@ mod tests {
         let board = uc.create(args("B", "sp1")).unwrap();
         assert_eq!(board.owner_role_id, "maintainer-system");
 
-        // Seed a user role to assign.
+        // Seed a user role to assign. The display name must not collide
+        // with the system "Owner" role minted by migration 017
+        // (`roles.name` is UNIQUE).
         {
             let conn = catique_infrastructure::db::pool::acquire(&pool).unwrap();
             conn.execute(
                 "INSERT INTO roles (id, name, content, created_at, updated_at) \
-                 VALUES ('rl-owner','Owner','',0,0)",
+                 VALUES ('rl-owner','Custom Owner','',0,0)",
                 [],
             )
             .unwrap();

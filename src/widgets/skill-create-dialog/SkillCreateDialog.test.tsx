@@ -65,9 +65,11 @@ describe("SkillCreateDialog", () => {
     expect(
       screen.getByTestId("skill-create-dialog-description-input"),
     ).toBeInTheDocument();
+    // Round-21: colour affordance dropped — Skill has no `icon` field,
+    // so the IconColorPicker popover read as confused UI.
     expect(
-      screen.getByTestId("skill-create-dialog-color-input"),
-    ).toBeInTheDocument();
+      screen.queryByTestId("skill-create-dialog-color-input"),
+    ).toBeNull();
   });
 
   it("Save button is disabled when name is empty", () => {

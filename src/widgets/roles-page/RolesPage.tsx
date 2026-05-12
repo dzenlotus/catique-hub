@@ -32,6 +32,7 @@ export function RolesPage(): ReactElement {
     id: r.id,
     name: r.name,
     color: r.color,
+    icon: r.icon,
   }));
 
   const handleSelect = (id: string | null): void => {

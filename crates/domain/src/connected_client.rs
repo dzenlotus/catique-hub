@@ -1,45 +1,82 @@
-//! `ConnectedClient` — an agentic client detected on-disk (ctq-67).
+//! `ConnectedClient` — a connected provider the user has explicitly added.
 //!
-//! Each client is identified by a stable kebab-case `id` (e.g.
-//! `claude-code`, `cursor`). The adapter crate probes for the
-//! `signature_file` at scan time and sets `installed`; the user can
-//! then toggle `enabled` independently via the Settings UI.
+//! Round-21 (Connected Providers refactor) shifted the semantics:
 //!
-//! `last_seen_at` is Unix-millisecond wall time recorded each time the
-//! registry is rescanned; it lets the UI show staleness info in later
-//! iterations.
+//! - **Before**: every adapter that ever scanned `true` ended up in the
+//!   registry, and the user toggled an `enabled` boolean per row.
+//! - **After**: a row exists ⇔ the user has explicitly added that
+//!   provider via the new "Add provider" modal. Removing the provider
+//!   deletes the row (after `provider.remove()` succeeds on disk).
+//!
+//! The shape is therefore narrower than the pre-round-21 type: the
+//! filesystem snapshot fields (`config_dir`, `signature_file`,
+//! `installed`, `last_seen_at`, `enabled`, `supports_role_sync`) are
+//! gone. The trait + provider modal own all of those today; only the
+//! IPC-visible fields below survive.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-/// A discovered (or previously-discovered) agentic client on this
-/// machine.
+/// One connected-provider row. Source of truth lives in the
+/// `connected_clients` SQL table (migration 021).
 #[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[ts(export, export_to = "../../../bindings/")]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectedClient {
-    /// Stable id — kebab-case, e.g. `claude-code`, `cursor`.
+    /// Stable provider id (kebab-case, e.g. `claude-code`).
     pub id: String,
-    /// Human display name shown in the Settings UI.
+    /// Cached human-readable display name at the time of add.
     pub display_name: String,
-    /// Absolute config directory resolved by the adapter (e.g.
-    /// `~/.claude` expanded to `/Users/alice/.claude`).
-    pub config_dir: String,
-    /// Signature file the adapter probes to decide `installed`.
-    pub signature_file: String,
-    /// `true` when the signature file existed at the last scan.
-    pub installed: bool,
-    /// Per-client user toggle. Defaults to `installed` on first scan;
-    /// survives subsequent rescans (merge logic in
-    /// `infrastructure::clients::registry`).
-    pub enabled: bool,
-    /// Unix-millisecond timestamp of the last registry rescan.
-    pub last_seen_at: i64,
-    /// `true` when this client supports one-way role-file sync from
-    /// Catique Hub (ctq-69). Populated from
-    /// `ClientAdapter::supports_role_sync()` at scan time.
-    ///
-    /// Clients where this is `false` (Claude Desktop, Qwen CLI v1) show
-    /// a "не поддерживается" hint in the Settings UI.
-    pub supports_role_sync: bool,
+    /// Latest sync state for THIS provider. The fan-out
+    /// `SyncStatus` over every connected provider is reported by the
+    /// `get_sync_status` IPC; this per-row field lets the UI show a
+    /// red dot on a single provider chip without re-querying.
+    pub connection_status: ConnectionStatus,
+    /// Unix-millisecond timestamp of the most recent successful sync.
+    /// `0` when no sync has run yet.
+    pub last_synced_at: i64,
+    /// Last error message captured during sync, when
+    /// `connection_status == Error`. `None` otherwise.
+    pub last_error: Option<String>,
+    /// Wall-clock millis when the row was inserted.
+    pub created_at: i64,
+    /// Wall-clock millis when the row was last updated.
+    pub updated_at: i64,
+}
+
+/// Per-provider sync state. Mirrors the wire format of
+/// `connected_clients.connection_status`.
+#[derive(TS, Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[ts(export, export_to = "../../../bindings/")]
+#[serde(rename_all = "lowercase")]
+pub enum ConnectionStatus {
+    /// Last sync succeeded (or no sync has run yet).
+    Connected,
+    /// A sync is currently in flight.
+    Syncing,
+    /// The most recent sync failed; `last_error` carries the message.
+    Error,
+}
+
+impl ConnectionStatus {
+    /// Wire-format string used by the SQL column.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Connected => "connected",
+            Self::Syncing => "syncing",
+            Self::Error => "error",
+        }
+    }
+
+    /// Parse the wire-format string. Unknown values fall back to
+    /// `Connected` so a stale row doesn't crash the read path.
+    #[must_use]
+    pub fn parse(raw: &str) -> Self {
+        match raw {
+            "syncing" => Self::Syncing,
+            "error" => Self::Error,
+            _ => Self::Connected,
+        }
+    }
 }

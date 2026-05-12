@@ -171,11 +171,7 @@ impl<'a> TagsUseCase<'a> {
     /// `AppError::TransactionRolledBack` on FK violation (unknown
     /// `tag_id` or any prompt id).
     #[allow(clippy::needless_pass_by_value)]
-    pub fn set_tag_prompts(
-        &self,
-        tag_id: String,
-        prompt_ids: Vec<String>,
-    ) -> Result<(), AppError> {
+    pub fn set_tag_prompts(&self, tag_id: String, prompt_ids: Vec<String>) -> Result<(), AppError> {
         let mut conn = acquire(self.pool).map_err(map_db_err)?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)

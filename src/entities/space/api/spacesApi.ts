@@ -65,6 +65,15 @@ export interface CreateSpaceArgs {
   icon?: string;
   /** When true, this space becomes the default. Defaults to false. */
   isDefault?: boolean;
+  /**
+   * Round-21: optional absolute path to the project folder this space
+   * represents on disk. Used by the "Reveal in Finder" affordance in
+   * SpaceSettings; never piped into prompts.
+   *
+   * TODO(round-21-backend, migration 020): backend handler must accept
+   * `projectFolderPath?: string | null` on `create_space`.
+   */
+  projectFolderPath?: string;
 }
 
 /** `create_space` — create a new space. */
@@ -77,6 +86,9 @@ export async function createSpace(args: CreateSpaceArgs): Promise<Space> {
   if (args.description !== undefined) payload.description = args.description;
   if (args.color !== undefined) payload.color = args.color;
   if (args.icon !== undefined) payload.icon = args.icon;
+  if (args.projectFolderPath !== undefined) {
+    payload.projectFolderPath = args.projectFolderPath;
+  }
   return invokeWithAppError<Space>("create_space", payload);
 }
 
@@ -103,6 +115,15 @@ export interface UpdateSpaceArgs {
   isDefault?: boolean;
   /** Skip = `undefined`. */
   position?: number;
+  /**
+   * Round-21: optional absolute path to the project folder this space
+   * represents on disk. Skip = `undefined`, set = string,
+   * clear-to-NULL = `null` (mirrors Rust's `Option<Option<String>>`).
+   *
+   * TODO(round-21-backend, migration 020): backend handler must accept
+   * `projectFolderPath?: string | null` on `update_space`.
+   */
+  projectFolderPath?: string | null;
 }
 
 /** `update_space` — partial update. Note: `prefix` is not updatable. */
@@ -114,6 +135,9 @@ export async function updateSpace(args: UpdateSpaceArgs): Promise<Space> {
   if (args.icon !== undefined) payload.icon = args.icon;
   if (args.isDefault !== undefined) payload.isDefault = args.isDefault;
   if (args.position !== undefined) payload.position = args.position;
+  if (args.projectFolderPath !== undefined) {
+    payload.projectFolderPath = args.projectFolderPath;
+  }
   return invokeWithAppError<Space>("update_space", payload);
 }
 

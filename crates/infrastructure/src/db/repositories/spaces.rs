@@ -43,6 +43,10 @@ pub struct SpaceRow {
     /// schema. `None` represents an unset graph (the default for every
     /// existing row post-migration).
     pub workflow_graph_json: Option<String>,
+    /// Round-21 (migration `020_space_project_folder_path.sql`):
+    /// opaque per-space "project folder" path. The frontend interprets
+    /// it; this layer stores + round-trips it verbatim.
+    pub project_folder_path: Option<String>,
 }
 
 impl SpaceRow {
@@ -60,6 +64,7 @@ impl SpaceRow {
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
             workflow_graph_json: row.get("workflow_graph_json")?,
+            project_folder_path: row.get("project_folder_path")?,
         })
     }
 }
@@ -78,6 +83,8 @@ pub struct SpaceDraft {
     pub icon: Option<String>,
     pub is_default: bool,
     pub position: Option<f64>,
+    /// Round-21 opaque project folder path. `None` stores NULL.
+    pub project_folder_path: Option<String>,
 }
 
 /// Partial update payload — every field is optional; `None` keeps the
@@ -95,6 +102,9 @@ pub struct SpacePatch {
     pub icon: Option<Option<String>>,
     pub is_default: Option<bool>,
     pub position: Option<f64>,
+    /// Round-21: nullable project folder path.
+    /// `None` = leave alone; `Some(None)` = clear; `Some(Some(s))` = set.
+    pub project_folder_path: Option<Option<String>>,
 }
 
 /// `SELECT … FROM spaces ORDER BY position ASC, name ASC`.
@@ -105,7 +115,7 @@ pub struct SpacePatch {
 pub fn list_all(conn: &Connection) -> Result<Vec<SpaceRow>, DbError> {
     let mut stmt = conn.prepare(
         "SELECT id, name, prefix, description, color, icon, is_default, position, \
-                created_at, updated_at, workflow_graph_json \
+                created_at, updated_at, workflow_graph_json, project_folder_path \
          FROM spaces \
          ORDER BY position ASC, name ASC",
     )?;
@@ -125,7 +135,7 @@ pub fn list_all(conn: &Connection) -> Result<Vec<SpaceRow>, DbError> {
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<SpaceRow>, DbError> {
     let mut stmt = conn.prepare(
         "SELECT id, name, prefix, description, color, icon, is_default, position, \
-                created_at, updated_at, workflow_graph_json \
+                created_at, updated_at, workflow_graph_json, project_folder_path \
          FROM spaces WHERE id = ?1",
     )?;
     Ok(stmt.query_row(params![id], SpaceRow::from_row).optional()?)
@@ -148,8 +158,9 @@ pub fn insert(conn: &Connection, draft: &SpaceDraft) -> Result<SpaceRow, DbError
 
     conn.execute(
         "INSERT INTO spaces \
-            (id, name, prefix, description, color, icon, is_default, position, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
+            (id, name, prefix, description, color, icon, is_default, position, \
+             created_at, updated_at, project_folder_path) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10)",
         params![
             id,
             draft.name,
@@ -159,7 +170,8 @@ pub fn insert(conn: &Connection, draft: &SpaceDraft) -> Result<SpaceRow, DbError
             draft.icon,
             is_default,
             position,
-            now
+            now,
+            draft.project_folder_path,
         ],
     )?;
 
@@ -178,6 +190,7 @@ pub fn insert(conn: &Connection, draft: &SpaceDraft) -> Result<SpaceRow, DbError
         // (migration 015). Setting it requires the dedicated
         // `set_workflow_graph` helper — keeps the create path lean.
         workflow_graph_json: None,
+        project_folder_path: draft.project_folder_path.clone(),
     })
 }
 
@@ -229,6 +242,11 @@ pub fn update(
         params_vec.push(rusqlite::types::Value::from(i.clone()));
         next_param += 1;
     }
+    if let Some(p) = patch.project_folder_path.as_ref() {
+        let _ = write!(sql, ", project_folder_path = ?{next_param}");
+        params_vec.push(rusqlite::types::Value::from(p.clone()));
+        next_param += 1;
+    }
     let _ = write!(
         sql,
         ", updated_at = ?{next_param} WHERE id = ?{}",
@@ -276,10 +294,7 @@ pub fn delete(conn: &Connection, id: &str) -> Result<bool, DbError> {
 /// # Errors
 ///
 /// Surfaces rusqlite errors.
-pub fn get_workflow_graph(
-    conn: &Connection,
-    space_id: &str,
-) -> Result<Option<String>, DbError> {
+pub fn get_workflow_graph(conn: &Connection, space_id: &str) -> Result<Option<String>, DbError> {
     let mut stmt = conn.prepare("SELECT workflow_graph_json FROM spaces WHERE id = ?1")?;
     let row = stmt
         .query_row(params![space_id], |r| r.get::<_, Option<String>>(0))
@@ -301,11 +316,7 @@ pub fn get_workflow_graph(
 /// # Errors
 ///
 /// Surfaces rusqlite errors.
-pub fn set_workflow_graph(
-    conn: &Connection,
-    space_id: &str,
-    json: &str,
-) -> Result<bool, DbError> {
+pub fn set_workflow_graph(conn: &Connection, space_id: &str, json: &str) -> Result<bool, DbError> {
     let now = now_millis();
     let n = conn.execute(
         "UPDATE spaces SET workflow_graph_json = ?1, updated_at = ?2 WHERE id = ?3",
@@ -470,6 +481,7 @@ mod tests {
             icon: None,
             is_default: false,
             position: Some(0.0),
+            project_folder_path: None,
         }
     }
 
@@ -494,6 +506,7 @@ mod tests {
                 icon: None,
                 is_default: false,
                 position: Some(2.0),
+                project_folder_path: None,
             },
         )
         .unwrap();
@@ -507,6 +520,7 @@ mod tests {
                 icon: None,
                 is_default: false,
                 position: Some(2.0),
+                project_folder_path: None,
             },
         )
         .unwrap();
@@ -520,6 +534,7 @@ mod tests {
                 icon: None,
                 is_default: false,
                 position: Some(1.0),
+                project_folder_path: None,
             },
         )
         .unwrap();
@@ -595,6 +610,7 @@ mod tests {
                 icon: Some("star".into()),
                 is_default: false,
                 position: Some(0.0),
+                project_folder_path: None,
             },
         )
         .unwrap();
@@ -664,6 +680,7 @@ mod tests {
                 icon: Some("star".into()),
                 is_default: false,
                 position: Some(0.0),
+                project_folder_path: None,
             },
         )
         .unwrap();
@@ -695,6 +712,7 @@ mod tests {
                 icon: None,
                 is_default: false,
                 position: Some(0.0),
+                project_folder_path: None,
             },
         )
         .unwrap();

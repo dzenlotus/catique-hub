@@ -341,8 +341,8 @@ pub fn set_tools(conn: &Connection, server_id: &str, tool_ids: &[String]) -> Res
     if tool_ids.is_empty() {
         return Ok(());
     }
-    let mut stmt = conn
-        .prepare("INSERT INTO mcp_server_tools (server_id, mcp_tool_id) VALUES (?1, ?2)")?;
+    let mut stmt =
+        conn.prepare("INSERT INTO mcp_server_tools (server_id, mcp_tool_id) VALUES (?1, ?2)")?;
     for tool_id in tool_ids {
         stmt.execute(params![server_id, tool_id])?;
     }

@@ -9,7 +9,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { useMcpTool, useUpdateMcpToolMutation } from "@entities/mcp-tool";
 import { AppErrorInstance } from "@entities/board";
-import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
+import { Dialog, Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import styles from "./McpToolEditor.module.css";
@@ -23,7 +23,10 @@ export interface McpToolEditorProps {
 
 /**
  * `McpToolEditor` — modal for viewing and editing an MCP tool's
- * name, description, schemaJson and color.
+ * name, description, and schemaJson.
+ *
+ * Round-21: the colour affordance was dropped — McpTool has no `icon`
+ * field, so the IconColorPicker popover read as confused UI.
  *
  * Delegates open/close tracking to `toolId` — when null the `<Dialog>`
  * `isOpen` prop is false, so RAC handles exit animations and focus restoration.
@@ -84,7 +87,6 @@ export function McpToolEditorContent({
   const [localName, setLocalName] = useState("");
   const [localDescription, setLocalDescription] = useState("");
   const [localSchemaJson, setLocalSchemaJson] = useState("");
-  const [localColor, setLocalColor] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Sync local state when tool data loads or toolId changes.
@@ -93,7 +95,6 @@ export function McpToolEditorContent({
       setLocalName(query.data.name);
       setLocalDescription(query.data.description ?? "");
       setLocalSchemaJson(query.data.schemaJson);
-      setLocalColor(query.data.color ?? "");
       setSaveError(null);
     }
   }, [query.data, toolId]);
@@ -224,7 +225,6 @@ export function McpToolEditorContent({
 
     // Empty string → clear to null; non-empty → use value as-is.
     const resolvedDescription = localDescription === "" ? null : localDescription;
-    const resolvedColor = localColor === "" ? null : localColor;
 
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
     const mutationArgs: MutationArgs = { id: tool.id };
@@ -238,10 +238,6 @@ export function McpToolEditorContent({
     // For nullable description: only include when the resolved value differs from stored.
     if (resolvedDescription !== tool.description) {
       mutationArgs.description = resolvedDescription;
-    }
-    // For nullable color: only include when the resolved value differs from stored.
-    if (resolvedColor !== tool.color) {
-      mutationArgs.color = resolvedColor;
     }
 
     updateMutation.mutate(mutationArgs, {
@@ -266,7 +262,6 @@ export function McpToolEditorContent({
     setLocalName(tool.name);
     setLocalDescription(tool.description ?? "");
     setLocalSchemaJson(tool.schemaJson);
-    setLocalColor(tool.color ?? "");
     setSaveError(null);
     onClose();
   };
@@ -294,17 +289,6 @@ export function McpToolEditorContent({
           placeholder="Short description (optional)"
           className={styles.fullWidthInput}
           data-testid="mcp-tool-editor-description-input"
-        />
-      </div>
-
-      {/* Color (canonical IconColorPicker — color-only mode). */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
-        <IconColorPicker
-          value={{ icon: null, color: localColor === "" ? null : localColor }}
-          onChange={(next) => setLocalColor(next.color ?? "")}
-          ariaLabel="Tool color"
-          data-testid="mcp-tool-editor-color-input"
         />
       </div>
 

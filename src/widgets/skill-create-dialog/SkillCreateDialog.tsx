@@ -6,15 +6,18 @@
  *   - `onClose`   — called on Cancel, successful Save, or Esc.
  *   - `onCreated` — optional callback with the newly-created Skill.
  *
- * Fields: name (required), description (optional, single-line),
- * color (optional with reset).
+ * Fields: name (required), description (optional, single-line).
+ *
+ * Round-21 (maintainer feedback): the IconColorPicker affordance was
+ * removed — Skill has no `icon` field, so the icon grid in the popover
+ * was inert and the colour-only path read as confused UI.
  */
 
 import { useState, type ReactElement } from "react";
 
 import { useCreateSkillMutation } from "@entities/skill";
 import type { Skill } from "@entities/skill";
-import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
+import { Dialog, Button, Input } from "@shared/ui";
 
 import styles from "./SkillCreateDialog.module.css";
 
@@ -68,7 +71,6 @@ function SkillCreateDialogContent({
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [color, setColor] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const canSubmit = name.trim().length > 0;
@@ -88,7 +90,6 @@ function SkillCreateDialogContent({
     type MutationArgs = Parameters<typeof createMutation.mutate>[0];
     const args: MutationArgs = { name: trimmedName, position: Date.now() };
     if (description !== "") args.description = description;
-    if (color !== "") args.color = color;
 
     createMutation.mutate(args, {
       onSuccess: (skill) => {
@@ -129,17 +130,6 @@ function SkillCreateDialogContent({
           placeholder="Short description of the skill"
           className={styles.fullWidthInput}
           data-testid="skill-create-dialog-description-input"
-        />
-      </div>
-
-      {/* Color (canonical IconColorPicker — color-only mode). */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
-        <IconColorPicker
-          value={{ icon: null, color: color === "" ? null : color }}
-          onChange={(next) => setColor(next.color ?? "")}
-          ariaLabel="Skill color"
-          data-testid="skill-create-dialog-color-input"
         />
       </div>
 

@@ -160,28 +160,18 @@ pub const ATTACHMENT_DELETED: &str = "attachment:deleted";
 pub const APP_REFRESH_REQUIRED: &str = "app:refresh-required";
 
 // -----------------------------------------------------------------
-// Connected-client lifecycle events (ctq-67).
+// Connected-provider lifecycle events (round-21).
 // -----------------------------------------------------------------
 
-/// `client:discovered` — emitted after a full rescan; payload is the
-/// complete updated list `{ clients: ConnectedClient[] }`.
-pub const CLIENT_DISCOVERED: &str = "client:discovered";
+/// `connected_provider:added` — payload `{ id }`.
+pub const CONNECTED_PROVIDER_ADDED: &str = "connected_provider:added";
 
-/// `client:updated` — emitted when a single client's `enabled` flag is
-/// toggled; payload `{ id }`.
-pub const CLIENT_UPDATED: &str = "client:updated";
+/// `connected_provider:removed` — payload `{ id }`.
+pub const CONNECTED_PROVIDER_REMOVED: &str = "connected_provider:removed";
 
-/// `client:removed` — reserved for future use when an adapter is
-/// explicitly removed from the registry. Not currently emitted.
-pub const CLIENT_REMOVED: &str = "client:removed";
-
-/// `client:instructions_changed` — emitted after a successful
-/// `write_client_instructions`; payload `{ client_id }`.
-pub const CLIENT_INSTRUCTIONS_CHANGED: &str = "client:instructions_changed";
-
-/// `client:roles_synced` — emitted after `sync_roles_to_client` succeeds
-/// (ctq-69); payload is the full `RoleSyncReport` JSON object.
-pub const CLIENT_ROLES_SYNCED: &str = "client:roles_synced";
+/// `sync:status_changed` — fan-out sync state. Payload is a full
+/// `SyncStatus` JSON object (see `crates/domain/src/connected_provider.rs`).
+pub const SYNC_STATUS_CHANGED: &str = "sync:status_changed";
 
 /// Emit a typed Tauri event to every webview attached to the app.
 ///
@@ -280,11 +270,9 @@ mod tests {
             PROMPT_GROUP_UPDATED,
             PROMPT_GROUP_DELETED,
             PROMPT_GROUP_MEMBERS_CHANGED,
-            CLIENT_DISCOVERED,
-            CLIENT_UPDATED,
-            CLIENT_REMOVED,
-            CLIENT_INSTRUCTIONS_CHANGED,
-            CLIENT_ROLES_SYNCED,
+            CONNECTED_PROVIDER_ADDED,
+            CONNECTED_PROVIDER_REMOVED,
+            SYNC_STATUS_CHANGED,
         ] {
             assert!(
                 name.contains(':') || name.contains('-'),

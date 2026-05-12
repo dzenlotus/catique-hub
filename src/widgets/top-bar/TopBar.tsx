@@ -3,12 +3,16 @@
  *
  * Layout (Image #30):
  *   ┌────────────────────────────────────────────────────────┐
- *   │  [Search ⌘K]                          [+ New task]    │
+ *   │  [Search ⌘K]                          [sync indicator] │
  *   └────────────────────────────────────────────────────────┘
  *
- * Single row only — no divider below, no icons after the CTA. The
- * breadcrumb is rendered separately in the page content (board header),
- * not duplicated here.
+ * Round-21 added a global sync indicator on the right side of the
+ * search row (`<SyncIndicator />`). It's hidden when the global sync
+ * state is `idle`, so the bar stays clean during normal use.
+ *
+ * Single row only — no divider below, no icons after the indicator.
+ * The breadcrumb is rendered separately in the page content (board
+ * header), not duplicated here.
  */
 
 import { useState, useCallback, type ReactElement } from "react";
@@ -18,6 +22,7 @@ import { GlobalSearch, useGlobalSearchKeybind } from "@widgets/global-search";
 import { TaskCreateDialog } from "@widgets/task-create-dialog";
 
 import { useNewTaskKeybind } from "./useNewTaskKeybind";
+import { SyncIndicator } from "./SyncIndicator";
 import styles from "./TopBar.module.css";
 
 export function TopBar(): ReactElement {
@@ -60,10 +65,11 @@ export function TopBar(): ReactElement {
           </button>
 
           {/*
-           * The "+ New task" button was removed by user request — task
-           * creation is reachable via the Cmd+N global keybind below
-           * and through column / board surface affordances.
+           * Global sync indicator (round-21). Pinned to the right of the
+           * search row so it's visible from every page. Renders nothing
+           * while the backend reports `idle` — the bar stays clean.
            */}
+          <SyncIndicator />
         </div>
 
         <div

@@ -20,6 +20,7 @@
 
 pub mod events;
 pub mod handlers;
+pub mod mcp_bridge;
 pub mod state;
 
 pub use catique_application::AppError;

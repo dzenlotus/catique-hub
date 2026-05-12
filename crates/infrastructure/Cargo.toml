@@ -14,7 +14,6 @@ path = "src/lib.rs"
 
 [dependencies]
 catique-domain = { path = "../domain" }
-catique-clients = { path = "../clients" }
 
 # Bundled rusqlite — ships SQLite C source statically with the crate, so
 # the resulting binary works on Win/macOS without a system libsqlite. The

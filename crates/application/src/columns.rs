@@ -233,19 +233,10 @@ impl<'a> ColumnsUseCase<'a> {
     /// # Errors
     ///
     /// Forwards storage-layer errors.
-    pub fn set_mcp_tools(
-        &self,
-        column_id: &str,
-        mcp_tool_ids: &[String],
-    ) -> Result<(), AppError> {
+    pub fn set_mcp_tools(&self, column_id: &str, mcp_tool_ids: &[String]) -> Result<(), AppError> {
         let mut conn = acquire(self.pool).map_err(map_db_err)?;
-        inh::set_mcp_tools(
-            &mut conn,
-            InheritanceScope::Column,
-            column_id,
-            mcp_tool_ids,
-        )
-        .map_err(map_db_err)
+        inh::set_mcp_tools(&mut conn, InheritanceScope::Column, column_id, mcp_tool_ids)
+            .map_err(map_db_err)
     }
 }
 
@@ -449,7 +440,8 @@ mod tests {
         let uc = ColumnsUseCase::new(&pool);
         uc.set_column_prompts(column_id.clone(), vec!["p1".into(), "p2".into()])
             .unwrap();
-        uc.set_column_prompts(column_id.clone(), Vec::new()).unwrap();
+        uc.set_column_prompts(column_id.clone(), Vec::new())
+            .unwrap();
 
         let conn = catique_infrastructure::db::pool::acquire(&pool).unwrap();
         let join_count: i64 = conn

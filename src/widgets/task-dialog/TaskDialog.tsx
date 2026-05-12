@@ -1,15 +1,17 @@
 /**
  * TaskDialog — task detail / edit modal (Design System v1).
  *
- * v1 fields (in order):
+ * Fields (in order):
  *   1. Title (text input)
  *   2. Slug (read-only mono badge)
  *   3. Description (textarea + edit/preview toggle)
- *   4. Assignee (role; nullable) — audit-#10 dropped Board + Status
- *      from the dialog; kanban drag handles re-ordering.
- *   5. Attached prompts (multiselect)
- *   6. Attachments (wired — upload/delete)
- *   7. Agent reports (wired)
+ *   4. Attached prompts (multiselect)
+ *   5. Attachments (wired — upload/delete)
+ *   6. Agent reports (wired)
+ *
+ * Audit-#10 dropped Board + Status; kanban drag handles re-ordering.
+ * Round-21 (maintainer feedback): the Assignee picker is gone too —
+ * a task's role is the owning board's role, set server-side.
  *
  * Footer: trash-icon delete button (left) + Cancel + Save (right).
  */
@@ -30,7 +32,6 @@ import {
   useUploadAttachmentMutation,
   AttachmentRow,
 } from "@entities/attachment";
-import { useRoles } from "@entities/role";
 import {
   Dialog,
   EditorShell,
@@ -39,8 +40,6 @@ import {
   MarkdownField,
   MultiSelect,
   Scrollable,
-  Select,
-  SelectItem,
 } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
@@ -305,71 +304,6 @@ function SlugChip({ slug }: { slug: string }): ReactElement {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Local option-row shape for `FieldSelect`. Empty-string ids are
- * supported to encode "no selection" / "no value" choices (e.g. role).
- */
-interface FieldSelectOption {
-  id: string;
-  label: string;
-}
-
-/**
- * Custom Select field — wraps the shared `<Select>` primitive so the
- * trigger lines up with sibling `<Input>`s in TaskDialog. Empty-string
- * `value` is treated as "no selection"; `onChange("")` fires when the
- * user picks an item with an empty id (e.g. the "(no role)" option).
- *
- * RAC's `selectedKey` API uses `Key | null` — we round-trip empty
- * strings to/from `null` only at the placeholder boundary so existing
- * call-sites can stay string-based.
- */
-function FieldSelect({
-  label,
-  value,
-  onChange,
-  options,
-  placeholder,
-  disabled,
-  testId,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: FieldSelectOption[];
-  /** Rendered as the empty-state placeholder when `value` is "". */
-  placeholder?: string;
-  disabled?: boolean;
-  testId?: string;
-}): ReactElement {
-  // RAC's `selectedKey={null}` triggers the placeholder; map "" → null.
-  const selectedKey = value === "" ? null : value;
-
-  return (
-    <Select
-      label={label}
-      selectedKey={selectedKey}
-      onSelectionChange={(key) => {
-        // Normalize back to string so call-sites stay string-only.
-        onChange(key === null ? "" : String(key));
-      }}
-      isDisabled={disabled ?? false}
-      className={styles.fieldGroup}
-      triggerClassName={styles.fieldTrigger}
-      {...(placeholder ? { placeholder } : {})}
-      {...(testId ? { "data-testid": testId } : {})}
-    >
-      {options.map((opt) => (
-        <SelectItem key={opt.id} id={opt.id} textValue={opt.label}>
-          {opt.label}
-        </SelectItem>
-      ))}
-    </Select>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
  * Exported content body (round-19e). The task editor body is now
  * reused by the routed `<TaskView>` page — same form fields,
  * mutations, footer. Keep the form in one place to avoid drift.
@@ -388,32 +322,24 @@ export function TaskDialogContent({
   const deleteMutation = useDeleteTaskMutation();
   const { pushToast } = useToast();
 
-  // Local edit state. boardId/columnId stay in state (and in the
-  // mutation payload) so the task keeps its kanban location after
-  // edits — the dropdowns are gone (audit-#10) but the data is not.
+  // Local edit state. boardId/columnId stay on the underlying record
+  // (and in the mutation payload) so the task keeps its kanban
+  // location after edits — the dropdowns were dropped in audit-#10 but
+  // the data is not.
   const [localTitle, setLocalTitle] = useState("");
   const [localDescription, setLocalDescription] = useState("");
-  const [localRoleId, setLocalRoleId] = useState<string>(""); // "" = null (no role)
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-
-  // Remote data for the assignee dropdown.
-  const rolesQuery = useRoles();
 
   // Sync local state when task data loads or taskId changes.
   useEffect(() => {
     if (query.data) {
       setLocalTitle(query.data.title);
       setLocalDescription(query.data.description ?? "");
-      setLocalRoleId(query.data.roleId ?? "");
       setSaveError(null);
       setConfirmDelete(false);
     }
   }, [query.data, taskId]);
-
-  // audit-#10: board / column dropdowns removed from the dialog;
-  // assignee (role) is the only remaining selector.
-  const allRoles = rolesQuery.data ?? [];
 
   // ── Pending ────────────────────────────────────────────────────────
 
@@ -544,11 +470,8 @@ export function TaskDialogContent({
     }
     // audit-#10: column / board are no longer user-editable from the
     // dialog; reordering happens via kanban drag.
-    // roleId: "" maps to null (no role), otherwise the selected id.
-    const newRoleId = localRoleId === "" ? null : localRoleId;
-    if (newRoleId !== task.roleId) {
-      mutationArgs.roleId = newRoleId;
-    }
+    // round-21: roleId is no longer editable — a task's role follows
+    // the owning board's role and is resolved server-side.
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
@@ -565,7 +488,6 @@ export function TaskDialogContent({
   const handleCancel = (): void => {
     setLocalTitle(task.title);
     setLocalDescription(task.description ?? "");
-    setLocalRoleId(task.roleId ?? "");
     setSaveError(null);
     setConfirmDelete(false);
     onClose();
@@ -627,25 +549,10 @@ export function TaskDialogContent({
         />
       </div>
 
-      {/* audit-#10: Board + Column dropdowns removed from the task card.
-          A task already lives in a known board+column when this dialog
-          opens; reordering happens via kanban drag. The user-facing
-          field that matters is Assignee (the role responsible). */}
-
-      {/* Assignee (role) */}
-      <div className={styles.section}>
-        <FieldSelect
-          label="Assignee"
-          value={localRoleId}
-          onChange={setLocalRoleId}
-          options={[
-            { id: "", label: "(no assignee)" },
-            ...allRoles.map((r) => ({ id: r.id, label: r.name })),
-          ]}
-          disabled={rolesQuery.status === "pending"}
-          testId="task-dialog-role-select"
-        />
-      </div>
+      {/* audit-#10: Board + Column dropdowns are gone — the task already
+          lives in a known board+column when this dialog opens; reordering
+          happens via kanban drag. Round-21: the Assignee picker is gone
+          too — a task's role follows the owning board's role. */}
 
       {/* Attached prompts */}
       <div

@@ -38,4 +38,10 @@ pub struct Space {
     /// `015_space_workflow_graph.sql`.
     #[serde(default)]
     pub workflow_graph_json: Option<String>,
+    /// Round-21 (migration `020_space_project_folder_path.sql`):
+    /// opaque per-space "project folder" used by the frontend for
+    /// "Reveal in Finder / open in editor" affordances. Backend
+    /// stores + round-trips it verbatim — no semantic interpretation.
+    #[serde(default)]
+    pub project_folder_path: Option<String>,
 }

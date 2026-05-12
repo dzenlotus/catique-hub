@@ -7,8 +7,11 @@
  *   - `onCreated` — optional callback with the newly-created McpTool.
  *
  * Fields: name (required), description (optional single-line),
- * schemaJson (required textarea, client-side JSON validated),
- * color (optional with reset).
+ * schemaJson (required textarea, client-side JSON validated).
+ *
+ * Round-21 (maintainer feedback): the IconColorPicker affordance was
+ * removed — MCP tools have no `icon` field, so the icon grid in the
+ * popover was inert and the colour-only path read as confused UI.
  */
 
 import { useState, type ReactElement } from "react";
@@ -16,7 +19,7 @@ import { useState, type ReactElement } from "react";
 import { useCreateMcpToolMutation } from "@entities/mcp-tool";
 import type { McpTool } from "@entities/mcp-tool";
 import { AppErrorInstance } from "@entities/board";
-import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
+import { Dialog, Button, Input } from "@shared/ui";
 
 import styles from "./McpToolCreateDialog.module.css";
 
@@ -71,7 +74,6 @@ function McpToolCreateDialogContent({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [schemaJson, setSchemaJson] = useState("");
-  const [color, setColor] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const canSubmit = name.trim().length > 0 && schemaJson.trim().length > 0;
@@ -109,7 +111,6 @@ function McpToolCreateDialogContent({
       position: Date.now(),
     };
     if (description !== "") args.description = description;
-    if (color !== "") args.color = color;
 
     createMutation.mutate(args, {
       onSuccess: (tool) => {
@@ -157,17 +158,6 @@ function McpToolCreateDialogContent({
           placeholder="Short description (optional)"
           className={styles.fullWidthInput}
           data-testid="mcp-tool-create-dialog-description-input"
-        />
-      </div>
-
-      {/* Color (canonical IconColorPicker — color-only mode). */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
-        <IconColorPicker
-          value={{ icon: null, color: color === "" ? null : color }}
-          onChange={(next) => setColor(next.color ?? "")}
-          ariaLabel="Tool color"
-          data-testid="mcp-tool-create-dialog-color-input"
         />
       </div>
 

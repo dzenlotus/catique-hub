@@ -133,7 +133,12 @@ beforeEach(() => {
   invokeMock.mockReset();
   capturedIsOpen = false;
   mockOnClose.mockReset();
-  invokeMock.mockResolvedValue([]);
+  // Round-21: SyncIndicator subscribes to `get_sync_status`. Stub a
+  // benign idle response so the indicator stays hidden in TopBar tests.
+  invokeMock.mockImplementation((cmd: string) => {
+    if (cmd === "get_sync_status") return Promise.resolve({ state: "idle" });
+    return Promise.resolve([]);
+  });
 });
 
 afterEach(() => {

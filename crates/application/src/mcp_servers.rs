@@ -79,6 +79,22 @@ impl<'a> McpServersUseCase<'a> {
         Ok(rows.into_iter().map(row_to_server).collect())
     }
 
+    /// List only the *enabled* registered MCP servers, ordered by name.
+    ///
+    /// Used by the sidecar MCP surface (ctq-126 — `list_mcp_servers`) so
+    /// the calling agent never sees servers the user has temporarily
+    /// disabled. Disabled rows still exist for `list` (settings UI) and
+    /// `get` (direct lookup), but they are filtered out here.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn list_enabled(&self) -> Result<Vec<McpServer>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let rows = repo::list_by_enabled(&conn).map_err(map_db_err)?;
+        Ok(rows.into_iter().map(row_to_server).collect())
+    }
+
     /// Look up an MCP server by id.
     ///
     /// # Errors
@@ -254,10 +270,9 @@ impl<'a> McpServersUseCase<'a> {
 /// `AppError::BadRequest` for anything other than the two recognised
 /// reference objects (see module docs).
 fn validate_auth_ref(s: &str) -> Result<(), AppError> {
-    let value: serde_json::Value =
-        serde_json::from_str(s).map_err(|e| AppError::BadRequest {
-            reason: format!("auth_json must be valid JSON: {e}"),
-        })?;
+    let value: serde_json::Value = serde_json::from_str(s).map_err(|e| AppError::BadRequest {
+        reason: format!("auth_json must be valid JSON: {e}"),
+    })?;
     let obj = value.as_object().ok_or_else(|| AppError::BadRequest {
         reason: "auth_json must be a JSON object".into(),
     })?;
@@ -465,10 +480,7 @@ mod tests {
             .expect_err("br")
         {
             AppError::BadRequest { reason } => {
-                assert!(
-                    reason.contains("`type` and `key`"),
-                    "got reason: {reason}"
-                );
+                assert!(reason.contains("`type` and `key`"), "got reason: {reason}");
             }
             other => panic!("got {other:?}"),
         }
@@ -718,5 +730,41 @@ mod tests {
         .unwrap();
         let list = uc.list().unwrap();
         assert_eq!(list.len(), 2);
+    }
+
+    #[test]
+    fn list_enabled_filters_out_disabled_servers() {
+        // ctq-126 contract: the sidecar MCP surface only exposes
+        // *enabled* servers to the calling agent. Disabled rows must
+        // never reach `list_mcp_servers` / `get_mcp_server_connection_hint`
+        // consumers — this test pins that filter at the use-case layer.
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        uc.create(
+            "alpha-on".into(),
+            Transport::Http,
+            Some("https://alpha.example.com/mcp".into()),
+            None,
+            None,
+            true,
+        )
+        .unwrap();
+        uc.create(
+            "zeta-off".into(),
+            Transport::Http,
+            Some("https://zeta.example.com/mcp".into()),
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+
+        let all = uc.list().unwrap();
+        assert_eq!(all.len(), 2, "list() returns enabled + disabled");
+
+        let enabled_only = uc.list_enabled().unwrap();
+        assert_eq!(enabled_only.len(), 1);
+        assert_eq!(enabled_only[0].name, "alpha-on");
+        assert!(enabled_only[0].enabled);
     }
 }

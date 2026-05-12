@@ -45,7 +45,12 @@ const DEFAULT_BOARD_ICON: &str = "PixelInterfaceEssentialList";
 /// new board (migration `016_default_board_naming_and_constraints.sql`).
 /// Same string as `DEFAULT_BOARD_NAME` because both signal "this is the
 /// canonical landing spot when the user has not yet curated names".
-const DEFAULT_COLUMN_NAME: &str = "Owner";
+/// Default name for the auto-created column landed in every newly
+/// minted board. The board itself reads as the role/owner ("Owner");
+/// the column is the *bucket* of incoming work — kanban-idiomatic
+/// "To Do". Migration `019_default_columns_backfill.sql` renames
+/// pre-existing default columns named "Owner" to the same value.
+const DEFAULT_COLUMN_NAME: &str = "To Do";
 
 const PREFIX_MAX_LEN: usize = 10;
 
@@ -57,7 +62,7 @@ pub struct SpacesUseCase<'a> {
 /// Argument bag for [`SpacesUseCase::create`]. Keeps the call site
 /// readable now that spaces carry both `color` and `icon` alongside the
 /// existing primary fields.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CreateSpaceArgs {
     pub name: String,
     pub prefix: String,
@@ -67,6 +72,8 @@ pub struct CreateSpaceArgs {
     /// Optional pixel-icon identifier — opaque to the backend.
     pub icon: Option<String>,
     pub is_default: bool,
+    /// Round-21 opaque project folder path. The frontend interprets it.
+    pub project_folder_path: Option<String>,
 }
 
 /// Argument bag for [`SpacesUseCase::update`]. Nullable fields use the
@@ -81,6 +88,9 @@ pub struct UpdateSpaceArgs {
     pub icon: Option<Option<String>>,
     pub is_default: Option<bool>,
     pub position: Option<f64>,
+    /// Round-21 opaque project folder path.
+    /// `None` = leave alone; `Some(None)` = clear; `Some(Some(s))` = set.
+    pub project_folder_path: Option<Option<String>>,
 }
 
 impl<'a> SpacesUseCase<'a> {
@@ -151,6 +161,7 @@ impl<'a> SpacesUseCase<'a> {
                 icon: args.icon,
                 is_default: args.is_default,
                 position: None,
+                project_folder_path: args.project_folder_path,
             },
         )
         .map_err(|e| map_db_err_unique(e, "space"))?;
@@ -220,6 +231,7 @@ impl<'a> SpacesUseCase<'a> {
             icon: args.icon,
             is_default: args.is_default,
             position: args.position,
+            project_folder_path: args.project_folder_path,
         };
         match repo::update(&conn, &args.id, &patch).map_err(map_db_err)? {
             Some(row) => Ok(row_to_space(row)),
@@ -414,8 +426,7 @@ impl<'a> SpacesUseCase<'a> {
     /// Forwards storage-layer errors.
     pub fn set_skills(&self, space_id: &str, skill_ids: &[String]) -> Result<(), AppError> {
         let mut conn = acquire(self.pool).map_err(map_db_err)?;
-        inh::set_skills(&mut conn, InheritanceScope::Space, space_id, skill_ids)
-            .map_err(map_db_err)
+        inh::set_skills(&mut conn, InheritanceScope::Space, space_id, skill_ids).map_err(map_db_err)
     }
 
     /// Replace the space's MCP-tool list. ctq-120.
@@ -423,19 +434,10 @@ impl<'a> SpacesUseCase<'a> {
     /// # Errors
     ///
     /// Forwards storage-layer errors.
-    pub fn set_mcp_tools(
-        &self,
-        space_id: &str,
-        mcp_tool_ids: &[String],
-    ) -> Result<(), AppError> {
+    pub fn set_mcp_tools(&self, space_id: &str, mcp_tool_ids: &[String]) -> Result<(), AppError> {
         let mut conn = acquire(self.pool).map_err(map_db_err)?;
-        inh::set_mcp_tools(
-            &mut conn,
-            InheritanceScope::Space,
-            space_id,
-            mcp_tool_ids,
-        )
-        .map_err(map_db_err)
+        inh::set_mcp_tools(&mut conn, InheritanceScope::Space, space_id, mcp_tool_ids)
+            .map_err(map_db_err)
     }
 
     /// Read the Phase 5 workflow-graph payload for `space_id`. ctq-113.
@@ -530,6 +532,7 @@ fn row_to_space(row: SpaceRow) -> Space {
         created_at: row.created_at,
         updated_at: row.updated_at,
         workflow_graph_json: row.workflow_graph_json,
+        project_folder_path: row.project_folder_path,
     }
 }
 
@@ -551,10 +554,7 @@ mod tests {
         CreateSpaceArgs {
             name: name.into(),
             prefix: prefix.into(),
-            description: None,
-            color: None,
-            icon: None,
-            is_default: false,
+            ..CreateSpaceArgs::default()
         }
     }
 
@@ -743,9 +743,10 @@ mod tests {
         );
 
         // D-006: the auto-created board carries exactly one default
-        // column ("Owner"). Reuse the already-acquired `conn` rather
-        // than re-acquiring (the in-memory pool is single-connection
-        // — a second `acquire` would time out).
+        // column. Round-21 (migration 019) renamed it from "Owner" to
+        // the kanban-idiomatic "To Do". Reuse the already-acquired
+        // `conn` rather than re-acquiring (the in-memory pool is
+        // single-connection — a second `acquire` would time out).
         let default_col_count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM columns WHERE board_id = ?1 AND is_default = 1",

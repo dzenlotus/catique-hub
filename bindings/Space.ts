@@ -20,4 +20,11 @@ icon: string | null, isDefault: boolean, position: number, createdAt: bigint, up
  * and is the default for every existing row after migration
  * `015_space_workflow_graph.sql`.
  */
-workflowGraphJson: string | null, };
+workflowGraphJson: string | null, 
+/**
+ * Round-21 (migration `020_space_project_folder_path.sql`):
+ * opaque per-space "project folder" used by the frontend for
+ * "Reveal in Finder / open in editor" affordances. Backend
+ * stores + round-trips it verbatim — no semantic interpretation.
+ */
+projectFolderPath: string | null, };

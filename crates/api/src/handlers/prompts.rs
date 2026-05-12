@@ -10,9 +10,7 @@ use catique_domain::Prompt;
 use catique_infrastructure::db::{
     pool::acquire,
     repositories::prompts as repo,
-    repositories::tasks::{
-        cascade_prompt_attachment, cascade_prompt_detachment, AttachScope,
-    },
+    repositories::tasks::{cascade_prompt_attachment, cascade_prompt_detachment, AttachScope},
 };
 use serde_json::json;
 use tauri::State;

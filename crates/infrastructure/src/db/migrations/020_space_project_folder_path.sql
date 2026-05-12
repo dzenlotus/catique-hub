@@ -1,0 +1,11 @@
+-- 020_space_project_folder_path.sql — round-21 Connected Providers refactor.
+--
+-- Adds an opaque per-space `project_folder_path` slot. The frontend
+-- uses it for "Reveal in Finder / open in editor" affordances on the
+-- space header; the backend stores + round-trips it verbatim with no
+-- semantic interpretation (no path validation, no existence check —
+-- the FE is the only consumer that knows what to do with the string).
+--
+-- Nullable so existing rows survive untouched. The application layer
+-- treats `NULL` and an empty string as "no folder configured".
+ALTER TABLE spaces ADD COLUMN project_folder_path TEXT NULL;

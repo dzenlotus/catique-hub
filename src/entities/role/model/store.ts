@@ -45,7 +45,12 @@ import {
   type AddRoleMcpToolArgs,
   type RemoveRoleMcpToolArgs,
 } from "../api";
-import { syncRolesToAllSupportingClients } from "@entities/connected-client";
+// Round-21: provider sync is now driven server-side. The role mutation
+// IPCs trigger the fanout in Rust; the topbar indicator (`useSyncStatus`
+// in `@entities/connected-client`) reflects the global state via the
+// `sync:status_changed` event. The previous frontend
+// `syncRolesToAllSupportingClients` helper was removed alongside the
+// per-card "Sync roles" button.
 import type { Prompt } from "@bindings/Prompt";
 import type { Skill } from "@bindings/Skill";
 import type { McpTool } from "@bindings/McpTool";
@@ -124,9 +129,9 @@ export function useRole(id: string): UseQueryResult<Role, Error> {
 
 /**
  * `useCreateRoleMutation` — create a role, then invalidate the list
- * cache so any mounted `useRoles()` re-fetches. Fans out a fire-and-
- * forget sync to every connected client supporting role-sync so the
- * new role lands in agent-managed files immediately.
+ * cache so any mounted `useRoles()` re-fetches. Round-21: provider sync
+ * fanout moved to the Rust handler; the topbar indicator reflects
+ * global progress via `sync:status_changed`.
  */
 export function useCreateRoleMutation(): UseMutationResult<
   Role,
@@ -138,16 +143,15 @@ export function useCreateRoleMutation(): UseMutationResult<
     mutationFn: createRole,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: rolesKeys.list() });
-      void syncRolesToAllSupportingClients(queryClient);
     },
   });
 }
 
 /**
  * `useUpdateRoleMutation` — partial-update a role, then invalidate list
- * and the specific detail entry. Auto-fans-out a sync to every connected
- * client supporting role-sync so the rewritten role lands in agent-
- * managed files without a separate manual step.
+ * and the specific detail entry. Round-21: provider sync fanout moved
+ * to the Rust handler; the topbar indicator reflects global progress
+ * via `sync:status_changed`.
  */
 export function useUpdateRoleMutation(): UseMutationResult<
   Role,
@@ -162,16 +166,16 @@ export function useUpdateRoleMutation(): UseMutationResult<
       void queryClient.invalidateQueries({
         queryKey: rolesKeys.detail(updated.id),
       });
-      void syncRolesToAllSupportingClients(queryClient);
     },
   });
 }
 
 /**
  * `useDeleteRoleMutation` — delete a role, invalidate the list, and
- * remove the stale detail entry from the cache. Auto-fans-out a sync
- * so each connected client's stale-cleanup routine removes the role's
- * agent-managed files (`catique-<id>.md` / `.mdc`).
+ * remove the stale detail entry from the cache. Round-21: provider sync
+ * fanout (including stale-cleanup of agent-managed files) moved to the
+ * Rust handler; the topbar indicator reflects global progress via
+ * `sync:status_changed`.
  */
 export function useDeleteRoleMutation(): UseMutationResult<void, Error, string> {
   const queryClient = useQueryClient();
@@ -180,7 +184,6 @@ export function useDeleteRoleMutation(): UseMutationResult<void, Error, string> 
     onSuccess: (_data, id) => {
       void queryClient.invalidateQueries({ queryKey: rolesKeys.list() });
       queryClient.removeQueries({ queryKey: rolesKeys.detail(id) });
-      void syncRolesToAllSupportingClients(queryClient);
     },
   });
 }

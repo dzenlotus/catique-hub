@@ -41,6 +41,9 @@ function makeSpace(overrides: Partial<Space> = {}): Space {
     createdAt: 0n,
     updatedAt: 0n,
     workflowGraphJson: null,
+    // Round-21: optional project folder path. Default to null in
+    // fixtures; specific tests override when they exercise the field.
+    projectFolderPath: null,
     ...overrides,
   };
 }
@@ -249,5 +252,69 @@ describe("SpaceCreateDialog", () => {
       <SpaceCreateDialog isOpen={false} onClose={() => undefined} />,
     );
     expect(screen.queryByTestId("space-create-dialog-name-input")).toBeNull();
+  });
+
+  // ── Round-21: project folder field ──────────────────────────────────
+  it("renders the project folder input", () => {
+    renderWithProviders(<SpaceCreateDialog isOpen onClose={() => undefined} />);
+    expect(
+      screen.getByTestId("space-create-dialog-project-folder-input"),
+    ).toBeInTheDocument();
+  });
+
+  it("forwards projectFolderPath into create_space when filled", async () => {
+    const newSpace = makeSpace({ id: "spc-new", name: "Alpha", prefix: "alp" });
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "list_spaces") return new Promise(() => {});
+      if (cmd === "create_space") return Promise.resolve(newSpace);
+      return Promise.resolve(undefined);
+    });
+
+    const { user } = renderWithProviders(
+      <SpaceCreateDialog isOpen onClose={() => undefined} />,
+    );
+
+    await user.type(screen.getByTestId("space-create-dialog-name-input"), "Alpha");
+    await user.type(screen.getByTestId("space-create-dialog-prefix-input"), "alp");
+    await user.type(
+      screen.getByTestId("space-create-dialog-project-folder-input"),
+      "/Users/test/projects/alpha",
+    );
+    await user.click(screen.getByTestId("space-create-dialog-save"));
+
+    await waitFor(() => {
+      const createCall = invokeMock.mock.calls.find(
+        ([cmd]) => cmd === "create_space",
+      );
+      expect(createCall?.[1]).toMatchObject({
+        name: "Alpha",
+        prefix: "alp",
+        projectFolderPath: "/Users/test/projects/alpha",
+      });
+    });
+  });
+
+  it("omits projectFolderPath when the field is left blank", async () => {
+    const newSpace = makeSpace({ id: "spc-new", name: "Alpha", prefix: "alp" });
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "list_spaces") return new Promise(() => {});
+      if (cmd === "create_space") return Promise.resolve(newSpace);
+      return Promise.resolve(undefined);
+    });
+
+    const { user } = renderWithProviders(
+      <SpaceCreateDialog isOpen onClose={() => undefined} />,
+    );
+
+    await user.type(screen.getByTestId("space-create-dialog-name-input"), "Alpha");
+    await user.type(screen.getByTestId("space-create-dialog-prefix-input"), "alp");
+    await user.click(screen.getByTestId("space-create-dialog-save"));
+
+    await waitFor(() => {
+      const createCall = invokeMock.mock.calls.find(
+        ([cmd]) => cmd === "create_space",
+      );
+      expect(createCall?.[1]).not.toHaveProperty("projectFolderPath");
+    });
   });
 });

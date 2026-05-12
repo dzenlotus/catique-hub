@@ -12,9 +12,7 @@ use catique_infrastructure::db::{
         cascade_skill_detachment,
     },
     repositories::roles as repo,
-    repositories::tasks::{
-        cascade_prompt_attachment, cascade_prompt_detachment, AttachScope,
-    },
+    repositories::tasks::{cascade_prompt_attachment, cascade_prompt_detachment, AttachScope},
 };
 use serde_json::json;
 use tauri::State;

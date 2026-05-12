@@ -16,6 +16,7 @@ pub mod attachments;
 pub mod boards;
 pub mod clients;
 pub mod columns;
+pub mod connected_providers;
 pub mod error;
 mod error_map;
 pub mod mcp_servers;

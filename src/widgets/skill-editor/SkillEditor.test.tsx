@@ -104,10 +104,9 @@ describe("SkillEditor", () => {
     expect(screen.getByTestId("skill-editor-description-input")).toHaveValue(
       "Строгая типизация для JS",
     );
-    // Round-19d: the standalone color input was replaced with a
-    // combined `<IconColorPicker>`. The trigger is rendered on the
-    // form; the actual color input lives inside the popover.
-    expect(screen.getByTestId("skill-editor-color-input")).toBeInTheDocument();
+    // Round-21: colour affordance dropped — Skill has no `icon` field,
+    // so the IconColorPicker popover read as confused UI.
+    expect(screen.queryByTestId("skill-editor-color-input")).toBeNull();
   });
 
   it("name input is editable", async () => {
@@ -180,42 +179,8 @@ describe("SkillEditor", () => {
     expect(updateCall).toBeUndefined();
   });
 
-  it("empty color gets sent as null on update", async () => {
-    const skill = makeSkill({ color: "#3b82f6" });
-    invokeMock.mockImplementation(async (cmd) => {
-      if (cmd === "get_skill") return skill;
-      if (cmd === "update_skill") return { ...skill, color: null };
-      if (cmd === "list_skills") return [skill];
-      throw new Error(`unexpected: ${cmd}`);
-    });
-    const onClose = vi.fn();
-    const { user } = renderWithClient(
-      <SkillEditor skillId="skill-1" onClose={onClose} />,
-    );
-
-    await screen.findByTestId("skill-editor-name-input");
-
-    // Open the IconColorPicker popover and click its Reset button.
-    await user.click(screen.getByTestId("skill-editor-color-input"));
-    const resetButton = await screen.findByTestId(
-      "skill-editor-color-input-color-clear",
-    );
-    await user.click(resetButton);
-    // Dismiss the popover so its overlay does not eat the Save press.
-    await user.keyboard("{Escape}");
-
-    const saveButton = screen.getByTestId("skill-editor-save");
-    await user.click(saveButton);
-
-    await waitFor(() => {
-      const updateCall = invokeMock.mock.calls.find(([cmd]) => cmd === "update_skill");
-      expect(updateCall).toBeDefined();
-      expect(updateCall?.[1]).toMatchObject({
-        id: "skill-1",
-        color: null,
-      });
-    });
-  });
+  // Round-21: the colour affordance was removed from SkillEditor — the
+  // legacy "empty color gets sent as null" test no longer applies.
 
   it("empty description gets sent as null on update", async () => {
     const skill = makeSkill({ description: "Описание" });

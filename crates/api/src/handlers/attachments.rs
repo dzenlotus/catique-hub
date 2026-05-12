@@ -543,10 +543,7 @@ mod tests {
         assert_eq!(attachment.task_id, "t1");
         assert_eq!(attachment.filename, "note.txt");
         assert_eq!(attachment.mime_type, "text/plain");
-        assert_eq!(
-            attachment.size_bytes,
-            i64::try_from(payload.len()).unwrap()
-        );
+        assert_eq!(attachment.size_bytes, i64::try_from(payload.len()).unwrap());
 
         // Blob is on disk at <root>/attachments/t1/<storage_path>.
         let blob_path = data_root

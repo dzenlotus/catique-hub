@@ -1,49 +1,67 @@
 /**
- * Connected-clients query-cache layer (ctq-67).
+ * Connected-providers query-cache layer (round-21 refactor).
  *
- * Built on `@tanstack/react-query`. Query key root: `["connected_clients"]`.
- * Also used by `EventsProvider` which invalidates on `client:discovered`,
- * `client:updated`, and `client:removed` events.
+ * Built on `@tanstack/react-query`. Query-key root: `["connected_clients"]`
+ * (kept unchanged so existing `EventsProvider` invalidation paths stay
+ * intact while the IPC surface migrates to the round-21 names).
+ *
+ * What changed in round-21:
+ *   - dropped `useDiscoverClientsMutation`, `useSetClientEnabledMutation`,
+ *     `useSyncRolesToClientMutation`, `useSyncedClientRoles`,
+ *     `useClientInstructions`, `useWriteClientInstructionsMutation`,
+ *     and `syncRolesToAllSupportingClients` — manual-rescan, per-card
+ *     enable, manual sync, instructions, and frontend role-sync fanout
+ *     are no longer part of the product.
+ *   - added `useSupportedProviders`, `useAddProviderMutation`,
+ *     `useRemoveProviderMutation`, `useSyncStatus`. Sync now happens
+ *     server-side on every save that touches agents; the topbar
+ *     indicator reads `useSyncStatus`, which is invalidated by the
+ *     `sync:status_changed` event in `EventsProvider`.
  */
 
 import {
   useMutation,
   useQuery,
   useQueryClient,
-  type QueryClient,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
 
 import {
-  discoverClients,
-  listConnectedClients,
-  listSyncedClientRoles,
-  readClientInstructions,
-  setClientEnabled,
-  syncRolesToClient,
-  writeClientInstructions,
-  type SetClientEnabledArgs,
+  addProvider,
+  getSyncStatus,
+  listConnectedProviders,
+  listSupportedProviders,
+  removeProvider,
+  type SupportedProvider,
+  type SyncStatus,
 } from "../api";
-import type { ClientInstructions } from "@bindings/ClientInstructions";
-import type { RoleSyncReport } from "@bindings/RoleSyncReport";
-import type { SyncedRoleFile } from "@bindings/SyncedRoleFile";
 import type { ConnectedClient } from "./types";
+
+// TODO(round-21-backend): drop client-instructions IPC
+// (`read_client_instructions` / `write_client_instructions`) and the
+// `client:instructions_changed` event — the frontend deleted the
+// editor widget and the corresponding hooks
+// (`useClientInstructions`, `useWriteClientInstructionsMutation`)
+// in round-21. Same applies to the manual role-sync IPC
+// (`sync_roles_to_client`, `list_synced_client_roles`) and the
+// `client:roles_synced` event — sync now runs server-side on every
+// agent-touching save and reports through `sync:status_changed`.
 
 /** Query-key factory. */
 export const connectedClientsKeys = {
   all: ["connected_clients"] as const,
   list: () => [...connectedClientsKeys.all] as const,
-  instructions: (clientId: string) =>
-    [...connectedClientsKeys.all, "instructions", clientId] as const,
-  syncedRoles: (clientId: string) =>
-    [...connectedClientsKeys.all, "synced_roles", clientId] as const,
+  supported: () => [...connectedClientsKeys.all, "supported"] as const,
+  syncStatus: () => [...connectedClientsKeys.all, "sync_status"] as const,
 };
 
 /**
- * `useConnectedClients` — list persisted clients without rescanning.
+ * `useConnectedClients` — list connected providers (post-detection / post-Add).
  *
- * Returns the standard react-query result object.
+ * Returns the standard react-query result object. Renamed surface keeps
+ * the existing hook name so call-sites that already import it from
+ * `@entities/connected-client` keep working.
  */
 export function useConnectedClients(): UseQueryResult<
   ConnectedClient[],
@@ -51,43 +69,37 @@ export function useConnectedClients(): UseQueryResult<
 > {
   return useQuery({
     queryKey: connectedClientsKeys.list(),
-    queryFn: listConnectedClients,
+    queryFn: listConnectedProviders,
   });
 }
 
 /**
- * `useDiscoverClientsMutation` — trigger a filesystem rescan. Invalidates
- * the client list on success so any mounted `useConnectedClients()` view
- * refreshes immediately.
+ * `useSupportedProviders` — catalog for the Add-provider modal. Static
+ * per-app-version, but we fetch through react-query for consistency
+ * with the rest of the IPC layer.
  */
-export function useDiscoverClientsMutation(): UseMutationResult<
-  ConnectedClient[],
-  Error,
-  void
+export function useSupportedProviders(): UseQueryResult<
+  SupportedProvider[],
+  Error
 > {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: discoverClients,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: connectedClientsKeys.list(),
-      });
-    },
+  return useQuery({
+    queryKey: connectedClientsKeys.supported(),
+    queryFn: listSupportedProviders,
   });
 }
 
 /**
- * `useSetClientEnabledMutation` — toggle the `enabled` flag. Invalidates
- * the list on success so the Settings UI reflects the change immediately.
+ * `useAddProviderMutation` — connect a provider by id, then invalidate
+ * the connected list so the Settings row appears immediately.
  */
-export function useSetClientEnabledMutation(): UseMutationResult<
+export function useAddProviderMutation(): UseMutationResult<
   ConnectedClient,
   Error,
-  SetClientEnabledArgs
+  string // providerId
 > {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: setClientEnabled,
+    mutationFn: addProvider,
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: connectedClientsKeys.list(),
@@ -97,43 +109,19 @@ export function useSetClientEnabledMutation(): UseMutationResult<
 }
 
 /**
- * `useClientInstructions` — load the global instructions file for a client.
- *
- * Disabled when `clientId` is an empty string (dialog closed state).
+ * `useRemoveProviderMutation` — disconnect a provider. Backend cleans
+ * Catique-owned agent files and drops the `catique-hub` MCP entry from
+ * the provider's config; we only invalidate the list.
  */
-export function useClientInstructions(
-  clientId: string,
-): UseQueryResult<ClientInstructions, Error> {
-  return useQuery({
-    queryKey: connectedClientsKeys.instructions(clientId),
-    queryFn: () => readClientInstructions(clientId),
-    enabled: clientId.length > 0,
-  });
-}
-
-export interface WriteClientInstructionsArgs {
-  clientId: string;
-  content: string;
-}
-
-/**
- * `useWriteClientInstructionsMutation` — write (overwrite) the instructions
- * file. Invalidates the per-client instructions query and the client list
- * on success.
- */
-export function useWriteClientInstructionsMutation(): UseMutationResult<
-  ClientInstructions,
+export function useRemoveProviderMutation(): UseMutationResult<
+  void,
   Error,
-  WriteClientInstructionsArgs
+  string // providerId
 > {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ clientId, content }: WriteClientInstructionsArgs) =>
-      writeClientInstructions(clientId, content),
-    onSuccess: (_data, { clientId }) => {
-      void queryClient.invalidateQueries({
-        queryKey: connectedClientsKeys.instructions(clientId),
-      });
+    mutationFn: removeProvider,
+    onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: connectedClientsKeys.list(),
       });
@@ -142,83 +130,17 @@ export function useWriteClientInstructionsMutation(): UseMutationResult<
 }
 
 /**
- * `useSyncedClientRoles` — list agent-definition files currently managed by
- * Catique Hub for a given client. Disabled when `clientId` is empty.
- */
-export function useSyncedClientRoles(
-  clientId: string,
-): UseQueryResult<SyncedRoleFile[], Error> {
-  return useQuery({
-    queryKey: connectedClientsKeys.syncedRoles(clientId),
-    queryFn: () => listSyncedClientRoles(clientId),
-    enabled: clientId.length > 0,
-  });
-}
-
-/**
- * `useSyncRolesToClientMutation` — trigger a one-way role-file sync.
- * On success, invalidates the `syncedRoles` query for the client so the
- * inline list refreshes immediately.
- */
-export function useSyncRolesToClientMutation(): UseMutationResult<
-  RoleSyncReport,
-  Error,
-  string // clientId
-> {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (clientId: string) => syncRolesToClient(clientId),
-    onSuccess: (_data, clientId) => {
-      void queryClient.invalidateQueries({
-        queryKey: connectedClientsKeys.syncedRoles(clientId),
-      });
-    },
-  });
-}
-
-/**
- * `syncRolesToAllSupportingClients` — fire `sync_roles_to_client` for
- * every persisted client where `enabled && supportsRoleSync` is true.
+ * `useSyncStatus` — global sync state for the topbar indicator.
  *
- * Intended to be invoked from the role-mutation hooks
- * (`useCreate/Update/DeleteRoleMutation`) so role lifecycle changes
- * propagate to agent-managed files automatically. The function reads
- * the live client list from the React Query cache (so callers don't
- * need to feed it in), runs all syncs in parallel, and resolves once
- * every per-client promise has settled. Per-client failures are
- * swallowed here so one offline agent doesn't fail the whole batch —
- * detailed error reporting is left to the manual "Sync roles" button
- * on each `<ConnectedClientCard>`.
+ * Real-time updates arrive via the `sync:status_changed` Tauri event,
+ * wired in `EventsProvider`. The query itself just owns the cache slot
+ * — invalidation triggers a re-fetch of `get_sync_status`. The query
+ * stays mounted as long as the topbar is visible (i.e. always), so
+ * `gcTime` defaults are fine.
  */
-export async function syncRolesToAllSupportingClients(
-  queryClient: QueryClient,
-): Promise<void> {
-  const cached = queryClient.getQueryData<ConnectedClient[]>(
-    connectedClientsKeys.list(),
-  );
-  // Fetch fresh if the cache is empty.
-  const clients: ConnectedClient[] =
-    cached ??
-    (await queryClient.fetchQuery({
-      queryKey: connectedClientsKeys.list(),
-      queryFn: listConnectedClients,
-    })) ??
-    [];
-
-  const targets = clients.filter((c) => c.enabled && c.supportsRoleSync);
-  if (targets.length === 0) return;
-
-  await Promise.allSettled(
-    targets.map(async (client) => {
-      try {
-        await syncRolesToClient(client.id);
-        queryClient.invalidateQueries({
-          queryKey: connectedClientsKeys.syncedRoles(client.id),
-        });
-      } catch {
-        // Silent: caller shows generic "saved" feedback; per-client
-        // errors are surfaced via the manual sync flow.
-      }
-    }),
-  );
+export function useSyncStatus(): UseQueryResult<SyncStatus, Error> {
+  return useQuery({
+    queryKey: connectedClientsKeys.syncStatus(),
+    queryFn: getSyncStatus,
+  });
 }

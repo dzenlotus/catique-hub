@@ -306,7 +306,11 @@ export function EventsProvider({
       }),
     );
 
-    // ---------------- connected clients (ctq-67 / ctq-68 / ctq-69) ----------------
+    // ---------------- connected providers (round-21) ----------------
+    // Provider lifecycle events still mirror the connected list query
+    // key. The `client:` namespace is preserved on the wire; only the
+    // semantics changed (no more discovery / instructions / per-card
+    // sync).
     sub(
       on("client:discovered", () => {
         void qc.invalidateQueries({
@@ -328,17 +332,14 @@ export function EventsProvider({
         });
       }),
     );
+    // Round-21: server-side sync fanout pushes its current state via
+    // `sync:status_changed`. The topbar `useSyncStatus` query refetches
+    // on this event so "Syncing…" → "Synced"/"Error" is reflected
+    // without polling.
     sub(
-      on("client:instructions_changed", ({ clientId }) => {
+      on("sync:status_changed", () => {
         void qc.invalidateQueries({
-          queryKey: connectedClientsKeys.instructions(clientId),
-        });
-      }),
-    );
-    sub(
-      on("client:roles_synced", ({ clientId }) => {
-        void qc.invalidateQueries({
-          queryKey: connectedClientsKeys.syncedRoles(clientId),
+          queryKey: connectedClientsKeys.syncStatus(),
         });
       }),
     );

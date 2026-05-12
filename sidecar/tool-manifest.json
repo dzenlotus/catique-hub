@@ -1,0 +1,86 @@
+{
+  "$comment": "Catique HUB MCP tool manifest — ctq-112 / E5 round 1. Hand-authored for the five representative tools that round out the read-side MCP surface. TODO(ctq-112-manifest-gen): replace with an xtask-driven generator that derives tool entries from the `#[tauri::command]` signatures + use-case docstrings so the wire shapes can never drift from the Rust handlers (architect's R-3 follow-on).",
+  "tools": [
+    {
+      "name": "list_boards",
+      "description": "Return every board in the workspace ordered by (position ASC, name ASC). No arguments.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_columns",
+      "description": "Return every column ordered by (board_id, position). No arguments.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_mcp_servers",
+      "description": "Return every *enabled* registered MCP server as `[{ id, name, transport, url, command, authRefJson }]`. ADR-0007 registry-only mode: Catique HUB does not relay MCP traffic — the calling agent uses this metadata to establish its own session. Disabled servers are filtered out before they reach the agent. `authRefJson`, when present, is a *reference* to the secret (`{\"type\":\"keychain\"|\"env\",\"key\":\"...\"}`), never the resolved value. No arguments.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_tasks",
+      "description": "Return every task in the workspace. No arguments.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_mcp_server_connection_hint",
+      "description": "Return the connection metadata for one registered MCP server: `{ id, name, transport, url, command, authRefJson }`. ADR-0007 registry-only mode — Catique HUB never resolves the secret; `authRefJson` is the reference (`{\"type\":\"keychain\"|\"env\",\"key\":\"...\"}`) the calling agent uses to look up its own credential. Errors with NotFound when the id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "MCP server id."
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_task",
+      "description": "Look up a single task by id. Errors with NotFound when the id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Task id."
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_task_bundle",
+      "description": "Resolve the full agent bundle for a task: the task row, its active role (task > column > board fallback), and the deduplicated origin-tagged prompt list ready for LLM assembly. ctq-112 round 1: returns the existing TaskBundle JSON. TODO(ctq-112-S5): wrap into the canonical XML serialiser when MCP-S5 lands.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Task id whose bundle should be resolved."
+          }
+        },
+        "required": ["task_id"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

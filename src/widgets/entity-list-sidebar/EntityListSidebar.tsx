@@ -4,18 +4,18 @@
  *
  * Mirrors the shape of `<PromptsSidebar>` and `<SpacesSidebar>` so every
  * top-level page in the app shows the same rail-style nav: section
- * label on top, list of items below, "+ Add ..." trigger at the bottom.
- * Built directly on the shared `<SidebarShell>` primitives so visual
- * consistency is structural, not copy-paste.
+ * label + trailing "+" trigger on top, list of items below.
  *
- * Items don't carry icons or kebabs by default — those affordances
- * live with whichever entity-specific row markup the consumer wires
- * up if/when needed. For now: name + optional color swatch is enough.
+ * Each row renders a leading marker driven by the item:
+ *   - `icon` set → `<IconRenderer>`, tinted with `color` when present.
+ *   - no icon, color set → coloured swatch dot.
+ *   - neither → muted placeholder swatch so the column still aligns.
  */
 
 import { type ReactElement } from "react";
 
 import {
+  IconRenderer,
   SidebarNavItem,
   SidebarSectionAddTrigger,
   SidebarSectionLabel,
@@ -27,8 +27,10 @@ import styles from "./EntityListSidebar.module.css";
 export interface EntityListSidebarItem {
   id: string;
   name: string;
-  /** Optional CSS hex; renders a small leading swatch in the row. */
+  /** Optional CSS hex — tints the icon (or fills the swatch). */
   color?: string | null;
+  /** Optional Pixel-icon identifier (matches `@shared/ui/Icon` keys). */
+  icon?: string | null;
 }
 
 export interface EntityListSidebarProps {
@@ -106,13 +108,10 @@ export function EntityListSidebar({
                 ariaLabel={item.name}
                 testId={`${testIdPrefix}-row-${item.id}`}
               >
-                {item.color ? (
-                  <span
-                    className={styles.swatch}
-                    style={{ backgroundColor: item.color }}
-                    aria-hidden="true"
-                  />
-                ) : null}
+                <ItemMarker
+                  icon={item.icon ?? null}
+                  color={item.color ?? null}
+                />
                 <span className={styles.name}>{item.name}</span>
               </SidebarNavItem>
             </li>
@@ -121,5 +120,35 @@ export function EntityListSidebar({
       )}
 
     </SidebarShell>
+  );
+}
+
+interface ItemMarkerProps {
+  icon: string | null;
+  color: string | null;
+}
+
+function ItemMarker({ icon, color }: ItemMarkerProps): ReactElement {
+  if (icon) {
+    return (
+      <IconRenderer
+        name={icon}
+        width={14}
+        height={14}
+        className={styles.icon}
+        {...(color !== null ? { style: { color } } : {})}
+      />
+    );
+  }
+  return (
+    <span
+      className={styles.swatch}
+      style={
+        color !== null
+          ? ({ backgroundColor: color } as React.CSSProperties)
+          : undefined
+      }
+      aria-hidden="true"
+    />
   );
 }

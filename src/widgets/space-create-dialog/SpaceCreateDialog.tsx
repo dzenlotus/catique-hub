@@ -117,6 +117,8 @@ function SpaceCreateDialogContent({
   const [prefix, setPrefix] = useState("");
   const [prefixError, setPrefixError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Round-21: optional project folder path. Empty string means "unset".
+  const [projectFolderPath, setProjectFolderPath] = useState("");
 
   const handlePrefixChange = (value: string): void => {
     setPrefix(value);
@@ -133,6 +135,7 @@ function SpaceCreateDialogContent({
     setSaveError(null);
     const trimmedName = name.trim();
     const trimmedPrefix = prefix.trim();
+    const trimmedProjectFolderPath = projectFolderPath.trim();
 
     if (!trimmedName) {
       setSaveError("Name cannot be empty.");
@@ -149,6 +152,9 @@ function SpaceCreateDialogContent({
     const args: MutationArgs = { name: trimmedName, prefix: trimmedPrefix };
     if (color !== "") args.color = color;
     if (icon !== null) args.icon = icon;
+    if (trimmedProjectFolderPath.length > 0) {
+      args.projectFolderPath = trimmedProjectFolderPath;
+    }
 
     createMutation.mutate(args, {
       onSuccess: (space) => {
@@ -200,6 +206,19 @@ function SpaceCreateDialogContent({
             {prefixError}
           </p>
         ) : null}
+      </div>
+
+      {/* Project folder (round-21 — optional) */}
+      <div className={styles.section}>
+        <Input
+          label="Project folder"
+          value={projectFolderPath}
+          onChange={setProjectFolderPath}
+          placeholder="/Users/you/projects/my-app"
+          description="Optional. Used by the “Reveal in Finder” affordance in Space settings."
+          className={styles.fullWidthInput}
+          data-testid="space-create-dialog-project-folder-input"
+        />
       </div>
 
       {/* Footer */}

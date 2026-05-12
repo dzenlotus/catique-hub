@@ -27,6 +27,7 @@
 
 use std::path::PathBuf;
 
+use catique_application::connected_providers::OrchestratorHandle;
 use catique_infrastructure::db::pool::Pool;
 use catique_sidecar::SidecarManager;
 use once_cell::sync::OnceCell;
@@ -53,6 +54,11 @@ pub struct AppState {
     /// ADR-0002 spike: resolved path to the sidecar directory.
     /// Used by `sidecar_restart` to re-spawn after a crash.
     pub sidecar_dir: PathBuf,
+    /// Round-21 Connected Providers orchestrator handle. Set exactly
+    /// once during shell startup AFTER the Tokio runtime exists; left
+    /// empty in unit tests (the `get_sync_status` IPC returns
+    /// `SyncStatus::default()` in that case).
+    pub orchestrator: OnceCell<OrchestratorHandle>,
 }
 
 impl AppState {
@@ -72,6 +78,16 @@ impl AppState {
             app_handle: OnceCell::new(),
             sidecar: SidecarManager::new(),
             sidecar_dir,
+            orchestrator: OnceCell::new(),
+        }
+    }
+
+    /// Install the Connected-Providers orchestrator handle. Called once
+    /// from the Tauri shell's `setup` callback after the orchestrator
+    /// task has been spawned on the global Tokio runtime.
+    pub fn set_orchestrator(&self, handle: OrchestratorHandle) {
+        if self.orchestrator.set(handle).is_err() {
+            eprintln!("[catique-hub] AppState::set_orchestrator called more than once; ignored");
         }
     }
 
