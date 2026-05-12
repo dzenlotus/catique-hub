@@ -185,6 +185,8 @@ fn emit_task_updated(state: &AppState, task_id: &str) {
             }),
         );
     }
+}
+
 // ── SKILL-S10 attachment IPC ──────────────────────────────────────────
 
 /// IPC: upload a file as a `SkillAttachment`.

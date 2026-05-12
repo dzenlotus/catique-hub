@@ -364,13 +364,45 @@ fn build_bundle(pool: &Pool) -> Result<RoleBundle, AppError> {
 /// `_skills_root` and `_conn` are kept on the signature so the
 /// cherry-pick is a body-only edit; clippy is silenced via the leading
 /// underscores.
-#[allow(clippy::unnecessary_wraps)]
 fn resolve_skill_attachments(
-    _conn: &rusqlite::Connection,
-    _skill_id: &str,
-    _skills_root: &std::path::Path,
+    conn: &rusqlite::Connection,
+    skill_id: &str,
+    skills_root: &std::path::Path,
 ) -> Result<Vec<catique_clients::ResolvedSkillAttachment>, AppError> {
-    Ok(Vec::new())
+    use catique_clients::{ResolvedSkillAttachment, ResolvedSkillAttachmentKind};
+    use catique_infrastructure::db::repositories::skill_attachments::{
+        self as attach_repo, SkillAttachmentKind as RowKind,
+    };
+
+    let rows = attach_repo::list_by_skill(conn, skill_id).map_err(map_db_err)?;
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let kind = match row.kind {
+            RowKind::File => ResolvedSkillAttachmentKind::File,
+            RowKind::Git => ResolvedSkillAttachmentKind::Git,
+        };
+        // For file rows, resolve the absolute path so the agent (which
+        // runs on the user's machine) can `read()` it without re-
+        // deriving the layout itself.
+        let absolute_path = row.storage_path.as_ref().map(|sp| {
+            skills_root
+                .join(skill_id)
+                .join(sp)
+                .to_string_lossy()
+                .into_owned()
+        });
+        out.push(ResolvedSkillAttachment {
+            id: row.id,
+            kind,
+            filename: row.filename,
+            mime_type: row.mime_type,
+            absolute_path,
+            git_url: row.git_url,
+            git_ref: row.git_ref,
+            git_path: row.git_path,
+        });
+    }
+    Ok(out)
 }
 
 /// Resolve the qualified name an `<mcp-tool>` block uses for an
