@@ -8,10 +8,10 @@
 //! secret value.
 
 use catique_application::{
-    mcp_servers::{ConnectionHint, McpServersUseCase},
+    mcp_servers::{ConnectionHint, McpServerStatus, McpServersUseCase},
     AppError,
 };
-use catique_domain::{McpServer, Transport};
+use catique_domain::{McpServer, McpTool, Transport};
 use serde::Serialize;
 use serde_json::json;
 use tauri::State;
@@ -145,6 +145,46 @@ pub async fn get_mcp_server_connection_hint(
 ) -> Result<McpServerConnectionHint, AppError> {
     let hint = McpServersUseCase::new(&state.pool).get_connection_hint(&id)?;
     Ok(hint.into())
+}
+
+/// IPC: live status read for one MCP server (PROXY-S4 / ADR-0008).
+///
+/// Backs the green/red dot in the MCP server group view (PROXY-S6).
+/// Round-1 derives `Healthy` / `Degraded` / `Unreachable` from
+/// `mcp_tools.last_synced_at` + the most recent `mcp_call_log` row;
+/// PROXY-S4 round 2 (introspection) lights it up by populating
+/// upstream tools.
+///
+/// # Errors
+///
+/// `AppError::NotFound` if the id is unknown.
+#[tauri::command]
+pub async fn get_mcp_server_status(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<McpServerStatus, AppError> {
+    McpServersUseCase::new(&state.pool).status(&id)
+}
+
+/// IPC: list the `mcp_tools` rows linked to one MCP server, ordered
+/// by `position ASC, name ASC`. Backs the per-server tools list in
+/// the UI group view (PROXY-S6).
+///
+/// Includes both `Upstream` (auto-materialised via introspection) and
+/// any legacy `Manual` rows that may have been attached pre-ADR-0008.
+/// Soft-deleted upstream rows (`last_synced_at IS NULL`) are
+/// returned with their `lastSyncedAt = null` so the UI can strike
+/// them through.
+///
+/// # Errors
+///
+/// `AppError::NotFound` if the server id is unknown.
+#[tauri::command]
+pub async fn list_mcp_tools_by_server(
+    state: State<'_, AppState>,
+    server_id: String,
+) -> Result<Vec<McpTool>, AppError> {
+    McpServersUseCase::new(&state.pool).list_tools_by_server(&server_id)
 }
 
 // ---------------------------------------------------------------------

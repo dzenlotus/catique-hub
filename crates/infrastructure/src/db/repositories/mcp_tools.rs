@@ -297,6 +297,36 @@ pub fn delete(conn: &Connection, id: &str) -> Result<bool, DbError> {
 /// List every MCP tool attached to `role_id`, ordered by
 /// `role_mcp_tools.position ASC`.
 ///
+/// List every MCP tool tagged with `server_id`, ordered by
+/// `position ASC, name ASC`. Includes BOTH `Upstream` rows (auto
+/// materialised via introspection) and any `Manual` rows that may
+/// have been hand-attached.
+///
+/// ADR-0008 / PROXY-S4. Backs the UI group view's tool list.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn list_for_server(
+    conn: &Connection,
+    server_id: &str,
+) -> Result<Vec<McpToolRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, description, schema_json, color, position, \
+                server_id, upstream_name, source, last_synced_at, \
+                created_at, updated_at \
+         FROM mcp_tools \
+         WHERE server_id = ?1 \
+         ORDER BY position ASC, name ASC",
+    )?;
+    let rows = stmt.query_map(params![server_id], McpToolRow::from_row)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
 /// ctq-117.
 ///
 /// # Errors

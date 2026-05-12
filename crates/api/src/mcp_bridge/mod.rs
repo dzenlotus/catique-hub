@@ -45,6 +45,7 @@ use catique_application::{
     boards::BoardsUseCase,
     columns::ColumnsUseCase,
     mcp_proxy::{McpProxyUseCase, UpstreamCaller, UpstreamError},
+    mcp_servers::McpServersUseCase,
     tasks::TasksUseCase,
     AppError,
 };
@@ -186,13 +187,14 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
 
 /// Internal supervisor-channel arm (Node → Rust): hand back the list
 /// of proxied tools the Node side should merge into its dynamic
-/// `tools/list` response. PROXY-S3 round 1 returns an empty list —
-/// PROXY-S4 wires `McpServersUseCase::list_proxied_tools` whose body
-/// joins `mcp_servers` × `mcp_tools` for `source = upstream AND
-/// enabled = 1 AND last_synced_at IS NOT NULL`.
-fn list_proxied_tools_arm(_pool: &Pool) -> Result<Value, String> {
-    // TODO(ctq-131 / PROXY-S4): replace with the real implementation.
-    Ok(json!([]))
+/// `tools/list` response. Real body lands here in PROXY-S4 round 1
+/// (`McpServersUseCase::list_proxied_tools` joins `mcp_servers` ×
+/// `mcp_tools` filtered to enabled + source=upstream + synced).
+fn list_proxied_tools_arm(pool: &Pool) -> Result<Value, String> {
+    let tools = McpServersUseCase::new(pool)
+        .list_proxied_tools()
+        .map_err(stringify_app)?;
+    json_or_err(&tools)
 }
 
 /// Internal supervisor-channel arm (Node → Rust): resolve the secret

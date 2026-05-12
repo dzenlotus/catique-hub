@@ -25,16 +25,21 @@
 //! `{"raw_token":"..."}` — is rejected at write time with
 //! [`AppError::BadRequest`].
 
-use catique_domain::{McpServer, Transport};
+use catique_domain::{McpServer, McpTool, McpToolSource, Transport};
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::{
+        mcp_call_log as call_log_repo,
         mcp_servers::{
             self as repo, McpServerDraft, McpServerPatch, McpServerRow, TransportKind,
         },
+        mcp_tools as tools_repo,
         pre_mint_id,
     },
 };
+use serde::Serialize;
+use serde_json::Value;
+use ts_rs::TS;
 
 use crate::{
     error::AppError,
@@ -66,6 +71,86 @@ pub struct ConnectionHint {
     /// declares no authentication. Same string the row stores in
     /// `auth_json` — never the resolved secret.
     pub auth_ref_json: Option<String>,
+}
+
+/// Server metadata embedded into each [`ProxiedTool`] entry. Lets the
+/// Node side derive its `serversById` map in one pass over the
+/// `list_proxied_tools` reply (no extra round-trip).
+#[derive(TS, Serialize, Clone, Debug, PartialEq, Eq)]
+#[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct ProxiedServerMeta {
+    pub id: String,
+    pub name: String,
+    pub transport: Transport,
+    pub url: Option<String>,
+    pub command: Option<String>,
+}
+
+/// One row of the proxied-tools registry the Node sidecar consumes at
+/// startup (`list_proxied_tools` over the supervisor channel).
+///
+/// `qualified_name` is `{server_name}.{upstream_name}` and what the
+/// external MCP client sees in `tools/list`. `input_schema` ships as
+/// a JSON-string here (the upstream's `inputSchema` field is opaque
+/// to us); the Node side hands it back unchanged.
+#[derive(TS, Serialize, Clone, Debug, PartialEq)]
+#[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct ProxiedTool {
+    pub qualified_name: String,
+    pub server_id: String,
+    pub upstream_name: String,
+    /// JSON Schema for the tool args, as the upstream MCP server
+    /// advertised it. Opaque to us; the Node side passes it through
+    /// to the external agent verbatim.
+    #[ts(type = "Record<string, unknown>")]
+    pub input_schema: Value,
+    pub description: Option<String>,
+    pub server: ProxiedServerMeta,
+}
+
+/// Live health-and-counts read returned by
+/// [`McpServersUseCase::status`]. Backs the green/red dot in the MCP
+/// server group view (PROXY-S6).
+#[derive(TS, Serialize, Clone, Debug, PartialEq, Eq)]
+#[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerStatus {
+    pub server_id: String,
+    pub state: McpServerHealthState,
+    /// Max `mcp_tools.last_synced_at` for upstream tools belonging to
+    /// this server. `None` means "never introspected" (the server row
+    /// exists but no `tools/list` has ever completed).
+    pub last_synced_at: Option<i64>,
+    /// Count of live upstream tools (source = upstream AND
+    /// last_synced_at IS NOT NULL).
+    pub tool_count: i64,
+    /// `started_at` of the most recent `mcp_call_log` row for this
+    /// server. `None` means "never called".
+    pub last_call_started_at: Option<i64>,
+    /// Outcome of that last call. `None` if `last_call_started_at` is
+    /// `None`; `Some(true)` for success; `Some(false)` for any error
+    /// path.
+    pub last_call_success: Option<bool>,
+}
+
+/// Coarse-grained health state. Round-1 derives `Unreachable` purely
+/// from "no upstream tools ever materialised". Round-2 (when
+/// introspection lands in PROXY-S4 round 2) tightens it with last-call
+/// outcome + per-server failure counter for `Degraded`.
+#[derive(TS, Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[ts(export, export_to = "../../../bindings/", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum McpServerHealthState {
+    /// At least one upstream tool was successfully introspected AND
+    /// the most recent call (if any) succeeded.
+    Healthy,
+    /// Most recent call failed; tool inventory may still be present.
+    Degraded,
+    /// No upstream tool has ever materialised against this server,
+    /// OR the server is disabled.
+    Unreachable,
 }
 
 impl<'a> McpServersUseCase<'a> {
@@ -276,6 +361,203 @@ impl<'a> McpServersUseCase<'a> {
             })
         }
     }
+
+    /// Materialise the proxied-tools registry the Node sidecar
+    /// consumes at startup. PROXY-S4 round 1.
+    ///
+    /// Rows that satisfy ALL of:
+    ///   * `mcp_servers.enabled = 1`
+    ///   * `mcp_tools.source    = 'upstream'`
+    ///   * `mcp_tools.last_synced_at IS NOT NULL` (excludes
+    ///     soft-deleted-after-refresh rows)
+    /// are mapped to one [`ProxiedTool`]. `qualified_name` is built
+    /// from `{server.name}.{tool.upstream_name}`; `input_schema` is
+    /// parsed back from the stored JSON string (defensive against a
+    /// row that smuggled in malformed JSON — those entries are
+    /// skipped with a log line, not propagated as errors, so one
+    /// bad row cannot break the whole registry).
+    ///
+    /// # Errors
+    ///
+    /// Forwards DB errors.
+    pub fn list_proxied_tools(&self) -> Result<Vec<ProxiedTool>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT s.id           AS server_id, \
+                        s.name         AS server_name, \
+                        s.transport    AS server_transport, \
+                        s.url          AS server_url, \
+                        s.command      AS server_command, \
+                        t.name         AS tool_name, \
+                        t.description  AS tool_description, \
+                        t.schema_json  AS tool_schema_json, \
+                        t.upstream_name AS tool_upstream_name \
+                 FROM mcp_servers s \
+                 JOIN mcp_tools t ON t.server_id = s.id \
+                 WHERE s.enabled = 1 \
+                   AND t.source = 'upstream' \
+                   AND t.last_synced_at IS NOT NULL \
+                 ORDER BY s.name, t.upstream_name",
+            )
+            .map_err(|e| map_db_err(e.into()))?;
+        let rows = stmt
+            .query_map([], |row| {
+                let server_id: String = row.get("server_id")?;
+                let server_name: String = row.get("server_name")?;
+                let transport_text: String = row.get("server_transport")?;
+                let url: Option<String> = row.get("server_url")?;
+                let command: Option<String> = row.get("server_command")?;
+                let tool_name: Option<String> = row.get("tool_name")?;
+                let description: Option<String> = row.get("tool_description")?;
+                let schema_json: String = row.get("tool_schema_json")?;
+                let upstream_name: Option<String> = row.get("tool_upstream_name")?;
+                Ok((
+                    server_id,
+                    server_name,
+                    transport_text,
+                    url,
+                    command,
+                    tool_name,
+                    description,
+                    schema_json,
+                    upstream_name,
+                ))
+            })
+            .map_err(|e| map_db_err(e.into()))?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let (
+                server_id,
+                server_name,
+                transport_text,
+                url,
+                command,
+                tool_name,
+                description,
+                schema_json,
+                upstream_name,
+            ) = r.map_err(|e| map_db_err(e.into()))?;
+            // `upstream_name` is the wire-side name; fall back to
+            // `tool_name` for legacy rows that pre-date migration 023.
+            // The qualified form uses the explicit upstream name so
+            // refreshes stay stable across local renames.
+            let upstream = match upstream_name.clone().or(tool_name.clone()) {
+                Some(n) => n,
+                None => continue,
+            };
+            let transport = match transport_text.as_str() {
+                "stdio" => Transport::Stdio,
+                "http" => Transport::Http,
+                "sse" => Transport::Sse,
+                _ => continue, // schema CHECK catches this; defensive
+            };
+            let input_schema: Value = match serde_json::from_str(&schema_json) {
+                Ok(v) => v,
+                Err(_) => {
+                    // Malformed schema row: skip rather than poison
+                    // the whole registry. PROXY-S4 round 2 will
+                    // surface this in the refresh report.
+                    continue;
+                }
+            };
+            out.push(ProxiedTool {
+                qualified_name: format!("{server_name}.{upstream}"),
+                server_id: server_id.clone(),
+                upstream_name: upstream,
+                input_schema,
+                description,
+                server: ProxiedServerMeta {
+                    id: server_id,
+                    name: server_name,
+                    transport,
+                    url,
+                    command,
+                },
+            });
+        }
+        Ok(out)
+    }
+
+    /// List the `mcp_tools` rows linked to one MCP server, ordered by
+    /// `position ASC, name ASC`. Returns both `Upstream` and any
+    /// `Manual` rows tagged with this server id. Soft-deleted upstream
+    /// rows (`last_synced_at IS NULL`) are returned so the UI can
+    /// strike them through; new attachments should filter them out.
+    ///
+    /// ADR-0008 / PROXY-S4 round 1.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound` when the server id is unknown.
+    pub fn list_tools_by_server(&self, server_id: &str) -> Result<Vec<McpTool>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let exists = repo::get_by_id(&conn, server_id)
+            .map_err(map_db_err)?
+            .is_some();
+        if !exists {
+            return Err(AppError::NotFound {
+                entity: "mcp_server".into(),
+                id: server_id.to_owned(),
+            });
+        }
+        let rows = tools_repo::list_for_server(&conn, server_id).map_err(map_db_err)?;
+        Ok(rows.into_iter().map(row_to_mcp_tool).collect())
+    }
+
+    /// Live status read for one MCP server. Backs the green/red dot in
+    /// the UI (PROXY-S6). Round-1 derivation:
+    ///
+    ///   * `Unreachable` if the server is disabled OR no upstream
+    ///     tool ever materialised (`tool_count == 0`).
+    ///   * `Degraded` if the most recent call failed.
+    ///   * `Healthy` otherwise.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound` if the server id is unknown.
+    pub fn status(&self, server_id: &str) -> Result<McpServerStatus, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let server = repo::get_by_id(&conn, server_id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "mcp_server".into(),
+                id: server_id.to_owned(),
+            })?;
+
+        // tool_count + last_synced_at in one row.
+        let (tool_count, last_synced_at): (i64, Option<i64>) = conn
+            .query_row(
+                "SELECT COUNT(*) AS n, MAX(last_synced_at) AS ts \
+                 FROM mcp_tools \
+                 WHERE server_id = ?1 \
+                   AND source = 'upstream' \
+                   AND last_synced_at IS NOT NULL",
+                rusqlite::params![server_id],
+                |row| Ok((row.get::<_, i64>("n")?, row.get::<_, Option<i64>>("ts")?)),
+            )
+            .map_err(|e| map_db_err(e.into()))?;
+
+        let last_call = call_log_repo::latest_for_server(&conn, server_id).map_err(map_db_err)?;
+
+        let state = if !server.enabled || tool_count == 0 {
+            McpServerHealthState::Unreachable
+        } else if matches!(last_call.as_ref().and_then(|c| c.success), Some(false)) {
+            McpServerHealthState::Degraded
+        } else {
+            McpServerHealthState::Healthy
+        };
+
+        Ok(McpServerStatus {
+            server_id: server_id.to_owned(),
+            state,
+            last_synced_at,
+            tool_count,
+            last_call_started_at: last_call.as_ref().map(|c| c.started_at),
+            last_call_success: last_call.as_ref().and_then(|c| c.success),
+        })
+    }
 }
 
 /// Build the canonical keychain key for a given server id. Single
@@ -385,6 +667,26 @@ fn kind_to_transport(k: TransportKind) -> Transport {
         TransportKind::Stdio => Transport::Stdio,
         TransportKind::Http => Transport::Http,
         TransportKind::Sse => Transport::Sse,
+    }
+}
+
+fn row_to_mcp_tool(row: tools_repo::McpToolRow) -> McpTool {
+    McpTool {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        schema_json: row.schema_json,
+        color: row.color,
+        position: row.position,
+        server_id: row.server_id,
+        upstream_name: row.upstream_name,
+        source: match row.source {
+            tools_repo::McpToolSourceRow::Upstream => McpToolSource::Upstream,
+            tools_repo::McpToolSourceRow::Manual => McpToolSource::Manual,
+        },
+        last_synced_at: row.last_synced_at,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
     }
 }
 
@@ -822,5 +1124,207 @@ mod tests {
         assert_eq!(enabled_only.len(), 1);
         assert_eq!(enabled_only[0].name, "alpha-on");
         assert!(enabled_only[0].enabled);
+    }
+
+    // ---- PROXY-S4 round 1 — list_proxied_tools + status + list_tools_by_server
+
+    fn seed_upstream_tool(
+        pool: &Pool,
+        server_id: &str,
+        upstream: &str,
+        schema: &str,
+        synced: Option<i64>,
+    ) {
+        let conn = acquire(pool).unwrap();
+        let draft = tools_repo::McpToolDraft {
+            name: format!("alpha.{upstream}"),
+            description: Some(format!("desc for {upstream}")),
+            schema_json: schema.into(),
+            color: None,
+            position: 0.0,
+            server_id: Some(server_id.into()),
+            upstream_name: Some(upstream.into()),
+            source: tools_repo::McpToolSourceRow::Upstream,
+            last_synced_at: synced,
+        };
+        tools_repo::insert(&conn, &draft).unwrap();
+    }
+
+    #[test]
+    fn list_proxied_tools_returns_qualified_names_with_server_meta() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let server = uc
+            .create(
+                "alpha".into(),
+                Transport::Http,
+                Some("https://example.invalid/mcp".into()),
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+        seed_upstream_tool(&pool, &server.id, "create_issue", "{}", Some(1));
+
+        let tools = uc.list_proxied_tools().unwrap();
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].qualified_name, "alpha.create_issue");
+        assert_eq!(tools[0].upstream_name, "create_issue");
+        assert_eq!(tools[0].server.id, server.id);
+        assert_eq!(tools[0].server.name, "alpha");
+    }
+
+    #[test]
+    fn list_proxied_tools_excludes_disabled_and_soft_deleted() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let disabled = uc
+            .create(
+                "off".into(),
+                Transport::Http,
+                Some("https://example.invalid/off".into()),
+                None,
+                None,
+                false,
+            )
+            .unwrap();
+        let enabled = uc
+            .create(
+                "on".into(),
+                Transport::Http,
+                Some("https://example.invalid/on".into()),
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+        // Disabled server's live tool — excluded.
+        seed_upstream_tool(&pool, &disabled.id, "x", "{}", Some(1));
+        // Enabled server's soft-deleted tool — excluded.
+        seed_upstream_tool(&pool, &enabled.id, "soft", "{}", None);
+        // Enabled server's live tool — included.
+        seed_upstream_tool(&pool, &enabled.id, "live", "{}", Some(2));
+
+        let tools = uc.list_proxied_tools().unwrap();
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].upstream_name, "live");
+        assert_eq!(tools[0].server.id, enabled.id);
+    }
+
+    #[test]
+    fn list_proxied_tools_skips_malformed_input_schema_rows() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let server = uc
+            .create(
+                "alpha".into(),
+                Transport::Http,
+                Some("https://example.invalid/mcp".into()),
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+        seed_upstream_tool(&pool, &server.id, "ok", "{}", Some(1));
+        seed_upstream_tool(&pool, &server.id, "bad", "not-json", Some(2));
+
+        let tools = uc.list_proxied_tools().unwrap();
+        assert_eq!(tools.len(), 1, "malformed schema row is skipped, not propagated");
+        assert_eq!(tools[0].upstream_name, "ok");
+    }
+
+    #[test]
+    fn status_unreachable_when_no_upstream_tools_yet() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let server = uc
+            .create(
+                "alpha".into(),
+                Transport::Http,
+                Some("https://example.invalid/mcp".into()),
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+        let status = uc.status(&server.id).unwrap();
+        assert_eq!(status.state, McpServerHealthState::Unreachable);
+        assert_eq!(status.tool_count, 0);
+        assert!(status.last_synced_at.is_none());
+    }
+
+    #[test]
+    fn status_healthy_after_introspection_no_calls_yet() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let server = uc
+            .create(
+                "alpha".into(),
+                Transport::Http,
+                Some("https://example.invalid/mcp".into()),
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+        seed_upstream_tool(&pool, &server.id, "x", "{}", Some(123));
+
+        let status = uc.status(&server.id).unwrap();
+        assert_eq!(status.state, McpServerHealthState::Healthy);
+        assert_eq!(status.tool_count, 1);
+        assert_eq!(status.last_synced_at, Some(123));
+        assert!(status.last_call_started_at.is_none());
+    }
+
+    #[test]
+    fn status_disabled_server_is_unreachable_even_with_tools() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let server = uc
+            .create(
+                "alpha".into(),
+                Transport::Http,
+                Some("https://example.invalid/mcp".into()),
+                None,
+                None,
+                false,
+            )
+            .unwrap();
+        seed_upstream_tool(&pool, &server.id, "x", "{}", Some(123));
+
+        let status = uc.status(&server.id).unwrap();
+        assert_eq!(status.state, McpServerHealthState::Unreachable);
+    }
+
+    #[test]
+    fn list_tools_by_server_returns_notfound_for_ghost_id() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let err = uc.list_tools_by_server("ghost").expect_err("nf");
+        assert!(matches!(err, AppError::NotFound { .. }));
+    }
+
+    #[test]
+    fn list_tools_by_server_returns_soft_deleted_rows() {
+        let pool = fresh_pool();
+        let uc = McpServersUseCase::new(&pool);
+        let server = uc
+            .create(
+                "alpha".into(),
+                Transport::Http,
+                Some("https://example.invalid/mcp".into()),
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+        seed_upstream_tool(&pool, &server.id, "live", "{}", Some(1));
+        seed_upstream_tool(&pool, &server.id, "soft", "{}", None);
+
+        let tools = uc.list_tools_by_server(&server.id).unwrap();
+        assert_eq!(tools.len(), 2, "UI needs soft-deleted rows for strikethrough");
+        let names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
+        assert!(names.contains(&"alpha.live"));
+        assert!(names.contains(&"alpha.soft"));
     }
 }

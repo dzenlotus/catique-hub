@@ -246,12 +246,14 @@ pub fn run() {
             handlers::mcp_tools::list_task_mcp_tools,
             handlers::mcp_tools::remove_task_mcp_tool,
             handlers::mcp_tools::update_mcp_tool,
-            // ---------------- mcp servers (ctq-115, ADR-0007) ----------------
+            // ---------------- mcp servers (ctq-115, ADR-0008) ----------------
             handlers::mcp_servers::create_mcp_server,
             handlers::mcp_servers::delete_mcp_server,
             handlers::mcp_servers::get_mcp_server,
             handlers::mcp_servers::get_mcp_server_connection_hint,
+            handlers::mcp_servers::get_mcp_server_status,
             handlers::mcp_servers::list_mcp_servers,
+            handlers::mcp_servers::list_mcp_tools_by_server,
             handlers::mcp_servers::update_mcp_server,
             // ---------------- tags (E2.4 + ctq-108) ----------------
             handlers::tags::add_prompt_tag,
