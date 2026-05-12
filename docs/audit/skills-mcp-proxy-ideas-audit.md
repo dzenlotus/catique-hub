@@ -80,13 +80,15 @@
 
 ## Area 2 — MCP Proxy / Passthrough
 
-**Status: placeholder** — `McpTool` is a named schema blob with no URL, no auth, no connection to any external server; the sidecar handles only `ping`/`shutdown`.
+> **⚠️ Resolved 2026-05-12 by ADR-0008.** F-07, F-08, F-09 all closed — see `docs/adr/ADR-0008-mcp-pass-through-proxy.md` §"Implementation status". Catique HUB is now the single MCP entry external agents see, with introspection-on-create persisting upstream tool inventories and full relay through `proxy_tool_call`. The findings below are preserved for historical context — they describe the pre-ADR-0008 baseline.
+
+**Status (historical): placeholder** — `McpTool` was a named schema blob with no URL, no auth, no connection to any external server; the sidecar handled only `ping`/`shutdown`.
 
 ---
 
 ### Findings
 
-**F-07 (P0) — `McpTool` entity has no URL, auth, or transport fields**
+**F-07 (P0) — `McpTool` entity has no URL, auth, or transport fields** — **Resolved by ADR-0008 / PROXY-S1** (migration `023_mcp_tools_link.sql` added `server_id`, `upstream_name`, `source`, `last_synced_at`).
 
 `crates/domain/src/mcp_tool.rs:1–21`: the struct has `id`, `name`, `description`, `schema_json`, `color`, `position`, `created_at`, `updated_at`. There is no `server_url`, `auth_token`, `transport` (stdio/sse/http), or any pointer to an external server. `schema_json` holds a JSON Schema blob for the tool's input — it is a static description, not a connection descriptor.
 
@@ -97,18 +99,14 @@ The `McpToolsPage` sidebar (`src/widgets/mcp-tools-page/McpToolsPage.tsx:34`) ca
 - Fix size: L (ADR) + XL (implementation)
 - Draft task: `[mcp] ADR: external MCP server registry vs passthrough proxy model`
 
-**F-08 (P0) — Sidecar implements only `ping` and `shutdown`; no MCP protocol**
-
-`sidecar/index.js:46–57` dispatches `ping` and `shutdown`; all other methods return JSON-RPC `-32601 Method not found`. There is no `@modelcontextprotocol/sdk` import; `sidecar/package.json` should confirm. ADR-0002 (`docs/adr/ADR-0002-mcp-sidecar-architecture.md:8`) explicitly marks the real MCP bridge as E5 work.
+**F-08 (P0) — Sidecar implements only `ping` and `shutdown`; no MCP protocol** — **Resolved by round-21 + PROXY-S2** (`sidecar/index.js` now uses `@modelcontextprotocol/sdk@1.29.0` with sentinel-byte multiplexed supervisor channel + outbound MCP client pool in `sidecar/upstream-clients.js`).
 
 - Current state: sidecar is a lifecycle proof-of-concept only.
 - Gap: E5 MCP bridge — `@modelcontextprotocol/sdk` integration, tool surface exposure, Rust DB ↔ Node IPC contract.
 - Fix size: XL
 - Draft task: `[sidecar] E5: integrate @modelcontextprotocol/sdk and expose tool surface`
 
-**F-09 (P1) — No `list_external_tools` or `proxy_call` tool on any MCP surface**
-
-No grep match for `list_external_tools`, `proxy_call`, or `external_tool` anywhere in the codebase (`crates/`, `sidecar/`, `src/`). The proposed ctq-78 vendor-agnostic positioning is not reflected in any existing tool surface.
+**F-09 (P1) — No `list_external_tools` or `proxy_call` tool on any MCP surface** — **Resolved by PROXY-S3 + PROXY-S5** (`crates/api/src/mcp_bridge/mod.rs` exposes `proxy_tool_call`, `list_proxied_tools`, `resolve_keychain` dispatch arms; `McpProxyUseCase::call` orchestrates the relay with `mcp_call_log` accounting).
 
 - Current state: zero external tool routing capability.
 - Gap: depends on F-07 (registry model decision).

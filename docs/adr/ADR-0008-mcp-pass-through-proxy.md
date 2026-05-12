@@ -1,10 +1,32 @@
 # ADR-0008 — MCP Pass-Through Proxy (supersedes ADR-0007)
 
-**Status:** Accepted
+**Status:** Accepted — **implementation complete** (2026-05-12)
 **Date:** 2026-05-12
 **Author:** Catique HUB team
 **Supersedes:** ADR-0007 (`docs/adr/ADR-0007-mcp-server-registry.md`)
-**Roadmap items affected:** ctq-114 (revisited), ctq-115 (auth-storage clause flipped), ctq-126 (rewritten)
+**Roadmap items affected:** ctq-114 (revisited), ctq-115 (auth-storage clause flipped), ctq-126 (closed 2026-05-12)
+
+## Implementation status (added 2026-05-12)
+
+Functionally complete on branch `catique/audit-roadmap-spike`. The seven sub-tasks of ctq-126 (PROXY-S1 through PROXY-S7) merged in a single session; see the commit chain below and the per-task summary reports in Promptery for details.
+
+| Task | Slug | Status | Commits |
+|---|---|---|---|
+| Migrations 022/023/024 + keychain namespace | ctq-128 (PROXY-S1) | Done | `a852c3b` / `b4fec32` |
+| Node outbound MCP client pool | ctq-129 (PROXY-S2) | Done | `068d182` |
+| Rust outbound channel + `McpProxyUseCase` | ctq-130 round 1 (PROXY-S3) | Done | `b95b797` |
+| Real OS-keychain backend (keyring crate) | ctq-130 round 2 (PROXY-S3) | Done | `b4fec32` |
+| `list_proxied_tools` + `status` + `list_tools_by_server` | ctq-131 round 1 (PROXY-S4) | Done | `a16efc9` |
+| Introspect-on-create + refresh + reconciliation | ctq-131 round 2 (PROXY-S4) | Done | `c3ee096` |
+| Bridge dispatch arms | ctq-132 (PROXY-S5) | Done (folded into S3 round 1) | `b95b797` |
+| MCP servers page + create-dialog rewrite | ctq-133 (PROXY-S6) | Done | `46cb7e6` |
+| Adapter single-entry mcp.json + role-file XML | ctq-134 (PROXY-S7) | Done | `f4cf54d` |
+
+**Open follow-ons tracked on `v0.9 MCP Sidecar`:**
+- **ctq-135 (PROXY-S8)** — auth wiring end-to-end (Node-side `resolve_keychain` + bridge `store_secret` + dialog field). Backend is ready; UI marker `TODO(proxy-s3-r2)` in `mcp-server-create-dialog`.
+- **ctq-136 (PROXY-S9)** — role-editor MCP tree picker + sentinel-row wildcard for whole-server attachment.
+
+**Lower-priority hygiene items**, not blocking ctq-126 close-out (see parent task summary report for the full list): pre-existing tsc baseline fix-up, `keyring` 3.6.3 → 4.0.1 dep bump, drop the now-redundant `mcp_server_tools` join table, `notifications/tools/list_changed` push from Rust on refresh.
 
 ---
 

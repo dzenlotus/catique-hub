@@ -35,6 +35,15 @@ upstream tool flows through introspection and re-renders the role
 file on the next sync; the qualified name is stable as long as the
 upstream server's tool name is.
 
+**Implementation status (2026-05-12):** PROXY-S7 (commit `f4cf54d`)
+shipped `crates/clients/src/adapters/common.rs::render_mcp_tool_blocks`
++ `xml_escape_text` / `xml_escape_attr` helpers. Manual rows use bare
+`name`; Upstream rows use the qualified form. Blocks are sorted
+alphabetically by `name` attribute for deterministic output across
+syncs. The integration test
+`crates/application/tests/role_sync_mcp_tools.rs` asserts the format
+end-to-end across all three adapters.
+
 ADR-0004 (`ClientInstructionsEditor`) was retired in round 21 — the
 instructions-editor concept and widget are gone end-to-end. The
 "Depends on: ADR-0004" line above is left for history only.

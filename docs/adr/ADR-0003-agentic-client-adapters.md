@@ -26,9 +26,16 @@ Two changes against the original v1 plan:
    pointing at Catique HUB's own sidecar — not one entry per upstream
    server registered in Catique HUB. Upstream connections are HUB's
    internal concern; the external agent's `mcp.json` (or equivalent)
-   sees only HUB. This is the inverse of the registry-only sketch
-   that ADR-0007 implied. The detail belongs to ctq-126; this banner
-   exists so a reader does not implement the wrong write shape.
+   sees only HUB.
+
+**Implementation status (2026-05-12):** PROXY-S7 (commit `f4cf54d`)
+landed the single-entry behaviour across all three adapters
+(`claude_code`, `codex`, `opencode`). The integration test
+`crates/application/tests/role_sync_mcp_tools.rs` asserts the shape
+on a temp-`$HOME` fixture. The hard-coded `catique-hub-mcp` /
+`--stdio` invocation in `default_mcp_entry()` is the open follow-on
+that future work will resolve from the Tauri shell at startup (see
+ctq-126 parent task summary).
 
 Sections below preserve the original v1 framing for history.
 
