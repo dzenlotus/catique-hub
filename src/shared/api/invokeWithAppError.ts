@@ -60,6 +60,10 @@ function formatAppErrorMessage(error: AppError): string {
       return `Forbidden: ${error.data.reason}`;
     case "badRequest":
       return `Bad request: ${error.data.reason}`;
+    case "upstream":
+      // ADR-0008 — upstream MCP server failed a tools/call.
+      // `kind` is a short structured token (transport / isError / timeout).
+      return `Upstream ${error.data.kind}: ${error.data.message}`;
     default: {
       const exhaustive: never = error;
       return `Unknown error: ${JSON.stringify(exhaustive)}`;
