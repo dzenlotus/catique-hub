@@ -1,5 +1,5 @@
 {
-  "$comment": "Catique HUB MCP tool manifest — ctq-112 / E5 round 1. Hand-authored for the five representative tools that round out the read-side MCP surface. TODO(ctq-112-manifest-gen): replace with an xtask-driven generator that derives tool entries from the `#[tauri::command]` signatures + use-case docstrings so the wire shapes can never drift from the Rust handlers (architect's R-3 follow-on).",
+  "$comment": "Catique HUB MCP tool manifest — ctq-112 / E5 round 1. Post-ADR-0008 (2026-05-12) the surface is restricted to Catique-native reads. The `list_mcp_servers` / `get_mcp_server_connection_hint` entries from ADR-0007 (registry-only model) were removed because external agents must not see upstream-server connection metadata under the pass-through proxy model. The forthcoming `proxy_tool_call` will be added when ctq-126 lands under ADR-0008. TODO(ctq-112-manifest-gen): replace this hand-authored file with an xtask-driven generator that derives tool entries from the dispatch arms.",
   "tools": [
     {
       "name": "list_boards",
@@ -20,35 +20,11 @@
       }
     },
     {
-      "name": "list_mcp_servers",
-      "description": "Return every *enabled* registered MCP server as `[{ id, name, transport, url, command, authRefJson }]`. ADR-0007 registry-only mode: Catique HUB does not relay MCP traffic — the calling agent uses this metadata to establish its own session. Disabled servers are filtered out before they reach the agent. `authRefJson`, when present, is a *reference* to the secret (`{\"type\":\"keychain\"|\"env\",\"key\":\"...\"}`), never the resolved value. No arguments.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {},
-        "additionalProperties": false
-      }
-    },
-    {
       "name": "list_tasks",
       "description": "Return every task in the workspace. No arguments.",
       "inputSchema": {
         "type": "object",
         "properties": {},
-        "additionalProperties": false
-      }
-    },
-    {
-      "name": "get_mcp_server_connection_hint",
-      "description": "Return the connection metadata for one registered MCP server: `{ id, name, transport, url, command, authRefJson }`. ADR-0007 registry-only mode — Catique HUB never resolves the secret; `authRefJson` is the reference (`{\"type\":\"keychain\"|\"env\",\"key\":\"...\"}`) the calling agent uses to look up its own credential. Errors with NotFound when the id is unknown.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "MCP server id."
-          }
-        },
-        "required": ["id"],
         "additionalProperties": false
       }
     },

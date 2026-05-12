@@ -11,6 +11,15 @@
 //! payload and reuses the same use-case constructors that the
 //! `#[tauri::command]` handlers do — see [`install`].
 //!
+//! **Scope this round (post-ADR-0008).** The external tool surface is
+//! restricted to Catique-native reads (boards / columns / tasks /
+//! task bundle). The registry-only `list_mcp_servers` /
+//! `get_mcp_server_connection_hint` arms were removed when ADR-0008
+//! reversed the MCP model from "registry" to "pass-through proxy" —
+//! agents must not see upstream-server connection metadata. The
+//! eventual proxy entry point will be `proxy_tool_call(server_id,
+//! tool_name, args)`, added in the ctq-126 rewrite under ADR-0008.
+//!
 //! ## Adding a new tool
 //!
 //! Two changes are required:
@@ -32,14 +41,11 @@
 use std::sync::Arc;
 
 use catique_application::{
-    boards::BoardsUseCase, columns::ColumnsUseCase, mcp_servers::McpServersUseCase,
-    tasks::TasksUseCase, AppError,
+    boards::BoardsUseCase, columns::ColumnsUseCase, tasks::TasksUseCase, AppError,
 };
 use catique_infrastructure::db::pool::Pool;
 use catique_sidecar::{IpcHandler, SidecarManager};
 use serde_json::{json, Value};
-
-use crate::handlers::mcp_servers::McpServerConnectionHint;
 
 /// Install the MCP bridge handler onto `mgr`. The handler captures a
 /// cheap `Pool` clone and routes every `ipc_call` through [`dispatch`].
@@ -70,16 +76,6 @@ pub async fn install(mgr: &SidecarManager, pool: Pool) {
 /// list grows past five entries.
 fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
     match method {
-        "get_mcp_server_connection_hint" => {
-            // ADR-0007: returns metadata only — `authRefJson` is the
-            // reference (keychain entry name or env-var name); the
-            // calling agent resolves the secret itself.
-            let id = decode_string(&params, "id")?;
-            let hint = McpServersUseCase::new(pool)
-                .get_connection_hint(&id)
-                .map_err(stringify_app)?;
-            json_or_err(&McpServerConnectionHint::from(hint))
-        }
         "get_task" => {
             let id = decode_string(&params, "id")?;
             let task = TasksUseCase::new(pool).get(&id).map_err(stringify_app)?;
@@ -99,29 +95,6 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
         "list_columns" => {
             let columns = ColumnsUseCase::new(pool).list().map_err(stringify_app)?;
             json_or_err(&columns)
-        }
-        "list_mcp_servers" => {
-            // ADR-0007 registry-only: only *enabled* servers cross the
-            // sidecar boundary. The wire shape collapses each row into
-            // the same `McpServerConnectionHint` view used by
-            // `get_mcp_server_connection_hint` so the field set
-            // (`authRefJson`, no `enabled`/timestamps) is consistent
-            // across both tools.
-            let servers = McpServersUseCase::new(pool)
-                .list_enabled()
-                .map_err(stringify_app)?;
-            let hints: Vec<McpServerConnectionHint> = servers
-                .into_iter()
-                .map(|s| McpServerConnectionHint {
-                    id: s.id,
-                    name: s.name,
-                    transport: s.transport,
-                    url: s.url,
-                    command: s.command,
-                    auth_ref_json: s.auth_json,
-                })
-                .collect();
-            json_or_err(&hints)
         }
         "list_tasks" => {
             let tasks = TasksUseCase::new(pool).list().map_err(stringify_app)?;
