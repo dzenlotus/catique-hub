@@ -57,6 +57,31 @@ tokio.workspace = true
 # the row's caller doesn't pass one explicitly.
 chrono.workspace = true
 
+# OS-keychain backend for the MCP pass-through proxy (ADR-0008 /
+# PROXY-S3 round 2 / ctq-130). The workspace dep is declared with
+# `default-features = false`; each target below opts into its
+# platform-native credential store. Without these feature flags
+# keyring falls back to an in-memory mock store, which would silently
+# drop secrets on app restart.
+keyring.workspace = true
+
+# Per-target keyring features. The Linux entry uses `sync-secret-service`
+# (libsecret via dbus) plus `crypto-rust` to keep openssl out of the
+# supply chain. Headless CI without a running Secret Service daemon
+# cannot exercise this backend — see the test module-level comment in
+# `src/secrets/mod.rs` for the gating strategy.
+[target.'cfg(target_os = "macos")'.dependencies.keyring]
+workspace = true
+features = ["apple-native"]
+
+[target.'cfg(target_os = "windows")'.dependencies.keyring]
+workspace = true
+features = ["windows-native"]
+
+[target.'cfg(target_os = "linux")'.dependencies.keyring]
+workspace = true
+features = ["sync-secret-service", "crypto-rust"]
+
 [dev-dependencies]
 tempfile.workspace = true
 criterion.workspace = true

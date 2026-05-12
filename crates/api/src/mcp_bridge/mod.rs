@@ -45,9 +45,7 @@ use catique_application::{
     boards::BoardsUseCase,
     columns::ColumnsUseCase,
     mcp_proxy::{McpProxyUseCase, UpstreamCaller, UpstreamError},
-    mcp_servers::{
-        McpServersUseCase, ServerWireMeta, UpstreamIntrospector, UpstreamToolDecl,
-    },
+    mcp_servers::{McpServersUseCase, ServerWireMeta, UpstreamIntrospector, UpstreamToolDecl},
     tasks::TasksUseCase,
     AppError,
 };
@@ -139,10 +137,9 @@ impl UpstreamIntrospector for SidecarUpstream {
                 other => UpstreamError::Transport(other.to_string()),
             })?;
         // Node returns { tools: [{ name, description?, inputSchema }] }.
-        let tools = raw
-            .get("tools")
-            .and_then(Value::as_array)
-            .ok_or_else(|| UpstreamError::Transport("introspect_upstream: missing tools[]".into()))?;
+        let tools = raw.get("tools").and_then(Value::as_array).ok_or_else(|| {
+            UpstreamError::Transport("introspect_upstream: missing tools[]".into())
+        })?;
         let mut out = Vec::with_capacity(tools.len());
         for entry in tools {
             let name = entry
@@ -286,6 +283,11 @@ fn resolve_keychain_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
         .ok_or_else(|| "no_auth_configured".to_owned())?;
     let secret = secrets::resolve(&auth_ref).map_err(|e| match e {
         secrets::SecretError::NotFound => "keychain_missing".to_owned(),
+        // `code` is a `&'static str`, so this branch carries no
+        // caller-controlled bytes into the bridge error message —
+        // see `secrets::map_keyring_err` in
+        // `crates/infrastructure/src/secrets/mod.rs`.
+        secrets::SecretError::Backend(code) => format!("keychain_backend: {code}"),
         secrets::SecretError::NotImplemented(_) => "not_implemented".to_owned(),
         secrets::SecretError::MalformedRef(m) => format!("malformed_ref: {m}"),
     })?;

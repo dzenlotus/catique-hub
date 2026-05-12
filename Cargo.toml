@@ -67,6 +67,16 @@ anyhow = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 dirs = "5"
 
+# OS-keychain backend for the MCP pass-through proxy (ADR-0008 /
+# PROXY-S3 round 2 / ctq-130). Per-target features are applied in
+# `crates/infrastructure/Cargo.toml` — by default keyring 3 enables
+# no platform store, so each target must opt into its native backend:
+#   macOS   → `apple-native`
+#   Windows → `windows-native`
+#   Linux   → `sync-secret-service` + `crypto-rust`
+# MIT/Apache-2.0, no Tauri-plugin lifecycle (no app handle needed).
+keyring = { version = "3", default-features = false }
+
 # Tauri pinned to the same minor as src-tauri/ scaffold (Katya, E1.1).
 tauri = { version = "2.10", default-features = false }
 tauri-build = { version = "2.5", features = [] }
