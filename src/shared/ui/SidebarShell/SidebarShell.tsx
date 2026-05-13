@@ -55,7 +55,7 @@ export function SidebarShell({
       {...dataTestIdProps}
     >
       <Scrollable axis="y" className={styles.sectionsWrap}>
-        {children}
+        <div className={styles.sectionsContent}>{children}</div>
       </Scrollable>
     </aside>
   );

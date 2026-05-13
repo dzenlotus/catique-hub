@@ -17,13 +17,25 @@
   overflow: hidden;
 }
 
+/*
+ * Scrollable host inside `<SidebarShell>`. Owns the flex sizing only —
+ * padding moves to `.sectionsContent` (the inner wrapper rendered as
+ * the scrollable viewport's content). Applying padding directly to an
+ * OverlayScrollbars host throws off its viewport-height measurement
+ * which silently disables vertical scrolling when the rail overflows
+ * (caught in MCP rail with multiple expanded servers).
+ */
 .sectionsWrap {
   flex: 1 1 auto;
   min-height: 0;
-  display: block;
+}
+
+.sectionsContent {
   /* Top padding aligns the section label vertically with the topbar
      of the content column. */
   padding: 24px 20px 28px;
+  display: flex;
+  flex-direction: column;
 }
 
 .sectionLabel {
@@ -149,9 +161,11 @@
   align-items: center;
   gap: var(--space-8);
   width: 100%;
-  /* Match boardRow's vertical rhythm. Left padding leaves room for the
-   * inset rounded highlight (4 px from the wrapper's inner edge). */
-  padding: 10px var(--space-12) 10px 12px;
+  /* Match boardRow's vertical rhythm. Left padding must equal
+   * `.navItemRow::before` `left` (16 px) so the label sits INSIDE
+   * the hover/active background instead of bleeding 4 px past its
+   * leading edge. */
+  padding: 10px var(--space-12) 10px 16px;
   border-radius: var(--radius-md);
   border: none;
   background-color: transparent;
@@ -201,14 +215,16 @@
 }
 
 /*
- * Red active strip — etalon position. Rendered by `<SidebarNavItem>`
- * as a sibling of the inner button so it can extend 4 px to the LEFT
- * of the button's bounding box and visually anchor to the rail's
- * outer gutter.
+ * Red active strip — canonical position across every rail. Sits
+ * ENTIRELY to the left of the row (`width: 5px`, `left: -5px`) so
+ * its right edge lands exactly at the row's left edge — never
+ * overlaps the active underlay. Keep in sync with
+ * `EntityTree.module.css .rowActive::after` and
+ * `MainSidebar.module.css .navItem.active::after`.
  */
 .activeStrip {
   position: absolute;
-  left: -4px;
+  left: -5px;
   top: 4px;
   bottom: 4px;
   width: 5px;
@@ -268,12 +284,16 @@
   transition: background-color 80ms ease-out;
 }
 
+/* Hover / active background overlay. Sits 2 px (`var(--space-2)`) to
+ * the right of the red `.activeStrip` end (which lands at row-x=0) —
+ * that gap is canonical across every rail. The label's own
+ * `padding-left: 16px` keeps the text inset from the underlay edge. */
 .navItemRow::before {
   content: "";
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 16px;
+  left: var(--space-2);
   right: 0;
   border-radius: var(--radius-sm);
   z-index: 0;
