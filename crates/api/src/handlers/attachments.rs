@@ -307,8 +307,10 @@ pub async fn upload_attachment(
 /// Core implementation of `upload_attachment_blob`. Extracted from the
 /// Tauri-bound entry point so unit tests can drive the full path
 /// (decode → write → insert) against a `tempfile::TempDir` data root
-/// without spinning up a Tauri runtime.
-fn upload_attachment_blob_inner(
+/// without spinning up a Tauri runtime. `pub(crate)` so the MCP bridge
+/// can reuse the same atomic-write + cleanup path without re-deriving
+/// the size cap or MIME fallback.
+pub(crate) fn upload_attachment_blob_inner(
     pool: &catique_infrastructure::db::pool::Pool,
     data_root: &Path,
     task_id: String,

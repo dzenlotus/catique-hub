@@ -51,15 +51,19 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use catique_application::{
+    attachments::AttachmentsUseCase,
     boards::BoardsUseCase,
     clients::ConnectedProvidersUseCase,
     columns::ColumnsUseCase,
     connected_providers::{build_bundle_for_test, OrchestratorHandle, SyncTrigger},
     mcp_proxy::{McpProxyUseCase, UpstreamCaller, UpstreamError},
     mcp_servers::{McpServersUseCase, ServerWireMeta, UpstreamIntrospector, UpstreamToolDecl},
+    mcp_tools::McpToolsUseCase,
     prompt_groups::PromptGroupsUseCase,
     prompts::PromptsUseCase,
     role_notes::RoleNotesUseCase,
+    search::SearchUseCase,
+    skills::SkillsUseCase,
     spaces::{CreateSpaceArgs, SpacesUseCase, UpdateSpaceArgs},
     tasks::TasksUseCase,
     AppError,
@@ -73,6 +77,7 @@ use catique_infrastructure::{
             tasks::{cascade_prompt_attachment, cascade_prompt_detachment, AttachScope},
         },
     },
+    paths::app_data_dir,
     secrets,
 };
 use catique_sidecar::{IpcHandler, SidecarError, SidecarManager};
@@ -326,8 +331,38 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "add_task_mcp_tool" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let mcp_tool_id = decode_string(&params, "mcp_tool_id")?;
+            let position = decode_f64(&params, "position")?;
+            McpToolsUseCase::new(pool)
+                .add_to_task(&task_id, &mcp_tool_id, position)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "add_task_prompt" => add_task_prompt_arm(pool, &params),
+        "add_task_skill" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let skill_id = decode_string(&params, "skill_id")?;
+            let position = decode_f64(&params, "position")?;
+            SkillsUseCase::new(pool)
+                .add_to_task(&task_id, &skill_id, position)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "clear_task_prompt_override" => clear_task_prompt_override_arm(pool, &params),
+        // -------- attachments --------
+        "create_attachment" => create_attachment_arm(pool, &params),
+        // -------- tasks / boards / columns CRUD --------
+        "create_column" => {
+            let board_id = decode_string(&params, "board_id")?;
+            let name = decode_string(&params, "name")?;
+            let position = decode_i64(&params, "position")?;
+            let column = ColumnsUseCase::new(pool)
+                .create(board_id, name, position)
+                .map_err(stringify_app)?;
+            json_or_err(&column)
+        }
         // -------- prompts CRUD --------
         "create_prompt" => {
             let name = decode_string(&params, "name")?;
@@ -369,6 +404,33 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&space)
         }
+        "create_task" => {
+            let board_id = decode_string(&params, "board_id")?;
+            let column_id = decode_string(&params, "column_id")?;
+            let title = decode_string(&params, "title")?;
+            let description = decode_optional_string(&params, "description");
+            let position = decode_f64(&params, "position")?;
+            let role_id = decode_optional_string(&params, "role_id");
+            let task = TasksUseCase::new(pool)
+                .create(board_id, column_id, title, description, position, role_id)
+                .map_err(stringify_app)?;
+            json_or_err(&task)
+        }
+        "delete_attachment" => delete_attachment_arm(pool, &params),
+        "delete_board" => {
+            let id = decode_string(&params, "id")?;
+            BoardsUseCase::new(pool)
+                .delete(&id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "delete_column" => {
+            let id = decode_string(&params, "id")?;
+            ColumnsUseCase::new(pool)
+                .delete(&id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "delete_prompt" => {
             let id = decode_string(&params, "id")?;
             PromptsUseCase::new(pool)
@@ -390,6 +452,25 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "delete_task" => delete_task_arm(pool, &params),
+        // -------- attachments / boards / columns read --------
+        "get_attachment" => {
+            let id = decode_string(&params, "id")?;
+            let attachment = AttachmentsUseCase::new(pool)
+                .get(&id)
+                .map_err(stringify_app)?;
+            json_or_err(&attachment)
+        }
+        "get_board" => {
+            let id = decode_string(&params, "id")?;
+            let board = BoardsUseCase::new(pool).get(&id).map_err(stringify_app)?;
+            json_or_err(&board)
+        }
+        "get_column" => {
+            let id = decode_string(&params, "id")?;
+            let column = ColumnsUseCase::new(pool).get(&id).map_err(stringify_app)?;
+            json_or_err(&column)
+        }
         // -------- prompts read --------
         "get_prompt" => {
             let id = decode_string(&params, "id")?;
@@ -408,6 +489,7 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
             let space = SpacesUseCase::new(pool).get(&id).map_err(stringify_app)?;
             json_or_err(&space)
         }
+        "get_step_log" => get_step_log_arm(pool, &params),
         "get_sync_status" => {
             // Without an orchestrator handle we cannot read live status;
             // return the default `Idle` snapshot — same contract as the
@@ -427,7 +509,21 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&bundle)
         }
+        "get_task_rating" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let rating = TasksUseCase::new(pool)
+                .get_task_rating(&task_id)
+                .map_err(stringify_app)?;
+            json_or_err(&rating)
+        }
         // -------- list reads --------
+        "list_attachments" => {
+            let task_id = decode_optional_string(&params, "task_id");
+            let attachments = AttachmentsUseCase::new(pool)
+                .list(task_id)
+                .map_err(stringify_app)?;
+            json_or_err(&attachments)
+        }
         "list_boards" => {
             let boards = BoardsUseCase::new(pool).list().map_err(stringify_app)?;
             json_or_err(&boards)
@@ -476,10 +572,41 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
             let providers = ConnectedProvidersUseCase::new(pool).list_supported();
             json_or_err(&providers)
         }
+        "list_task_mcp_tools" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let tools = McpToolsUseCase::new(pool)
+                .list_for_task(&task_id)
+                .map_err(stringify_app)?;
+            json_or_err(&tools)
+        }
+        "list_task_prompts" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let prompts = TasksUseCase::new(pool)
+                .list_task_prompts(&task_id)
+                .map_err(stringify_app)?;
+            json_or_err(&prompts)
+        }
+        "list_task_skills" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let skills = SkillsUseCase::new(pool)
+                .list_for_task(&task_id)
+                .map_err(stringify_app)?;
+            json_or_err(&skills)
+        }
         "list_tasks" => {
             let tasks = TasksUseCase::new(pool).list().map_err(stringify_app)?;
             json_or_err(&tasks)
         }
+        "log_step" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let summary = decode_string(&params, "summary")?;
+            TasksUseCase::new(pool)
+                .log_step(task_id, summary)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "move_task" => move_task_arm(pool, &params),
+        "rate_task" => rate_task_arm(pool, &params),
         "recall_role_notes" => recall_role_notes_arm(pool, &params),
         "recompute_prompt_token_count" => {
             let id = decode_string(&params, "id")?;
@@ -507,9 +634,84 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "remove_task_mcp_tool" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let mcp_tool_id = decode_string(&params, "mcp_tool_id")?;
+            McpToolsUseCase::new(pool)
+                .remove_from_task(&task_id, &mcp_tool_id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "remove_task_prompt" => remove_task_prompt_arm(pool, &params),
+        "remove_task_skill" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let skill_id = decode_string(&params, "skill_id")?;
+            SkillsUseCase::new(pool)
+                .remove_from_task(&task_id, &skill_id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "resolve_keychain" => resolve_keychain_arm(pool, &params),
+        "route_task_to_board" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let target_board_id = decode_string(&params, "target_board_id")?;
+            let task = TasksUseCase::new(pool)
+                .route_task_to_board(task_id, target_board_id)
+                .map_err(stringify_app)?;
+            json_or_err(&task)
+        }
+        // -------- search --------
+        "search_agent_reports" => {
+            let query = decode_string(&params, "query")?;
+            let limit = decode_optional_i64(&params, "limit");
+            let results = SearchUseCase::new(pool)
+                .search_agent_reports(query, limit)
+                .map_err(stringify_app)?;
+            json_or_err(&results)
+        }
+        "search_all" => {
+            let query = decode_string(&params, "query")?;
+            let limit_per_kind = decode_optional_i64(&params, "limit_per_kind");
+            let results = SearchUseCase::new(pool)
+                .search_all(query, limit_per_kind)
+                .map_err(stringify_app)?;
+            json_or_err(&results)
+        }
+        "search_tasks" => {
+            let query = decode_string(&params, "query")?;
+            let limit = decode_optional_i64(&params, "limit");
+            let results = SearchUseCase::new(pool)
+                .search_tasks(query, limit)
+                .map_err(stringify_app)?;
+            json_or_err(&results)
+        }
+        "search_tasks_by_cat_and_space" => {
+            let space_id = decode_string(&params, "space_id")?;
+            let cat_id = decode_string(&params, "cat_id")?;
+            let query = decode_string(&params, "query")?;
+            let matches = SearchUseCase::new(pool)
+                .search_tasks_by_cat_and_space(space_id, cat_id, query)
+                .map_err(stringify_app)?;
+            json_or_err(&matches)
+        }
+        // -------- boards / columns bulk set --------
+        "set_board_mcp_tools" => {
+            let board_id = decode_string(&params, "board_id")?;
+            let mcp_tool_ids = decode_string_array(&params, "mcp_tool_ids")?;
+            BoardsUseCase::new(pool)
+                .set_mcp_tools(&board_id, &mcp_tool_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         // -------- prompts bulk set --------
+        "set_board_owner" => {
+            let board_id = decode_string(&params, "board_id")?;
+            let role_id = decode_string(&params, "role_id")?;
+            let board = BoardsUseCase::new(pool)
+                .set_board_owner(&board_id, &role_id)
+                .map_err(stringify_app)?;
+            json_or_err(&board)
+        }
         "set_board_prompts" => {
             let board_id = decode_string(&params, "board_id")?;
             let prompt_ids = decode_string_array(&params, "prompt_ids")?;
@@ -518,11 +720,35 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "set_board_skills" => {
+            let board_id = decode_string(&params, "board_id")?;
+            let skill_ids = decode_string_array(&params, "skill_ids")?;
+            BoardsUseCase::new(pool)
+                .set_skills(&board_id, &skill_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "set_column_mcp_tools" => {
+            let column_id = decode_string(&params, "column_id")?;
+            let mcp_tool_ids = decode_string_array(&params, "mcp_tool_ids")?;
+            ColumnsUseCase::new(pool)
+                .set_mcp_tools(&column_id, &mcp_tool_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "set_column_prompts" => {
             let column_id = decode_string(&params, "column_id")?;
             let prompt_ids = decode_string_array(&params, "prompt_ids")?;
             ColumnsUseCase::new(pool)
                 .set_column_prompts(column_id, prompt_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "set_column_skills" => {
+            let column_id = decode_string(&params, "column_id")?;
+            let skill_ids = decode_string_array(&params, "skill_ids")?;
+            ColumnsUseCase::new(pool)
+                .set_skills(&column_id, &skill_ids)
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
@@ -560,6 +786,25 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
         }
         "set_task_prompt_override" => set_task_prompt_override_arm(pool, &params),
         // -------- updates --------
+        "update_attachment" => {
+            let id = decode_string(&params, "id")?;
+            let filename = decode_optional_string(&params, "filename");
+            let uploaded_by = decode_tri_state_string(&params, "uploaded_by");
+            let attachment = AttachmentsUseCase::new(pool)
+                .update(id, filename, uploaded_by)
+                .map_err(stringify_app)?;
+            json_or_err(&attachment)
+        }
+        "update_column" => {
+            let id = decode_string(&params, "id")?;
+            let name = decode_optional_string(&params, "name");
+            let position = decode_optional_i64(&params, "position");
+            let role_id = decode_tri_state_string(&params, "role_id");
+            let column = ColumnsUseCase::new(pool)
+                .update(id, name, position, role_id)
+                .map_err(stringify_app)?;
+            json_or_err(&column)
+        }
         "update_prompt" => {
             let id = decode_string(&params, "id")?;
             let name = decode_optional_string(&params, "name");
@@ -600,6 +845,20 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&space)
         }
+        "update_task" => {
+            let id = decode_string(&params, "id")?;
+            let title = decode_optional_string(&params, "title");
+            let description = decode_tri_state_string(&params, "description");
+            let column_id = decode_optional_string(&params, "column_id");
+            let position = decode_optional_f64(&params, "position");
+            let role_id = decode_tri_state_string(&params, "role_id");
+            let task = TasksUseCase::new(pool)
+                .update(id, title, description, column_id, position, role_id)
+                .map_err(stringify_app)?;
+            json_or_err(&task)
+        }
+        "upload_attachment" => upload_attachment_arm(pool, &params),
+        "upload_attachment_blob" => upload_attachment_blob_arm(pool, &params),
         other => Err(format!("Unknown ipc_call method: {other}")),
     }
 }
@@ -872,6 +1131,281 @@ fn resolve_keychain_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
 }
 
 // ---------------------------------------------------------------------
+// MCP-EXPAND-C arms — tasks / boards / columns / attachments / search.
+// Mirror the Tauri handlers in `handlers::{tasks,boards,columns,
+// attachments,search}` one-for-one; event emission is intentionally
+// omitted (events are a UI concern — agents see the result through the
+// returned row).
+// ---------------------------------------------------------------------
+
+/// Mirrors `handlers::tasks::move_task`. Honours the same
+/// "either column_id or board_id" decision the Tauri command makes —
+/// when only `board_id` is supplied we route to that board's default
+/// column via [`TasksUseCase::route_task_to_board`].
+fn move_task_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let task_id = decode_string(params, "task_id")?;
+    let column_id = decode_optional_string(params, "column_id");
+    let board_id = decode_optional_string(params, "board_id");
+    let position = decode_optional_f64(params, "position");
+    let uc = TasksUseCase::new(pool);
+    let task = match (column_id, board_id) {
+        (Some(c), _) => uc.move_task(task_id, c, position).map_err(stringify_app)?,
+        (None, Some(target_board)) => uc
+            .route_task_to_board(task_id, target_board)
+            .map_err(stringify_app)?,
+        (None, None) => {
+            return Err(stringify_app(AppError::Validation {
+                field: "column_id".into(),
+                reason: "either columnId or boardId must be supplied".into(),
+            }));
+        }
+    };
+    json_or_err(&task)
+}
+
+/// Mirrors `handlers::tasks::rate_task`. The IPC payload uses `i32`
+/// (JSON-native) and re-narrows to `i8` after the range guard, matching
+/// the handler's contract.
+fn rate_task_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let task_id = decode_string(params, "task_id")?;
+    let rating_raw =
+        match params.get("rating") {
+            None | Some(Value::Null) => None,
+            Some(v) => Some(v.as_i64().ok_or_else(|| {
+                "validation failed on `rating`: must be integer or null".to_owned()
+            })?),
+        };
+    let narrowed = match rating_raw {
+        None => None,
+        Some(v) => {
+            let trimmed = i32::try_from(v).map_err(|_| {
+                stringify_app(AppError::Validation {
+                    field: "rating".into(),
+                    reason: "must be one of -1, 0, +1, or null".into(),
+                })
+            })?;
+            Some(i8::try_from(trimmed).map_err(|_| {
+                stringify_app(AppError::Validation {
+                    field: "rating".into(),
+                    reason: "must be one of -1, 0, +1, or null".into(),
+                })
+            })?)
+        }
+    };
+    TasksUseCase::new(pool)
+        .rate_task(task_id, narrowed)
+        .map_err(stringify_app)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::tasks::get_step_log`. Returns `""` for tasks that
+/// have never been logged-to; `AppError::NotFound` if the task id is
+/// unknown.
+fn get_step_log_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let task_id = decode_string(params, "task_id")?;
+    let conn = acquire(pool).map_err(|e| format!("db acquire: {e}"))?;
+    match catique_infrastructure::db::repositories::tasks::get_step_log(&conn, &task_id)
+        .map_err(|e| format!("db: {e}"))?
+    {
+        Some(text) => Ok(json!(text)),
+        None => Err(stringify_app(AppError::NotFound {
+            entity: "task".into(),
+            id: task_id,
+        })),
+    }
+}
+
+/// Mirrors `handlers::tasks::delete_task`. Resolves the app-data dir for
+/// the attachment-directory cleanup so the cascaded `task_attachments`
+/// rows and on-disk blobs disappear together. Filesystem cleanup is
+/// best-effort — a missing or unreadable directory does not fail the
+/// call (see `TasksUseCase::delete_with_attachments`).
+fn delete_task_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let id = decode_string(params, "id")?;
+    let data_root = app_data_dir().map_err(|reason| {
+        stringify_app(AppError::Validation {
+            field: "target_data_dir".into(),
+            reason: reason.to_owned(),
+        })
+    })?;
+    let attachments_root = data_root.join("attachments");
+    TasksUseCase::new(pool)
+        .delete_with_attachments(&id, &attachments_root)
+        .map_err(stringify_app)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::attachments::create_attachment`. Metadata-only —
+/// the caller is expected to have already written the blob under
+/// `<app_data>/attachments/<task_id>/<storage_path>`.
+fn create_attachment_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let task_id = decode_string(params, "task_id")?;
+    let filename = decode_string(params, "filename")?;
+    let mime_type = decode_string(params, "mime_type")?;
+    let size_bytes = decode_i64(params, "size_bytes")?;
+    let storage_path = decode_string(params, "storage_path")?;
+    let uploaded_by = decode_optional_string(params, "uploaded_by");
+    let attachment = AttachmentsUseCase::new(pool)
+        .create(
+            task_id,
+            filename,
+            mime_type,
+            size_bytes,
+            storage_path,
+            uploaded_by,
+        )
+        .map_err(stringify_app)?;
+    json_or_err(&attachment)
+}
+
+/// Mirrors `handlers::attachments::delete_attachment`. Removes both the
+/// metadata row AND the on-disk blob (best-effort on the FS side — see
+/// `AttachmentsUseCase::delete_with_blob`).
+fn delete_attachment_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let id = decode_string(params, "id")?;
+    let data_root = app_data_dir().map_err(|reason| {
+        stringify_app(AppError::Validation {
+            field: "target_data_dir".into(),
+            reason: reason.to_owned(),
+        })
+    })?;
+    let blob_root = data_root.join("attachments");
+    AttachmentsUseCase::new(pool)
+        .delete_with_blob(&id, &blob_root)
+        .map_err(stringify_app)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::attachments::upload_attachment`. The path-based
+/// upload only makes sense for callers that can name a local file (the
+/// desktop UI); agents normally reach for `upload_attachment_blob` with
+/// a base64 payload. We expose this arm for parity with the Tauri
+/// command — same validations, same cleanup-on-failure contract.
+fn upload_attachment_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    use std::path::PathBuf;
+    let task_id = decode_string(params, "task_id")?;
+    let source_path = decode_string(params, "source_path")?;
+    let original_filename = decode_string(params, "original_filename")?;
+    let mime_type = decode_optional_string(params, "mime_type");
+    let src = PathBuf::from(&source_path);
+    if !src.exists() {
+        return Err(stringify_app(AppError::Validation {
+            field: "source_path".into(),
+            reason: format!("file does not exist: {source_path}"),
+        }));
+    }
+    if !src.is_file() {
+        return Err(stringify_app(AppError::Validation {
+            field: "source_path".into(),
+            reason: format!("path is not a regular file: {source_path}"),
+        }));
+    }
+    let data_root = app_data_dir().map_err(|reason| {
+        stringify_app(AppError::Validation {
+            field: "target_data_dir".into(),
+            reason: reason.to_owned(),
+        })
+    })?;
+    let target_dir = data_root.join("attachments").join(&task_id);
+    std::fs::create_dir_all(&target_dir).map_err(|e| {
+        stringify_app(AppError::Validation {
+            field: "target_data_dir".into(),
+            reason: format!("failed to create attachment directory: {e}"),
+        })
+    })?;
+    let attachment_id = nanoid::nanoid!();
+    let sanitized: String = original_filename
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            other => other,
+        })
+        .collect();
+    let storage_name = format!("{attachment_id}_{sanitized}");
+    let dest = target_dir.join(&storage_name);
+    std::fs::copy(&src, &dest).map_err(|e| {
+        let _ = std::fs::remove_file(&dest);
+        stringify_app(AppError::Validation {
+            field: "source_path".into(),
+            reason: format!("file copy failed: {e}"),
+        })
+    })?;
+    let size_bytes = std::fs::metadata(&dest)
+        .map(|m| i64::try_from(m.len()).unwrap_or(i64::MAX))
+        .unwrap_or(0);
+    let resolved_mime = mime_type
+        .filter(|m| !m.is_empty())
+        .unwrap_or_else(|| mime_from_ext_bridge(&src).to_owned());
+    let attachment = AttachmentsUseCase::new(pool)
+        .create(
+            task_id,
+            original_filename,
+            resolved_mime,
+            size_bytes,
+            storage_name,
+            None,
+        )
+        .inspect_err(|_| {
+            let _ = std::fs::remove_file(&dest);
+        })
+        .map_err(stringify_app)?;
+    json_or_err(&attachment)
+}
+
+/// Mirrors `handlers::attachments::upload_attachment_blob`. Reuses the
+/// crate-internal `upload_attachment_blob_inner` so the size-cap +
+/// atomic-write + cleanup-on-insert-failure path stays one source of
+/// truth across the Tauri command and the MCP bridge.
+fn upload_attachment_blob_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let task_id = decode_string(params, "task_id")?;
+    let filename = decode_string(params, "filename")?;
+    let content_b64 = decode_string(params, "content_b64")?;
+    let mime = decode_string(params, "mime")?;
+    let data_root = app_data_dir().map_err(|reason| {
+        stringify_app(AppError::Validation {
+            field: "target_data_dir".into(),
+            reason: reason.to_owned(),
+        })
+    })?;
+    let attachment = crate::handlers::attachments::upload_attachment_blob_inner(
+        pool,
+        &data_root,
+        task_id,
+        filename,
+        &content_b64,
+        mime,
+    )
+    .map_err(stringify_app)?;
+    json_or_err(&attachment)
+}
+
+/// Bridge-local MIME inference — duplicate of the private helper in
+/// `handlers::attachments` to avoid widening that module's surface. We
+/// intentionally keep the table identical; if you add an extension
+/// there, mirror it here.
+fn mime_from_ext_bridge(path: &std::path::Path) -> &'static str {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "pdf" => "application/pdf",
+        "txt" => "text/plain",
+        "md" => "text/markdown",
+        "json" => "application/json",
+        "csv" => "text/csv",
+        "zip" => "application/zip",
+        _ => "application/octet-stream",
+    }
+}
+
+// ---------------------------------------------------------------------
 // Param-decoding helpers.
 //
 // Naming convention:
@@ -958,6 +1492,13 @@ fn decode_optional_string(params: &Value, field: &str) -> Option<String> {
 /// Decode an `Option<f64>`. Missing key OR `null` → `None`.
 fn decode_optional_f64(params: &Value, field: &str) -> Option<f64> {
     params.get(field).and_then(Value::as_f64)
+}
+
+/// Decode an `Option<i64>`. Missing key OR `null` → `None`. Used by
+/// search arms whose `limit` argument is optional (the use-case defaults
+/// kick in when `None`).
+fn decode_optional_i64(params: &Value, field: &str) -> Option<i64> {
+    params.get(field).and_then(Value::as_i64)
 }
 
 /// Decode an `Option<Option<String>>` clearable field — the Tauri
@@ -1447,5 +1988,299 @@ mod tests {
                 "tool `{name}` declared in manifest has no dispatch arm"
             );
         }
+    }
+
+    // -----------------------------------------------------------------
+    // MCP-EXPAND-C smoke tests — tasks / boards / columns / attachments /
+    // search dispatch arms. Mirror the shape of B's coverage: at least
+    // one happy-path round-trip per sub-domain plus a couple of
+    // contract-bearing edge cases (search empty query, rate_task out of
+    // range). We piggy-back on B's `fresh_pool` and add a board/column
+    // fixture so the task arms have a parent to FK against.
+    // -----------------------------------------------------------------
+
+    /// Seed an in-memory DB by calling `create_space` (which provisions
+    /// one default board + default column) and resolving their ids so
+    /// task-domain dispatch tests have a real parent to FK against.
+    /// Returns `(pool, board_id, column_id)`. We deliberately reuse the
+    /// auto-provisioned board rather than minting a second one — migration
+    /// 016 enforces UNIQUE(space_id, owner_role_id) so a NULL-owner second
+    /// board would collide.
+    fn fresh_pool_with_board() -> (Pool, String, String) {
+        let pool = fresh_pool();
+        let space = dispatch(&pool, "create_space", json!({"name": "S", "prefix": "sp"})).unwrap();
+        let space_id = space["id"].as_str().unwrap().to_owned();
+        let conn = pool.get().unwrap();
+        let (board_id, column_id) = conn
+            .query_row(
+                "SELECT b.id, c.id \
+                 FROM boards b \
+                 JOIN columns c ON c.board_id = b.id AND c.is_default = 1 \
+                 WHERE b.space_id = ?1 \
+                 LIMIT 1",
+                rusqlite::params![space_id],
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+            )
+            .expect("create_space must provision a default board + default column");
+        drop(conn);
+        (pool, board_id, column_id)
+    }
+
+    #[test]
+    fn dispatch_create_task_then_get_and_delete() {
+        let (pool, board_id, column_id) = fresh_pool_with_board();
+        let task = dispatch(
+            &pool,
+            "create_task",
+            json!({
+                "board_id": board_id,
+                "column_id": column_id,
+                "title": "T1",
+                "position": 1.0,
+            }),
+        )
+        .expect("create_task");
+        let id = task["id"].as_str().expect("id").to_owned();
+        assert_eq!(task["title"], "T1");
+
+        let got = dispatch(&pool, "get_task", json!({"id": id.clone()})).expect("get_task");
+        assert_eq!(got["title"], "T1");
+
+        dispatch(&pool, "delete_task", json!({"id": id.clone()})).expect("delete_task");
+        // get_task after delete → typed NotFound (`AppError` envelope).
+        let err = dispatch(&pool, "get_task", json!({"id": id}))
+            .expect_err("post-delete get_task must fail");
+        let parsed: serde_json::Value = serde_json::from_str(&err).expect("AppError envelope JSON");
+        assert_eq!(parsed["error"]["kind"], "notFound");
+    }
+
+    #[test]
+    fn dispatch_log_step_appends_and_get_step_log_reads() {
+        let (pool, board_id, column_id) = fresh_pool_with_board();
+        let task = dispatch(
+            &pool,
+            "create_task",
+            json!({
+                "board_id": board_id,
+                "column_id": column_id,
+                "title": "T1",
+                "position": 1.0,
+            }),
+        )
+        .unwrap();
+        let task_id = task["id"].as_str().unwrap().to_owned();
+
+        dispatch(
+            &pool,
+            "log_step",
+            json!({"task_id": task_id, "summary": "started work"}),
+        )
+        .expect("log_step");
+        let buf =
+            dispatch(&pool, "get_step_log", json!({"task_id": task_id})).expect("get_step_log");
+        let text = buf.as_str().expect("step log is a string");
+        assert!(
+            text.contains("started work"),
+            "step log must contain the appended summary: {text}"
+        );
+    }
+
+    #[test]
+    fn dispatch_rate_task_round_trips_and_rejects_out_of_range() {
+        let (pool, board_id, column_id) = fresh_pool_with_board();
+        let task = dispatch(
+            &pool,
+            "create_task",
+            json!({
+                "board_id": board_id,
+                "column_id": column_id,
+                "title": "T1",
+                "position": 1.0,
+            }),
+        )
+        .unwrap();
+        let task_id = task["id"].as_str().unwrap().to_owned();
+
+        dispatch(&pool, "rate_task", json!({"task_id": task_id, "rating": 1}))
+            .expect("rate_task +1");
+        let got = dispatch(
+            &pool,
+            "get_task_rating",
+            json!({"task_id": task_id.clone()}),
+        )
+        .expect("get_task_rating");
+        assert_eq!(got["rating"], 1);
+
+        // Out-of-range surfaces as a typed Validation error.
+        let err = dispatch(&pool, "rate_task", json!({"task_id": task_id, "rating": 7}))
+            .expect_err("rate_task 7 must fail");
+        let parsed: serde_json::Value = serde_json::from_str(&err).expect("AppError envelope");
+        assert_eq!(parsed["error"]["kind"], "validation");
+    }
+
+    #[test]
+    fn dispatch_move_task_requires_column_or_board() {
+        let (pool, board_id, column_id) = fresh_pool_with_board();
+        let task = dispatch(
+            &pool,
+            "create_task",
+            json!({
+                "board_id": board_id,
+                "column_id": column_id,
+                "title": "T",
+                "position": 1.0,
+            }),
+        )
+        .unwrap();
+        let task_id = task["id"].as_str().unwrap().to_owned();
+
+        let err = dispatch(&pool, "move_task", json!({"task_id": task_id}))
+            .expect_err("move_task with neither column nor board must fail");
+        let parsed: serde_json::Value = serde_json::from_str(&err).expect("AppError envelope");
+        assert_eq!(parsed["error"]["kind"], "validation");
+    }
+
+    #[test]
+    fn dispatch_get_board_returns_row_and_delete_default_is_refused() {
+        let (pool, board_id, _column_id) = fresh_pool_with_board();
+        let got = dispatch(&pool, "get_board", json!({"id": board_id.clone()})).expect("get_board");
+        // The default board provisioned by `create_space` carries its
+        // own name (migration `016_*` stamps it); we don't assert the
+        // exact name to stay decoupled from migration cosmetics, only
+        // that `get_board` returned the row for our board id.
+        assert_eq!(got["id"], board_id);
+
+        // `delete_board` against the space's only board surfaces a
+        // typed Validation error — the default-board guard refuses to
+        // orphan a space. Confirming the typed shape doubles as a
+        // contract test for the AppError envelope.
+        let err = dispatch(&pool, "delete_board", json!({"id": board_id}))
+            .expect_err("default-board delete must be refused");
+        let parsed: serde_json::Value = serde_json::from_str(&err).expect("AppError envelope");
+        assert_eq!(parsed["error"]["kind"], "validation");
+    }
+
+    #[test]
+    fn dispatch_create_column_round_trips_and_update_renames() {
+        let (pool, board_id, _column_id) = fresh_pool_with_board();
+        let col = dispatch(
+            &pool,
+            "create_column",
+            json!({"board_id": board_id, "name": "Doing", "position": 1}),
+        )
+        .expect("create_column");
+        let id = col["id"].as_str().unwrap().to_owned();
+        assert_eq!(col["name"], "Doing");
+
+        let renamed = dispatch(
+            &pool,
+            "update_column",
+            json!({"id": id.clone(), "name": "In Progress"}),
+        )
+        .expect("update_column");
+        assert_eq!(renamed["name"], "In Progress");
+    }
+
+    #[test]
+    fn dispatch_list_attachments_returns_empty_when_no_rows() {
+        let pool = fresh_pool();
+        let out = dispatch(&pool, "list_attachments", json!({})).expect("list_attachments");
+        assert!(out.as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn dispatch_search_tasks_empty_query_returns_empty_array() {
+        let pool = fresh_pool();
+        // Empty / whitespace query short-circuits before the DB.
+        let out =
+            dispatch(&pool, "search_tasks", json!({"query": ""})).expect("search_tasks empty");
+        assert!(out.as_array().unwrap().is_empty());
+        let out =
+            dispatch(&pool, "search_all", json!({"query": "   "})).expect("search_all whitespace");
+        assert!(out.as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn manifest_expand_c_entries_present() {
+        // Spot-check every C sub-domain shows up in the manifest. Full
+        // coverage is enforced by `manifest_arm_names_match_dispatch_table`
+        // already; this guards against an accidental rename between
+        // dispatch arm and manifest entry.
+        let raw = include_str!("../../../../sidecar/tool-manifest.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).unwrap();
+        let tools = parsed["tools"].as_array().unwrap();
+        let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
+        for required in [
+            // tasks core
+            "create_task",
+            "delete_task",
+            "update_task",
+            "move_task",
+            "route_task_to_board",
+            "rate_task",
+            "get_task_rating",
+            "log_step",
+            "get_step_log",
+            // task joins
+            "add_task_skill",
+            "add_task_mcp_tool",
+            "remove_task_skill",
+            "remove_task_mcp_tool",
+            "list_task_prompts",
+            "list_task_skills",
+            "list_task_mcp_tools",
+            // boards
+            "get_board",
+            "delete_board",
+            "set_board_skills",
+            "set_board_mcp_tools",
+            "set_board_owner",
+            // columns
+            "create_column",
+            "delete_column",
+            "get_column",
+            "update_column",
+            "set_column_skills",
+            "set_column_mcp_tools",
+            // attachments
+            "create_attachment",
+            "delete_attachment",
+            "get_attachment",
+            "update_attachment",
+            "list_attachments",
+            "upload_attachment",
+            "upload_attachment_blob",
+            // search
+            "search_all",
+            "search_tasks",
+            "search_agent_reports",
+            "search_tasks_by_cat_and_space",
+        ] {
+            assert!(
+                names.contains(&required),
+                "missing manifest entry: {required}",
+            );
+        }
+    }
+
+    #[test]
+    fn manifest_is_alphabetically_sorted() {
+        // The bridge module doc lists the alphabetical-order invariant
+        // for the dispatch match; the manifest must follow the same
+        // convention so a casual reader can binary-scan either side.
+        let raw = include_str!("../../../../sidecar/tool-manifest.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).unwrap();
+        let names: Vec<&str> = parsed["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        assert_eq!(
+            names, sorted,
+            "tool-manifest.json entries must be ordered alphabetically"
+        );
     }
 }
