@@ -17,10 +17,10 @@
   width: 100%;
   height: 100%;
   display: grid;
-  /* Three rows: wordmark (auto) | nav list (auto) | mascot (1fr, end-aligned).
-     The 1fr track absorbs remaining vertical space so the mascot is anchored
-     at the bottom regardless of nav-list length. */
-  grid-template-rows: auto auto 1fr;
+  /* Two rows: wordmark (auto) | nav list (1fr). The nav-list track
+     absorbs all remaining vertical space; its inner OverlayScrollbars
+     viewport scrolls when the list overflows. */
+  grid-template-rows: auto 1fr;
   background-color: var(--color-surface-sidebar);
   /* Right border separates the main sidebar from the spaces sidebar. */
   border-right: 1px solid var(--color-border-default);
@@ -119,13 +119,25 @@
   min-height: 42px;
 }
 
-.navItem:hover:not(.active) {
+/* Hover state — rendered as an inset `::before` overlay so the
+ * surface geometry matches the active state below (and the
+ * SecondarySidebar / EntityTree rails). Underlay sits 2 px to the
+ * right of where the red active-strip ends (row-x=0). */
+.navItem:hover:not(.active)::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--space-2);
+  right: 0;
   background-color: var(--color-overlay-hover);
-  color: var(--color-text-default);
+  border-radius: var(--radius-sm);
+  z-index: 0;
+  pointer-events: none;
 }
 
-.navItem:active:not(.active) {
-  background-color: var(--color-overlay-active);
+.navItem:hover:not(.active) {
+  color: var(--color-text-default);
 }
 
 .navItem:focus-visible {
@@ -133,9 +145,11 @@
   outline-offset: 2px;
 }
 
-/*
- * Active workspace item: cream highlight pill with red text/icon.
- */
+/* Active workspace item — cream underlay + leading red strip, mirroring
+ * the SecondarySidebar / EntityTree treatment so all rails read as one
+ * family. Red strip sits ENTIRELY to the left of the row (`left: -5px`,
+ * `width: 5px`); underlay starts 2 px right of the strip's end so the
+ * canonical strip↔underlay gap is preserved. */
 .navItem.active {
   background-color: transparent;
   color: var(--color-cta-bg);
@@ -148,11 +162,25 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 0;
+  left: var(--space-2);
   right: 0;
   background-color: var(--color-accent-soft);
   border-radius: var(--radius-sm);
   z-index: 0;
+  pointer-events: none;
+}
+
+.navItem.active::after {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 4px;
+  bottom: 4px;
+  width: 5px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-cta-bg);
+  z-index: 2;
+  pointer-events: none;
 }
 
 .navItem > * {
@@ -173,26 +201,3 @@
   }
 }
 
-/* ============================================================
- * Mascot — bottom-anchored illustration
- * ============================================================ */
-
-/*
- * The mascot lives in the third grid row (1fr) and self-aligns to its
- * bottom edge, so the cream sidebar shows above it when the nav list is
- * short. Width fills the column; height stays proportional via `auto`.
- *
- * `display: block` strips the default inline-image baseline gap.
- * `pointer-events: none` keeps clicks falling through to the column
- * (the mascot is decorative chrome, not an interactive element).
- */
-.mascot {
-  align-self: end;
-  width: 100%;
-  height: auto;
-  display: block;
-  pointer-events: none;
-  user-select: none;
-  /* Pixel-art rendering — preserves the crisp edges of the sprite. */
-  image-rendering: pixelated;
-}
