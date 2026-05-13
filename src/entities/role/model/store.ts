@@ -250,26 +250,69 @@ export interface SetRolePromptsArgs {
 }
 
 /**
- * `useSetRolePromptsMutation` — bulk reorder.
+ * `useSetRolePromptsMutation` — bulk replace the role's attached prompt
+ * list via the `set_role_prompts` IPC.
  *
- * The cache layer keeps the optimistic order on success and rolls back
- * to the prior snapshot on error. Callers (drag-reorder) should call
- * `mutate` with the post-drop ordering; the hook does not perform an
- * optimistic swap on its own — keep the optimistic update at the call
- * site so the UI cycles through `pending → success/error` cleanly.
+ * Used by both `SelectTag` add/remove paths in the role editor and by
+ * the drag-reorder UX. The hook performs an optimistic write of the
+ * incoming `promptIds` against `rolesKeys.prompts(roleId)`, rolls back
+ * to the previous snapshot on error, and invalidates the key on settle
+ * so the eventual server fetch reconciles ordering / soft-deletes.
  *
- * TODO(ctq-108): backend handler `set_role_prompts` is not yet
- * implemented. Calls will fail at the IPC boundary until the bulk
- * setter ships; the rollback path makes the failure observable.
+ * The optimistic write maps `promptIds` back to full `Prompt` rows by
+ * intersecting with the cached `promptsKeys.list()` (= `["prompts"]`).
+ * When the global prompts list is not yet cached, the optimistic step
+ * is a no-op — the `onSettled` invalidate still reconciles the UI.
  */
 export function useSetRolePromptsMutation(): UseMutationResult<
   void,
   Error,
-  SetRolePromptsArgs
+  SetRolePromptsArgs,
+  { previous: Prompt[] | undefined }
 > {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation<
+    void,
+    Error,
+    SetRolePromptsArgs,
+    { previous: Prompt[] | undefined }
+  >({
     mutationFn: ({ roleId, promptIds }) => setRolePrompts(roleId, promptIds),
+    onMutate: async (vars) => {
+      const key = rolesKeys.prompts(vars.roleId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Prompt[]>(key);
+      // Resolve full Prompt rows by intersecting with cached lists.
+      // Priority: the current role-prompts cache (already attached rows)
+      // then the global prompts list. Skips ids missing from both — the
+      // settled invalidate corrects any drift.
+      const globalPrompts =
+        queryClient.getQueryData<Prompt[]>(["prompts"]) ?? [];
+      const byId = new Map<string, Prompt>();
+      for (const p of previous ?? []) byId.set(p.id, p);
+      for (const p of globalPrompts) {
+        if (!byId.has(p.id)) byId.set(p.id, p);
+      }
+      const optimistic: Prompt[] = [];
+      for (const id of vars.promptIds) {
+        const row = byId.get(id);
+        if (row !== undefined) optimistic.push(row);
+      }
+      // Only write when we could resolve at least one row — otherwise
+      // we'd nuke a populated chip list to empty before invalidation.
+      if (optimistic.length > 0 || vars.promptIds.length === 0) {
+        queryClient.setQueryData<Prompt[]>(key, optimistic);
+      }
+      return { previous };
+    },
+    onError: (_err, vars, ctx) => {
+      if (ctx?.previous !== undefined) {
+        queryClient.setQueryData(
+          rolesKeys.prompts(vars.roleId),
+          ctx.previous,
+        );
+      }
+    },
     onSettled: (_void, _err, vars) => {
       void queryClient.invalidateQueries({
         queryKey: rolesKeys.prompts(vars.roleId),

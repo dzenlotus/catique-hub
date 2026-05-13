@@ -468,6 +468,65 @@ describe("RoleEditor", () => {
       });
     });
 
+    it("attaches a prompt via the prompts MultiSelect", async () => {
+      const prompts = [
+        makePrompt("prm-1", "Codestyle"),
+        makePrompt("prm-2", "Examples"),
+      ];
+      // Simulate a backend that actually persists: after the bulk
+      // `set_role_prompts` IPC resolves, subsequent `list_role_prompts`
+      // calls return the updated attachment list. This is what makes
+      // the optimistic write + invalidate cycle observable end-to-end.
+      const promptCalls: Array<[string, unknown]> = [];
+      let attached: Prompt[] = [];
+      invokeMock.mockImplementation(async (cmd, args) => {
+        promptCalls.push([cmd, args]);
+        if (cmd === "get_role") return makeRole();
+        if (cmd === "list_role_prompts") return attached;
+        if (cmd === "list_role_skills") return [];
+        if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "list_prompts") return prompts;
+        if (cmd === "list_skills") return [];
+        if (cmd === "list_mcp_tools") return [];
+        if (cmd === "set_role_prompts") {
+          const ids = (args as { promptIds: string[] }).promptIds;
+          attached = ids
+            .map((id) => prompts.find((p) => p.id === id))
+            .filter((p): p is Prompt => p !== undefined);
+          return undefined;
+        }
+        if (cmd === "list_connected_clients") return [];
+        return undefined;
+      });
+      const { user } = renderWithClient(
+        <RoleEditor roleId="role-1" onClose={vi.fn()} />,
+      );
+
+      const promptsField = await screen.findByTestId(
+        "role-editor-prompts-select-input",
+      );
+      await user.click(promptsField);
+      const option = await screen.findByTestId(
+        "role-editor-prompts-select-option-prm-1",
+      );
+      await user.click(option);
+
+      await waitFor(() => {
+        const setCall = promptCalls.find(
+          ([cmd]) => cmd === "set_role_prompts",
+        );
+        expect(setCall).toBeDefined();
+        expect(setCall?.[1]).toMatchObject({
+          roleId: "role-1",
+          promptIds: ["prm-1"],
+        });
+      });
+
+      expect(
+        await screen.findByTestId("role-editor-prompts-select-chip-prm-1"),
+      ).toBeInTheDocument();
+    });
+
     it("removes a prompt chip via the X button", async () => {
       const initial = [
         makePrompt("prm-1", "First"),
