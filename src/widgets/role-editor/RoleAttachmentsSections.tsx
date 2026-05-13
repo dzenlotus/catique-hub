@@ -2,17 +2,15 @@
  * `RoleAttachmentsSections` — three composed sections rendered inside
  * `RoleEditor`: attached prompts, skills, MCP tools.
  *
- * Each section is a single `<MultiSelect>` chip field whose own label
- * doubles as the section header — the duplicate `<p className="sectionLabel">`
- * tags were dropped per maintainer feedback (round-21). The
- * "Create + attach" prompts trigger was removed at the same time:
- * authoring a prompt belongs on the prompts page, not buried inside the
- * role editor.
+ * Each section is a single `<SelectTag>` chip field whose own label
+ * doubles as the section header. The Prompts row keeps the chip
+ * reordering UX via `reorderable` — order matters for prompt attachments
+ * and is preserved end-to-end via `useSetRolePromptsMutation`.
  */
 
 import { useMemo, type ReactElement } from "react";
 
-import { MultiSelect } from "@shared/ui";
+import { SelectTag, type SelectTagOption } from "@shared/ui";
 import { useToast } from "@app/providers/ToastProvider";
 import {
   useRolePrompts,
@@ -69,9 +67,9 @@ function RolePromptsSection({ roleId }: SectionProps): ReactElement {
     [allQuery.data],
   );
 
-  const handleChange = (next: string[]): void => {
+  const handleChange = (next: ReadonlyArray<string>): void => {
     setMutation.mutate(
-      { roleId, promptIds: next },
+      { roleId, promptIds: [...next] },
       {
         onError: (err) => {
           pushToast("error", `Failed to update prompts: ${err.message}`);
@@ -85,15 +83,14 @@ function RolePromptsSection({ roleId }: SectionProps): ReactElement {
       className={styles.section}
       data-testid="role-editor-prompts-section"
     >
-      <MultiSelect<string>
+      <SelectTag
         label="Prompts"
         values={attachedIds}
         options={options}
         onChange={handleChange}
         reorderable
         placeholder="Search prompts…"
-        emptyText="No prompts available"
-        testId="role-editor-prompts-select"
+        data-testid="role-editor-prompts-select"
       />
     </section>
   );
@@ -117,9 +114,9 @@ function RoleSkillsSection({ roleId }: SectionProps): ReactElement {
     [allQuery.data],
   );
 
-  const handleChange = (next: string[]): void => {
+  const handleChange = (next: ReadonlyArray<string>): void => {
     setMutation.mutate(
-      { roleId, previous: attachedIds, next },
+      { roleId, previous: attachedIds, next: [...next] },
       {
         onError: (err) => {
           pushToast("error", `Failed to update skills: ${err.message}`);
@@ -133,14 +130,13 @@ function RoleSkillsSection({ roleId }: SectionProps): ReactElement {
       className={styles.section}
       data-testid="role-editor-skills-section"
     >
-      <MultiSelect<string>
+      <SelectTag
         label="Skills"
         values={attachedIds}
         options={options}
         onChange={handleChange}
         placeholder="Search skills…"
-        emptyText="No skills available"
-        testId="role-editor-skills-select"
+        data-testid="role-editor-skills-select"
       />
     </section>
   );
@@ -164,9 +160,9 @@ function RoleMcpToolsSection({ roleId }: SectionProps): ReactElement {
     [allQuery.data],
   );
 
-  const handleChange = (next: string[]): void => {
+  const handleChange = (next: ReadonlyArray<string>): void => {
     setMutation.mutate(
-      { roleId, previous: attachedIds, next },
+      { roleId, previous: attachedIds, next: [...next] },
       {
         onError: (err) => {
           pushToast("error", `Failed to update MCP tools: ${err.message}`);
@@ -180,14 +176,13 @@ function RoleMcpToolsSection({ roleId }: SectionProps): ReactElement {
       className={styles.section}
       data-testid="role-editor-mcp-tools-section"
     >
-      <MultiSelect<string>
+      <SelectTag
         label="MCP tools"
         values={attachedIds}
         options={options}
         onChange={handleChange}
         placeholder="Search MCP tools…"
-        emptyText="No MCP tools available"
-        testId="role-editor-mcp-tools-select"
+        data-testid="role-editor-mcp-tools-select"
       />
     </section>
   );
@@ -195,14 +190,19 @@ function RoleMcpToolsSection({ roleId }: SectionProps): ReactElement {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/**
+ * Adapt entity rows (`{ id, name, description? }`) to SelectTag's option
+ * shape (`{ id, label, description? }`). Prompts / skills / MCP tools
+ * carry no colour on this surface, so `color` is intentionally omitted.
+ */
 function toOptions<T extends { id: string; name: string }>(
   items: ReadonlyArray<T>,
   getDescription: (item: T) => string | null | undefined,
-): { id: string; name: string; description?: string }[] {
+): SelectTagOption[] {
   return items.map((item) => {
     const description = getDescription(item);
     return description != null && description.length > 0
-      ? { id: item.id, name: item.name, description }
-      : { id: item.id, name: item.name };
+      ? { id: item.id, label: item.name, description }
+      : { id: item.id, label: item.name };
   });
 }
