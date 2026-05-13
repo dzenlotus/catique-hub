@@ -119,6 +119,7 @@ describe("SkillEditor", () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_skill") return makeSkill();
       if (cmd === "list_skill_attachments") return [];
+      if (cmd === "list_skill_steps") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -126,7 +127,7 @@ describe("SkillEditor", () => {
 
     await screen.findByTestId("skill-editor-name-input");
     expect(screen.getByTestId("skill-editor-name-input")).toHaveValue("TypeScript");
-    expect(screen.getByTestId("skill-editor-description-input")).toHaveValue(
+    expect(screen.getByTestId("skill-editor-overview-input")).toHaveValue(
       "Строгая типизация для JS",
     );
     // Round-21: colour affordance dropped — Skill has no `icon` field,
@@ -134,10 +135,30 @@ describe("SkillEditor", () => {
     expect(screen.queryByTestId("skill-editor-color-input")).toBeNull();
   });
 
+  // SKILL-V2-B: Overview replaces the single-line "Description" input
+  // with a multi-line textarea. Asserting the tag name keeps the
+  // contract observable from the outside.
+  it("Overview field is a multi-line textarea (no longer single-line input)", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_skill") return makeSkill();
+      if (cmd === "list_skill_attachments") return [];
+      if (cmd === "list_skill_steps") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    renderWithClient(<SkillEditor skillId="skill-1" onClose={onClose} />);
+
+    const overviewField = await screen.findByTestId(
+      "skill-editor-overview-input",
+    );
+    expect(overviewField.tagName).toBe("TEXTAREA");
+  });
+
   it("name input is editable", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_skill") return makeSkill();
       if (cmd === "list_skill_attachments") return [];
+      if (cmd === "list_skill_steps") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -159,6 +180,7 @@ describe("SkillEditor", () => {
       if (cmd === "update_skill") return { ...skill, name: "TSX" };
       if (cmd === "list_skills") return [skill];
       if (cmd === "list_skill_attachments") return [];
+      if (cmd === "list_skill_steps") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -191,6 +213,7 @@ describe("SkillEditor", () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_skill") return makeSkill();
       if (cmd === "list_skill_attachments") return [];
+      if (cmd === "list_skill_steps") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -217,6 +240,7 @@ describe("SkillEditor", () => {
       if (cmd === "update_skill") return { ...skill, description: null };
       if (cmd === "list_skills") return [skill];
       if (cmd === "list_skill_attachments") return [];
+      if (cmd === "list_skill_steps") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -224,7 +248,7 @@ describe("SkillEditor", () => {
       <SkillEditor skillId="skill-1" onClose={onClose} />,
     );
 
-    const descInput = await screen.findByTestId("skill-editor-description-input");
+    const descInput = await screen.findByTestId("skill-editor-overview-input");
     await user.clear(descInput);
 
     const saveButton = screen.getByTestId("skill-editor-save");
@@ -246,6 +270,7 @@ describe("SkillEditor", () => {
       if (cmd === "get_skill") return skill;
       if (cmd === "update_skill") throw new Error("сервер недоступен");
       if (cmd === "list_skill_attachments") return [];
+      if (cmd === "list_skill_steps") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
     const onClose = vi.fn();
@@ -277,6 +302,7 @@ describe("SkillEditorPanel · attachments", () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_skill") return makeSkill();
       if (cmd === "list_skill_attachments") return [];
+      if (cmd === "list_skill_steps") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
 
@@ -311,6 +337,7 @@ describe("SkillEditorPanel · attachments", () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_skill") return makeSkill();
       if (cmd === "list_skill_attachments") return [fileAttachment, gitAttachment];
+      if (cmd === "list_skill_steps") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
 
@@ -343,6 +370,7 @@ describe("SkillEditorPanel · attachments", () => {
     invokeMock.mockImplementation(async (cmd, args) => {
       if (cmd === "get_skill") return makeSkill();
       if (cmd === "list_skill_attachments") return [];
+      if (cmd === "list_skill_steps") return [];
       if (cmd === "add_skill_git_attachment") return gitAttachment;
       throw new Error(`unexpected: ${cmd} ${JSON.stringify(args)}`);
     });
@@ -379,6 +407,7 @@ describe("SkillEditorPanel · attachments", () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_skill") return makeSkill();
       if (cmd === "list_skill_attachments") return [];
+      if (cmd === "list_skill_steps") return [];
       throw new Error(`unexpected: ${cmd}`);
     });
 
@@ -407,6 +436,7 @@ describe("SkillEditorPanel · attachments", () => {
     invokeMock.mockImplementation(async (cmd, args) => {
       if (cmd === "get_skill") return makeSkill();
       if (cmd === "list_skill_attachments") return [fileAttachment];
+      if (cmd === "list_skill_steps") return [];
       if (cmd === "remove_skill_attachment") return undefined;
       throw new Error(`unexpected: ${cmd} ${JSON.stringify(args)}`);
     });
@@ -439,6 +469,7 @@ describe("SkillEditorPanel · attachments", () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_skill") return makeSkill();
       if (cmd === "list_skill_attachments") return [];
+      if (cmd === "list_skill_steps") return [];
       if (cmd === "add_skill_file_attachment") return fileAttachment;
       throw new Error(`unexpected: ${cmd}`);
     });

@@ -1,0 +1,40 @@
+/*
+ * SkillImportButton — git-import dialog body.
+ *
+ * Mounts inside the shared `<Dialog>`; sizing + dismiss handled by
+ * the Dialog wrapper. Footer mirrors the editor sticky-footer style.
+ */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.explainer {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}

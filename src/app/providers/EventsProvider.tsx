@@ -22,7 +22,11 @@ import { tasksKeys } from "@entities/task";
 import { connectedClientsKeys } from "@entities/connected-client";
 import { mcpServersKeys } from "@entities/mcp-server";
 import { roleNotesKeys, roleNoteTagsKeys } from "@entities/role-note";
-import { skillAttachmentsKeys } from "@entities/skill";
+import {
+  skillAttachmentsKeys,
+  skillStepsKeys,
+  skillsKeys,
+} from "@entities/skill";
 import { on } from "@shared/api";
 
 /** Top-level provider — wire listeners and tear them down on unmount. */
@@ -270,6 +274,45 @@ export function EventsProvider({
     );
     sub(
       on("skill:attachment_removed", ({ skillId }) => {
+        void qc.invalidateQueries({
+          queryKey: skillAttachmentsKeys.byList(skillId),
+        });
+      }),
+    );
+    // ---------------- skill steps (SKILL-V2-A / B) ----------------
+    // Step events carry both the owning `skillId` and the `stepId`.
+    // We only need `skillId` here — the steps cache is keyed by the
+    // per-skill list, not by individual step ids.
+    sub(
+      on("skill_step:created", ({ skillId }) => {
+        void qc.invalidateQueries({
+          queryKey: skillStepsKeys.byList(skillId),
+        });
+      }),
+    );
+    sub(
+      on("skill_step:updated", ({ skillId }) => {
+        void qc.invalidateQueries({
+          queryKey: skillStepsKeys.byList(skillId),
+        });
+      }),
+    );
+    sub(
+      on("skill_step:deleted", ({ skillId }) => {
+        void qc.invalidateQueries({
+          queryKey: skillStepsKeys.byList(skillId),
+        });
+      }),
+    );
+    // Skill import touches overview (skills.detail), steps, and may
+    // attach the source file — fan out invalidation across the trio.
+    sub(
+      on("skill:imported", ({ skillId }) => {
+        void qc.invalidateQueries({ queryKey: skillsKeys.list() });
+        void qc.invalidateQueries({ queryKey: skillsKeys.detail(skillId) });
+        void qc.invalidateQueries({
+          queryKey: skillStepsKeys.byList(skillId),
+        });
         void qc.invalidateQueries({
           queryKey: skillAttachmentsKeys.byList(skillId),
         });

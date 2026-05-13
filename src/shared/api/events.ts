@@ -113,6 +113,36 @@ export type AppEvent =
       type: "skill:attachment_removed";
       payload: { skillId: string; attachmentId: string };
     }
+  // ---------------- skill steps (SKILL-V2-A / B) ----------------
+  | {
+      type: "skill_step:created";
+      payload: { skillId: string; stepId: string };
+    }
+  | {
+      type: "skill_step:updated";
+      payload: { skillId: string; stepId: string };
+    }
+  | {
+      type: "skill_step:deleted";
+      payload: { skillId: string; stepId: string };
+    }
+  | {
+      /**
+       * Emitted after a successful `import_skill_from_url`. The
+       * `importReport` payload mirrors the IPC return value so the
+       * frontend can re-use existing toasts on cross-instance imports.
+       */
+      type: "skill:imported";
+      payload: {
+        skillId: string;
+        importReport: {
+          skillId: string;
+          overviewChars: number;
+          stepsAdded: number;
+          attachmentId: string | null;
+        };
+      };
+    }
   // ---------------- mcp tools ----------------
   | { type: "mcp_tool:created"; payload: { id: string } }
   | { type: "mcp_tool:updated"; payload: { id: string } }

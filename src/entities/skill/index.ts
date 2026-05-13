@@ -17,12 +17,22 @@ export {
   addSkillFileAttachment,
   addSkillGitAttachment,
   removeSkillAttachment,
+  listSkillSteps,
+  addSkillStep,
+  updateSkillStep,
+  deleteSkillStep,
+  reorderSkillSteps,
+  importSkillFromUrl,
 } from "./api";
 export type {
   CreateSkillArgs,
   UpdateSkillArgs,
   AddSkillFileAttachmentArgs,
   AddSkillGitAttachmentArgs,
+  AddSkillStepArgs,
+  UpdateSkillStepArgs,
+  ReorderSkillStepsArgs,
+  ImportSkillFromUrlArgs,
 } from "./api";
 
 // Model
@@ -38,10 +48,19 @@ export {
   useAddSkillFileAttachmentMutation,
   useAddSkillGitAttachmentMutation,
   useRemoveSkillAttachmentMutation,
+  skillStepsKeys,
+  useSkillSteps,
+  useAddSkillStepMutation,
+  useUpdateSkillStepMutation,
+  useDeleteSkillStepMutation,
+  useReorderSkillStepsMutation,
+  useImportSkillFromUrlMutation,
 } from "./model";
 export type { Skill } from "./model";
 export type { SkillAttachment } from "@bindings/SkillAttachment";
 export type { SkillAttachmentKind } from "@bindings/SkillAttachmentKind";
+export type { SkillStep } from "@bindings/SkillStep";
+export type { ImportReport } from "@bindings/ImportReport";
 
 // UI
 export { SkillCard } from "./ui";

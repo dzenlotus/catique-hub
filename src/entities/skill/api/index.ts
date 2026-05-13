@@ -17,3 +17,19 @@ export type {
   AddSkillFileAttachmentArgs,
   AddSkillGitAttachmentArgs,
 } from "./skillAttachmentsApi";
+
+export {
+  listSkillSteps,
+  addSkillStep,
+  updateSkillStep,
+  deleteSkillStep,
+  reorderSkillSteps,
+} from "./skillStepsApi";
+export type {
+  AddSkillStepArgs,
+  UpdateSkillStepArgs,
+  ReorderSkillStepsArgs,
+} from "./skillStepsApi";
+
+export { importSkillFromUrl } from "./skillImportApi";
+export type { ImportSkillFromUrlArgs } from "./skillImportApi";
