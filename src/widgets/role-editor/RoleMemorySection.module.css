@@ -1,0 +1,428 @@
+/*
+ * RoleMemorySection — curation UI for per-role retrospective notes.
+ *
+ * Layout: header row, filter bar, optional inline add-form, list of
+ * `<li>` rows. Mirrors the spacing rhythm of the rest of the role
+ * editor sections (8/12/16 token ramp).
+ */
+
+.section {
+  padding: var(--space-16) 0;
+  border-top: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+/* ── Header ───────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  max-width: 60ch;
+}
+
+/* ── Filter bar ───────────────────────────────────────────────────── */
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.tagChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.tagChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 2px var(--space-8);
+  border-radius: var(--radius-pill, 999px);
+  border: 1px solid var(--color-border-default);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-size: var(--font-size-body-sm);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.tagChip:hover {
+  background-color: var(--color-overlay-hover);
+}
+
+.tagChip[aria-pressed="true"] {
+  background-color: var(--color-accent-soft);
+  border-color: var(--color-accent-bg);
+  color: var(--color-accent-fg);
+}
+
+.tagChip:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.tagChipCount {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.searchInput {
+  flex: 1 1 220px;
+  min-width: 0;
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: 6px var(--space-12);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+
+.searchInput::placeholder {
+  color: var(--color-text-subtle);
+}
+
+.sortSelect {
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: 6px var(--space-8);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  cursor: pointer;
+}
+
+.sortSelect:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ── List ─────────────────────────────────────────────────────────── */
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.emptyHint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ── Add-note form ────────────────────────────────────────────────── */
+
+.addForm,
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+.formLabel {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.bodyTextarea {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+  background-color: var(--color-surface-canvas);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-8) var(--space-12);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-normal);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.bodyTextarea:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+
+.bodyTextarea::placeholder {
+  color: var(--color-text-subtle);
+}
+
+.tagsInput {
+  width: 100%;
+  background-color: var(--color-surface-canvas);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: 6px var(--space-12);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.tagsInput:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+
+.formRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  flex-wrap: wrap;
+}
+
+.priorityField {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.priorityNumberInput {
+  width: 56px;
+  background-color: var(--color-surface-canvas);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: 4px var(--space-8);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  text-align: right;
+}
+
+.priorityNumberInput:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+
+.pinnedField {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  cursor: pointer;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-default);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  margin-top: var(--space-4);
+}
+
+.formError {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+/* ── Row ──────────────────────────────────────────────────────────── */
+
+.row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: flex-start;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-canvas);
+}
+
+.rowPinned {
+  border-color: var(--color-accent-bg);
+  background-color: var(--color-accent-soft);
+}
+
+.rowPin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.rowPin:hover {
+  background-color: var(--color-overlay-hover);
+}
+
+.rowPin[aria-pressed="true"] {
+  color: var(--color-accent-fg);
+}
+
+.rowPin:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.rowBodyCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.rowMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  align-items: center;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.rowTags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.rowTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-8);
+  border-radius: var(--radius-pill, 999px);
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+  font-size: var(--font-size-body-xs, 11px);
+  line-height: 1.4;
+}
+
+.rowAuthor {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-8);
+  border-radius: var(--radius-pill, 999px);
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body-xs, 11px);
+  text-transform: capitalize;
+}
+
+.rowAuthorAgent {
+  border-color: var(--color-accent-bg);
+  color: var(--color-accent-fg);
+  background-color: var(--color-accent-soft);
+}
+
+.rowPriority {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-body-xs, 11px);
+  color: var(--color-text-muted);
+}
+
+.rowDate {
+  font-size: var(--font-size-body-xs, 11px);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.rowBody {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-default);
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rowBodyExpanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: visible;
+}
+
+.rowBodyToggle {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: var(--font-size-body-xs, 11px);
+  padding: 0;
+  text-decoration: underline;
+}
+
+.rowBodyToggle:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tagChip {
+    transition: none;
+  }
+}

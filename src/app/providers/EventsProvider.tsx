@@ -21,6 +21,7 @@ import { columnsKeys } from "@entities/column";
 import { tasksKeys } from "@entities/task";
 import { connectedClientsKeys } from "@entities/connected-client";
 import { mcpServersKeys } from "@entities/mcp-server";
+import { roleNotesKeys, roleNoteTagsKeys } from "@entities/role-note";
 import { skillAttachmentsKeys } from "@entities/skill";
 import { on } from "@shared/api";
 
@@ -186,6 +187,41 @@ export function EventsProvider({
     sub(
       on("role:deleted", () => {
         void qc.invalidateQueries({ queryKey: ["roles"] });
+      }),
+    );
+
+    // ---------------- role notes (ctq-137 / MEM-S1) ----------------
+    sub(
+      on("role_note:created", ({ roleId, noteId }) => {
+        void qc.invalidateQueries({
+          queryKey: roleNotesKeys.byRole(roleId),
+        });
+        void qc.invalidateQueries({
+          queryKey: roleNoteTagsKeys.byRole(roleId),
+        });
+        void qc.invalidateQueries({ queryKey: roleNotesKeys.detail(noteId) });
+      }),
+    );
+    sub(
+      on("role_note:updated", ({ roleId, noteId }) => {
+        void qc.invalidateQueries({
+          queryKey: roleNotesKeys.byRole(roleId),
+        });
+        void qc.invalidateQueries({
+          queryKey: roleNoteTagsKeys.byRole(roleId),
+        });
+        void qc.invalidateQueries({ queryKey: roleNotesKeys.detail(noteId) });
+      }),
+    );
+    sub(
+      on("role_note:deleted", ({ roleId, noteId }) => {
+        void qc.invalidateQueries({
+          queryKey: roleNotesKeys.byRole(roleId),
+        });
+        void qc.invalidateQueries({
+          queryKey: roleNoteTagsKeys.byRole(roleId),
+        });
+        qc.removeQueries({ queryKey: roleNotesKeys.detail(noteId) });
       }),
     );
     sub(

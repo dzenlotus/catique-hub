@@ -83,6 +83,19 @@ export type AppEvent =
   | { type: "role:created"; payload: { id: string } }
   | { type: "role:updated"; payload: { id: string } }
   | { type: "role:deleted"; payload: { id: string } }
+  // ---------------- role notes (ctq-137 / MEM-S1) ----------------
+  | {
+      type: "role_note:created";
+      payload: { roleId: string; noteId: string };
+    }
+  | {
+      type: "role_note:updated";
+      payload: { roleId: string; noteId: string };
+    }
+  | {
+      type: "role_note:deleted";
+      payload: { roleId: string; noteId: string };
+    }
   // ---------------- tags ----------------
   | { type: "tag:created"; payload: { id: string } }
   | { type: "tag:updated"; payload: { id: string } }

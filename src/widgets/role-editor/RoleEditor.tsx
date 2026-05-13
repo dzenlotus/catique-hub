@@ -24,6 +24,7 @@ import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
 import { RoleAttachmentsSections } from "./RoleAttachmentsSections";
+import { RoleMemorySection } from "./RoleMemorySection";
 import styles from "./RoleEditor.module.css";
 
 export interface RoleEditorProps {
@@ -329,6 +330,9 @@ export function RoleEditorContent({
 
       {/* Attached prompts / skills / MCP tools (ctq-103, ctq-116). */}
       <RoleAttachmentsSections roleId={role.id} />
+
+      {/* Memory — ctq-137 retrospective curation (MEM-S2). */}
+      <RoleMemorySection roleId={role.id} />
 
       {/* Footer */}
       <EditorShell.Footer className={styles.footer}>
