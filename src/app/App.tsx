@@ -132,7 +132,17 @@ export default function App(): ReactElement {
             <SkillsPage />
           </Route>
           {/* PROXY-S6: canonical path + one-release legacy alias. Both
-              render the same page so deep-links to `/mcp-tools` resolve. */}
+              render the same page so deep-links to `/mcp-tools` resolve.
+              Round-22: nested selection — `:serverId` shows the server
+              detail pane, `:serverId/tools/:toolId` shows the tool
+              detail pane. Routes ordered most-specific first so wouter
+              doesn't short-circuit on the parent. */}
+          <Route path={routes.mcpServerTool}>
+            <McpServersPage />
+          </Route>
+          <Route path={routes.mcpServer}>
+            <McpServersPage />
+          </Route>
           <Route path={routes.mcpServers}>
             <McpServersPage />
           </Route>

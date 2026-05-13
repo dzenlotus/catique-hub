@@ -46,6 +46,10 @@ export const routes = {
    * the legacy `/mcp-tools` so URLs match the per-server group view.
    */
   mcpServers: "/mcp-servers",
+  /** Selected MCP server — server detail in the content pane. */
+  mcpServer: "/mcp-servers/:serverId",
+  /** Selected MCP tool — tool detail in the content pane. */
+  mcpServerTool: "/mcp-servers/:serverId/tools/:toolId",
   /**
    * Legacy MCP path. Kept for one release as a redirect alias so old
    * deep-links resolve; remove with v1.
@@ -94,6 +98,16 @@ export function skillPath(id: string): string {
 /** Build the concrete URL path for a specific tag editor page. */
 export function tagPath(id: string): string {
   return `/tags/${id}`;
+}
+
+/** Build the concrete URL path for a selected MCP server. */
+export function mcpServerPath(serverId: string): string {
+  return `/mcp-servers/${serverId}`;
+}
+
+/** Build the concrete URL path for a selected MCP tool. */
+export function mcpServerToolPath(serverId: string, toolId: string): string {
+  return `/mcp-servers/${serverId}/tools/${toolId}`;
 }
 
 /**

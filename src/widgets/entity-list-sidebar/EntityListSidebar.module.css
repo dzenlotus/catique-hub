@@ -1,7 +1,11 @@
 /*
- * EntityListSidebar — list-rail layout for /roles, /skills, /mcp-tools.
- * Matches the shape of `<PromptsSidebar>`'s prompt-list (chip swatch +
- * name) so the four rails read as one family.
+ * EntityListSidebar — list-rail layout for /roles, /skills,
+ * /mcp-servers. Matches the shape of `<PromptsSidebar>`'s prompt-list
+ * (chip swatch + name) so every rail in the app reads as one family.
+ *
+ * Round-22: nested-children variant — leading chevron column +
+ * indented child rows. The chevron column reserves a fixed 16-px gutter
+ * so items WITHOUT children still align with items WITH a chevron.
  */
 
 .list {
@@ -14,6 +18,73 @@
 }
 
 .item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * Row container: chevron column + main nav-item column. Grid keeps the
+ * chevron pinned to the leading gutter without disturbing the name's
+ * ellipsis behaviour.
+ */
+.row {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rowMain {
+  min-width: 0;
+}
+
+/* Chevron toggle — small square hit target sitting in the leading
+   gutter. Hover/focus uses the same overlay-hover surface the rest of
+   the rail uses on hover. */
+.chevronBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+}
+
+.chevronBtn:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.chevronBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* Placeholder spacer when an item has no children. Keeps the
+   name-column aligned with siblings that DO have a chevron. */
+.chevronSpacer {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+}
+
+/* Indented children — nested tools beneath an MCP server, etc. */
+.children {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0 0 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.childItem {
   position: relative;
 }
 

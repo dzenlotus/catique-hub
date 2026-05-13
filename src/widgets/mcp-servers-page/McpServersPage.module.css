@@ -1,116 +1,156 @@
 /*
- * McpServersPage — server-grouped view (PROXY-S6 / ADR-0008).
+ * McpServersPage — master-detail shell (round-22).
  *
- * All colour values come from design tokens — no hex / rgb literals.
- * Theme switching falls out of `data-theme="light|dark"` on the html
- * element via `tokens.generated.css`.
+ * The page's outer layout comes from `EntityPageShell.module.css`.
+ * Everything here is content-pane chrome (overview / server detail /
+ * tool detail). All colour values come from design tokens — no hex /
+ * rgb literals.
  */
 
-.root {
+/* ── Overview pane ────────────────────────────────────────────────── */
+
+.overviewRoot {
   display: flex;
   flex-direction: column;
   gap: var(--space-16);
   padding: var(--space-24);
-  min-height: 100%;
+  max-width: 720px;
   box-sizing: border-box;
 }
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-16);
-}
-
-.headingGroup {
+.overviewHeading {
   display: flex;
   align-items: center;
   gap: var(--space-12);
 }
 
-.headingIcon {
+.overviewIcon {
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
-.heading {
+.overviewTitle {
   margin: 0;
   font-family: var(--font-family-display, var(--font-family-sans));
   font-size: var(--font-size-headline);
   color: var(--color-text-default);
 }
 
-.description {
+.overviewDescription {
   margin: var(--space-2) 0 0;
   font-size: var(--font-size-body-sm);
   color: var(--color-text-muted);
 }
 
-.headerActions {
+.overviewCount {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-default);
+}
+
+.overviewActions {
   display: flex;
   gap: var(--space-8);
 }
 
-/* ── List / cards ────────────────────────────────────────────────── */
+.overviewHint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
 
-.list {
+/* ── Detail pane (server + tool share root chrome) ─────────────────── */
+
+.detailRoot {
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
+  padding: var(--space-24);
+  max-width: 760px;
+  box-sizing: border-box;
 }
 
-.errorPanel {
+.detailHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-12);
-  padding: var(--space-12) var(--space-16);
-  border: 1px solid var(--color-status-danger);
-  border-radius: var(--radius-md);
-  background-color: var(--color-status-danger-soft);
 }
 
-.errorMessage {
-  margin: 0;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-status-danger);
-}
-
-.skeletonCard {
-  height: 96px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border-default);
-  background-color: var(--color-surface-raised);
-  opacity: 0.5;
-}
-
-/* ── Server section header ───────────────────────────────────────── */
-
-.serverSection {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface-raised);
-  overflow: hidden;
-}
-
-.serverHeader {
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
-  padding: var(--space-12) var(--space-16);
-  border-bottom: 1px solid var(--color-border-default);
-}
-
-.serverIdentity {
+.detailIdentity {
   display: flex;
   align-items: center;
   gap: var(--space-8);
   flex: 1 1 auto;
   min-width: 0;
 }
+
+.detailTitle {
+  margin: 0;
+  font-family: var(--font-family-display, var(--font-family-sans));
+  font-size: var(--font-size-headline);
+  color: var(--color-text-default);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detailActions {
+  display: flex;
+  gap: var(--space-4);
+  flex-shrink: 0;
+}
+
+.detailMeta {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.detailMetaList {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: var(--space-12);
+  row-gap: var(--space-4);
+  font-size: var(--font-size-body-sm);
+}
+
+.detailMetaRow {
+  display: contents;
+}
+
+.detailMetaList dt {
+  color: var(--color-text-subtle);
+  font-weight: var(--font-weight-medium);
+}
+
+.detailMetaList dd {
+  margin: 0;
+  color: var(--color-text-default);
+  word-break: break-all;
+}
+
+.detailMuted {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.detailError {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+.detailHint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+}
+
+/* ── Status dot ───────────────────────────────────────────────────── */
 
 .statusDot {
   display: inline-block;
@@ -133,27 +173,7 @@
   background-color: var(--color-status-danger);
 }
 
-.serverName {
-  margin: 0;
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-default);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.serverMeta {
-  font-size: var(--font-size-caption);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.serverActions {
-  display: flex;
-  gap: var(--space-4);
-  flex-shrink: 0;
-}
+/* ── Icon button (Refresh / Delete) ───────────────────────────────── */
 
 .iconButton {
   display: inline-flex;
@@ -173,7 +193,8 @@
   background-color: var(--color-surface-hover, var(--color-surface-raised));
 }
 
-.iconButton[data-focus-visible] {
+.iconButton[data-focus-visible],
+.iconButton:focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
 }
@@ -198,69 +219,60 @@
   }
 }
 
-/* ── Tools list ──────────────────────────────────────────────────── */
-
-.toolsList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.toolItem {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-10) var(--space-16);
-  border-bottom: 1px solid var(--color-border-subtle, var(--color-border-default));
-}
-
-.toolItem:last-child {
-  border-bottom: none;
-}
-
-.toolHeader {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-}
-
-.toolName {
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-default);
-}
+/* ── Tool detail ──────────────────────────────────────────────────── */
 
 .toolNameSoftDeleted {
   text-decoration: line-through;
   color: var(--color-text-subtle);
 }
 
+.softDeletedBanner {
+  margin: 0;
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--color-status-warning);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-status-warning-soft, var(--color-overlay-hover));
+  color: var(--color-status-warning);
+  font-size: var(--font-size-body-sm);
+}
+
 .toolDescription {
   margin: 0;
-  font-size: var(--font-size-caption);
-  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
+  color: var(--color-text-default);
+  line-height: 1.5;
+}
+
+.schemaSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .toolChevron {
-  margin-left: auto;
+  align-self: flex-start;
   background: none;
-  border: none;
-  padding: var(--space-2) var(--space-6);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-8);
   color: var(--color-text-muted);
   cursor: pointer;
   font-size: var(--font-size-caption);
 }
 
+.toolChevron:hover {
+  color: var(--color-text-default);
+  background-color: var(--color-overlay-hover);
+}
+
+.toolChevron:focus-visible,
 .toolChevron[data-focus-visible] {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
 }
 
 .schemaPreview {
-  margin: var(--space-4) 0 0;
+  margin: 0;
   padding: var(--space-8) var(--space-12);
   background-color: var(--color-surface-overlay);
   border: 1px solid var(--color-border-default);
@@ -270,13 +282,6 @@
   color: var(--color-text-default);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 240px;
+  max-height: 320px;
   overflow: auto;
-}
-
-.toolsEmpty {
-  padding: var(--space-16);
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-muted);
-  text-align: center;
 }

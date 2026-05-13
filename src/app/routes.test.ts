@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { routes, boardPath, taskPath, pathForView, viewForPath } from "./routes";
+import {
+  routes,
+  boardPath,
+  taskPath,
+  pathForView,
+  viewForPath,
+  mcpServerPath,
+  mcpServerToolPath,
+} from "./routes";
 import type { NavView } from "@widgets/main-sidebar";
 
 // ---------------------------------------------------------------------------
@@ -52,6 +60,34 @@ describe("taskPath", () => {
 
   it("route constant has :taskId placeholder", () => {
     expect(routes.task).toBe("/tasks/:taskId");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mcpServerPath / mcpServerToolPath — round-22 master-detail routes
+// ---------------------------------------------------------------------------
+
+describe("mcpServerPath", () => {
+  it("returns /mcp-servers/<id>", () => {
+    expect(mcpServerPath("srv-1")).toBe("/mcp-servers/srv-1");
+  });
+
+  it("route constant has :serverId placeholder", () => {
+    expect(routes.mcpServer).toBe("/mcp-servers/:serverId");
+  });
+});
+
+describe("mcpServerToolPath", () => {
+  it("returns /mcp-servers/<serverId>/tools/<toolId>", () => {
+    expect(mcpServerToolPath("srv-1", "tool-1")).toBe(
+      "/mcp-servers/srv-1/tools/tool-1",
+    );
+  });
+
+  it("route constant has :serverId and :toolId placeholders", () => {
+    expect(routes.mcpServerTool).toBe(
+      "/mcp-servers/:serverId/tools/:toolId",
+    );
   });
 });
 

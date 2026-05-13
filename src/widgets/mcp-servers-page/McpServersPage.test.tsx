@@ -1,18 +1,18 @@
 /**
- * Unit tests for `<McpServersPage>` (PROXY-S6 / ADR-0008).
+ * Unit tests for `<McpServersPage>` (PROXY-S6 / ADR-0008, round-22).
  *
  * The IPC boundary is mocked at `@shared/api`; tests dispatch on the
- * command name and return canned results for the three queries the
- * page composes:
+ * command name and return canned results for the queries the page
+ * composes:
  *   1. `list_mcp_servers`            → `McpServer[]`.
- *   2. `get_mcp_server_status`       → `McpServerStatus`.
- *   3. `list_mcp_tools_by_server`    → `McpTool[]`.
+ *   2. `get_mcp_server`              → `McpServer` (detail pane).
+ *   3. `get_mcp_server_status`       → `McpServerStatus`.
+ *   4. `list_mcp_tools_by_server`    → `McpTool[]`.
  * Mutations (`refresh_mcp_server`, `delete_mcp_server`) are spied on
  * to assert the wire shape.
  *
- * Vendored providers: a fresh `QueryClient` plus the real
- * `ToastProvider` so the success toast actually mounts and is
- * queryable through `findByText`.
+ * Wouter's `memoryLocation` mounts the page under the routed paths so
+ * the URL-driven selection state behaves the same as in production.
  */
 
 import {
@@ -26,12 +26,15 @@ import {
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Route, Router } from "wouter";
+import { memoryLocation } from "wouter/memory-location";
 import type { ReactElement } from "react";
 
 import type { McpServer } from "@bindings/McpServer";
 import type { McpServerStatus } from "@bindings/McpServerStatus";
 import type { McpTool } from "@bindings/McpTool";
 import type { RefreshReport } from "@bindings/RefreshReport";
+import { routes } from "@app/routes";
 
 vi.mock("@shared/api", async () => {
   const actual =
@@ -51,8 +54,12 @@ import { McpServersPage } from "./McpServersPage";
 
 const invokeMock = vi.mocked(invoke);
 
-function renderWithProviders(ui: ReactElement): {
+function renderWithProviders(
+  ui: ReactElement,
+  initialPath: string = routes.mcpServers,
+): {
   user: ReturnType<typeof userEvent.setup>;
+  navigate: (path: string) => void;
 } {
   const client = new QueryClient({
     defaultOptions: {
@@ -61,15 +68,20 @@ function renderWithProviders(ui: ReactElement): {
     },
   });
   const user = userEvent.setup();
+  const { hook, navigate } = memoryLocation({ path: initialPath });
   render(
     <QueryClientProvider client={client}>
       <ToastProvider>
-        {ui}
+        <Router hook={hook}>
+          <Route path={routes.mcpServerTool}>{ui}</Route>
+          <Route path={routes.mcpServer}>{ui}</Route>
+          <Route path={routes.mcpServers}>{ui}</Route>
+        </Router>
         <Toaster />
       </ToastProvider>
     </QueryClientProvider>,
   );
-  return { user };
+  return { user, navigate };
 }
 
 function makeServer(overrides: Partial<McpServer> = {}): McpServer {
@@ -131,9 +143,17 @@ function wireIpc(opts: {
     switch (cmd) {
       case "list_mcp_servers":
         return Promise.resolve(opts.servers ?? []);
+      case "get_mcp_server": {
+        const id = (args as { id: string }).id;
+        const found = (opts.servers ?? []).find((s) => s.id === id);
+        if (!found) return Promise.reject(new Error(`no server ${id}`));
+        return Promise.resolve(found);
+      }
       case "get_mcp_server_status": {
         const id = (args as { id: string }).id;
-        return Promise.resolve(opts.statusById?.[id] ?? makeStatus({ serverId: id }));
+        return Promise.resolve(
+          opts.statusById?.[id] ?? makeStatus({ serverId: id }),
+        );
       }
       case "list_mcp_tools_by_server": {
         const id = (args as { serverId: string }).serverId;
@@ -164,80 +184,196 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("McpServersPage", () => {
-  it("renders empty state when no servers are registered", async () => {
+describe("McpServersPage — overview", () => {
+  it("renders an empty overview when no servers are registered", async () => {
     wireIpc({ servers: [] });
     renderWithProviders(<McpServersPage />);
     await waitFor(() => {
       expect(
-        screen.getByTestId("mcp-servers-page-empty"),
+        screen.getByTestId("mcp-servers-page-overview"),
       ).toBeInTheDocument();
     });
-    expect(screen.getByText(/no mcp servers yet/i)).toBeInTheDocument();
+    expect(
+      screen.getByTestId("mcp-servers-page-overview-count"),
+    ).toHaveTextContent(/no servers registered/i);
   });
 
-  it("renders a section per server with status dot reflecting health state", async () => {
+  it("renders the rail with every server when servers exist", async () => {
     wireIpc({
       servers: [
-        makeServer({ id: "a", name: "Healthy one" }),
-        makeServer({ id: "b", name: "Degraded one" }),
-        makeServer({ id: "c", name: "Unreachable one" }),
+        makeServer({ id: "a", name: "Atlassian" }),
+        makeServer({ id: "b", name: "Notion" }),
       ],
-      statusById: {
-        a: makeStatus({ serverId: "a", state: "healthy" }),
-        b: makeStatus({ serverId: "b", state: "degraded" }),
-        c: makeStatus({ serverId: "c", state: "unreachable" }),
-      },
     });
     renderWithProviders(<McpServersPage />);
 
-    // Wait for the status queries to resolve — the dot starts at the
-    // pessimistic "unreachable" fallback until `get_mcp_server_status`
-    // lands. Asserting `data-state="healthy"` directly forces the
-    // wait through the per-server status query.
     await waitFor(() => {
       expect(
-        screen.getByTestId("mcp-servers-page-status-dot-a").getAttribute("data-state"),
-      ).toBe("healthy");
+        screen.getByTestId("mcp-servers-sidebar-row-srv:a"),
+      ).toBeInTheDocument();
     });
     expect(
-      screen.getByTestId("mcp-servers-page-status-dot-b").getAttribute("data-state"),
-    ).toBe("degraded");
-    expect(
-      screen.getByTestId("mcp-servers-page-status-dot-c").getAttribute("data-state"),
-    ).toBe("unreachable");
+      screen.getByTestId("mcp-servers-sidebar-row-srv:b"),
+    ).toBeInTheDocument();
   });
+});
 
-  it("renders soft-deleted tools with the removed-in-upstream label", async () => {
+describe("McpServersPage — expansion + tool children", () => {
+  it("clicking the chevron expands the server and shows its tool children", async () => {
     wireIpc({
       servers: [makeServer({ id: "srv-1" })],
-      statusById: { "srv-1": makeStatus() },
       toolsById: {
         "srv-1": [
-          makeTool({ id: "live", name: "live_tool", lastSyncedAt: 1n }),
+          makeTool({ id: "t-1", name: "search" }),
+          makeTool({ id: "t-2", name: "create_issue" }),
+        ],
+      },
+    });
+    const { user } = renderWithProviders(<McpServersPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("mcp-servers-sidebar-toggle-srv:srv-1"),
+      ).toBeInTheDocument();
+    });
+    await user.click(
+      screen.getByTestId("mcp-servers-sidebar-toggle-srv:srv-1"),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("mcp-servers-sidebar-row-tool:t-1"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId("mcp-servers-sidebar-row-tool:t-2"),
+    ).toBeInTheDocument();
+  });
+
+  it("auto-expands the parent server when landing on a tool URL", async () => {
+    wireIpc({
+      servers: [makeServer({ id: "srv-1", name: "Atlassian" })],
+      toolsById: {
+        "srv-1": [makeTool({ id: "t-1", name: "search" })],
+      },
+    });
+    renderWithProviders(
+      <McpServersPage />,
+      `/mcp-servers/srv-1/tools/t-1`,
+    );
+
+    // The selected tool row should mount under its server.
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("mcp-servers-sidebar-row-tool:t-1"),
+      ).toBeInTheDocument();
+    });
+  });
+});
+
+describe("McpServersPage — selection routes content pane", () => {
+  it("selecting a server row navigates to /mcp-servers/:serverId and shows the detail pane", async () => {
+    wireIpc({
+      servers: [makeServer({ id: "srv-1", name: "Atlassian" })],
+      statusById: {
+        "srv-1": makeStatus({ serverId: "srv-1", state: "healthy" }),
+      },
+    });
+    const { user } = renderWithProviders(<McpServersPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("mcp-servers-sidebar-row-srv:srv-1"),
+      ).toBeInTheDocument();
+    });
+    await user.click(
+      screen.getByTestId("mcp-servers-sidebar-row-srv:srv-1"),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("mcp-servers-page-detail-srv-1"),
+      ).toBeInTheDocument();
+    });
+    // Status dot resolves to "healthy" after the status query lands.
+    await waitFor(() => {
+      expect(
+        screen
+          .getByTestId("mcp-servers-page-status-dot-srv-1")
+          .getAttribute("data-state"),
+      ).toBe("healthy");
+    });
+  });
+
+  it("selecting a tool row navigates to /mcp-servers/:serverId/tools/:toolId and shows tool detail", async () => {
+    wireIpc({
+      servers: [makeServer({ id: "srv-1", name: "Atlassian" })],
+      toolsById: {
+        "srv-1": [
           makeTool({
-            id: "ghost",
-            name: "ghost_tool",
-            lastSyncedAt: null,
+            id: "t-1",
+            name: "search",
+            description: "Searches the upstream.",
           }),
         ],
       },
     });
-    renderWithProviders(<McpServersPage />);
+    const { user } = renderWithProviders(<McpServersPage />);
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("mcp-servers-page-tool-name-ghost"),
+        screen.getByTestId("mcp-servers-sidebar-toggle-srv:srv-1"),
       ).toBeInTheDocument();
     });
-    const ghost = screen.getByTestId("mcp-servers-page-tool-name-ghost");
-    expect(ghost.getAttribute("aria-label")).toMatch(/removed in upstream/i);
-    expect(ghost.getAttribute("title")).toMatch(/removed in upstream/i);
+    await user.click(
+      screen.getByTestId("mcp-servers-sidebar-toggle-srv:srv-1"),
+    );
 
-    const live = screen.getByTestId("mcp-servers-page-tool-name-live");
-    expect(live.getAttribute("aria-label")).toBeNull();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("mcp-servers-sidebar-row-tool:t-1"),
+      ).toBeInTheDocument();
+    });
+    await user.click(
+      screen.getByTestId("mcp-servers-sidebar-row-tool:t-1"),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("mcp-servers-page-tool-detail-t-1"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId("mcp-servers-page-tool-description-t-1"),
+    ).toHaveTextContent(/searches the upstream/i);
   });
 
+  it("renders soft-deleted tools with the removed-in-upstream banner on the tool detail pane", async () => {
+    wireIpc({
+      servers: [makeServer({ id: "srv-1" })],
+      toolsById: {
+        "srv-1": [
+          makeTool({ id: "ghost", name: "ghost_tool", lastSyncedAt: null }),
+        ],
+      },
+    });
+    renderWithProviders(
+      <McpServersPage />,
+      `/mcp-servers/srv-1/tools/ghost`,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("mcp-servers-page-tool-removed-ghost"),
+      ).toBeInTheDocument();
+    });
+    const name = screen.getByTestId("mcp-servers-page-tool-name-ghost");
+    expect(name.getAttribute("aria-label")).toMatch(/removed in upstream/i);
+    expect(name.getAttribute("title")).toMatch(/removed in upstream/i);
+  });
+});
+
+describe("McpServersPage — server detail actions", () => {
   it("Refresh button calls refresh_mcp_server and surfaces the count toast", async () => {
     wireIpc({
       servers: [makeServer({ id: "srv-1", name: "Atlassian" })],
@@ -249,7 +385,10 @@ describe("McpServersPage", () => {
         softDeleted: 3n,
       },
     });
-    const { user } = renderWithProviders(<McpServersPage />);
+    const { user } = renderWithProviders(
+      <McpServersPage />,
+      `/mcp-servers/srv-1`,
+    );
 
     await waitFor(() => {
       expect(
@@ -275,7 +414,10 @@ describe("McpServersPage", () => {
       servers: [makeServer({ id: "srv-1", name: "Atlassian" })],
       statusById: { "srv-1": makeStatus() },
     });
-    const { user } = renderWithProviders(<McpServersPage />);
+    const { user } = renderWithProviders(
+      <McpServersPage />,
+      `/mcp-servers/srv-1`,
+    );
 
     await waitFor(() => {
       expect(
@@ -302,5 +444,26 @@ describe("McpServersPage", () => {
       );
       expect(call?.[1]).toEqual({ id: "srv-1" });
     });
+  });
+
+  it("Refresh / Delete buttons live in the detail pane, not in the sidebar rows", async () => {
+    wireIpc({
+      servers: [makeServer({ id: "srv-1", name: "Atlassian" })],
+    });
+    renderWithProviders(<McpServersPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("mcp-servers-sidebar-row-srv:srv-1"),
+      ).toBeInTheDocument();
+    });
+
+    // No refresh / delete buttons on the rail.
+    expect(
+      screen.queryByTestId("mcp-servers-page-refresh-srv-1"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("mcp-servers-page-delete-srv-1"),
+    ).not.toBeInTheDocument();
   });
 });
