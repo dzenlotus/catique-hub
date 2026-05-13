@@ -1,10 +1,9 @@
 import type { ReactElement } from "react";
 import { useState, useEffect, useRef } from "react";
-import { Button, Input, Scrollable } from "@shared/ui";
+import { Button, Input, Row, RowLabelButton, Scrollable } from "@shared/ui";
 import {
   SidebarShell,
   SidebarSectionLabel,
-  SidebarNavItem,
 } from "@shared/ui/SidebarShell";
 import { PixelInterfaceEssentialSettingCog } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
@@ -346,21 +345,20 @@ export function SettingsView(): ReactElement {
       >
         <SidebarSectionLabel>Sections</SidebarSectionLabel>
         <ul className={styles.navList} role="list">
-          {SETTINGS_SECTIONS.map((section) => {
-            const isActive = section.id === activeSectionId;
-            return (
-              <li key={section.id}>
-                <SidebarNavItem
-                  isActive={isActive}
-                  level={1}
+          {SETTINGS_SECTIONS.map((section) => (
+            <Row
+              key={section.id}
+              isActive={section.id === activeSectionId}
+              onClick={() => handleNavClick(section.id)}
+              testId={`settings-view-nav-${section.id}`}
+              renderContent={() => (
+                <RowLabelButton
+                  label={section.label}
                   onClick={() => handleNavClick(section.id)}
-                  testId={`settings-view-nav-${section.id}`}
-                >
-                  {section.label}
-                </SidebarNavItem>
-              </li>
-            );
-          })}
+                />
+              )}
+            />
+          ))}
         </ul>
       </SidebarShell>
 

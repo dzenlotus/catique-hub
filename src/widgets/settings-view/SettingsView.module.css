@@ -28,61 +28,20 @@
   min-height: 0;
 }
 
-/* TOC nav list inside SidebarShell. */
+/*
+ * TOC nav list inside SidebarShell. Round-26 (Row/Group split): each
+ * entry is a `<Row>` from shared/ui/EntityTree, which renders the canonical
+ * red strip + accent-soft underlay + hover overlay itself. This wrapper
+ * just hosts the <li> siblings as a flex column matching EntityTree's
+ * `.list` rhythm (6-px gap).
+ */
 .navList {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-}
-
-.navItem {
-  position: relative;
-  display: block;
-  width: 100%;
-  padding: var(--space-8) var(--space-12);
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background-color 80ms ease-out,
-    color 80ms ease-out;
-}
-
-.navItem:hover:not(.navItemActive) {
-  background-color: var(--color-overlay-hover);
-  color: var(--color-text-default);
-}
-
-.navItem:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 1px;
-}
-
-.navItemActive {
-  background-color: var(--color-accent-soft);
-  color: var(--color-text-default);
-  font-weight: var(--font-weight-semibold);
-}
-
-.navItemActive::before {
-  content: "";
-  position: absolute;
-  left: -4px;
-  top: 4px;
-  bottom: 4px;
-  width: 3px;
-  border-radius: var(--radius-full);
-  background-color: var(--color-cta-bg);
+  gap: var(--space-6);
 }
 
 /* Theme picker (Appearance section). */
@@ -143,12 +102,6 @@
   background-color: var(--color-accent-soft);
   color: var(--color-text-default);
   font-weight: var(--font-weight-semibold);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .navItem {
-    transition: none;
-  }
 }
 
 .root {
