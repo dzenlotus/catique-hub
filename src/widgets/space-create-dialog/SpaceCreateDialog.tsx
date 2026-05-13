@@ -25,6 +25,7 @@ import { useCreateSpaceMutation, validatePrefix } from "@entities/space";
 import type { Space } from "@entities/space";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
+import { pickFolder } from "@shared/lib";
 
 import styles from "./SpaceCreateDialog.module.css";
 
@@ -208,17 +209,39 @@ function SpaceCreateDialogContent({
         ) : null}
       </div>
 
-      {/* Project folder (round-21 — optional) */}
+      {/* Project folder — optional. Browse opens the OS-native folder
+       * picker (Finder / Explorer / GTK) and writes the absolute path
+       * back into the input. */}
       <div className={styles.section}>
-        <Input
-          label="Project folder"
-          value={projectFolderPath}
-          onChange={setProjectFolderPath}
-          placeholder="/Users/you/projects/my-app"
-          description="Optional. Used by the “Reveal in Finder” affordance in Space settings."
-          className={styles.fullWidthInput}
-          data-testid="space-create-dialog-project-folder-input"
-        />
+        <div className={styles.projectFolderRow}>
+          <Input
+            label="Project folder"
+            value={projectFolderPath}
+            onChange={setProjectFolderPath}
+            placeholder="/Users/you/projects/my-app"
+            description="Optional. Click Browse to pick a folder, or paste a path."
+            className={styles.projectFolderInput}
+            data-testid="space-create-dialog-project-folder-input"
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            onPress={() => {
+              void pickFolder({
+                title: "Select project folder",
+                ...(projectFolderPath.trim().length > 0
+                  ? { defaultPath: projectFolderPath.trim() }
+                  : {}),
+              }).then((picked) => {
+                if (picked !== null) setProjectFolderPath(picked);
+              });
+            }}
+            aria-label="Browse for project folder"
+            data-testid="space-create-dialog-project-folder-browse"
+          >
+            Browse…
+          </Button>
+        </div>
       </div>
 
       {/* Footer */}

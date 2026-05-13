@@ -25,6 +25,7 @@ import { useParams, useLocation } from "wouter";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { boardPath, routes } from "@app/routes";
 import { invoke } from "@shared/api";
+import { pickFolder } from "@shared/lib";
 import {
   useDeleteSpaceMutation,
   useSpace,
@@ -184,6 +185,16 @@ function SpaceSettingsForm({
 
   const canSubmit = trimmedName.length > 0 && isDirty;
 
+  const handleBrowseProjectFolder = async (): Promise<void> => {
+    const picked = await pickFolder({
+      title: "Select project folder",
+      ...(resolvedProjectFolderPath !== null
+        ? { defaultPath: resolvedProjectFolderPath }
+        : {}),
+    });
+    if (picked !== null) setProjectFolderPath(picked);
+  };
+
   const handleRevealProjectFolder = (): void => {
     if (resolvedProjectFolderPath === null) return;
     // TODO(round-21-backend): expose `reveal_path_in_default_app` (or
@@ -277,17 +288,28 @@ function SpaceSettingsForm({
             </span>
           </div>
 
-          {/* Round-21: project folder + Reveal-in-Finder affordance. */}
+          {/* Project folder. The Browse button opens the OS-native
+           * folder picker (Finder on macOS, Explorer on Windows, GTK /
+           * KDE on Linux); the picked path lands in the input below. */}
           <div className={styles.projectFolderRow}>
             <Input
               label="Project folder"
               value={projectFolderPath}
               onChange={setProjectFolderPath}
               placeholder="/Users/you/projects/my-app"
-              description="Optional. Used by the “Reveal in Finder” affordance below."
+              description="Optional. Click Browse to pick a folder, or paste a path."
               className={styles.projectFolderInput}
               data-testid="space-settings-project-folder-input"
             />
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => void handleBrowseProjectFolder()}
+              aria-label="Browse for project folder"
+              data-testid="space-settings-project-folder-browse"
+            >
+              Browse…
+            </Button>
             <Button
               variant="ghost"
               size="sm"
