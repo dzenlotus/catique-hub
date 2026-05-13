@@ -23,7 +23,6 @@ import { cn } from "@shared/lib";
 import {
   IconRenderer,
   MarqueeText,
-  SidebarNavItem,
   SidebarSectionAddTrigger,
   SidebarSectionLabel,
   SidebarShell,
@@ -166,7 +165,7 @@ function EntityTreeRow<TMeta>({
       data-testid={`${testIdPrefix}-item-${node.id}`}
     >
       <div
-        className={styles.row}
+        className={cn(styles.row, isSelected && styles.rowActive)}
         style={depth > 0 ? { paddingLeft: `calc(var(--space-12) * ${depth})` } : undefined}
       >
         {isExpandable ? (
@@ -185,7 +184,7 @@ function EntityTreeRow<TMeta>({
           <span className={styles.chevronSpacer} aria-hidden="true" />
         )}
 
-        <div className={styles.rowMain}>
+        <div className={styles.rowContent}>
           {renderRow !== undefined ? (
             renderRow({
               node,
@@ -198,7 +197,6 @@ function EntityTreeRow<TMeta>({
           ) : (
             <EntityTreeDefaultBody
               node={node}
-              isSelected={isSelected}
               isDisabled={isDisabled}
               select={select}
               testIdPrefix={testIdPrefix}
@@ -236,22 +234,20 @@ function EntityTreeRow<TMeta>({
 
 interface EntityTreeDefaultBodyProps<TMeta> {
   node: EntityTreeNode<TMeta>;
-  isSelected: boolean;
   isDisabled: boolean;
   select: () => void;
   testIdPrefix: string;
 }
 
 /**
- * Declarative row body used when the caller doesn't supply `renderRow`.
- * Lays out leading visual + label (+ inline badge) inside a
- * `SidebarNavItem`; the optional `trailingNode` slot rides alongside as a
- * sibling so it shares the active-row background without doubling the
- * onClick.
+ * Default row body used when the caller doesn't supply `renderRow`.
+ * Renders a plain `<button>` (label + leading visual + optional badge)
+ * inside the row container — active/hover styling lives on the parent
+ * `.row` via `.rowActive` overlays, so this button just supplies the
+ * click affordance + label content without re-decorating.
  */
 function EntityTreeDefaultBody<TMeta>({
   node,
-  isSelected,
   isDisabled,
   select,
   testIdPrefix,
@@ -260,33 +256,33 @@ function EntityTreeDefaultBody<TMeta>({
     styles.label,
     node.strikethrough === true && styles.labelStrikethrough,
   );
-  // `SidebarNavItem` requires onClick to be `() => void` (no
-  // `undefined` accepted under exactOptionalPropertyTypes). Spread
-  // conditionally so disabled rows opt out of the activation surface
-  // entirely — clicks still no-op via the row-level guard, but the
-  // button reads as inert to AT.
-  const navItemProps = {
-    isActive: isSelected,
-    ariaLabel: node.label,
-    testId: `${testIdPrefix}-row-${node.id}`,
-    ...(isDisabled ? {} : { onClick: select }),
-    ...(node.trailingNode !== undefined ? { trailing: node.trailingNode } : {}),
-  };
   return (
-    <SidebarNavItem {...navItemProps}>
-      <EntityTreeLeading node={node} />
-      <span className={styles.labelWrap}>
-        <MarqueeText text={node.label} className={labelClass} />
-        {node.badge !== undefined ? (
-          <span className={styles.badge} aria-hidden="true">
-            {node.badge}
-          </span>
-        ) : null}
-      </span>
+    <>
+      <button
+        type="button"
+        className={styles.rowMain}
+        onClick={isDisabled ? undefined : select}
+        disabled={isDisabled}
+        aria-label={node.label}
+        data-testid={`${testIdPrefix}-row-${node.id}`}
+      >
+        <EntityTreeLeading node={node} />
+        <span className={styles.labelWrap}>
+          <MarqueeText text={node.label} className={labelClass} />
+          {node.badge !== undefined ? (
+            <span className={styles.badge} aria-hidden="true">
+              {node.badge}
+            </span>
+          ) : null}
+        </span>
+      </button>
+      {node.trailingNode !== undefined ? (
+        <span className={styles.trailing}>{node.trailingNode}</span>
+      ) : null}
       {node.subtitle !== undefined ? (
         <span className={styles.subtitle}>{node.subtitle}</span>
       ) : null}
-    </SidebarNavItem>
+    </>
   );
 }
 
