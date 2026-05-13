@@ -37,6 +37,7 @@ interface HarnessProps {
   description?: string;
   maxVisibleChips?: number;
   splitOnPaste?: boolean;
+  reorderable?: boolean;
 }
 
 function Harness({
@@ -302,6 +303,32 @@ describe("SelectTag", () => {
     await user.paste("React, Vue, Svelte");
 
     expect(onChange).toHaveBeenLastCalledWith(["react", "vue", "svelte"]);
+  });
+
+  it("`reorderable` renders a drag-handle on every chip with aria-label + testid", () => {
+    render(
+      <Harness initial={["react", "vue", "svelte"]} reorderable />,
+    );
+
+    const handleReact = screen.getByTestId("st-chip-handle-react");
+    const handleVue = screen.getByTestId("st-chip-handle-vue");
+    const handleSvelte = screen.getByTestId("st-chip-handle-svelte");
+    expect(handleReact).toHaveAttribute(
+      "aria-label",
+      "Reorder React. Use drag or arrow keys.",
+    );
+    expect(handleVue).toBeInTheDocument();
+    expect(handleSvelte).toBeInTheDocument();
+  });
+
+  it("without `reorderable` the drag-handle is absent", () => {
+    render(<Harness initial={["react"]} />);
+    expect(screen.queryByTestId("st-chip-handle-react")).not.toBeInTheDocument();
+  });
+
+  it("`reorderable` + `readOnly` hides the drag-handle (no reorder when non-interactive)", () => {
+    render(<Harness initial={["react"]} reorderable readOnly />);
+    expect(screen.queryByTestId("st-chip-handle-react")).not.toBeInTheDocument();
   });
 
   it("chip × exposes aria-label='Remove <label>' and clear-all exposes 'Clear all'", () => {

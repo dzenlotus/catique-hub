@@ -1,9 +1,14 @@
 /*
- * SelectTag — tags-inside-the-field multi-select.
+ * SelectTag — chip-in-field multi-select.
  *
- * Visual rhythm mirrors `MultiTagInput`: chips and the bare input share
- * one bordered surface so the user sees `<chip×><chip×>+N<cursor>×▾`
- * inside a single focusable shell. Tokens-only; no hardcoded hex.
+ * Mirrors the field-primitive family:
+ *   - field shell + label + description + error    → Input.module.css
+ *   - chip background / radius / × hover            → MultiTagInput.module.css
+ *   - chip-rail drag-handle visuals                 → MultiSelect.module.css
+ *   - popover surface + option row                  → Combobox.module.css
+ *   - empty/loading body                            → EntityTree.module.css
+ *
+ * Tokens-only; no hardcoded hex / rgb / px outside what tokens encode.
  */
 
 .root {
@@ -39,10 +44,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-4) var(--space-8);
+  padding: var(--space-4) var(--space-12);
   min-height: 32px;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
   background-color: var(--color-surface-raised);
   cursor: text;
   transition:
@@ -51,7 +56,7 @@
 }
 
 .fieldWrap:hover {
-  border-color: var(--color-border-strong);
+  border-color: var(--color-border-focus);
 }
 
 .fieldWrap:focus-within {
@@ -63,19 +68,22 @@
   border-color: var(--color-status-danger);
 }
 
-.fieldWrapInvalid:focus-within {
+.fieldWrapInvalid:hover {
   border-color: var(--color-status-danger);
-  box-shadow: 0 0 0 3px var(--color-status-danger-soft);
+}
+
+.fieldWrapInvalid:focus-within {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
 }
 
 .fieldWrapDisabled {
   opacity: 0.55;
   cursor: not-allowed;
-  background-color: var(--color-overlay-hover);
 }
 
 .fieldWrapDisabled:hover {
-  border-color: var(--color-border-default);
+  border-color: var(--color-border-strong);
 }
 
 .fieldWrapReadonly {
@@ -83,8 +91,12 @@
   cursor: default;
 }
 
+.fieldWrapReadonly:hover {
+  border-color: var(--color-border-strong);
+}
+
 .fieldWrapReadonly:focus-within {
-  border-color: var(--color-border-default);
+  border-color: var(--color-border-strong);
   box-shadow: none;
 }
 
@@ -100,8 +112,8 @@
   gap: var(--space-4);
   padding: var(--space-2) var(--space-6) var(--space-2) var(--space-8);
   border: 1px solid var(--color-border-card);
-  border-radius: var(--radius-sm);
-  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-xl);
+  background-color: var(--color-surface-raised);
   color: var(--color-text-default);
   font-family: var(--font-sans);
   font-size: var(--font-size-caption);
@@ -109,12 +121,43 @@
   white-space: nowrap;
   cursor: default;
   outline: none;
-  transition: background-color 80ms ease-out;
+  transition: border-color 80ms ease-out;
 }
 
 .tag:focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
+}
+
+.tagDragging {
+  opacity: 0.55;
+}
+
+.tagHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-right: var(--space-2);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: grab;
+  font-size: 10px;
+  line-height: 1;
+  outline: none;
+}
+
+.tagHandle:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.tagHandle:active {
+  cursor: grabbing;
 }
 
 .tagSwatch {
@@ -161,7 +204,7 @@
 }
 
 .tagRemove:hover {
-  background-color: var(--color-overlay-active);
+  background-color: var(--color-overlay-hover);
   color: var(--color-status-danger);
 }
 
@@ -181,11 +224,11 @@
 .overflowCounter {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: var(--space-2) var(--space-6);
-  border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background-color: transparent;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-6) var(--space-2) var(--space-8);
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-xl);
+  background-color: var(--color-surface-raised);
   color: var(--color-text-muted);
   font-family: var(--font-sans);
   font-size: var(--font-size-caption);
@@ -203,7 +246,7 @@
 .overflowCounter[aria-expanded="true"] {
   background-color: var(--color-overlay-hover);
   color: var(--color-text-default);
-  border-color: var(--color-border-focus);
+  border-color: var(--color-border-strong);
 }
 
 .overflowCounter:focus-visible {
@@ -219,7 +262,7 @@
   background-color: var(--color-surface-overlay);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-med);
   padding: var(--space-4);
   outline: none;
   min-width: 160px;
@@ -249,13 +292,17 @@
 .input {
   flex: 1;
   min-width: 80px;
-  padding: var(--space-2) 0;
-  border: none;
+  height: 24px;
+  padding: 0;
+  margin: 0;
+  border: 0;
   background: transparent;
   color: var(--color-text-default);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body-sm);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  line-height: 1;
   outline: none;
+  box-shadow: none;
 }
 
 .input::placeholder {
@@ -292,7 +339,7 @@
 }
 
 .clearAll:hover {
-  background-color: var(--color-overlay-active);
+  background-color: var(--color-overlay-hover);
   color: var(--color-status-danger);
 }
 
@@ -305,13 +352,8 @@
 
 .popover {
   width: var(--trigger-width);
-  max-height: 280px;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface-overlay);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  max-width: var(--trigger-width);
   outline: none;
-  overflow: hidden;
   animation: select-tag-fade-in 100ms ease-out;
 }
 
@@ -320,36 +362,44 @@
 }
 
 .listbox {
-  max-height: inherit;
-  overflow-y: auto;
-  outline: none;
-  padding: var(--space-2);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 1px;
+  padding: var(--space-4);
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-med);
+  outline: none;
+  max-height: clamp(160px, 40vh, 360px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .option {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-6) var(--space-8);
-  border-radius: var(--radius-sm);
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-12);
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--color-text-default);
   font-family: var(--font-sans);
-  font-size: var(--font-size-body-sm);
+  font-size: var(--font-size-body);
   cursor: pointer;
+  user-select: none;
   outline: none;
   transition: background-color 80ms ease-out;
 }
 
-.option[data-focused] {
+.option[data-focused]:not([data-disabled]),
+.option[data-hovered]:not([data-disabled]) {
   background-color: var(--color-overlay-hover);
 }
 
 .optionSelected {
   background-color: var(--color-accent-soft);
+  font-weight: var(--font-weight-medium);
 }
 
 .optionCheck {
@@ -373,7 +423,7 @@
 }
 
 .optionLabel {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -409,30 +459,37 @@
 }
 
 .empty {
-  padding: var(--space-12);
-  text-align: center;
+  padding: var(--space-8) var(--space-12);
   font-size: var(--font-size-body-sm);
-  color: var(--color-text-subtle);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-med);
 }
 
 .loading {
-  padding: var(--space-12);
-  text-align: center;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-muted);
+  padding: var(--space-8) var(--space-12);
+  font-size: var(--font-size-caption);
+  font-style: italic;
+  color: var(--color-text-subtle);
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-med);
 }
 
 /* ── Helper / error text ─────────────────────────────────────────── */
 
 .description {
   margin: 0;
-  font-size: var(--font-size-body-sm);
+  font-size: var(--font-size-caption);
   color: var(--color-text-muted);
 }
 
 .errorText {
   margin: 0;
-  font-size: var(--font-size-body-sm);
+  font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);
   color: var(--color-status-danger);
 }

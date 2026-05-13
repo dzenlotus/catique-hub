@@ -7,7 +7,10 @@
  *   - optional clear-all `×` button before the dropdown chevron;
  *   - optional `+N` overflow when `maxVisibleChips > 0`;
  *   - paste-split on `[,;\n]` resolving fragments against `options`;
- *   - loading / error / disabled / readOnly states.
+ *   - loading / error / disabled / readOnly states;
+ *   - optional `reorderable` chips powered by `@dnd-kit/react` (parity
+ *     with `<MultiSelect reorderable>` — drop emits the full reordered
+ *     id list via `onChange`).
  *
  * Composition: RAC `<ComboBox>` (input + popover) + `<TagGroup>` (chip row)
  * sharing a single visual surface. The `+N` counter affordance uses a
@@ -34,6 +37,7 @@ import {
   type ClipboardEvent,
   type KeyboardEvent,
   type ReactElement,
+  type ReactNode,
 } from "react";
 import {
   ComboBox as AriaComboBox,
@@ -43,6 +47,9 @@ import {
   ListBoxItem as AriaListBoxItem,
   Popover as AriaPopover,
 } from "react-aria-components";
+import { DragDropProvider } from "@dnd-kit/react";
+import { useSortable } from "@dnd-kit/react/sortable";
+import { move } from "@dnd-kit/helpers";
 
 import { cn } from "@shared/lib";
 
@@ -106,6 +113,16 @@ export interface SelectTagProps {
    * dropped silently. Default: false.
    */
   splitOnPaste?: boolean;
+  /**
+   * When true, each visible chip renders a leading drag-handle and the
+   * chip row becomes drag-reorderable via `@dnd-kit/react`. The full
+   * reordered id list is emitted via `onChange` on drop. Mirrors the
+   * UX in `<MultiSelect reorderable>`. Default: false.
+   *
+   * Note: reorder is restricted to the *visible* chips (those rendered
+   * before the `+N` overflow). Hidden chips keep their tail position.
+   */
+  reorderable?: boolean;
   /** Stable test id forwarded to the field root + chip prefix. */
   "data-testid"?: string;
   /** Class merged onto the field root. */
@@ -145,6 +162,7 @@ export function SelectTag({
   isClearable = false,
   maxVisibleChips = 0,
   splitOnPaste = false,
+  reorderable = false,
   "data-testid": testId,
   className,
 }: SelectTagProps): ReactElement {
@@ -301,40 +319,49 @@ export function SelectTag({
   const showInputArea = isInteractive;
   const popoverDisabled = !isInteractive;
 
-  const renderChip = (option: SelectTagOption): ReactElement => (
-    <span
+  const reorderGroupId = `${scope}-chip-rail`;
+  const enableReorder = reorderable && isInteractive;
+
+  const handleReorderEnd = (event: {
+    canceled: boolean;
+  }): void => {
+    if (event.canceled) return;
+    const visibleIds = visibleChips.map((c) => c.id);
+    const bucket = { list: visibleIds };
+    // The `move` helper consumes the same `event` shape; cast keeps the
+    // local type narrow (we only need `canceled` in our signature).
+    const next = move(bucket, event as Parameters<typeof move>[1]);
+    const nextVisibleIds = (next.list ?? visibleIds) as string[];
+    const unchanged =
+      nextVisibleIds.length === visibleIds.length &&
+      nextVisibleIds.every((id, idx) => id === visibleIds[idx]);
+    if (unchanged) return;
+    const hiddenIds = hiddenChips.map((c) => c.id);
+    onChange([...nextVisibleIds, ...hiddenIds]);
+  };
+
+  const renderChip = (option: SelectTagOption, index: number): ReactElement => (
+    <Chip
       key={option.id}
-      className={styles.tag}
-      data-testid={`${scope}-chip-${option.id}`}
-    >
-      {option.color ? (
-        <span
-          className={styles.tagSwatch}
-          style={{ backgroundColor: option.color }}
-          aria-hidden="true"
-        />
-      ) : null}
-      <span className={styles.tagLabel}>{option.label}</span>
-      {isInteractive ? (
-        <button
-          type="button"
-          className={styles.tagRemove}
-          aria-label={`Remove ${option.label}`}
-          data-testid={`${scope}-chip-remove-${option.id}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            removeOne(option.id);
-          }}
-          onMouseDown={(e) => {
-            // Don't steal focus from the combobox input.
-            e.preventDefault();
-          }}
-        >
-          <span aria-hidden="true">×</span>
-        </button>
-      ) : null}
-    </span>
+      option={option}
+      index={index}
+      scope={scope}
+      groupId={reorderGroupId}
+      reorderable={enableReorder}
+      isInteractive={isInteractive}
+      onRemove={removeOne}
+    />
   );
+
+  const chipRow = visibleChips.length > 0 ? (
+    <div
+      className={styles.tagGroup}
+      role="list"
+      aria-label={`${label} — selected`}
+    >
+      {visibleChips.map((option, index) => renderChip(option, index))}
+    </div>
+  ) : null;
 
   return (
     <div
@@ -355,24 +382,15 @@ export function SelectTag({
         isDisabled={popoverDisabled}
       >
         <AriaLabel className={styles.label}>{label}</AriaLabel>
-        <div
-          className={cn(
-            styles.fieldWrap,
-            hasError && styles.fieldWrapInvalid,
-            disabled && styles.fieldWrapDisabled,
-            readOnly && styles.fieldWrapReadonly,
-          )}
-          data-testid={`${scope}-field`}
+        <FieldShell
+          scope={scope}
+          hasError={hasError}
+          disabled={disabled}
+          readOnly={readOnly}
+          enableReorder={enableReorder}
+          onReorderEnd={handleReorderEnd}
         >
-          {visibleChips.length > 0 ? (
-            <div
-              className={styles.tagGroup}
-              role="list"
-              aria-label={`${label} — selected`}
-            >
-              {visibleChips.map(renderChip)}
-            </div>
-          ) : null}
+          {chipRow}
 
           {hiddenChips.length > 0 ? (
             <OverflowCounter
@@ -402,7 +420,7 @@ export function SelectTag({
               <span aria-hidden="true">×</span>
             </button>
           ) : null}
-        </div>
+        </FieldShell>
 
         <AriaPopover className={styles.popover}>
           {isLoading ? (
@@ -501,6 +519,125 @@ export function SelectTag({
         </p>
       ) : null}
     </div>
+  );
+}
+
+// ── Field shell (with optional DnD context) ──────────────────────────
+
+interface FieldShellProps {
+  scope: string;
+  hasError: boolean;
+  disabled: boolean;
+  readOnly: boolean;
+  enableReorder: boolean;
+  onReorderEnd: (event: { canceled: boolean }) => void;
+  children: ReactNode;
+}
+
+function FieldShell({
+  scope,
+  hasError,
+  disabled,
+  readOnly,
+  enableReorder,
+  onReorderEnd,
+  children,
+}: FieldShellProps): ReactElement {
+  const shell = (
+    <div
+      className={cn(
+        styles.fieldWrap,
+        hasError && styles.fieldWrapInvalid,
+        disabled && styles.fieldWrapDisabled,
+        readOnly && styles.fieldWrapReadonly,
+      )}
+      data-testid={`${scope}-field`}
+    >
+      {children}
+    </div>
+  );
+  if (!enableReorder) return shell;
+  return <DragDropProvider onDragEnd={onReorderEnd}>{shell}</DragDropProvider>;
+}
+
+// ── Chip (with optional drag handle) ─────────────────────────────────
+
+interface ChipProps {
+  option: SelectTagOption;
+  index: number;
+  scope: string;
+  groupId: string;
+  reorderable: boolean;
+  isInteractive: boolean;
+  onRemove: (id: string) => void;
+}
+
+function Chip({
+  option,
+  index,
+  scope,
+  groupId,
+  reorderable,
+  isInteractive,
+  onRemove,
+}: ChipProps): ReactElement {
+  const { ref, handleRef, isDragging } = useSortable({
+    id: option.id,
+    index,
+    group: groupId,
+    type: "select-tag-chip",
+    accept: ["select-tag-chip"],
+    disabled: !reorderable,
+  });
+
+  return (
+    <span
+      ref={(el) => ref(el)}
+      className={cn(styles.tag, reorderable && isDragging && styles.tagDragging)}
+      data-testid={`${scope}-chip-${option.id}`}
+    >
+      {reorderable ? (
+        <button
+          type="button"
+          ref={(el) => handleRef(el)}
+          className={styles.tagHandle}
+          aria-label={`Reorder ${option.label}. Use drag or arrow keys.`}
+          data-testid={`${scope}-chip-handle-${option.id}`}
+          onMouseDown={(e) => {
+            // Don't steal focus from the combobox input.
+            e.preventDefault();
+          }}
+        >
+          <span aria-hidden="true">⋮⋮</span>
+        </button>
+      ) : null}
+      {option.color ? (
+        <span
+          className={styles.tagSwatch}
+          style={{ backgroundColor: option.color }}
+          aria-hidden="true"
+        />
+      ) : null}
+      <span className={styles.tagLabel}>{option.label}</span>
+      {isInteractive ? (
+        <button
+          type="button"
+          className={styles.tagRemove}
+          aria-label={`Remove ${option.label}`}
+          data-testid={`${scope}-chip-remove-${option.id}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(option.id);
+          }}
+          onMouseDown={(e) => {
+            // Don't steal focus from the combobox input.
+            e.preventDefault();
+          }}
+        >
+          <span aria-hidden="true">×</span>
+        </button>
+      ) : null}
+    </span>
   );
 }
 
