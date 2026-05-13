@@ -1,25 +1,29 @@
 /**
  * RolesPage — two-pane shell wrapping the existing `<RolesList>`.
  *
- * Round-19f: every routed surface ships a list-rail sidebar.
- * audit-#9 (wave-3): the editor is now a routed PAGE on `/roles/:roleId`
+ * Round-23 (entity-tree unification): the secondary rail now renders
+ * the shared `<EntityTree>` primitive, replacing the per-page
+ * `<EntityListSidebar>`. Every other entity page uses the same
+ * primitive so row spacing, indent, chevron handling, and active-row
+ * visuals stay identical across surfaces.
+ *
+ * audit-#9 (wave-3): the editor is a routed PAGE on `/roles/:roleId`
  * (previously a modal Dialog mounted in this page). Selecting a role
  * navigates the URL; the page renders `<RoleEditorPanel>` in the content
  * slot when a role id is in the URL, otherwise shows the master grid.
  */
 
-import { useState, type ReactElement } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import { useLocation, useRoute } from "wouter";
 
 import { useRoles } from "@entities/role";
-import { Scrollable } from "@shared/ui";
+import { EntityTree, Scrollable } from "@shared/ui";
+import type { EntityTreeNode } from "@shared/ui";
 import { RoleCreateDialog } from "@widgets/role-create-dialog";
 import { RoleEditorPanel } from "@widgets/role-editor";
-import { EntityListSidebar } from "@widgets/entity-list-sidebar";
+import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
 import { RolesList } from "@widgets/roles-list";
 import { rolePath, routes } from "@app/routes";
-
-import shellStyles from "@widgets/entity-list-sidebar/EntityPageShell.module.css";
 
 export function RolesPage(): ReactElement {
   const rolesQuery = useRoles();
@@ -28,12 +32,16 @@ export function RolesPage(): ReactElement {
   const selectedId = match ? params?.roleId ?? null : null;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  const items = (rolesQuery.data ?? []).map((r) => ({
-    id: r.id,
-    name: r.name,
-    color: r.color,
-    icon: r.icon,
-  }));
+  const nodes = useMemo<ReadonlyArray<EntityTreeNode>>(
+    () =>
+      (rolesQuery.data ?? []).map((r) => ({
+        id: r.id,
+        label: r.name,
+        ...(r.icon != null ? { leadingIcon: r.icon } : {}),
+        ...(r.color != null ? { leadingColor: r.color } : {}),
+      })),
+    [rolesQuery.data],
+  );
 
   const handleSelect = (id: string | null): void => {
     setLocation(id ? rolePath(id) : routes.roles);
@@ -42,11 +50,13 @@ export function RolesPage(): ReactElement {
   return (
     <section className={shellStyles.root} data-testid="roles-page-root">
       <div className={shellStyles.sidebarSlot}>
-        <EntityListSidebar
+        <EntityTree
           title="ROLES"
           ariaLabel="Roles navigation"
-          items={items}
+          nodes={nodes}
           selectedId={selectedId}
+          expandedIds={[]}
+          onToggleExpand={() => {}}
           onSelect={(id) => handleSelect(id)}
           addLabel="Add role"
           onAdd={() => setIsCreateOpen(true)}

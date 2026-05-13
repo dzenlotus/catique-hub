@@ -112,6 +112,17 @@ export type {
   SidebarNavItemProps,
 } from "./SidebarShell";
 
+export {
+  EntityTree,
+  useEntityTreeExpandedStorage,
+} from "./EntityTree";
+export type {
+  EntityTreeNode,
+  EntityTreeProps,
+  EntityTreeRenderRowArgs,
+  UseEntityTreeExpandedStorageResult,
+} from "./EntityTree";
+
 export { PortalProvider, PORTAL_ROOT_ID } from "./PortalProvider";
 export type { PortalProviderProps } from "./PortalProvider";
 

@@ -1,11 +1,10 @@
 /*
- * EntityListSidebar — list-rail layout for /roles, /skills,
- * /mcp-servers. Matches the shape of `<PromptsSidebar>`'s prompt-list
- * (chip swatch + name) so every rail in the app reads as one family.
+ * EntityTree — declarative tree-list primitive (round-23 unification).
  *
- * Round-22: nested-children variant — leading chevron column +
- * indented child rows. The chevron column reserves a fixed 16-px gutter
- * so items WITHOUT children still align with items WITH a chevron.
+ * Match SpacesSidebar shape exactly: 16-px chevron column + nav-item
+ * column. All active-row visuals (accent-soft background, leading red
+ * strip, focus ring) come from `SidebarNavItem` — do NOT add new ones
+ * here, otherwise the rails will drift apart again.
  */
 
 .list {
@@ -23,11 +22,14 @@
   flex-direction: column;
 }
 
-/*
- * Row container: chevron column + main nav-item column. Grid keeps the
- * chevron pinned to the leading gutter without disturbing the name's
- * ellipsis behaviour.
- */
+.itemDisabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Row container: chevron column + main nav-item column. Grid keeps the
+ * chevron pinned to the leading gutter without disturbing the label's
+ * ellipsis behaviour. */
 .row {
   display: grid;
   grid-template-columns: 16px 1fr;
@@ -66,6 +68,11 @@
   outline-offset: 2px;
 }
 
+.chevronBtn:disabled {
+  cursor: not-allowed;
+  color: var(--color-text-subtle);
+}
+
 /* Placeholder spacer when an item has no children. Keeps the
    name-column aligned with siblings that DO have a chevron. */
 .chevronSpacer {
@@ -74,7 +81,8 @@
   height: 16px;
 }
 
-/* Indented children — nested tools beneath an MCP server, etc. */
+/* Nested children — indented one design-token step deeper than the
+   parent. Top-level row already starts at the rail's inner gutter. */
 .children {
   list-style: none;
   margin: var(--space-2) 0 0;
@@ -82,10 +90,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-}
-
-.childItem {
-  position: relative;
 }
 
 .swatch {
@@ -104,9 +108,39 @@
   color: var(--color-text-muted);
 }
 
-.name {
+/* Wrap label + inline badge so MarqueeText still gets the full width
+ * before the badge cuts in. */
+.labelWrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
   flex: 1;
   min-width: 0;
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelStrikethrough {
+  text-decoration: line-through;
+  color: var(--color-text-subtle);
+}
+
+.badge {
+  flex: 0 0 auto;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+}
+
+.subtitle {
+  width: 100%;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

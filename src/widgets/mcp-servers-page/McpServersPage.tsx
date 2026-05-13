@@ -1,12 +1,10 @@
 /**
  * McpServersPage — master-detail shell for /mcp-servers.
  *
- * Round-22 refactor: every entity page in the app uses the same
- * `<EntityListSidebar>` + content-pane shell (roles, skills, prompts,
- * tags). MCP servers now joins the pattern. The rail lists each
- * registered server as a top-level expandable row; the server's
- * introspected tools render as indented children. Selection state
- * lives in the URL:
+ * Round-23 (entity-tree unification): rail uses the shared
+ * `<EntityTree>` primitive (was `<EntityListSidebar>`). Server rows
+ * expand to show introspected tools as children. URL drives the
+ * selection state:
  *
  *   /mcp-servers                          → overview pane.
  *   /mcp-servers/:serverId                → server detail pane.
@@ -30,17 +28,16 @@ import {
   type McpServer,
 } from "@entities/mcp-server";
 import type { McpTool } from "@bindings/McpTool";
-import { Scrollable } from "@shared/ui";
+import { EntityTree, Scrollable } from "@shared/ui";
+import type { EntityTreeNode } from "@shared/ui";
 import { McpServerCreateDialog } from "@widgets/mcp-server-create-dialog";
-import { EntityListSidebar } from "@widgets/entity-list-sidebar";
-import type { EntityListSidebarItem } from "@widgets/entity-list-sidebar";
+import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
 import {
   mcpServerPath,
   mcpServerToolPath,
   routes,
 } from "@app/routes";
 
-import shellStyles from "@widgets/entity-list-sidebar/EntityPageShell.module.css";
 import { McpServersOverview } from "./McpServersOverview";
 import { McpServerDetailPanel } from "./McpServerDetailPanel";
 import { McpToolDetailPanel } from "./McpToolDetailPanel";
@@ -102,8 +99,8 @@ export function McpServersPage(): ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandedServerIds, toolsQueries]);
 
-  const sidebarItems = useMemo<ReadonlyArray<EntityListSidebarItem>>(
-    () => buildSidebarItems(servers, expandedServerIds, toolsByServerId),
+  const nodes = useMemo<ReadonlyArray<EntityTreeNode>>(
+    () => buildSidebarNodes(servers, expandedServerIds, toolsByServerId),
     [servers, expandedServerIds, toolsByServerId],
   );
 
@@ -144,10 +141,10 @@ export function McpServersPage(): ReactElement {
       data-testid="mcp-servers-page-root"
     >
       <div className={shellStyles.sidebarSlot}>
-        <EntityListSidebar
+        <EntityTree
           title="MCP"
           ariaLabel="MCP servers navigation"
-          items={sidebarItems}
+          nodes={nodes}
           selectedId={selectedSidebarId}
           onSelect={handleSelect}
           addLabel="Add MCP server"
@@ -195,11 +192,11 @@ export function McpServersPage(): ReactElement {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildSidebarItems(
+function buildSidebarNodes(
   servers: ReadonlyArray<McpServer>,
   expandedServerIds: ReadonlyArray<string>,
   toolsByServerId: Record<string, ReadonlyArray<McpTool>>,
-): ReadonlyArray<EntityListSidebarItem> {
+): ReadonlyArray<EntityTreeNode> {
   const expandedSet = new Set(expandedServerIds);
   return servers.map((server) => {
     const tools = expandedSet.has(server.id)
@@ -207,10 +204,10 @@ function buildSidebarItems(
       : [];
     return {
       id: `${SRV_PREFIX}${server.id}`,
-      name: server.name,
+      label: server.name,
       children: tools.map((tool) => ({
         id: `${TOOL_PREFIX}${tool.id}`,
-        name: tool.name,
+        label: tool.name,
       })),
     };
   });

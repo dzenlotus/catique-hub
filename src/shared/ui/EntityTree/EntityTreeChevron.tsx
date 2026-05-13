@@ -1,20 +1,18 @@
 import type { ReactElement } from "react";
 
 // ---------------------------------------------------------------------------
-// EntityListSidebarChevron — disclosure indicator for nested rail rows.
+// EntityTreeChevron — disclosure indicator for tree rows.
 //
-// Pixel-art-friendly stroked SVG. Mirrors the shape used by
-// `widgets/spaces-sidebar/ChevronIcon` so the two rails read as one
-// family. Down (⌄) when expanded, right (›) when collapsed.
+// Pixel-art-friendly stroked SVG. Mirrors the shape used by the
+// SpacesSidebar so every rail in the app reads as one family. Down (⌄)
+// when expanded, right (›) when collapsed.
 // ---------------------------------------------------------------------------
 
-interface EntityListSidebarChevronProps {
+interface EntityTreeChevronProps {
   open: boolean;
 }
 
-export function EntityListSidebarChevron({
-  open,
-}: EntityListSidebarChevronProps): ReactElement {
+export function EntityTreeChevron({ open }: EntityTreeChevronProps): ReactElement {
   return (
     <svg
       width="10"
