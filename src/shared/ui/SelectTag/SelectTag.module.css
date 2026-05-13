@@ -1,0 +1,472 @@
+/*
+ * SelectTag — tags-inside-the-field multi-select.
+ *
+ * Visual rhythm mirrors `MultiTagInput`: chips and the bare input share
+ * one bordered surface so the user sees `<chip×><chip×>+N<cursor>×▾`
+ * inside a single focusable shell. Tokens-only; no hardcoded hex.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-family: var(--font-sans);
+  color: var(--color-text-default);
+  width: 100%;
+  min-width: 220px;
+}
+
+.label {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+  cursor: default;
+}
+
+/* ── ComboBox + Field shell ──────────────────────────────────────── */
+
+.combobox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.fieldWrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-8);
+  min-height: 32px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  cursor: text;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.fieldWrap:hover {
+  border-color: var(--color-border-strong);
+}
+
+.fieldWrap:focus-within {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+.fieldWrapInvalid {
+  border-color: var(--color-status-danger);
+}
+
+.fieldWrapInvalid:focus-within {
+  border-color: var(--color-status-danger);
+  box-shadow: 0 0 0 3px var(--color-status-danger-soft);
+}
+
+.fieldWrapDisabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background-color: var(--color-overlay-hover);
+}
+
+.fieldWrapDisabled:hover {
+  border-color: var(--color-border-default);
+}
+
+.fieldWrapReadonly {
+  background-color: var(--color-surface-canvas);
+  cursor: default;
+}
+
+.fieldWrapReadonly:focus-within {
+  border-color: var(--color-border-default);
+  box-shadow: none;
+}
+
+/* ── Chip row ─────────────────────────────────────────────────────── */
+
+.tagGroup {
+  display: contents;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-6) var(--space-2) var(--space-8);
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+  cursor: default;
+  outline: none;
+  transition: background-color 80ms ease-out;
+}
+
+.tag:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.tagSwatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tagLabel {
+  font-weight: var(--font-weight-medium);
+}
+
+.tagRemove {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: var(--space-2);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  outline: none;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+/* Mobile hit target — at least 24×24 px without affecting visual chrome.
+ * The button's visible size stays at 14×14; the pseudo-element extends
+ * the click region. */
+.tagRemove::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+}
+
+.tagRemove:hover {
+  background-color: var(--color-overlay-active);
+  color: var(--color-status-danger);
+}
+
+.tagRemove:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ── Overflow `+N` counter ───────────────────────────────────────── */
+
+.overflowWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.overflowCounter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2) var(--space-6);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out,
+    border-color 80ms ease-out;
+}
+
+.overflowCounter:hover,
+.overflowCounter[aria-expanded="true"] {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+  border-color: var(--color-border-focus);
+}
+
+.overflowCounter:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.overflowDialog {
+  position: absolute;
+  top: calc(100% + var(--space-4));
+  left: 0;
+  z-index: 10;
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  padding: var(--space-4);
+  outline: none;
+  min-width: 160px;
+  max-width: 260px;
+}
+
+.overflowList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.overflowItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-default);
+}
+
+/* ── Input ────────────────────────────────────────────────────────── */
+
+.input {
+  flex: 1;
+  min-width: 80px;
+  padding: var(--space-2) 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--color-text-subtle);
+}
+
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* ── Clear-all button ────────────────────────────────────────────── */
+
+.clearAll {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  outline: none;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.clearAll:hover {
+  background-color: var(--color-overlay-active);
+  color: var(--color-status-danger);
+}
+
+.clearAll:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ── Popover dropdown ─────────────────────────────────────────────── */
+
+.popover {
+  width: var(--trigger-width);
+  max-height: 280px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-overlay);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  outline: none;
+  overflow: hidden;
+  animation: select-tag-fade-in 100ms ease-out;
+}
+
+.popover[data-exiting] {
+  animation: select-tag-fade-out 100ms ease-in;
+}
+
+.listbox {
+  max-height: inherit;
+  overflow-y: auto;
+  outline: none;
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  cursor: pointer;
+  outline: none;
+  transition: background-color 80ms ease-out;
+}
+
+.option[data-focused] {
+  background-color: var(--color-overlay-hover);
+}
+
+.optionSelected {
+  background-color: var(--color-accent-soft);
+}
+
+.optionCheck {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--color-status-success);
+  flex-shrink: 0;
+}
+
+.optionSwatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.optionLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionDescription {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-caption);
+  flex-shrink: 0;
+}
+
+.optionCreate {
+  border-top: 1px dashed var(--color-border-subtle);
+  margin-top: var(--space-4);
+  padding-top: var(--space-8);
+  color: var(--color-text-default);
+}
+
+.optionPlus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-status-success-soft);
+  color: var(--color-status-success);
+  font-weight: var(--font-weight-bold);
+  font-size: 12px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.empty {
+  padding: var(--space-12);
+  text-align: center;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-subtle);
+}
+
+.loading {
+  padding: var(--space-12);
+  text-align: center;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+/* ── Helper / error text ─────────────────────────────────────────── */
+
+.description {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.errorText {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-status-danger);
+}
+
+@keyframes select-tag-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes select-tag-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fieldWrap,
+  .tag,
+  .tagRemove,
+  .clearAll,
+  .option,
+  .overflowCounter {
+    transition: none;
+  }
+  .popover {
+    animation: none;
+  }
+}
