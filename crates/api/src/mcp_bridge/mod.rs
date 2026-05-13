@@ -61,19 +61,28 @@ use catique_application::{
     mcp_tools::McpToolsUseCase,
     prompt_groups::PromptGroupsUseCase,
     prompts::PromptsUseCase,
+    reports::ReportsUseCase,
     role_notes::RoleNotesUseCase,
+    roles::RolesUseCase,
     search::SearchUseCase,
+    settings::SettingsUseCase,
     skills::SkillsUseCase,
     spaces::{CreateSpaceArgs, SpacesUseCase, UpdateSpaceArgs},
+    tags::TagsUseCase,
     tasks::TasksUseCase,
     AppError,
 };
-use catique_domain::RoleNoteAuthor;
+use catique_domain::{RoleNoteAuthor, Transport};
 use catique_infrastructure::{
     db::{
         pool::{acquire, Pool},
         repositories::{
-            mcp_servers as servers_repo, prompts as prompts_repo,
+            inheritance::{
+                cascade_mcp_tool_attachment, cascade_mcp_tool_detachment, cascade_skill_attachment,
+                cascade_skill_detachment,
+            },
+            mcp_servers as servers_repo, prompts as prompts_repo, roles as roles_repo,
+            tags as tags_repo,
             tasks::{cascade_prompt_attachment, cascade_prompt_detachment, AttachScope},
         },
     },
@@ -211,14 +220,16 @@ pub async fn install(mgr: &SidecarManager, pool: Pool, orchestrator: Option<Orch
         let orch = captured_orch.clone();
         Box::pin(async move {
             // Async-first arms — they need the Tokio runtime AND either
-            // the wire (proxy_tool_call) or the orchestrator (provider
-            // mutators). They cannot live in the `spawn_blocking` path.
+            // the wire (proxy_tool_call / refresh_mcp_server) or the
+            // orchestrator (provider mutators). They cannot live in the
+            // `spawn_blocking` path.
             match method.as_str() {
                 "proxy_tool_call" => return proxy_tool_call_arm(&pool, &mgr, params).await,
                 "add_provider" => return add_provider_arm(&pool, orch.as_ref(), params).await,
                 "remove_provider" => {
                     return remove_provider_arm(&pool, orch.as_ref(), params).await
                 }
+                "refresh_mcp_server" => return refresh_mcp_server_arm(&pool, &mgr, params).await,
                 _ => {}
             }
             // Use cases are sync (rusqlite is sync); offload onto a
@@ -299,6 +310,28 @@ async fn remove_provider_arm(
     Ok(json!({ "ok": true }))
 }
 
+/// MCP-EXPAND-A: async arm for `refresh_mcp_server`. Mirrors
+/// `handlers::mcp_servers::refresh_mcp_server` minus the Tauri event
+/// emit — the introspection itself requires the live `SidecarManager`
+/// so the arm lives in the async pre-dispatch slot, not the sync
+/// `dispatch()` match.
+///
+/// Returns the [`RefreshReport`] verbatim — Node side surfaces it as
+/// `tools/call` JSON content.
+async fn refresh_mcp_server_arm(
+    pool: &Pool,
+    mgr: &SidecarManager,
+    params: Value,
+) -> Result<Value, String> {
+    let id = decode_string(&params, "id")?;
+    let introspector = sidecar_upstream(mgr);
+    let report = McpServersUseCase::new(pool)
+        .refresh(&id, &introspector)
+        .await
+        .map_err(stringify_app)?;
+    json_or_err(&report)
+}
+
 /// Look up `method` in the dispatch table, decode `params`, run the
 /// use-case, and return the JSON-encoded result. Errors collapse into
 /// a single `String` (the Node MCP layer surfaces it as `isError:
@@ -321,7 +354,13 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "add_prompt_tag" => add_prompt_tag_arm(pool, &params),
+        "add_role_mcp_tool" => add_role_mcp_tool_arm(pool, &params),
         "add_role_note" => add_role_note_arm(pool, &params),
+        "add_role_prompt" => add_role_prompt_arm(pool, &params),
+        "add_role_skill" => add_role_skill_arm(pool, &params),
+        "add_skill_file_attachment" => add_skill_file_attachment_arm(pool, &params),
+        "add_skill_git_attachment" => add_skill_git_attachment_arm(pool, &params),
         "add_space_prompt" => {
             let space_id = decode_string(&params, "space_id")?;
             let prompt_id = decode_string(&params, "prompt_id")?;
@@ -351,6 +390,18 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
             Ok(json!({ "ok": true }))
         }
         "clear_task_prompt_override" => clear_task_prompt_override_arm(pool, &params),
+        // -------- agent reports --------
+        "create_agent_report" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let kind = decode_string(&params, "kind")?;
+            let title = decode_string(&params, "title")?;
+            let content = decode_string(&params, "content")?;
+            let author = decode_optional_string(&params, "author");
+            let report = ReportsUseCase::new(pool)
+                .create(task_id, kind, title, content, author)
+                .map_err(stringify_app)?;
+            json_or_err(&report)
+        }
         // -------- attachments --------
         "create_attachment" => create_attachment_arm(pool, &params),
         // -------- tasks / boards / columns CRUD --------
@@ -362,6 +413,19 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .create(board_id, name, position)
                 .map_err(stringify_app)?;
             json_or_err(&column)
+        }
+        // -------- mcp servers / tools CRUD --------
+        "create_mcp_server" => create_mcp_server_arm(pool, &params),
+        "create_mcp_tool" => {
+            let name = decode_string(&params, "name")?;
+            let description = decode_optional_string(&params, "description");
+            let schema_json = decode_string(&params, "schema_json")?;
+            let color = decode_optional_string(&params, "color");
+            let position = decode_f64(&params, "position")?;
+            let tool = McpToolsUseCase::new(pool)
+                .create(name, description, schema_json, color, position)
+                .map_err(stringify_app)?;
+            json_or_err(&tool)
         }
         // -------- prompts CRUD --------
         "create_prompt" => {
@@ -386,6 +450,27 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&group)
         }
+        // -------- roles / skills CRUD --------
+        "create_role" => {
+            let name = decode_string(&params, "name")?;
+            let content = decode_string(&params, "content")?;
+            let color = decode_optional_string(&params, "color");
+            let icon = decode_optional_string(&params, "icon");
+            let role = RolesUseCase::new(pool)
+                .create(name, content, color, icon)
+                .map_err(stringify_app)?;
+            json_or_err(&role)
+        }
+        "create_skill" => {
+            let name = decode_string(&params, "name")?;
+            let description = decode_optional_string(&params, "description");
+            let color = decode_optional_string(&params, "color");
+            let position = decode_f64(&params, "position")?;
+            let skill = SkillsUseCase::new(pool)
+                .create(name, description, color, position)
+                .map_err(stringify_app)?;
+            json_or_err(&skill)
+        }
         "create_space" => {
             let args = CreateSpaceArgs {
                 name: decode_string(&params, "name")?,
@@ -404,6 +489,14 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&space)
         }
+        "create_tag" => {
+            let name = decode_string(&params, "name")?;
+            let color = decode_optional_string(&params, "color");
+            let tag = TagsUseCase::new(pool)
+                .create(name, color)
+                .map_err(stringify_app)?;
+            json_or_err(&tag)
+        }
         "create_task" => {
             let board_id = decode_string(&params, "board_id")?;
             let column_id = decode_string(&params, "column_id")?;
@@ -416,6 +509,13 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&task)
         }
+        "delete_agent_report" => {
+            let id = decode_string(&params, "id")?;
+            ReportsUseCase::new(pool)
+                .delete(&id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "delete_attachment" => delete_attachment_arm(pool, &params),
         "delete_board" => {
             let id = decode_string(&params, "id")?;
@@ -427,6 +527,20 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
         "delete_column" => {
             let id = decode_string(&params, "id")?;
             ColumnsUseCase::new(pool)
+                .delete(&id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "delete_mcp_server" => {
+            let id = decode_string(&params, "id")?;
+            McpServersUseCase::new(pool)
+                .delete(&id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "delete_mcp_tool" => {
+            let id = decode_string(&params, "id")?;
+            McpToolsUseCase::new(pool)
                 .delete(&id)
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
@@ -445,6 +559,12 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "delete_role" => {
+            let id = decode_string(&params, "id")?;
+            RolesUseCase::new(pool).delete(&id).map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "delete_skill" => delete_skill_arm(pool, &params),
         "delete_space" => {
             let id = decode_string(&params, "id")?;
             SpacesUseCase::new(pool)
@@ -452,7 +572,17 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "delete_tag" => {
+            let id = decode_string(&params, "id")?;
+            TagsUseCase::new(pool).delete(&id).map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "delete_task" => delete_task_arm(pool, &params),
+        "get_agent_report" => {
+            let id = decode_string(&params, "id")?;
+            let report = ReportsUseCase::new(pool).get(&id).map_err(stringify_app)?;
+            json_or_err(&report)
+        }
         // -------- attachments / boards / columns read --------
         "get_attachment" => {
             let id = decode_string(&params, "id")?;
@@ -471,6 +601,25 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
             let column = ColumnsUseCase::new(pool).get(&id).map_err(stringify_app)?;
             json_or_err(&column)
         }
+        "get_mcp_server" => {
+            let id = decode_string(&params, "id")?;
+            let server = McpServersUseCase::new(pool)
+                .get(&id)
+                .map_err(stringify_app)?;
+            json_or_err(&server)
+        }
+        "get_mcp_server_status" => {
+            let id = decode_string(&params, "id")?;
+            let status = McpServersUseCase::new(pool)
+                .status(&id)
+                .map_err(stringify_app)?;
+            json_or_err(&status)
+        }
+        "get_mcp_tool" => {
+            let id = decode_string(&params, "id")?;
+            let tool = McpToolsUseCase::new(pool).get(&id).map_err(stringify_app)?;
+            json_or_err(&tool)
+        }
         // -------- prompts read --------
         "get_prompt" => {
             let id = decode_string(&params, "id")?;
@@ -484,6 +633,23 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&group)
         }
+        "get_role" => {
+            let id = decode_string(&params, "id")?;
+            let role = RolesUseCase::new(pool).get(&id).map_err(stringify_app)?;
+            json_or_err(&role)
+        }
+        "get_setting" => {
+            let key = decode_string(&params, "key")?;
+            let value = SettingsUseCase::new(pool)
+                .get_setting(&key)
+                .map_err(stringify_app)?;
+            json_or_err(&value)
+        }
+        "get_skill" => {
+            let id = decode_string(&params, "id")?;
+            let skill = SkillsUseCase::new(pool).get(&id).map_err(stringify_app)?;
+            json_or_err(&skill)
+        }
         "get_space" => {
             let id = decode_string(&params, "id")?;
             let space = SpacesUseCase::new(pool).get(&id).map_err(stringify_app)?;
@@ -496,6 +662,11 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
             // Tauri IPC.
             let status = catique_domain::SyncStatus::default();
             json_or_err(&status)
+        }
+        "get_tag" => {
+            let id = decode_string(&params, "id")?;
+            let tag = TagsUseCase::new(pool).get(&id).map_err(stringify_app)?;
+            json_or_err(&tag)
         }
         "get_task" => {
             let id = decode_string(&params, "id")?;
@@ -516,7 +687,21 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&rating)
         }
+        "get_workflow_graph" => {
+            let space_id = decode_string(&params, "space_id")?;
+            let payload = SpacesUseCase::new(pool)
+                .get_workflow_graph(&space_id)
+                .map_err(stringify_app)?;
+            json_or_err(&payload)
+        }
         // -------- list reads --------
+        "list_agent_reports" => {
+            let task_id = decode_optional_string(&params, "task_id");
+            let reports = ReportsUseCase::new(pool)
+                .list(task_id)
+                .map_err(stringify_app)?;
+            json_or_err(&reports)
+        }
         "list_attachments" => {
             let task_id = decode_optional_string(&params, "task_id");
             let attachments = AttachmentsUseCase::new(pool)
@@ -538,6 +723,21 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&rows)
         }
+        "list_mcp_servers" => {
+            let servers = McpServersUseCase::new(pool).list().map_err(stringify_app)?;
+            json_or_err(&servers)
+        }
+        "list_mcp_tools" => {
+            let tools = McpToolsUseCase::new(pool).list().map_err(stringify_app)?;
+            json_or_err(&tools)
+        }
+        "list_mcp_tools_by_server" => {
+            let server_id = decode_string(&params, "server_id")?;
+            let tools = McpServersUseCase::new(pool)
+                .list_tools_by_server(&server_id)
+                .map_err(stringify_app)?;
+            json_or_err(&tools)
+        }
         "list_prompt_group_members" => {
             let group_id = decode_string(&params, "group_id")?;
             let members = PromptGroupsUseCase::new(pool)
@@ -551,12 +751,47 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&groups)
         }
+        "list_prompt_tags_map" => {
+            let entries = TagsUseCase::new(pool)
+                .list_tag_map()
+                .map_err(stringify_app)?;
+            json_or_err(&entries)
+        }
         "list_prompts" => {
             let prompts = PromptsUseCase::new(pool).list().map_err(stringify_app)?;
             json_or_err(&prompts)
         }
         "list_proxied_tools" => list_proxied_tools_arm(pool),
+        "list_role_mcp_tools" => {
+            let role_id = decode_string(&params, "role_id")?;
+            let tools = McpToolsUseCase::new(pool)
+                .list_for_role(&role_id)
+                .map_err(stringify_app)?;
+            json_or_err(&tools)
+        }
+        "list_role_skills" => {
+            let role_id = decode_string(&params, "role_id")?;
+            let skills = SkillsUseCase::new(pool)
+                .list_for_role(&role_id)
+                .map_err(stringify_app)?;
+            json_or_err(&skills)
+        }
         "list_role_tags" => list_role_tags_arm(pool, &params),
+        "list_roles" => {
+            let roles = RolesUseCase::new(pool).list().map_err(stringify_app)?;
+            json_or_err(&roles)
+        }
+        "list_skill_attachments" => {
+            let skill_id = decode_string(&params, "skill_id")?;
+            let attachments = SkillsUseCase::new(pool)
+                .list_attachments(&skill_id)
+                .map_err(stringify_app)?;
+            json_or_err(&attachments)
+        }
+        "list_skills" => {
+            let skills = SkillsUseCase::new(pool).list().map_err(stringify_app)?;
+            json_or_err(&skills)
+        }
         "list_space_prompts" => {
             let space_id = decode_string(&params, "space_id")?;
             let prompts = SpacesUseCase::new(pool)
@@ -571,6 +806,10 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
         "list_supported_providers" => {
             let providers = ConnectedProvidersUseCase::new(pool).list_supported();
             json_or_err(&providers)
+        }
+        "list_tags" => {
+            let tags = TagsUseCase::new(pool).list().map_err(stringify_app)?;
+            json_or_err(&tags)
         }
         "list_task_mcp_tools" => {
             let task_id = decode_string(&params, "task_id")?;
@@ -626,6 +865,11 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "remove_prompt_tag" => remove_prompt_tag_arm(pool, &params),
+        "remove_role_mcp_tool" => remove_role_mcp_tool_arm(pool, &params),
+        "remove_role_prompt" => remove_role_prompt_arm(pool, &params),
+        "remove_role_skill" => remove_role_skill_arm(pool, &params),
+        "remove_skill_attachment" => remove_skill_attachment_arm(pool, &params),
         "remove_space_prompt" => {
             let space_id = decode_string(&params, "space_id")?;
             let prompt_id = decode_string(&params, "prompt_id")?;
@@ -760,6 +1004,22 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "set_role_prompts" => {
+            let role_id = decode_string(&params, "role_id")?;
+            let prompt_ids = decode_string_array(&params, "prompt_ids")?;
+            RolesUseCase::new(pool)
+                .set_role_prompts(role_id, prompt_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "set_setting" => {
+            let key = decode_string(&params, "key")?;
+            let value = decode_string(&params, "value")?;
+            SettingsUseCase::new(pool)
+                .set_setting(&key, &value)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "set_space_mcp_tools" => {
             let space_id = decode_string(&params, "space_id")?;
             let mcp_tool_ids = decode_string_array(&params, "mcp_tool_ids")?;
@@ -784,8 +1044,35 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "set_tag_prompts" => {
+            let tag_id = decode_string(&params, "tag_id")?;
+            let prompt_ids = decode_string_array(&params, "prompt_ids")?;
+            TagsUseCase::new(pool)
+                .set_tag_prompts(tag_id, prompt_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "set_task_prompt_override" => set_task_prompt_override_arm(pool, &params),
+        "set_workflow_graph" => {
+            let space_id = decode_string(&params, "space_id")?;
+            let json_payload = decode_string(&params, "json")?;
+            SpacesUseCase::new(pool)
+                .set_workflow_graph(space_id, json_payload)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         // -------- updates --------
+        "update_agent_report" => {
+            let id = decode_string(&params, "id")?;
+            let kind = decode_optional_string(&params, "kind");
+            let title = decode_optional_string(&params, "title");
+            let content = decode_optional_string(&params, "content");
+            let author = decode_tri_state_string(&params, "author");
+            let report = ReportsUseCase::new(pool)
+                .update(id, kind, title, content, author)
+                .map_err(stringify_app)?;
+            json_or_err(&report)
+        }
         "update_attachment" => {
             let id = decode_string(&params, "id")?;
             let filename = decode_optional_string(&params, "filename");
@@ -804,6 +1091,19 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .update(id, name, position, role_id)
                 .map_err(stringify_app)?;
             json_or_err(&column)
+        }
+        "update_mcp_server" => update_mcp_server_arm(pool, &params),
+        "update_mcp_tool" => {
+            let id = decode_string(&params, "id")?;
+            let name = decode_optional_string(&params, "name");
+            let description = decode_tri_state_string(&params, "description");
+            let schema_json = decode_optional_string(&params, "schema_json");
+            let color = decode_tri_state_string(&params, "color");
+            let position = decode_optional_f64(&params, "position");
+            let tool = McpToolsUseCase::new(pool)
+                .update(id, name, description, schema_json, color, position)
+                .map_err(stringify_app)?;
+            json_or_err(&tool)
         }
         "update_prompt" => {
             let id = decode_string(&params, "id")?;
@@ -829,6 +1129,28 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&group)
         }
+        "update_role" => {
+            let id = decode_string(&params, "id")?;
+            let name = decode_optional_string(&params, "name");
+            let content = decode_optional_string(&params, "content");
+            let color = decode_tri_state_string(&params, "color");
+            let icon = decode_tri_state_string(&params, "icon");
+            let role = RolesUseCase::new(pool)
+                .update(id, name, content, color, icon)
+                .map_err(stringify_app)?;
+            json_or_err(&role)
+        }
+        "update_skill" => {
+            let id = decode_string(&params, "id")?;
+            let name = decode_optional_string(&params, "name");
+            let description = decode_tri_state_string(&params, "description");
+            let color = decode_tri_state_string(&params, "color");
+            let position = decode_optional_f64(&params, "position");
+            let skill = SkillsUseCase::new(pool)
+                .update(id, name, description, color, position)
+                .map_err(stringify_app)?;
+            json_or_err(&skill)
+        }
         "update_space" => {
             let args = UpdateSpaceArgs {
                 id: decode_string(&params, "id")?,
@@ -844,6 +1166,15 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .update(args)
                 .map_err(stringify_app)?;
             json_or_err(&space)
+        }
+        "update_tag" => {
+            let id = decode_string(&params, "id")?;
+            let name = decode_optional_string(&params, "name");
+            let color = decode_tri_state_string(&params, "color");
+            let tag = TagsUseCase::new(pool)
+                .update(id, name, color)
+                .map_err(stringify_app)?;
+            json_or_err(&tag)
         }
         "update_task" => {
             let id = decode_string(&params, "id")?;
@@ -1402,6 +1733,325 @@ fn mime_from_ext_bridge(path: &std::path::Path) -> &'static str {
         "csv" => "text/csv",
         "zip" => "application/zip",
         _ => "application/octet-stream",
+    }
+}
+
+// ---------------------------------------------------------------------
+// MCP-EXPAND-A arms — roles / skills / mcp tools+servers / agent reports /
+// tags / settings / workflow. Each helper mirrors the corresponding
+// Tauri handler in `handlers::*` minus the event emit (events are a UI
+// concern; agents observe results through the returned JSON row).
+// ---------------------------------------------------------------------
+
+/// Mirrors `handlers::tags::add_prompt_tag`. Idempotent on `(prompt_id,
+/// tag_id)`. FK violations surface as `TransactionRolledBack`.
+fn add_prompt_tag_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let prompt_id = decode_string(params, "prompt_id")?;
+    let tag_id = decode_string(params, "tag_id")?;
+    let conn = acquire(pool).map_err(|e| format!("db acquire: {e}"))?;
+    tags_repo::add_prompt_tag(&conn, &prompt_id, &tag_id).map_err(|e| format!("db: {e}"))?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::tags::remove_prompt_tag`. Returns `NotFound`
+/// when no row matched so the caller can distinguish a real detach from
+/// a no-op.
+fn remove_prompt_tag_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let prompt_id = decode_string(params, "prompt_id")?;
+    let tag_id = decode_string(params, "tag_id")?;
+    let conn = acquire(pool).map_err(|e| format!("db acquire: {e}"))?;
+    let removed =
+        tags_repo::remove_prompt_tag(&conn, &prompt_id, &tag_id).map_err(|e| format!("db: {e}"))?;
+    if !removed {
+        return Err(stringify_app(AppError::NotFound {
+            entity: "prompt_tag".into(),
+            id: format!("{prompt_id}|{tag_id}"),
+        }));
+    }
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::roles::add_role_prompt`. ADR-0006 cascade — the
+/// join insert and `task_prompts` materialisation share one immediate
+/// transaction so the resolver never observes a half-attached state.
+fn add_role_prompt_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let role_id = decode_string(params, "role_id")?;
+    let prompt_id = decode_string(params, "prompt_id")?;
+    let position = decode_f64(params, "position")?;
+    let mut conn = acquire(pool).map_err(|e| format!("db acquire: {e}"))?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| format!("db tx: {e}"))?;
+    roles_repo::add_role_prompt(&tx, &role_id, &prompt_id, position)
+        .map_err(|e| format!("db: {e}"))?;
+    cascade_prompt_attachment(
+        &tx,
+        &AttachScope::Role(role_id.clone()),
+        &prompt_id,
+        position,
+    )
+    .map_err(|e| format!("db: {e}"))?;
+    tx.commit().map_err(|e| format!("db commit: {e}"))?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::roles::remove_role_prompt`. Returns `NotFound`
+/// when no join row matched. Inherited `task_prompts` rows tagged
+/// `origin = 'role:<role_id>'` are stripped in the same transaction.
+fn remove_role_prompt_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let role_id = decode_string(params, "role_id")?;
+    let prompt_id = decode_string(params, "prompt_id")?;
+    let mut conn = acquire(pool).map_err(|e| format!("db acquire: {e}"))?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| format!("db tx: {e}"))?;
+    let removed = roles_repo::remove_role_prompt(&tx, &role_id, &prompt_id)
+        .map_err(|e| format!("db: {e}"))?;
+    if !removed {
+        return Err(stringify_app(AppError::NotFound {
+            entity: "role_prompt".into(),
+            id: format!("{role_id}|{prompt_id}"),
+        }));
+    }
+    cascade_prompt_detachment(&tx, &AttachScope::Role(role_id.clone()), &prompt_id)
+        .map_err(|e| format!("db: {e}"))?;
+    tx.commit().map_err(|e| format!("db commit: {e}"))?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::roles::add_role_skill`. ctq-121 cascade variant —
+/// the join insert plus `task_skills` materialisation share one
+/// immediate transaction.
+fn add_role_skill_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let role_id = decode_string(params, "role_id")?;
+    let skill_id = decode_string(params, "skill_id")?;
+    let position = decode_f64(params, "position")?;
+    let mut conn = acquire(pool).map_err(|e| format!("db acquire: {e}"))?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| format!("db tx: {e}"))?;
+    roles_repo::add_role_skill(&tx, &role_id, &skill_id, position)
+        .map_err(|e| format!("db: {e}"))?;
+    cascade_skill_attachment(
+        &tx,
+        &AttachScope::Role(role_id.clone()),
+        &skill_id,
+        position,
+    )
+    .map_err(|e| format!("db: {e}"))?;
+    tx.commit().map_err(|e| format!("db commit: {e}"))?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::roles::remove_role_skill`. Returns `NotFound`
+/// when no join row matched.
+fn remove_role_skill_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let role_id = decode_string(params, "role_id")?;
+    let skill_id = decode_string(params, "skill_id")?;
+    let mut conn = acquire(pool).map_err(|e| format!("db acquire: {e}"))?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| format!("db tx: {e}"))?;
+    let removed =
+        roles_repo::remove_role_skill(&tx, &role_id, &skill_id).map_err(|e| format!("db: {e}"))?;
+    if !removed {
+        return Err(stringify_app(AppError::NotFound {
+            entity: "role_skill".into(),
+            id: format!("{role_id}|{skill_id}"),
+        }));
+    }
+    cascade_skill_detachment(&tx, &AttachScope::Role(role_id.clone()), &skill_id)
+        .map_err(|e| format!("db: {e}"))?;
+    tx.commit().map_err(|e| format!("db commit: {e}"))?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::roles::add_role_mcp_tool`. ctq-121 cascade
+/// variant.
+fn add_role_mcp_tool_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let role_id = decode_string(params, "role_id")?;
+    let mcp_tool_id = decode_string(params, "mcp_tool_id")?;
+    let position = decode_f64(params, "position")?;
+    let mut conn = acquire(pool).map_err(|e| format!("db acquire: {e}"))?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| format!("db tx: {e}"))?;
+    roles_repo::add_role_mcp_tool(&tx, &role_id, &mcp_tool_id, position)
+        .map_err(|e| format!("db: {e}"))?;
+    cascade_mcp_tool_attachment(
+        &tx,
+        &AttachScope::Role(role_id.clone()),
+        &mcp_tool_id,
+        position,
+    )
+    .map_err(|e| format!("db: {e}"))?;
+    tx.commit().map_err(|e| format!("db commit: {e}"))?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::roles::remove_role_mcp_tool`. Returns `NotFound`
+/// when no join row matched.
+fn remove_role_mcp_tool_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let role_id = decode_string(params, "role_id")?;
+    let mcp_tool_id = decode_string(params, "mcp_tool_id")?;
+    let mut conn = acquire(pool).map_err(|e| format!("db acquire: {e}"))?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| format!("db tx: {e}"))?;
+    let removed = roles_repo::remove_role_mcp_tool(&tx, &role_id, &mcp_tool_id)
+        .map_err(|e| format!("db: {e}"))?;
+    if !removed {
+        return Err(stringify_app(AppError::NotFound {
+            entity: "role_mcp_tool".into(),
+            id: format!("{role_id}|{mcp_tool_id}"),
+        }));
+    }
+    cascade_mcp_tool_detachment(&tx, &AttachScope::Role(role_id.clone()), &mcp_tool_id)
+        .map_err(|e| format!("db: {e}"))?;
+    tx.commit().map_err(|e| format!("db commit: {e}"))?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::skills::delete_skill`. Scrubs the per-skill blob
+/// directory under `<app_data>/skills/<id>` after the row is deleted.
+fn delete_skill_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let id = decode_string(params, "id")?;
+    let data_root = app_data_dir().map_err(|reason| {
+        stringify_app(AppError::Validation {
+            field: "target_data_dir".into(),
+            reason: reason.to_owned(),
+        })
+    })?;
+    SkillsUseCase::new(pool)
+        .delete_with_blobs(&id, &data_root)
+        .map_err(stringify_app)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::skills::add_skill_file_attachment`. The blob is
+/// sent as standard base64 over the wire — we decode here and hand
+/// raw bytes to the use case so the size cap and atomic-write logic
+/// stay in one place.
+fn add_skill_file_attachment_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+    let skill_id = decode_string(params, "skill_id")?;
+    let filename = decode_string(params, "filename")?;
+    let mime_type = decode_string(params, "mime_type")?;
+    let base64_bytes = decode_string(params, "base64_bytes")?;
+    let bytes = BASE64.decode(base64_bytes.as_bytes()).map_err(|e| {
+        stringify_app(AppError::Validation {
+            field: "base64_bytes".into(),
+            reason: format!("not valid base64: {e}"),
+        })
+    })?;
+    let data_root = app_data_dir().map_err(|reason| {
+        stringify_app(AppError::Validation {
+            field: "target_data_dir".into(),
+            reason: reason.to_owned(),
+        })
+    })?;
+    let att = SkillsUseCase::new(pool)
+        .add_file_attachment(&skill_id, filename, mime_type, bytes, &data_root)
+        .map_err(stringify_app)?;
+    json_or_err(&att)
+}
+
+/// Mirrors `handlers::skills::add_skill_git_attachment`. Git URL is
+/// validated server-side; raw tokens MUST NOT be passed here — auth
+/// belongs in the user's local git config / SSH keys.
+fn add_skill_git_attachment_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let skill_id = decode_string(params, "skill_id")?;
+    let git_url = decode_string(params, "git_url")?;
+    let git_ref = decode_optional_string(params, "git_ref");
+    let git_path = decode_optional_string(params, "git_path");
+    let att = SkillsUseCase::new(pool)
+        .add_git_attachment(&skill_id, git_url, git_ref, git_path)
+        .map_err(stringify_app)?;
+    json_or_err(&att)
+}
+
+/// Mirrors `handlers::skills::remove_skill_attachment`. Removes both
+/// the metadata row AND the on-disk blob (file-kind only).
+fn remove_skill_attachment_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let attachment_id = decode_string(params, "attachment_id")?;
+    let data_root = app_data_dir().map_err(|reason| {
+        stringify_app(AppError::Validation {
+            field: "target_data_dir".into(),
+            reason: reason.to_owned(),
+        })
+    })?;
+    SkillsUseCase::new(pool)
+        .remove_attachment(&attachment_id, &data_root)
+        .map_err(stringify_app)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Mirrors `handlers::mcp_servers::create_mcp_server` minus the
+/// best-effort introspect-on-create (that requires the live wire and
+/// belongs in the async pre-arm path). The MCP surface caller can
+/// follow up with `refresh_mcp_server` to populate the upstream tool
+/// inventory.
+fn create_mcp_server_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let name = decode_string(params, "name")?;
+    let transport = decode_transport(params, "transport")?;
+    let url = decode_optional_string(params, "url");
+    let command = decode_optional_string(params, "command");
+    let auth_json = decode_optional_string(params, "auth_json");
+    let enabled = params
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let server = McpServersUseCase::new(pool)
+        .create(name, transport, url, command, auth_json, enabled)
+        .map_err(stringify_app)?;
+    json_or_err(&server)
+}
+
+/// Mirrors `handlers::mcp_servers::update_mcp_server`. Transport is
+/// optional; the use case validates the merged transport/url/command
+/// split against the schema invariant.
+fn update_mcp_server_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let id = decode_string(params, "id")?;
+    let name = decode_optional_string(params, "name");
+    let transport = decode_optional_transport(params, "transport")?;
+    let url = decode_tri_state_string(params, "url");
+    let command = decode_tri_state_string(params, "command");
+    let auth_json = decode_tri_state_string(params, "auth_json");
+    let enabled = params.get("enabled").and_then(Value::as_bool);
+    let server = McpServersUseCase::new(pool)
+        .update(id, name, transport, url, command, auth_json, enabled)
+        .map_err(stringify_app)?;
+    json_or_err(&server)
+}
+
+/// Decode a required [`Transport`] enum value. Accepts lowercase
+/// `"stdio" | "http" | "sse"` per the wire convention.
+fn decode_transport(params: &Value, field: &str) -> Result<Transport, String> {
+    let raw = decode_string(params, field)?;
+    parse_transport(&raw, field)
+}
+
+/// Optional [`Transport`] variant. Missing / null → `None`; an unknown
+/// string is a validation error so we don't silently fall back to a
+/// default.
+fn decode_optional_transport(params: &Value, field: &str) -> Result<Option<Transport>, String> {
+    match params.get(field) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(s)) => parse_transport(s, field).map(Some),
+        Some(_) => Err(format!(
+            "validation failed on `{field}`: must be one of \"stdio\", \"http\", \"sse\""
+        )),
+    }
+}
+
+fn parse_transport(raw: &str, field: &str) -> Result<Transport, String> {
+    match raw {
+        "stdio" => Ok(Transport::Stdio),
+        "http" => Ok(Transport::Http),
+        "sse" => Ok(Transport::Sse),
+        other => Err(format!(
+            "validation failed on `{field}`: unknown transport `{other}` (allowed: \"stdio\", \"http\", \"sse\")"
+        )),
     }
 }
 
@@ -1976,7 +2626,14 @@ mod tests {
         let pool = fresh_pool();
         // Names handled outside `dispatch` (async pre-arms in
         // `install`) — skip them, they're not in the sync match.
-        let async_only = ["add_provider", "remove_provider", "proxy_tool_call"];
+        // MCP-EXPAND-A added `refresh_mcp_server` to the async slot
+        // because the introspection step requires the live wire.
+        let async_only = [
+            "add_provider",
+            "remove_provider",
+            "proxy_tool_call",
+            "refresh_mcp_server",
+        ];
         for tool in parsed["tools"].as_array().unwrap() {
             let name = tool["name"].as_str().unwrap();
             if async_only.contains(&name) {
@@ -2282,5 +2939,408 @@ mod tests {
             names, sorted,
             "tool-manifest.json entries must be ordered alphabetically"
         );
+    }
+
+    // -----------------------------------------------------------------
+    // MCP-EXPAND-A smoke tests — roles / skills / mcp tools+servers /
+    // agent reports / tags / settings / workflow dispatch arms. One
+    // happy-path round-trip per sub-domain plus a couple of
+    // contract-bearing edge cases. Follows the B+C pattern.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn dispatch_create_role_round_trips_and_lists() {
+        let pool = fresh_pool();
+        let role = dispatch(
+            &pool,
+            "create_role",
+            json!({"name": "Reviewer", "content": "Body"}),
+        )
+        .expect("create_role");
+        let id = role["id"].as_str().unwrap().to_owned();
+        assert_eq!(role["name"], "Reviewer");
+
+        let got = dispatch(&pool, "get_role", json!({"id": id.clone()})).expect("get_role");
+        assert_eq!(got["content"], "Body");
+
+        let listed = dispatch(&pool, "list_roles", json!({})).expect("list_roles");
+        let arr = listed.as_array().unwrap();
+        assert!(arr.iter().any(|r| r["id"] == id));
+    }
+
+    #[test]
+    fn dispatch_delete_role_refuses_system_row_with_forbidden() {
+        // Migration `004_cat_as_agent_phase1.sql` seeds
+        // `maintainer-system` as `is_system = 1`. The use-case guard
+        // must surface a typed Forbidden envelope.
+        let pool = fresh_pool();
+        let err = dispatch(&pool, "delete_role", json!({"id": "maintainer-system"}))
+            .expect_err("forbidden");
+        let parsed: serde_json::Value = serde_json::from_str(&err).expect("AppError envelope");
+        assert_eq!(parsed["error"]["kind"], "forbidden");
+    }
+
+    #[test]
+    fn dispatch_create_skill_then_attach_and_remove_git_attachment() {
+        let pool = fresh_pool();
+        let skill = dispatch(
+            &pool,
+            "create_skill",
+            json!({"name": "Rust", "position": 0.0}),
+        )
+        .expect("create_skill");
+        let skill_id = skill["id"].as_str().unwrap().to_owned();
+
+        let att = dispatch(
+            &pool,
+            "add_skill_git_attachment",
+            json!({"skill_id": skill_id.clone(), "git_url": "https://example.com/repo.git"}),
+        )
+        .expect("add_skill_git_attachment");
+        let att_id = att["id"].as_str().unwrap().to_owned();
+
+        let listed = dispatch(
+            &pool,
+            "list_skill_attachments",
+            json!({"skill_id": skill_id}),
+        )
+        .expect("list_skill_attachments");
+        assert_eq!(listed.as_array().unwrap().len(), 1);
+
+        dispatch(
+            &pool,
+            "remove_skill_attachment",
+            json!({"attachment_id": att_id}),
+        )
+        .expect("remove_skill_attachment");
+    }
+
+    #[test]
+    fn dispatch_create_mcp_tool_then_list_and_delete() {
+        let pool = fresh_pool();
+        let tool = dispatch(
+            &pool,
+            "create_mcp_tool",
+            json!({
+                "name": "echo",
+                "schema_json": "{\"type\":\"object\"}",
+                "position": 0.0,
+            }),
+        )
+        .expect("create_mcp_tool");
+        let id = tool["id"].as_str().unwrap().to_owned();
+
+        let listed = dispatch(&pool, "list_mcp_tools", json!({})).expect("list_mcp_tools");
+        assert!(listed.as_array().unwrap().iter().any(|t| t["id"] == id));
+
+        dispatch(&pool, "delete_mcp_tool", json!({"id": id.clone()})).expect("delete_mcp_tool");
+        let err = dispatch(&pool, "get_mcp_tool", json!({"id": id}))
+            .expect_err("post-delete get_mcp_tool must fail");
+        let parsed: serde_json::Value = serde_json::from_str(&err).expect("AppError envelope");
+        assert_eq!(parsed["error"]["kind"], "notFound");
+    }
+
+    #[test]
+    fn dispatch_create_mcp_server_stdio_round_trips() {
+        let pool = fresh_pool();
+        let server = dispatch(
+            &pool,
+            "create_mcp_server",
+            json!({
+                "name": "local-echo",
+                "transport": "stdio",
+                "command": "/bin/echo",
+            }),
+        )
+        .expect("create_mcp_server");
+        let id = server["id"].as_str().unwrap().to_owned();
+        assert_eq!(server["transport"], "stdio");
+        assert_eq!(server["command"], "/bin/echo");
+
+        let got =
+            dispatch(&pool, "get_mcp_server", json!({"id": id.clone()})).expect("get_mcp_server");
+        assert_eq!(got["name"], "local-echo");
+
+        let listed = dispatch(&pool, "list_mcp_servers", json!({})).expect("list_mcp_servers");
+        assert!(listed.as_array().unwrap().iter().any(|s| s["id"] == id));
+
+        let status = dispatch(&pool, "get_mcp_server_status", json!({"id": id.clone()}))
+            .expect("get_mcp_server_status");
+        // Fresh server, never introspected → tool_count = 0,
+        // state = "unreachable" (lowercase per the rename_all).
+        assert_eq!(status["toolCount"], 0);
+        assert_eq!(status["state"], "unreachable");
+    }
+
+    #[test]
+    fn dispatch_create_mcp_server_rejects_unknown_transport() {
+        let pool = fresh_pool();
+        let err = dispatch(
+            &pool,
+            "create_mcp_server",
+            json!({"name": "x", "transport": "bogus"}),
+        )
+        .expect_err("unknown transport must fail");
+        assert!(
+            err.contains("transport"),
+            "error must mention transport: {err}"
+        );
+    }
+
+    #[test]
+    fn dispatch_create_then_update_tag_clears_color_via_null() {
+        let pool = fresh_pool();
+        let tag = dispatch(
+            &pool,
+            "create_tag",
+            json!({"name": "rust", "color": "#abcdef"}),
+        )
+        .expect("create_tag");
+        let id = tag["id"].as_str().unwrap().to_owned();
+        assert_eq!(tag["color"], "#abcdef");
+
+        let updated =
+            dispatch(&pool, "update_tag", json!({"id": id, "color": null})).expect("update_tag");
+        assert!(updated["color"].is_null());
+    }
+
+    #[test]
+    fn dispatch_add_and_remove_prompt_tag_round_trip() {
+        let pool = fresh_pool();
+        let prompt = dispatch(&pool, "create_prompt", json!({"name": "P", "content": ""})).unwrap();
+        let prompt_id = prompt["id"].as_str().unwrap().to_owned();
+        let tag = dispatch(&pool, "create_tag", json!({"name": "t1"})).unwrap();
+        let tag_id = tag["id"].as_str().unwrap().to_owned();
+
+        dispatch(
+            &pool,
+            "add_prompt_tag",
+            json!({"prompt_id": prompt_id.clone(), "tag_id": tag_id.clone()}),
+        )
+        .expect("add_prompt_tag");
+
+        let map = dispatch(&pool, "list_prompt_tags_map", json!({})).expect("list_prompt_tags_map");
+        let arr = map.as_array().unwrap();
+        let entry = arr
+            .iter()
+            .find(|e| e["promptId"] == prompt_id)
+            .expect("prompt entry");
+        let tags = entry["tagIds"].as_array().unwrap();
+        assert_eq!(tags.len(), 1);
+
+        dispatch(
+            &pool,
+            "remove_prompt_tag",
+            json!({"prompt_id": prompt_id.clone(), "tag_id": tag_id.clone()}),
+        )
+        .expect("remove_prompt_tag");
+        // Re-removing must surface NotFound — agents need to
+        // distinguish a real detach from a stale state.
+        let err = dispatch(
+            &pool,
+            "remove_prompt_tag",
+            json!({"prompt_id": prompt_id, "tag_id": tag_id}),
+        )
+        .expect_err("re-remove must fail");
+        let parsed: serde_json::Value = serde_json::from_str(&err).expect("AppError envelope");
+        assert_eq!(parsed["error"]["kind"], "notFound");
+    }
+
+    #[test]
+    fn dispatch_set_role_prompts_replaces_and_clears() {
+        let pool = fresh_pool();
+        let role = dispatch(&pool, "create_role", json!({"name": "R", "content": ""})).unwrap();
+        let role_id = role["id"].as_str().unwrap().to_owned();
+
+        let mut ids = Vec::new();
+        for n in ["P1", "P2"] {
+            let p = dispatch(&pool, "create_prompt", json!({"name": n, "content": ""})).unwrap();
+            ids.push(p["id"].as_str().unwrap().to_owned());
+        }
+        dispatch(
+            &pool,
+            "set_role_prompts",
+            json!({"role_id": role_id.clone(), "prompt_ids": ids}),
+        )
+        .expect("set_role_prompts");
+
+        // Empty list clears.
+        dispatch(
+            &pool,
+            "set_role_prompts",
+            json!({"role_id": role_id, "prompt_ids": []}),
+        )
+        .expect("set_role_prompts clear");
+    }
+
+    #[test]
+    fn dispatch_get_and_set_setting_round_trip() {
+        let pool = fresh_pool();
+        // Absent key → null.
+        let got =
+            dispatch(&pool, "get_setting", json!({"key": "selected_space"})).expect("get_setting");
+        assert!(got.is_null());
+
+        dispatch(
+            &pool,
+            "set_setting",
+            json!({"key": "selected_space", "value": "spc_1"}),
+        )
+        .expect("set_setting");
+        let got = dispatch(&pool, "get_setting", json!({"key": "selected_space"}))
+            .expect("get_setting after set");
+        assert_eq!(got, "spc_1");
+    }
+
+    #[test]
+    fn dispatch_create_then_list_agent_report() {
+        let (pool, board_id, column_id) = fresh_pool_with_board();
+        let task = dispatch(
+            &pool,
+            "create_task",
+            json!({
+                "board_id": board_id,
+                "column_id": column_id,
+                "title": "T",
+                "position": 1.0,
+            }),
+        )
+        .unwrap();
+        let task_id = task["id"].as_str().unwrap().to_owned();
+
+        let report = dispatch(
+            &pool,
+            "create_agent_report",
+            json!({
+                "task_id": task_id.clone(),
+                "kind": "progress",
+                "title": "Step 1",
+                "content": "Body",
+            }),
+        )
+        .expect("create_agent_report");
+        let report_id = report["id"].as_str().unwrap().to_owned();
+
+        let listed = dispatch(&pool, "list_agent_reports", json!({"task_id": task_id}))
+            .expect("list_agent_reports");
+        assert_eq!(listed.as_array().unwrap().len(), 1);
+
+        let got = dispatch(&pool, "get_agent_report", json!({"id": report_id.clone()}))
+            .expect("get_agent_report");
+        assert_eq!(got["title"], "Step 1");
+
+        dispatch(&pool, "delete_agent_report", json!({"id": report_id}))
+            .expect("delete_agent_report");
+    }
+
+    #[test]
+    fn dispatch_workflow_graph_round_trip_arbitrary_string() {
+        let pool = fresh_pool();
+        let space = dispatch(&pool, "create_space", json!({"name": "S", "prefix": "wf"})).unwrap();
+        let space_id = space["id"].as_str().unwrap().to_owned();
+
+        let initial = dispatch(
+            &pool,
+            "get_workflow_graph",
+            json!({"space_id": space_id.clone()}),
+        )
+        .expect("get_workflow_graph (initial)");
+        assert!(initial.is_null());
+
+        dispatch(
+            &pool,
+            "set_workflow_graph",
+            json!({"space_id": space_id.clone(), "json": "{\"nodes\":[]}"}),
+        )
+        .expect("set_workflow_graph");
+
+        let got = dispatch(&pool, "get_workflow_graph", json!({"space_id": space_id}))
+            .expect("get_workflow_graph (after set)");
+        assert_eq!(got, "{\"nodes\":[]}");
+    }
+
+    #[test]
+    fn manifest_expand_a_entries_present() {
+        // Spot-check every A sub-domain shows up. Full coverage is
+        // enforced by `manifest_arm_names_match_dispatch_table` and
+        // `manifest_is_alphabetically_sorted`; this guards against an
+        // accidental rename between dispatch arm and manifest entry.
+        let raw = include_str!("../../../../sidecar/tool-manifest.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).unwrap();
+        let names: Vec<&str> = parsed["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        for required in [
+            // roles
+            "create_role",
+            "delete_role",
+            "get_role",
+            "list_roles",
+            "update_role",
+            "add_role_prompt",
+            "add_role_skill",
+            "add_role_mcp_tool",
+            "remove_role_prompt",
+            "remove_role_skill",
+            "remove_role_mcp_tool",
+            "list_role_skills",
+            "list_role_mcp_tools",
+            "set_role_prompts",
+            // skills
+            "create_skill",
+            "delete_skill",
+            "get_skill",
+            "list_skills",
+            "update_skill",
+            "add_skill_file_attachment",
+            "add_skill_git_attachment",
+            "remove_skill_attachment",
+            "list_skill_attachments",
+            // mcp tools
+            "create_mcp_tool",
+            "delete_mcp_tool",
+            "get_mcp_tool",
+            "list_mcp_tools",
+            "update_mcp_tool",
+            // mcp servers
+            "create_mcp_server",
+            "delete_mcp_server",
+            "get_mcp_server",
+            "list_mcp_servers",
+            "update_mcp_server",
+            "refresh_mcp_server",
+            "get_mcp_server_status",
+            "list_mcp_tools_by_server",
+            // agent reports
+            "create_agent_report",
+            "delete_agent_report",
+            "get_agent_report",
+            "list_agent_reports",
+            "update_agent_report",
+            // tags
+            "create_tag",
+            "delete_tag",
+            "get_tag",
+            "list_tags",
+            "update_tag",
+            "add_prompt_tag",
+            "remove_prompt_tag",
+            "set_tag_prompts",
+            "list_prompt_tags_map",
+            // settings
+            "get_setting",
+            "set_setting",
+            // workflow
+            "get_workflow_graph",
+            "set_workflow_graph",
+        ] {
+            assert!(
+                names.contains(&required),
+                "missing manifest entry: {required}",
+            );
+        }
     }
 }

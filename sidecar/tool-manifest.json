@@ -77,6 +77,27 @@
       }
     },
     {
+      "name": "add_prompt_tag",
+      "description": "Attach one tag to one prompt. Idempotent on `(prompt_id, tag_id)` — re-adding the same pair is a no-op. Tags are flat labels (not part of the prompt-inheritance chain), so this does NOT cascade into `task_prompts`. Use `set_tag_prompts` for desired-state replacement of the full set of prompts a tag labels. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to label. FK violation surfaces as `TransactionRolledBack`.",
+            "examples": ["pmt_3Jw9XzAa2"]
+          },
+          "tag_id": {
+            "type": "string",
+            "description": "Tag id to attach. FK violation surfaces as `TransactionRolledBack`.",
+            "examples": ["tag_4HnPxGgQa"]
+          }
+        },
+        "required": ["prompt_id", "tag_id"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "add_provider",
       "description": "Connect a supported provider by id. Inserts a `connected_clients` row, runs the initial role-sync, and fires a post-add sync trigger on the orchestrator so any concurrent mutations land too. If the initial sync fails the row still lands (with `connection_status = error`) so the user can retry. Idempotency: calling twice for the same id returns `Conflict`. Use `list_supported_providers` first to discover valid ids. Returns the freshly-inserted ConnectedClient row.",
       "inputSchema": {
@@ -89,6 +110,31 @@
           }
         },
         "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "add_role_mcp_tool",
+      "description": "Attach an MCP tool to a role at the given float position. ctq-121 cascade: the join insert and the materialised `task_mcp_tools` rows (origin `role:<role_id>`) commit in one immediate transaction so the resolver never observes a half-attached state. Every task whose `role_id = role_id` ends up with one inherited row tagged with this role; direct attachments survive. Idempotent on `(role_id, mcp_tool_id)` — re-add updates the position. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "Role (Cat) id to attach to. NotFound on unknown id.",
+            "examples": ["rol_8KaXzPcRa"]
+          },
+          "mcp_tool_id": {
+            "type": "string",
+            "description": "MCP tool id to attach.",
+            "examples": ["mt_LkP8gQa7"]
+          },
+          "position": {
+            "type": "number",
+            "description": "Float ordering slot within the role's tool list. Lower values render first."
+          }
+        },
+        "required": ["role_id", "mcp_tool_id", "position"],
         "additionalProperties": false
       }
     },
@@ -119,6 +165,112 @@
           }
         },
         "required": ["role_id", "body", "tags"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "add_role_prompt",
+      "description": "Attach a prompt to a role at the given float position. ADR-0006 cascade: the join insert plus a materialised `task_prompts` row (origin `role:<role_id>`) per task on this role commit in one immediate transaction. Inherited rows survive task moves between columns/boards; direct attachments override. Idempotent on `(role_id, prompt_id)`. Returns void; use `list_role_tags` or query `role_prompts` to inspect the current set.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "Role id to attach to. NotFound on unknown id.",
+            "examples": ["rol_8KaXzPcRa"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to attach.",
+            "examples": ["pmt_3Jw9XzAa2"]
+          },
+          "position": {
+            "type": "number",
+            "description": "Float ordering slot within the role's prompt list. Lower values render first."
+          }
+        },
+        "required": ["role_id", "prompt_id", "position"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "add_role_skill",
+      "description": "Attach a skill to a role at the given float position. ctq-121 cascade: the join insert plus a materialised `task_skills` row (origin `role:<role_id>`) per task on this role commit in one immediate transaction. The resolver never sees a half-attached state. Idempotent on `(role_id, skill_id)` — re-add updates the position. Direct task-level skill attachments survive. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "Role id to attach to. NotFound on unknown id.",
+            "examples": ["rol_8KaXzPcRa"]
+          },
+          "skill_id": {
+            "type": "string",
+            "description": "Skill id to attach.",
+            "examples": ["sk_RtY7nBxA1"]
+          },
+          "position": {
+            "type": "number",
+            "description": "Float ordering slot within the role's skill list. Lower values render first."
+          }
+        },
+        "required": ["role_id", "skill_id", "position"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "add_skill_file_attachment",
+      "description": "Upload a file blob and attach it to a skill as a SkillAttachment. The blob bytes are sent as standard base64; the server decodes, enforces a 10 MiB size cap, writes atomically under `<app_data>/skills/<skill_id>/`, and inserts the metadata row. On insert failure the partially-written blob is removed so no orphan survives. Returns the freshly-inserted SkillAttachment row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skill_id": {
+            "type": "string",
+            "description": "Skill id to attach to. NotFound on unknown id.",
+            "examples": ["sk_RtY7nBxA1"]
+          },
+          "filename": {
+            "type": "string",
+            "description": "Display filename. Sanitised for FS safety server-side."
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "MIME type for the blob. Non-empty after trim."
+          },
+          "base64_bytes": {
+            "type": "string",
+            "description": "Standard base64-encoded blob bytes. Decode failures surface as `Validation`. Decoded payload size ≤ 10 MiB."
+          }
+        },
+        "required": ["skill_id", "filename", "mime_type", "base64_bytes"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "add_skill_git_attachment",
+      "description": "Attach a git URL reference to a skill (no clone is performed server-side — the URL is metadata only). Raw access tokens MUST NOT be passed inline; rely on the user's local git config / SSH agent. `git_ref` and `git_path` narrow the reference to a branch/tag/commit and a sub-path respectively. Returns the freshly-inserted SkillAttachment row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skill_id": {
+            "type": "string",
+            "description": "Skill id to attach to. NotFound on unknown id.",
+            "examples": ["sk_RtY7nBxA1"]
+          },
+          "git_url": {
+            "type": "string",
+            "description": "Any URL scheme parseable by the standard URL crate (https, ssh, file). Empty / unparseable strings surface as `Validation`."
+          },
+          "git_ref": {
+            "type": "string",
+            "description": "Optional branch / tag / commit SHA. Empty string is normalised to `null`."
+          },
+          "git_path": {
+            "type": "string",
+            "description": "Optional sub-path inside the repo. Empty string is normalised to `null`."
+          }
+        },
+        "required": ["skill_id", "git_url"],
         "additionalProperties": false
       }
     },
@@ -243,6 +395,38 @@
       }
     },
     {
+      "name": "create_agent_report",
+      "description": "Insert one agent report row attached to a task. Reports are the canonical surface for an agent to log its findings, results, and post-mortems against a task — every report is rendered in the task detail view and indexed for `search_agent_reports`. Author guard is intentionally off in v1: any caller can write any report (tracked as audit F-13). Returns the freshly-inserted AgentReport row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Task the report belongs to. NotFound when unknown.",
+            "examples": ["tsk_5kFbPzCa1"]
+          },
+          "kind": {
+            "type": "string",
+            "description": "Short kind tag — agent-defined taxonomy (e.g. `progress`, `result`, `post-mortem`, `error`). Non-empty after trim."
+          },
+          "title": {
+            "type": "string",
+            "description": "Display title. Non-empty after trim."
+          },
+          "content": {
+            "type": "string",
+            "description": "Full report body. Markdown allowed; no length cap server-side."
+          },
+          "author": {
+            "type": "string",
+            "description": "Optional author label — typically the role / agent identifier (e.g. `claude-code`). Free-form; not validated against any taxonomy."
+          }
+        },
+        "required": ["task_id", "kind", "title", "content"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "create_attachment",
       "description": "Insert an attachment metadata row for a task. Metadata-only — the caller is expected to have already written the blob under `<app_data>/attachments/<task_id>/<storage_path>`. Prefer `upload_attachment_blob` (base64 wire payload) or `upload_attachment` (path-based) when the agent does not own the on-disk write. Returns the freshly-inserted Attachment row.",
       "inputSchema": {
@@ -299,6 +483,73 @@
           }
         },
         "required": ["board_id", "name", "position"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "create_mcp_server",
+      "description": "Register an upstream MCP server in the local registry. ADR-0007/ADR-0008: this row stores ONLY connection metadata — raw tokens MUST NOT be written here. `auth_json`, when supplied, must be the JSON encoding of an auth-reference (`{\"type\":\"keychain\"|\"env\",\"key\":\"...\"}`); the secret value itself lives in the OS keychain or env. The transport/url/command split is validated: `stdio` requires `command` (no `url`), `http`/`sse` require `url` (no `command`). The MCP-surface caller can follow up with `refresh_mcp_server` to populate the upstream tool inventory.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name. Non-empty after trim. Conflict on UNIQUE(name)."
+          },
+          "transport": {
+            "type": "string",
+            "enum": ["stdio", "http", "sse"],
+            "description": "Wire transport. `stdio` ⇒ subprocess by `command`; `http`/`sse` ⇒ remote endpoint by `url`."
+          },
+          "url": {
+            "type": "string",
+            "description": "Endpoint URL for `http`/`sse` transports. MUST be omitted for `stdio`."
+          },
+          "command": {
+            "type": "string",
+            "description": "Command line for `stdio` transport. MUST be omitted for `http`/`sse`."
+          },
+          "auth_json": {
+            "type": "string",
+            "description": "Optional auth-reference JSON (NEVER a raw token). Shape: `{\"type\":\"keychain\",\"key\":\"...\"}` or `{\"type\":\"env\",\"key\":\"...\"}`."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the server participates in proxying / tool listing. Defaults to `true` when omitted."
+          }
+        },
+        "required": ["name", "transport"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "create_mcp_tool",
+      "description": "Define a manual MCP tool (source = `manual`). For upstream-proxied tools, use `refresh_mcp_server` to introspect — manual rows are an escape hatch for tools that cannot self-describe. `schema_json` must be valid JSON; it's persisted verbatim and surfaced back to the agent on `tools/list`. Returns the freshly-inserted McpTool row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name. Non-empty after trim. Conflict on UNIQUE(name)."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional one-line summary; rendered in the agent's tool picker."
+          },
+          "schema_json": {
+            "type": "string",
+            "description": "JSON Schema for the tool's args, serialised as a string. Validation: must parse as JSON; structural validation against the JSON Schema meta-schema is the caller's responsibility."
+          },
+          "color": {
+            "type": "string",
+            "description": "Optional hex / named colour for UI accents. Validated against the project palette."
+          },
+          "position": {
+            "type": "number",
+            "description": "Float ordering slot in the global tool list."
+          }
+        },
+        "required": ["name", "schema_json", "position"],
         "additionalProperties": false
       }
     },
@@ -366,6 +617,60 @@
       }
     },
     {
+      "name": "create_role",
+      "description": "Create one role (Cat). Roles own boards, materialise prompts/skills/MCP tools into their tasks via ADR-0006 inheritance, and carry a personal memory store (`role_notes`). System roles seeded by migrations are not creatable here — those exist purely for system bookkeeping. Returns the freshly-inserted Role row. Conflict on UNIQUE(name).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name. Non-empty after trim. Conflict on UNIQUE(name)."
+          },
+          "content": {
+            "type": "string",
+            "description": "Role-file body (Markdown). Injected at the top of every prompt resolver for tasks owned by this role. May be empty."
+          },
+          "color": {
+            "type": "string",
+            "description": "Optional hex / named colour for UI accents."
+          },
+          "icon": {
+            "type": "string",
+            "description": "Optional icon name from the IconColorPicker palette."
+          }
+        },
+        "required": ["name", "content"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "create_skill",
+      "description": "Create one skill. Skills are reusable knowledge units (e.g. \"Rust\", \"PostgreSQL\") that can be attached to roles/boards/columns/tasks via ADR-0006 inheritance. SKILL-S10 lets a skill carry file or git-URL attachments via `add_skill_file_attachment` / `add_skill_git_attachment`. Returns the freshly-inserted Skill row. Conflict on UNIQUE(name).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name. Non-empty after trim. Conflict on UNIQUE(name)."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional one-line summary; rendered in the picker."
+          },
+          "color": {
+            "type": "string",
+            "description": "Optional hex / named colour for UI accents."
+          },
+          "position": {
+            "type": "number",
+            "description": "Float ordering slot in the global skill list."
+          }
+        },
+        "required": ["name", "position"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "create_space",
       "description": "Create a new space. Provisions one default board + default column atomically (rolls back the space row on failure). `prefix` must match `[a-z0-9-]{1,10}` and be UNIQUE workspace-wide. Returns the freshly-inserted Space row.",
       "inputSchema": {
@@ -405,6 +710,25 @@
       }
     },
     {
+      "name": "create_tag",
+      "description": "Create one tag. Tags are flat labels used to filter prompts in the FE's PromptsTagFilter — they are NOT part of the prompt-inheritance chain. The `prompt_tags` join is managed via `add_prompt_tag` / `remove_prompt_tag` / `set_tag_prompts`. Returns the freshly-inserted Tag row. Conflict on UNIQUE(name).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name. Non-empty after trim. Conflict on UNIQUE(name)."
+          },
+          "color": {
+            "type": "string",
+            "description": "Optional hex / named colour for UI accents."
+          }
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "create_task",
       "description": "Insert a new task on `(board_id, column_id)`. Slug generation is server-side (`<space-prefix>-<sequential-int>`). `role_id` optionally pins a Cat-style owning role at the task level; if omitted, the resolver falls back to column → board → space. Returns the freshly-inserted Task row.",
       "inputSchema": {
@@ -438,6 +762,22 @@
           }
         },
         "required": ["board_id", "column_id", "title", "position"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "delete_agent_report",
+      "description": "Delete one agent report row by id. Author guard is intentionally off in v1: any caller can delete any report (tracked as audit F-13). NotFound when id is unknown. Idempotency: callers should treat a NotFound as a recoverable race rather than a hard error.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Report id to delete. NotFound when unknown.",
+            "examples": ["rep_9KaB12LpQ"]
+          }
+        },
+        "required": ["id"],
         "additionalProperties": false
       }
     },
@@ -490,6 +830,38 @@
       }
     },
     {
+      "name": "delete_mcp_server",
+      "description": "Delete one MCP server row by id. Cascades through `mcp_server_tools` so every linked tool is removed too. NotFound when id is unknown. The server's keychain entry (if any) is NOT auto-removed — callers that need a full secret scrub must drop the keychain entry separately.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "MCP server id to delete. NotFound when unknown.",
+            "examples": ["srv_3KpQ8wRzC"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "delete_mcp_tool",
+      "description": "Delete one MCP tool row by id. Cascades through every join (`role_mcp_tools`, `board_mcp_tools`, `column_mcp_tools`, `space_mcp_tools`, `task_mcp_tools`) so no orphan rows survive. NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "MCP tool id to delete. NotFound when unknown.",
+            "examples": ["mt_LkP8gQa7"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "delete_prompt",
       "description": "Delete a prompt. Cascades through every join table (board_prompts, column_prompts, space_prompts, role_prompts, prompt_group_members, task_prompts). NotFound when id is unknown. Returns void.",
       "inputSchema": {
@@ -522,6 +894,38 @@
       }
     },
     {
+      "name": "delete_role",
+      "description": "Delete one role (Cat) by id. Two pre-checks guard against orphaning data: (1) `is_system` rows seeded by migration are immutable (`Forbidden`); (2) a role still owning at least one board returns `Conflict` with a reassign-first message — re-target those boards via `set_board_owner` before retrying. NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Role id to delete. NotFound when unknown.",
+            "examples": ["rol_8KaXzPcRa"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "delete_skill",
+      "description": "Delete one skill by id. Cascades through every `*_skills` join AND scrubs the per-skill blob directory (`<app_data>/skills/<id>/`) so file attachments don't outlive their parent. The blob scrub is best-effort: an I/O error after the row is deleted surfaces as `TransactionRolledBack` (the DB part already committed). NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Skill id to delete. NotFound when unknown.",
+            "examples": ["sk_RtY7nBxA1"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "delete_space",
       "description": "Delete a space and every board/column/task it owns (cascading FK rules apply inside one transaction). NotFound when id is unknown. The default space cannot be deleted while it is marked default — flip another space to default first. Returns void.",
       "inputSchema": {
@@ -538,6 +942,22 @@
       }
     },
     {
+      "name": "delete_tag",
+      "description": "Delete one tag by id. Cascades through `prompt_tags` so every prompt currently labelled with this tag loses the label atomically. Tags are not part of the inheritance chain — no `task_prompts` cascade fires. NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Tag id to delete. NotFound when unknown.",
+            "examples": ["tag_4HnPxGgQa"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "delete_task",
       "description": "Delete a task. Cascades `task_attachments` rows via FK rules AND removes the per-task on-disk attachment directory under `<app_data>/attachments/<task_id>/`. The filesystem half is best-effort — a missing or unreadable directory is logged but does not fail the call. NotFound when id is unknown. Returns void.",
       "inputSchema": {
@@ -547,6 +967,22 @@
             "type": "string",
             "description": "Task id to delete.",
             "examples": ["tsk_5kFbPzCa1"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_agent_report",
+      "description": "Look up one agent report by id. Returns the full row including `content` (Markdown body) and the `kind`/`author` metadata. NotFound when the id is unknown. Use `search_agent_reports` for content-keyed lookup; use `list_agent_reports` with a `task_id` filter for the per-task report list.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Report id to fetch. NotFound when unknown.",
+            "examples": ["rep_9KaB12LpQ"]
           }
         },
         "required": ["id"],
@@ -602,6 +1038,54 @@
       }
     },
     {
+      "name": "get_mcp_server",
+      "description": "Look up one MCP server registry row by id. Returns the full row including `transport` / `url` / `command` / `auth_json` (the LATTER is an auth-reference — NEVER a resolved secret). NotFound when id is unknown. For the live health snapshot, call `get_mcp_server_status`.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "MCP server id to fetch. NotFound when unknown.",
+            "examples": ["srv_3KpQ8wRzC"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_mcp_server_status",
+      "description": "Live status snapshot for one MCP server (PROXY-S6 health dot). Returns `state` (Healthy | Degraded | Unreachable), the tool count, the last introspection timestamp, and the outcome of the last call. `Unreachable` when no upstream tool was ever introspected OR the server is disabled; `Degraded` when the most recent call failed; `Healthy` otherwise. NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "MCP server id. NotFound when unknown.",
+            "examples": ["srv_3KpQ8wRzC"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_mcp_tool",
+      "description": "Look up one MCP tool row by id. Returns the full row including `schema_json` (JSON Schema for the tool's args, serialised as a string) and the `source` discriminator (`manual` vs `upstream`). NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "MCP tool id to fetch. NotFound when unknown.",
+            "examples": ["mt_LkP8gQa7"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "get_prompt",
       "description": "Look up a single prompt by id. Returns the full Prompt row including `examples`, `token_count`, `color`, `icon`, and timestamps. NotFound when id is unknown.",
       "inputSchema": {
@@ -627,6 +1111,53 @@
             "type": "string",
             "description": "Prompt group id.",
             "examples": ["grp_9KaB12LpQ"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_role",
+      "description": "Look up one role (Cat) by id. Returns the full row including the role-file `content` (Markdown body injected at the top of every prompt resolver for this role's tasks) and the `is_system` flag (system rows seeded by migration cannot be deleted). NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Role id to fetch. NotFound when unknown.",
+            "examples": ["rol_8KaXzPcRa"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_setting",
+      "description": "Read one setting by key from the generic key/value store (ctq-96, audit F-12). Returns `null` for absent keys — the caller decides the default. Empty-string values round-trip verbatim. Backs shell-level toggles like `cat_migration_reviewed` and `selected_space`.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Setting key. Free-form; no namespacing is enforced server-side."
+          }
+        },
+        "required": ["key"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_skill",
+      "description": "Look up one skill by id. Returns the full row including `description`, `color`, and `position`. NotFound when id is unknown. Use `list_skill_attachments` to enumerate the file/git attachments tied to this skill.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Skill id to fetch. NotFound when unknown.",
+            "examples": ["sk_RtY7nBxA1"]
           }
         },
         "required": ["id"],
@@ -671,6 +1202,22 @@
       "inputSchema": {
         "type": "object",
         "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_tag",
+      "description": "Look up one tag by id. Returns the full row (`id`, `name`, `color`). NotFound when id is unknown. For the prompt-to-tags mapping use `list_prompt_tags_map` (single bulk SELECT — no N+1).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Tag id to fetch. NotFound when unknown.",
+            "examples": ["tag_4HnPxGgQa"]
+          }
+        },
+        "required": ["id"],
         "additionalProperties": false
       }
     },
@@ -721,6 +1268,37 @@
       }
     },
     {
+      "name": "get_workflow_graph",
+      "description": "Read the Phase 5 workflow-graph payload for a space (ctq-113 stub). Returns the previously-stored opaque JSON string, or `null` if no graph has been persisted. The schema of that payload is owned by the future visual-workflow editor — this surface treats it as a blob. Use `set_workflow_graph` to persist.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Space id whose graph to fetch.",
+            "examples": ["spc_7HhBnGxVa"]
+          }
+        },
+        "required": ["space_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_agent_reports",
+      "description": "List agent-report rows (newest first). `task_id` is an optional filter; when omitted (or null), every row is returned. MCP guidance: agents inspecting prior reports for a single task should ALWAYS pass `task_id` — the `idx_agent_reports_task` index makes the filtered path O(matches); the unfiltered path is O(all-reports).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Optional task id to scope the list to. Omit / null to return every report."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "list_attachments",
       "description": "List attachment metadata rows. `task_id` is an optional filter; when omitted, every attachment in the workspace is returned. MCP agents working on a single task should always pass the filter to avoid loading the entire blob registry.",
       "inputSchema": {
@@ -764,6 +1342,40 @@
       }
     },
     {
+      "name": "list_mcp_servers",
+      "description": "List every MCP server in the local registry, ordered by name. Returns connection metadata only — `auth_json` is the auth-reference (never a resolved secret). Use `list_mcp_tools_by_server` for the per-server tool inventory and `get_mcp_server_status` for the live health snapshot.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_mcp_tools",
+      "description": "List every MCP tool in the global catalogue, ordered by `position, name`. Includes both `manual` rows (defined via `create_mcp_tool`) and `upstream` rows (materialised by `refresh_mcp_server` from upstream `tools/list` responses). Soft-deleted upstream rows (`last_synced_at IS NULL`) are included so callers can render them as struck-through.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_mcp_tools_by_server",
+      "description": "List the `mcp_tools` rows linked to one MCP server, ordered by `position ASC, name ASC`. Includes both `Upstream` (auto-materialised via introspection) and any legacy `Manual` rows tagged with this server id. Soft-deleted upstream rows (`last_synced_at IS NULL`) are returned with `lastSyncedAt = null` so the UI can strike them through. NotFound when server id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "server_id": {
+            "type": "string",
+            "description": "MCP server id. NotFound when unknown.",
+            "examples": ["srv_3KpQ8wRzC"]
+          }
+        },
+        "required": ["server_id"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "list_prompt_group_members",
       "description": "Return the ordered list of prompt ids that belong to a group. Empty array when the group has no members (NOT NotFound — the group's own existence is not validated here). Use `get_prompt` per id to hydrate prompt bodies.",
       "inputSchema": {
@@ -789,11 +1401,52 @@
       }
     },
     {
+      "name": "list_prompt_tags_map",
+      "description": "Return the complete `(prompt_id, [tag_ids])` mapping in one round-trip — a single bulk SELECT on `prompt_tags`, no N+1. Backs the FE's PromptsTagFilter for client-side filtering. The ordering of `tag_ids` mirrors the SQL row order; callers that need a stable sort should sort client-side.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "list_prompts",
       "description": "List every prompt in the workspace ordered by name. Returns the full Prompt rows (id, name, content, color, short_description, icon, examples, token_count, timestamps). No arguments.",
       "inputSchema": {
         "type": "object",
         "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_role_mcp_tools",
+      "description": "List every MCP tool attached to a role (Cat), ordered by `role_mcp_tools.position`. Empty array when the role has no tools — not a NotFound. Inspect this before calling `add_role_mcp_tool` so the new position you supply lands in the right slot.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "Role id whose tools to list.",
+            "examples": ["rol_8KaXzPcRa"]
+          }
+        },
+        "required": ["role_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_role_skills",
+      "description": "List every skill attached to a role, ordered by `role_skills.position`. Empty array when the role has no skills — not a NotFound. Use `list_skill_attachments` to dive into a specific skill's file/git references.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "Role id whose skills to list.",
+            "examples": ["rol_8KaXzPcRa"]
+          }
+        },
+        "required": ["role_id"],
         "additionalProperties": false
       }
     },
@@ -809,6 +1462,40 @@
           }
         },
         "required": ["role_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_roles",
+      "description": "List every role (Cat) in the workspace, ordered by name. Includes both user-created rows AND `is_system = 1` rows seeded by migration (`maintainer-system`, `dirizher-system`); the latter cannot be deleted but may be referenced. Use `list_role_skills` / `list_role_mcp_tools` for the per-role attachment sets.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_skill_attachments",
+      "description": "List every attachment (file or git) for a skill, oldest first. SKILL-S10. Returns `kind = file` rows with `size_bytes` + `storage_path` (relative to `<app_data>/skills/<skill_id>/`) and `kind = git` rows with `git_url` + optional `git_ref` / `git_path`. NotFound when skill_id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skill_id": {
+            "type": "string",
+            "description": "Skill id whose attachments to list. NotFound when unknown.",
+            "examples": ["sk_RtY7nBxA1"]
+          }
+        },
+        "required": ["skill_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_skills",
+      "description": "List every skill in the workspace, ordered by `position, name`. Each row carries `id`, `name`, `description`, `color`, `position`. Use `list_skill_attachments` to enumerate file/git attachments tied to a given skill.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
         "additionalProperties": false
       }
     },
@@ -840,6 +1527,15 @@
     {
       "name": "list_supported_providers",
       "description": "Return the static catalogue of every provider Catique HUB can connect to. Each entry carries `{ id, displayName, supportsAgentFiles, supportsMcp }`. Use this BEFORE `add_provider` to discover valid ids. Distinct from `list_connected_providers` which returns user-connected rows.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_tags",
+      "description": "List every tag in the workspace, ordered by name. Tags are flat labels (not part of the prompt-inheritance chain) — used by the FE's PromptsTagFilter for client-side filtering of the prompt catalogue. Pair with `list_prompt_tags_map` for the prompt-to-tags mapping in one round-trip.",
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -1023,6 +1719,22 @@
       }
     },
     {
+      "name": "refresh_mcp_server",
+      "description": "Re-introspect an MCP server by issuing a fresh `tools/list` over the wire and reconciling the result into the local `mcp_tools` registry. Returns a RefreshReport (added / schema_changed / still_present / soft_deleted counts). Tools that disappeared from the upstream are soft-deleted (`last_synced_at` cleared) so the UI can strike them through; schema_json diffs are surfaced under `schema_changed`. NotFound when id is unknown; Upstream error on wire failure.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "MCP server id to refresh. NotFound when unknown.",
+            "examples": ["srv_3KpQ8wRzC"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "remove_board_prompt",
       "description": "Detach a single prompt from a board. Symmetric to `add_board_prompt`: strips the `board_prompts` join row AND every materialised `task_prompts` row tagged `origin = 'board:<board_id>'`. Direct task attachments survive. Returns NotFound when the `(board_id, prompt_id)` pair has no row.",
       "inputSchema": {
@@ -1083,6 +1795,27 @@
       }
     },
     {
+      "name": "remove_prompt_tag",
+      "description": "Detach a tag from a prompt. Symmetric inverse of `add_prompt_tag`. Returns NotFound when no row matched (no silent no-op — callers can distinguish a real detach from a stale state). Tags are flat labels — no `task_prompts` cascade fires.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to un-label.",
+            "examples": ["pmt_3Jw9XzAa2"]
+          },
+          "tag_id": {
+            "type": "string",
+            "description": "Tag id to detach.",
+            "examples": ["tag_4HnPxGgQa"]
+          }
+        },
+        "required": ["prompt_id", "tag_id"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "remove_provider",
       "description": "Disconnect a provider by id. Calls the provider's `remove()` hook first (which strips catique-managed files + the catique MCP slot), then deletes the `connected_clients` row. Idempotent — calling twice on a missing row is a no-op the second time. NotFound only when `id` is not in the supported-providers catalogue. Returns void.",
       "inputSchema": {
@@ -1095,6 +1828,85 @@
           }
         },
         "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_role_mcp_tool",
+      "description": "Detach an MCP tool from a role. ctq-121 cascade: the join delete and the materialised `task_mcp_tools` row removal (origin `role:<role_id>`) commit in one immediate transaction. Direct attachments tied to individual tasks survive. NotFound when no join row matched.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "Role id.",
+            "examples": ["rol_8KaXzPcRa"]
+          },
+          "mcp_tool_id": {
+            "type": "string",
+            "description": "MCP tool id to detach.",
+            "examples": ["mt_LkP8gQa7"]
+          }
+        },
+        "required": ["role_id", "mcp_tool_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_role_prompt",
+      "description": "Detach a prompt from a role. ADR-0006 cascade: the join delete and the materialised `task_prompts` row removal (origin `role:<role_id>`) commit in one immediate transaction. Direct attachments survive. NotFound when no join row matched.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "Role id.",
+            "examples": ["rol_8KaXzPcRa"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to detach.",
+            "examples": ["pmt_3Jw9XzAa2"]
+          }
+        },
+        "required": ["role_id", "prompt_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_role_skill",
+      "description": "Detach a skill from a role. ctq-121 cascade: the join delete plus the materialised `task_skills` row removal (origin `role:<role_id>`) commit in one immediate transaction. Direct attachments survive. NotFound when no join row matched.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "Role id.",
+            "examples": ["rol_8KaXzPcRa"]
+          },
+          "skill_id": {
+            "type": "string",
+            "description": "Skill id to detach.",
+            "examples": ["sk_RtY7nBxA1"]
+          }
+        },
+        "required": ["role_id", "skill_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_skill_attachment",
+      "description": "Delete one SkillAttachment row by id. For `kind = file` rows the on-disk blob under `<app_data>/skills/<skill_id>/` is removed as well (best-effort — IO errors AFTER the row is deleted surface as `TransactionRolledBack`). For `kind = git` rows only the metadata row is removed (no clone existed to clean up). NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "attachment_id": {
+            "type": "string",
+            "description": "Skill attachment id to remove. NotFound when unknown.",
+            "examples": ["satt_5JpQ8wRzC"]
+          }
+        },
+        "required": ["attachment_id"],
         "additionalProperties": false
       }
     },
@@ -1453,6 +2265,48 @@
       }
     },
     {
+      "name": "set_role_prompts",
+      "description": "Replace every prompt currently attached to `role_id` with `prompt_ids` (in order). Pass an empty list to clear the attachment set. Atomic — partial failures roll back (`TransactionRolledBack` on unknown role / prompt ids). ADR-0006: clears every `task_prompts` row tagged `origin = 'role:<id>'`, then re-cascades the new set so every task on this role ends up with a freshly-materialised inherited row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "Role id whose prompts to replace.",
+            "examples": ["rol_8KaXzPcRa"]
+          },
+          "prompt_ids": {
+            "type": "array",
+            "description": "Ordered prompt id list. Position 1-indexed implicitly by array order. Empty array clears the set.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["role_id", "prompt_ids"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_setting",
+      "description": "UPSERT one setting (ctq-96, audit F-12). `updated_at` is refreshed on every call. Free-form key/value store backing shell-level toggles like `cat_migration_reviewed` and `selected_space`. Empty-string values round-trip verbatim — use them to mean \"present but cleared\" if needed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Setting key. Free-form; no namespacing is enforced server-side."
+          },
+          "value": {
+            "type": "string",
+            "description": "Setting value. Empty string is a valid distinct value (round-trips verbatim)."
+          }
+        },
+        "required": ["key", "value"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "set_space_mcp_tools",
       "description": "Replace the full MCP-tool list attached to a space (ctq-120). Atomic — partial failures roll back. Empty array clears the attachment. Returns void.",
       "inputSchema": {
@@ -1516,6 +2370,29 @@
       }
     },
     {
+      "name": "set_tag_prompts",
+      "description": "Replace every prompt currently labelled with `tag_id` with `prompt_ids`. Pass an empty list to clear the label set. Atomic — partial failures roll back. Tags are NOT part of the prompt-inheritance chain (they're labels, not scopes), so this setter does not touch `task_prompts` or fire any cascade.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tag_id": {
+            "type": "string",
+            "description": "Tag id whose prompt-label set to replace.",
+            "examples": ["tag_4HnPxGgQa"]
+          },
+          "prompt_ids": {
+            "type": "array",
+            "description": "Full set of prompts that should wear this tag after the call. Order is irrelevant — `prompt_tags` carries no `position` column. Duplicates are silently de-duped.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["tag_id", "prompt_ids"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "set_task_prompt_override",
       "description": "Set (insert or update) a per-task prompt override. `enabled = true` forces the prompt to render for this task even if upstream layers would have removed it; `enabled = false` suppresses the prompt for this task even if upstream layers would have rendered it. Use sparingly — overrides are the most local layer of the resolver and bypass every inherited rule. Returns void.",
       "inputSchema": {
@@ -1536,6 +2413,58 @@
           }
         },
         "required": ["task_id", "prompt_id", "enabled"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_workflow_graph",
+      "description": "Persist the Phase 5 workflow-graph payload for a space (ctq-113 stub). The payload is treated as an opaque JSON string — its schema is owned by the future visual-workflow editor and is not validated here. Existing graph is overwritten. NotFound when space id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Space id whose graph to persist.",
+            "examples": ["spc_7HhBnGxVa"]
+          },
+          "json": {
+            "type": "string",
+            "description": "Opaque graph payload as a JSON string. Schema is owned by the FE editor; not validated server-side."
+          }
+        },
+        "required": ["space_id", "json"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "update_agent_report",
+      "description": "Partial-update one agent report. Every field is optional — pass only what you want to change. `author` follows the tri-state convention: omit = keep, `null` = clear to NULL, string = set. Author guard is intentionally off in v1 (any caller can mutate any report, tracked as audit F-13). `updated_at` is bumped on every successful patch. NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Report id to update. NotFound when unknown.",
+            "examples": ["rep_9KaB12LpQ"]
+          },
+          "kind": {
+            "type": "string",
+            "description": "New kind tag. Non-empty after trim if supplied."
+          },
+          "title": {
+            "type": "string",
+            "description": "New title. Non-empty after trim if supplied."
+          },
+          "content": {
+            "type": "string",
+            "description": "New body. Markdown allowed."
+          },
+          "author": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable author tag. Omit = keep, `null` = clear, string = set."
+          }
+        },
+        "required": ["id"],
         "additionalProperties": false
       }
     },
@@ -1585,6 +2514,83 @@
           "role_id": {
             "type": ["string", "null"],
             "description": "Tri-state nullable role assignment. Omit = keep, `null` = clear, string = set."
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "update_mcp_server",
+      "description": "Partial-update one MCP server. Every field is optional. Clearable fields (`url`, `command`, `auth_json`) follow the tri-state convention: omit = keep, `null` = clear, string = set. The post-update row must satisfy the transport/url/command invariant — if you flip `transport`, also patch `url`/`command` in the same call. NotFound when id is unknown; BadRequest on invariant violation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "MCP server id to update. NotFound when unknown.",
+            "examples": ["srv_3KpQ8wRzC"]
+          },
+          "name": {
+            "type": "string",
+            "description": "New display name. Non-empty after trim if supplied. Conflict on UNIQUE(name)."
+          },
+          "transport": {
+            "type": "string",
+            "enum": ["stdio", "http", "sse"],
+            "description": "New transport. Must agree with `url`/`command` after merge."
+          },
+          "url": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable endpoint URL. Omit = keep, `null` = clear, string = set."
+          },
+          "command": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable command line. Omit = keep, `null` = clear, string = set."
+          },
+          "auth_json": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable auth-reference JSON (NEVER a raw token). Omit = keep, `null` = clear, string = set to the new ref."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Toggle whether the server participates in proxying / tool listing."
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "update_mcp_tool",
+      "description": "Partial-update one MCP tool. Every field is optional. Clearable fields (`description`, `color`) follow the tri-state convention. `schema_json` is plain optional — when supplied, it must be valid JSON. NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "MCP tool id to update. NotFound when unknown.",
+            "examples": ["mt_LkP8gQa7"]
+          },
+          "name": {
+            "type": "string",
+            "description": "New display name. Non-empty after trim. Conflict on UNIQUE(name)."
+          },
+          "description": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable summary. Omit = keep, `null` = clear, string = set."
+          },
+          "schema_json": {
+            "type": "string",
+            "description": "Replacement JSON Schema serialised as a string. Must parse as JSON."
+          },
+          "color": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable colour. Omit = keep, `null` = clear, string = set."
+          },
+          "position": {
+            "type": "number",
+            "description": "New float ordering slot."
           }
         },
         "required": ["id"],
@@ -1665,6 +2671,70 @@
       }
     },
     {
+      "name": "update_role",
+      "description": "Partial-update one role (Cat). Every field is optional. Clearable fields (`color`, `icon`) follow the tri-state convention: omit = keep, `null` = clear, string = set. `name` and `content` are plain optional — `name` is validated for non-empty trim and UNIQUE(name). NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Role id to update. NotFound when unknown.",
+            "examples": ["rol_8KaXzPcRa"]
+          },
+          "name": {
+            "type": "string",
+            "description": "New display name. Non-empty after trim. Conflict on UNIQUE(name)."
+          },
+          "content": {
+            "type": "string",
+            "description": "New role-file body. May be empty (clears the body without dropping the row)."
+          },
+          "color": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable colour. Omit = keep, `null` = clear, string = set."
+          },
+          "icon": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable icon. Omit = keep, `null` = clear, string = set."
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "update_skill",
+      "description": "Partial-update one skill. Every field is optional. Clearable fields (`description`, `color`) follow the tri-state convention. `name` validated for non-empty trim and UNIQUE(name); `position` is plain optional. NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Skill id to update. NotFound when unknown.",
+            "examples": ["sk_RtY7nBxA1"]
+          },
+          "name": {
+            "type": "string",
+            "description": "New display name. Non-empty after trim. Conflict on UNIQUE(name)."
+          },
+          "description": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable summary. Omit = keep, `null` = clear, string = set."
+          },
+          "color": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable colour. Omit = keep, `null` = clear, string = set."
+          },
+          "position": {
+            "type": "number",
+            "description": "New float ordering slot."
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "update_space",
       "description": "Partial-update a space. Every field is optional. Clearable fields (`description`, `color`, `icon`, `project_folder_path`) follow the tri-state convention: omit = keep, `null` = clear, string = set. Returns the freshly-updated Space row. NotFound when id is unknown.",
       "inputSchema": {
@@ -1702,6 +2772,30 @@
           "project_folder_path": {
             "type": ["string", "null"],
             "description": "Tri-state nullable project folder path."
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "update_tag",
+      "description": "Partial-update one tag. Every field is optional. `color` follows the tri-state convention (omit/null/string). `name` is validated for non-empty trim and UNIQUE(name). NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Tag id to update. NotFound when unknown.",
+            "examples": ["tag_4HnPxGgQa"]
+          },
+          "name": {
+            "type": "string",
+            "description": "New display name. Non-empty after trim. Conflict on UNIQUE(name)."
+          },
+          "color": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable colour. Omit = keep, `null` = clear, string = set."
           }
         },
         "required": ["id"],
