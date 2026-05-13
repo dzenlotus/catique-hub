@@ -63,6 +63,12 @@ export function EntityTree<TMeta = unknown>(
   const showAdd =
     onAdd !== undefined && !isLoading && errorMessage === null;
 
+  // Trees with zero expandable nodes (flat lists like Roles / Skills)
+  // drop the chevron column entirely so labels don't carry a leading
+  // 28-px gutter for an affordance that never exists. Trees with ANY
+  // expandable node keep the column so leaf-vs-parent labels align.
+  const hasAnyExpandable = treeHasExpandable(nodes);
+
   return (
     <SidebarShell
       {...(ariaLabel !== undefined ? { ariaLabel } : { ariaLabel: title ?? "Entity tree" })}
@@ -98,7 +104,10 @@ export function EntityTree<TMeta = unknown>(
           <span className={styles.bodyEmptyText}>{emptyText}</span>
         </div>
       ) : (
-        <ul className={styles.list} role="list">
+        <ul
+          className={cn(styles.list, !hasAnyExpandable && styles.listFlat)}
+          role="list"
+        >
           {nodes.map((node) => (
             <EntityTreeRow
               key={node.id}
@@ -110,12 +119,24 @@ export function EntityTree<TMeta = unknown>(
               onSelect={onSelect}
               testIdPrefix={testIdPrefix}
               renderRow={renderRow}
+              hasAnyExpandable={hasAnyExpandable}
             />
           ))}
         </ul>
       )}
     </SidebarShell>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+function treeHasExpandable<TMeta>(
+  nodes: ReadonlyArray<EntityTreeNode<TMeta>>,
+): boolean {
+  for (const n of nodes) {
+    if (n.children !== undefined) return true;
+  }
+  return false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -129,6 +150,7 @@ interface EntityTreeRowProps<TMeta> {
   onSelect: (id: string, node: EntityTreeNode<TMeta>) => void;
   testIdPrefix: string;
   renderRow: ((args: EntityTreeRenderRowArgs<TMeta>) => ReactNode) | undefined;
+  hasAnyExpandable: boolean;
 }
 
 function EntityTreeRow<TMeta>({
@@ -140,6 +162,7 @@ function EntityTreeRow<TMeta>({
   onSelect,
   testIdPrefix,
   renderRow,
+  hasAnyExpandable,
 }: EntityTreeRowProps<TMeta>): ReactElement {
   const isExpandable = node.children !== undefined;
   const isExpanded = isExpandable && expandedSet.has(node.id);
@@ -168,21 +191,23 @@ function EntityTreeRow<TMeta>({
         className={cn(styles.row, isSelected && styles.rowActive)}
         style={depth > 0 ? { paddingLeft: `calc(var(--space-12) * ${depth})` } : undefined}
       >
-        {isExpandable ? (
-          <button
-            type="button"
-            className={styles.chevronBtn}
-            onClick={toggleExpand}
-            aria-label={isExpanded ? `Collapse ${node.label}` : `Expand ${node.label}`}
-            aria-expanded={isExpanded}
-            disabled={isDisabled}
-            data-testid={`${testIdPrefix}-toggle-${node.id}`}
-          >
-            <EntityTreeChevron open={isExpanded} />
-          </button>
-        ) : (
-          <span className={styles.chevronSpacer} aria-hidden="true" />
-        )}
+        {hasAnyExpandable ? (
+          isExpandable ? (
+            <button
+              type="button"
+              className={styles.chevronBtn}
+              onClick={toggleExpand}
+              aria-label={isExpanded ? `Collapse ${node.label}` : `Expand ${node.label}`}
+              aria-expanded={isExpanded}
+              disabled={isDisabled}
+              data-testid={`${testIdPrefix}-toggle-${node.id}`}
+            >
+              <EntityTreeChevron open={isExpanded} />
+            </button>
+          ) : (
+            <span className={styles.chevronSpacer} aria-hidden="true" />
+          )
+        ) : null}
 
         <div className={styles.rowContent}>
           {renderRow !== undefined ? (
@@ -222,6 +247,7 @@ function EntityTreeRow<TMeta>({
               onSelect={onSelect}
               testIdPrefix={testIdPrefix}
               renderRow={renderRow}
+              hasAnyExpandable={hasAnyExpandable}
             />
           ))}
         </ul>

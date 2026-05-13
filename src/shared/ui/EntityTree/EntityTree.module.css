@@ -41,6 +41,14 @@
   margin-left: -4px;
 }
 
+/* Flat-tree variant: when NO node in the tree is expandable (Roles,
+ * Skills, settings categories…) drop the chevron column entirely so
+ * labels sit flush against the rail's inner gutter instead of being
+ * pushed 28 px right by a never-used affordance. */
+.listFlat .row {
+  grid-template-columns: 1fr;
+}
+
 /* Active-row treatment — accent-soft inset background +
  * leading red strip. Copied verbatim from SpacesSidebar so the two
  * rails are pixel-identical when a row is selected. */
@@ -91,27 +99,34 @@
 }
 
 /* Column 2 holder — clusters the row body (button + trailing slot)
- * inside a single grid cell so the `28px 1fr` grid stays clean. */
+ * inside a single grid cell so the `28px 1fr` grid stays clean.
+ * No padding here; the rail's outer 20-px sectionsWrap padding +
+ * the row's grid column already handle the right gutter. */
 .rowContent {
   min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  padding-right: var(--space-12);
 }
 
+/* Mirrors SpacesSidebar `.spaceNameBtn`: padding only vertical, gap
+ * 12 px between leading icon and label, font defaults to body size +
+ * semibold so a top-level row reads heavier than nested children. */
 .rowMain {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-8);
+  gap: var(--space-12);
   padding: var(--space-2) 0;
   cursor: pointer;
   background: transparent;
   border: 0;
   text-align: left;
   font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
   color: var(--color-text-default);
 }
 
@@ -125,19 +140,20 @@
   border-radius: var(--radius-sm);
 }
 
-/* Chevron toggle — sits inside the leading 28-px gutter. The hit
- * target is 24×24 centered in the 28-px column. */
+/* Chevron toggle — fills the leading 28-px gutter exactly, like
+ * SpacesSidebar `.spaceChevronBtn`. Matches the column track so click
+ * surface aligns with the visible gutter. */
 .chevronBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  justify-self: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--color-text-subtle);
+  color: var(--color-text-default);
   cursor: pointer;
   border-radius: var(--radius-xs);
 }
