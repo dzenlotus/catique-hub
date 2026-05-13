@@ -136,10 +136,16 @@ pub fn run() {
             let sidecar_dir = state.sidecar_dir.clone();
             let sidecar_mgr = state.sidecar.clone();
             let pool = state.pool.clone();
+            // Snapshot the orchestrator handle for the MCP bridge.
+            // `OnceCell` has been set above (`state.set_orchestrator`)
+            // so `get().cloned()` is always `Some` by this point; the
+            // explicit `cloned()` keeps the bridge installable from a
+            // unit test that bypasses orchestrator wiring.
+            let bridge_orchestrator = state.orchestrator.get().cloned();
             tauri::async_runtime::spawn(async move {
                 // Install the bridge BEFORE spawning the child so the
                 // very first `ipc_call` from Node has a handler ready.
-                catique_api::mcp_bridge::install(&sidecar_mgr, pool).await;
+                catique_api::mcp_bridge::install(&sidecar_mgr, pool, bridge_orchestrator).await;
                 match sidecar_mgr.start(&sidecar_dir).await {
                     Ok(pid) => eprintln!("[catique-hub] sidecar started, pid={pid}"),
                     Err(e) => eprintln!("[catique-hub] sidecar spawn failed: {e}"),

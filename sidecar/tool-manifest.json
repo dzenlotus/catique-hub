@@ -1,27 +1,398 @@
 {
-  "$comment": "Catique HUB MCP tool manifest — ctq-112 / E5 round 1. Post-ADR-0008 (2026-05-12) the surface is restricted to Catique-native reads. The `list_mcp_servers` / `get_mcp_server_connection_hint` entries from ADR-0007 (registry-only model) were removed because external agents must not see upstream-server connection metadata under the pass-through proxy model. The forthcoming `proxy_tool_call` will be added when ctq-126 lands under ADR-0008. ctq-137 / MEM-S1 adds the three per-role retrospective-memory tools. TODO(ctq-112-manifest-gen): replace this hand-authored file with an xtask-driven generator that derives tool entries from the dispatch arms.",
+  "$comment": "Catique HUB MCP tool manifest — ctq-112 / E5 round 1. Post-ADR-0008 (2026-05-12) the surface is restricted to Catique-native reads. The `list_mcp_servers` / `get_mcp_server_connection_hint` entries from ADR-0007 (registry-only model) were removed because external agents must not see upstream-server connection metadata under the pass-through proxy model. The forthcoming `proxy_tool_call` will be added when ctq-126 lands under ADR-0008. ctq-137 / MEM-S1 adds the three per-role retrospective-memory tools. Agent-B expansion (prompts + prompt_groups + spaces + connected_providers) brings full parity with the Tauri IPC surface. TODO(ctq-112-manifest-gen): replace this hand-authored file with an xtask-driven generator that derives tool entries from the dispatch arms.",
   "tools": [
     {
-      "name": "list_boards",
-      "description": "Return every board in the workspace ordered by (position ASC, name ASC). No arguments.",
+      "name": "add_board_prompt",
+      "description": "Attach a single prompt to a board at a specific integer position. Idempotent on `(board_id, prompt_id)` — calling twice with a different position updates the position. Inherited prompts from space/role are unaffected — they still resolve via the inheritance chain. Side effect: ADR-0006 cascades one `task_prompts` row per task in the board tagged `origin = 'board:<board_id>'`. Returns void.",
       "inputSchema": {
         "type": "object",
-        "properties": {},
+        "properties": {
+          "board_id": {
+            "type": "string",
+            "description": "Board id to attach to. NotFound when unknown.",
+            "examples": ["y1GE4tFkWzCCLU2LolS23"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to attach.",
+            "examples": ["pmt_3Jw9XzAa2"]
+          },
+          "position": {
+            "type": "integer",
+            "description": "Ordering slot within the board's prompt list. Lower values render first."
+          }
+        },
+        "required": ["board_id", "prompt_id", "position"],
         "additionalProperties": false
       }
     },
     {
-      "name": "list_columns",
-      "description": "Return every column ordered by (board_id, position). No arguments.",
+      "name": "add_column_prompt",
+      "description": "Attach a single prompt to a column at a specific integer position. Idempotent on `(column_id, prompt_id)`. ADR-0006: cascades a `task_prompts` row per task in the column tagged `origin = 'column:<column_id>'`. Use this for incremental adds; for desired-state replacement, prefer `set_column_prompts`. Returns void.",
       "inputSchema": {
         "type": "object",
-        "properties": {},
+        "properties": {
+          "column_id": {
+            "type": "string",
+            "description": "Column id to attach to. NotFound when unknown.",
+            "examples": ["col_5dxYz7Qa3"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to attach.",
+            "examples": ["pmt_3Jw9XzAa2"]
+          },
+          "position": {
+            "type": "integer",
+            "description": "Ordering slot within the column's prompt list. Lower values render first."
+          }
+        },
+        "required": ["column_id", "prompt_id", "position"],
         "additionalProperties": false
       }
     },
     {
-      "name": "list_tasks",
-      "description": "Return every task in the workspace. No arguments.",
+      "name": "add_prompt_group_member",
+      "description": "Append a prompt to a prompt group at a specific position. Upserts: calling twice on the same `(group_id, prompt_id)` updates the position rather than failing. Use this to incrementally curate a group; use `set_prompt_group_members` to replace the full ordered list atomically. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "Prompt group id. Unknown id surfaces as `TransactionRolledBack` (FK violation).",
+            "examples": ["grp_9KaB12LpQ"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to attach as a member.",
+            "examples": ["pmt_3Jw9XzAa2"]
+          },
+          "position": {
+            "type": "integer",
+            "description": "Ordering slot within the group's member list. Lower values render first."
+          }
+        },
+        "required": ["group_id", "prompt_id", "position"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "add_provider",
+      "description": "Connect a supported provider by id. Inserts a `connected_clients` row, runs the initial role-sync, and fires a post-add sync trigger on the orchestrator so any concurrent mutations land too. If the initial sync fails the row still lands (with `connection_status = error`) so the user can retry. Idempotency: calling twice for the same id returns `Conflict`. Use `list_supported_providers` first to discover valid ids. Returns the freshly-inserted ConnectedClient row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Supported-provider id (one of the values returned by `list_supported_providers`).",
+            "examples": ["claude-code", "codex", "opencode", "claude-desktop"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "add_role_note",
+      "description": "Append one retrospective note to a role's personal memory store. Call this AFTER the user has rated the task you just finished, with a body that covers: what was done, what failed, what went well, what went badly, and what to do differently next time. The note is recall-keyed by its `tags` array — list_role_tags FIRST and reuse existing tags whenever they fit; only invent new tags when nothing existing applies. `authored_by` is always `agent` on this surface; the user-authored path is reachable only through the desktop UI.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "The role whose memory store to append to. Always pass this role's id — the role-file injects it for you."
+          },
+          "body": {
+            "type": "string",
+            "description": "Free-form retrospective prose. Markdown allowed. Max 8192 chars. Cover what was done, what failed, what to do differently next time. Empty or whitespace-only bodies are rejected."
+          },
+          "tags": {
+            "type": "array",
+            "description": "Agent-invented tag set keying this note for future recall. Tags are normalised to kebab-case `[a-z0-9-]{1,32}` server-side; runs of whitespace and underscores collapse to dashes; non-ASCII characters are stripped. Prefer reusing tags from `list_role_tags` before inventing new ones. Empty array is accepted (note becomes recall-keyed via FTS5 only).",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_task_id": {
+            "type": "string",
+            "description": "Optional task id that produced this retrospective. Server validates the id exists; ON DELETE the link clears to NULL so the note survives the task it was born from."
+          }
+        },
+        "required": ["role_id", "body", "tags"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "add_space_prompt",
+      "description": "Attach a single prompt to a space at the given position (defaults to end). Upserts: calling twice with a different position updates the slot. Side effect: cascades one `task_prompts` row per task whose board lives in the space, tagged `origin = 'space:<space_id>'`. For desired-state replacement use `set_space_prompts`. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Space id to attach to. Unknown id surfaces as `TransactionRolledBack`.",
+            "examples": ["spc_7HhBnGxVa"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to attach.",
+            "examples": ["pmt_3Jw9XzAa2"]
+          },
+          "position": {
+            "type": "number",
+            "description": "Optional ordering slot (float). Omit to append at the end."
+          }
+        },
+        "required": ["space_id", "prompt_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "add_task_prompt",
+      "description": "Attach a prompt directly to a single task at the given float position. The prompt becomes a `task_prompts` row tagged `origin = 'task:<task_id>'`. Direct attachments survive when the task moves between boards/columns/spaces — only inherited prompts re-resolve. Use this for one-off prompts that should not affect siblings. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Task id to attach to.",
+            "examples": ["tsk_5kFbPzCa1"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to attach.",
+            "examples": ["pmt_3Jw9XzAa2"]
+          },
+          "position": {
+            "type": "number",
+            "description": "Float ordering slot within the task's direct-prompt list."
+          }
+        },
+        "required": ["task_id", "prompt_id", "position"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "clear_task_prompt_override",
+      "description": "Remove a per-task prompt override row, restoring the resolver's default decision for that prompt on that task. Symmetric to `set_task_prompt_override`. Returns NotFound when no override row exists for the pair. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Task id whose override row to clear.",
+            "examples": ["tsk_5kFbPzCa1"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id whose override row to clear."
+          }
+        },
+        "required": ["task_id", "prompt_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "create_prompt",
+      "description": "Create a new prompt in the workspace prompt library. UNIQUE(name) collisions surface as `Conflict`. `token_count` is recomputed lazily (call `recompute_prompt_token_count` if you need it stamped now). Returns the freshly-inserted Prompt row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name. Must be non-empty after trim. UNIQUE across the workspace."
+          },
+          "content": {
+            "type": "string",
+            "description": "Prompt body — Markdown allowed."
+          },
+          "color": {
+            "type": "string",
+            "description": "Optional `#RRGGBB` colour hint. Rejected as `Validation` if malformed."
+          },
+          "short_description": {
+            "type": "string",
+            "description": "Optional one-line summary surfaced in pickers + cards."
+          },
+          "icon": {
+            "type": "string",
+            "description": "Optional opaque pixel-icon identifier (frontend owns the set)."
+          },
+          "examples": {
+            "type": "array",
+            "description": "Optional array of example strings rendered as `<example index=\"N\">…</example>` blocks in the wire payload an agent sees.",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["name", "content"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "create_prompt_group",
+      "description": "Create a new prompt group. Groups are user-visible bundles of prompts the UI uses for quick attach. `position` defaults to 0; duplicate names are allowed (no UNIQUE constraint). Returns the freshly-inserted PromptGroup row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name. Must be non-empty after trim."
+          },
+          "color": {
+            "type": "string",
+            "description": "Optional `#RRGGBB` colour hint."
+          },
+          "icon": {
+            "type": "string",
+            "description": "Optional opaque pixel-icon identifier."
+          },
+          "position": {
+            "type": "integer",
+            "description": "Optional ordering slot. Defaults to 0."
+          }
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "create_space",
+      "description": "Create a new space. Provisions one default board + default column atomically (rolls back the space row on failure). `prefix` must match `[a-z0-9-]{1,10}` and be UNIQUE workspace-wide. Returns the freshly-inserted Space row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name. Must be non-empty after trim."
+          },
+          "prefix": {
+            "type": "string",
+            "description": "Short identifier used in slug generation. 1-10 chars matching `[a-z0-9-]`. UNIQUE."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional long-form description."
+          },
+          "color": {
+            "type": "string",
+            "description": "Optional `#RRGGBB` colour hint."
+          },
+          "icon": {
+            "type": "string",
+            "description": "Optional pixel-icon identifier."
+          },
+          "is_default": {
+            "type": "boolean",
+            "description": "Mark this space as the default landing space. Optional; defaults to false."
+          },
+          "project_folder_path": {
+            "type": "string",
+            "description": "Optional opaque project folder path (round-21)."
+          }
+        },
+        "required": ["name", "prefix"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "delete_prompt",
+      "description": "Delete a prompt. Cascades through every join table (board_prompts, column_prompts, space_prompts, role_prompts, prompt_group_members, task_prompts). NotFound when id is unknown. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Prompt id to delete.",
+            "examples": ["pmt_3Jw9XzAa2"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "delete_prompt_group",
+      "description": "Delete a prompt group. `prompt_group_members` rows cascade automatically; the underlying prompts themselves survive. NotFound when id is unknown. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Prompt group id to delete.",
+            "examples": ["grp_9KaB12LpQ"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "delete_space",
+      "description": "Delete a space and every board/column/task it owns (cascading FK rules apply inside one transaction). NotFound when id is unknown. The default space cannot be deleted while it is marked default — flip another space to default first. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Space id to delete.",
+            "examples": ["spc_7HhBnGxVa"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_prompt",
+      "description": "Look up a single prompt by id. Returns the full Prompt row including `examples`, `token_count`, `color`, `icon`, and timestamps. NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Prompt id.",
+            "examples": ["pmt_3Jw9XzAa2"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_prompt_group",
+      "description": "Look up a single prompt group by id. Returns name, color, icon, position, timestamps. Member prompt ids are NOT included — call `list_prompt_group_members` for those. NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Prompt group id.",
+            "examples": ["grp_9KaB12LpQ"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_space",
+      "description": "Look up a single space by id. Returns name, prefix, description, color, icon, is_default flag, position, project_folder_path, workflow_graph_json, timestamps. NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Space id.",
+            "examples": ["spc_7HhBnGxVa"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_sync_status",
+      "description": "Read the fan-out sync status across every connected provider. Returns a `SyncStatus { state, failing_providers }` snapshot. `state` is `idle` / `syncing` / `error`. Infallible — returns `idle` before the orchestrator has spawned (e.g. very early in startup).",
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -59,6 +430,125 @@
       }
     },
     {
+      "name": "list_boards",
+      "description": "Return every board in the workspace ordered by (position ASC, name ASC). No arguments.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_columns",
+      "description": "Return every column ordered by (board_id, position). No arguments.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_connected_providers",
+      "description": "List every row in `connected_clients` — the providers the user has explicitly connected. Returns an array of `ConnectedClient { id, displayName, connectionStatus, lastSyncedAt, lastError, createdAt, updatedAt }`. Distinct from `list_supported_providers` which returns the static catalogue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_prompt_group_members",
+      "description": "Return the ordered list of prompt ids that belong to a group. Empty array when the group has no members (NOT NotFound — the group's own existence is not validated here). Use `get_prompt` per id to hydrate prompt bodies.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "Prompt group id.",
+            "examples": ["grp_9KaB12LpQ"]
+          }
+        },
+        "required": ["group_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_prompt_groups",
+      "description": "List every prompt group in the workspace ordered by (position ASC, name ASC). No arguments. Returns metadata only — call `list_prompt_group_members` per group to fetch member ids.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_prompts",
+      "description": "List every prompt in the workspace ordered by name. Returns the full Prompt rows (id, name, content, color, short_description, icon, examples, token_count, timestamps). No arguments.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_role_tags",
+      "description": "Return the role's tag cloud as an array of {tag, count} pairs sorted by count DESC then tag ASC. CALL THIS FIRST before adding a note so you reuse existing tags instead of inventing near-duplicates (e.g. `async-tauri` and `async_tauri` would collapse to the same normalised value, but `async-runtime` and `tokio-runtime` would not — pick the canonical one if it already exists).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "The role whose tag cloud to fetch. Always pass this role's id."
+          }
+        },
+        "required": ["role_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_space_prompts",
+      "description": "List every prompt attached directly to a space, ordered by `space_prompts.position` ASC. Returns hydrated Prompt rows (not just ids). Empty array when the space has no direct prompt attachments — inherited ones from roles/templates are NOT included.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Space id.",
+            "examples": ["spc_7HhBnGxVa"]
+          }
+        },
+        "required": ["space_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_spaces",
+      "description": "List every space ordered by (position ASC, name ASC). Returns the full Space rows. No arguments.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_supported_providers",
+      "description": "Return the static catalogue of every provider Catique HUB can connect to. Each entry carries `{ id, displayName, supportsAgentFiles, supportsMcp }`. Use this BEFORE `add_provider` to discover valid ids. Distinct from `list_connected_providers` which returns user-connected rows.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_tasks",
+      "description": "Return every task in the workspace. No arguments.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "recall_role_notes",
       "description": "Load a role's past retrospective notes ranked by tag overlap (or FTS5 body match when no tags are supplied). Pinned notes ALWAYS surface regardless of overlap. Call this BEFORE starting work on a task — it lets the agent reuse prior lessons (what worked, what failed, what to do differently) instead of relearning them. Tag scoring biases toward (a) higher overlap count, (b) higher priority, and (c) more recent notes (30-day soft half-life). Up to 50 notes are returned; default limit is 20.",
       "inputSchema": {
@@ -90,47 +580,401 @@
       }
     },
     {
-      "name": "add_role_note",
-      "description": "Append one retrospective note to a role's personal memory store. Call this AFTER the user has rated the task you just finished, with a body that covers: what was done, what failed, what went well, what went badly, and what to do differently next time. The note is recall-keyed by its `tags` array — list_role_tags FIRST and reuse existing tags whenever they fit; only invent new tags when nothing existing applies. `authored_by` is always `agent` on this surface; the user-authored path is reachable only through the desktop UI.",
+      "name": "recompute_prompt_token_count",
+      "description": "Recompute the coarse `(payload_chars + 3) / 4` token-count heuristic for a prompt, persist it, and return the refreshed Prompt row. `payload = content + \\n\\n + examples.join(\\n\\n)`. Use this after `update_prompt` if you need the canonical count stamped immediately rather than letting the lazy path catch up. NotFound when id is unknown.",
       "inputSchema": {
         "type": "object",
         "properties": {
-          "role_id": {
+          "id": {
             "type": "string",
-            "description": "The role whose memory store to append to. Always pass this role's id — the role-file injects it for you."
-          },
-          "body": {
-            "type": "string",
-            "description": "Free-form retrospective prose. Markdown allowed. Max 8192 chars. Cover what was done, what failed, what to do differently next time. Empty or whitespace-only bodies are rejected."
-          },
-          "tags": {
-            "type": "array",
-            "description": "Agent-invented tag set keying this note for future recall. Tags are normalised to kebab-case `[a-z0-9-]{1,32}` server-side; runs of whitespace and underscores collapse to dashes; non-ASCII characters are stripped. Prefer reusing tags from `list_role_tags` before inventing new ones. Empty array is accepted (note becomes recall-keyed via FTS5 only).",
-            "items": {
-              "type": "string"
-            }
-          },
-          "source_task_id": {
-            "type": "string",
-            "description": "Optional task id that produced this retrospective. Server validates the id exists; ON DELETE the link clears to NULL so the note survives the task it was born from."
+            "description": "Prompt id whose token_count to recompute.",
+            "examples": ["pmt_3Jw9XzAa2"]
           }
         },
-        "required": ["role_id", "body", "tags"],
+        "required": ["id"],
         "additionalProperties": false
       }
     },
     {
-      "name": "list_role_tags",
-      "description": "Return the role's tag cloud as an array of {tag, count} pairs sorted by count DESC then tag ASC. CALL THIS FIRST before adding a note so you reuse existing tags instead of inventing near-duplicates (e.g. `async-tauri` and `async_tauri` would collapse to the same normalised value, but `async-runtime` and `tokio-runtime` would not — pick the canonical one if it already exists).",
+      "name": "remove_board_prompt",
+      "description": "Detach a single prompt from a board. Symmetric to `add_board_prompt`: strips the `board_prompts` join row AND every materialised `task_prompts` row tagged `origin = 'board:<board_id>'`. Direct task attachments survive. Returns NotFound when the `(board_id, prompt_id)` pair has no row.",
       "inputSchema": {
         "type": "object",
         "properties": {
-          "role_id": {
+          "board_id": {
             "type": "string",
-            "description": "The role whose tag cloud to fetch. Always pass this role's id."
+            "description": "Board id.",
+            "examples": ["y1GE4tFkWzCCLU2LolS23"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to detach."
           }
         },
-        "required": ["role_id"],
+        "required": ["board_id", "prompt_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_column_prompt",
+      "description": "Detach a single prompt from a column. Symmetric to `add_column_prompt`: strips the join row + cascaded `task_prompts` rows with `origin = 'column:<column_id>'`. Direct attachments survive. NotFound when the pair has no row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "column_id": {
+            "type": "string",
+            "description": "Column id.",
+            "examples": ["col_5dxYz7Qa3"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to detach."
+          }
+        },
+        "required": ["column_id", "prompt_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_prompt_group_member",
+      "description": "Detach a single prompt from a group. Returns NotFound when the `(group_id, prompt_id)` pair has no member row. The underlying prompt itself is unaffected. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "Prompt group id.",
+            "examples": ["grp_9KaB12LpQ"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to detach."
+          }
+        },
+        "required": ["group_id", "prompt_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_provider",
+      "description": "Disconnect a provider by id. Calls the provider's `remove()` hook first (which strips catique-managed files + the catique MCP slot), then deletes the `connected_clients` row. Idempotent — calling twice on a missing row is a no-op the second time. NotFound only when `id` is not in the supported-providers catalogue. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Provider id to disconnect. Use `list_connected_providers` to enumerate current connections.",
+            "examples": ["claude-code", "codex"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_space_prompt",
+      "description": "Detach a single prompt from a space. Symmetric to `add_space_prompt`: strips the join row + every cascaded `task_prompts` row tagged `origin = 'space:<space_id>'`. NotFound when the `(space_id, prompt_id)` pair has no row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Space id.",
+            "examples": ["spc_7HhBnGxVa"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to detach."
+          }
+        },
+        "required": ["space_id", "prompt_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_task_prompt",
+      "description": "Detach a direct prompt from a single task (removes the `task_prompts` row with `origin = 'task:<task_id>'`). Inherited prompts (from column/board/space/role) are NOT affected. NotFound when the pair has no row. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Task id.",
+            "examples": ["tsk_5kFbPzCa1"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id to detach."
+          }
+        },
+        "required": ["task_id", "prompt_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_board_prompts",
+      "description": "Replace a board's directly-attached prompt list atomically. Idempotent: passing the same set twice is a no-op. Inherited prompts (from space + role) are NOT affected — they continue to resolve via the inheritance chain. Call this when the user explicitly asks to set / replace prompts on the board level, NOT for incremental add/remove (use `add_board_prompt` / `remove_board_prompt` for those). Side effect: cascades fresh `task_prompts` rows tagged `origin = 'board:<board_id>'` for every task in the board. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "board_id": {
+            "type": "string",
+            "description": "Board whose prompt list to replace. Unknown id surfaces as `TransactionRolledBack` (FK violation on cascade).",
+            "examples": ["y1GE4tFkWzCCLU2LolS23"]
+          },
+          "prompt_ids": {
+            "type": "array",
+            "description": "Ordered list of prompt ids. Empty array clears the attachment (deletes every direct row + cascaded task rows).",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["board_id", "prompt_ids"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_column_prompts",
+      "description": "Replace a column's directly-attached prompt list atomically. Mirrors `set_board_prompts` at column granularity. Cascades fresh `task_prompts` rows tagged `origin = 'column:<column_id>'` for every task in the column. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "column_id": {
+            "type": "string",
+            "description": "Column whose prompt list to replace.",
+            "examples": ["col_5dxYz7Qa3"]
+          },
+          "prompt_ids": {
+            "type": "array",
+            "description": "Ordered list of prompt ids. Empty clears the column attachment.",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["column_id", "prompt_ids"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_prompt_group_members",
+      "description": "Atomically replace the full ordered member list for a prompt group. Idempotent. Use this for whole-list replacement; use `add_prompt_group_member` / `remove_prompt_group_member` for incremental diffs. FK violation (unknown prompt id) rolls the whole transaction back. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "Prompt group id whose member list to replace.",
+            "examples": ["grp_9KaB12LpQ"]
+          },
+          "ordered_prompt_ids": {
+            "type": "array",
+            "description": "Ordered list of prompt ids. Empty clears the group.",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["group_id", "ordered_prompt_ids"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_space_mcp_tools",
+      "description": "Replace the full MCP-tool list attached to a space (ctq-120). Atomic — partial failures roll back. Empty array clears the attachment. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Space whose MCP-tool list to replace.",
+            "examples": ["spc_7HhBnGxVa"]
+          },
+          "mcp_tool_ids": {
+            "type": "array",
+            "description": "Ordered list of mcp_tool ids. Empty clears the attachment.",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["space_id", "mcp_tool_ids"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_space_prompts",
+      "description": "Atomically replace the full ordered prompt list directly attached to a space. Cascades `task_prompts` rows tagged `origin = 'space:<space_id>'` for every task whose board lives in the space. Mirrors `set_board_prompts` at space granularity. Empty array clears the attachment. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Space whose prompt list to replace.",
+            "examples": ["spc_7HhBnGxVa"]
+          },
+          "prompt_ids": {
+            "type": "array",
+            "description": "Ordered list of prompt ids. Empty clears the attachment.",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["space_id", "prompt_ids"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_space_skills",
+      "description": "Replace the full skill list attached to a space (ctq-120). Atomic — partial failures roll back. Empty array clears the attachment. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Space whose skill list to replace.",
+            "examples": ["spc_7HhBnGxVa"]
+          },
+          "skill_ids": {
+            "type": "array",
+            "description": "Ordered list of skill ids. Empty clears the attachment.",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["space_id", "skill_ids"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_task_prompt_override",
+      "description": "Set (insert or update) a per-task prompt override. `enabled = true` forces the prompt to render for this task even if upstream layers would have removed it; `enabled = false` suppresses the prompt for this task even if upstream layers would have rendered it. Use sparingly — overrides are the most local layer of the resolver and bypass every inherited rule. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Task id the override applies to.",
+            "examples": ["tsk_5kFbPzCa1"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "Prompt id the override targets."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "`true` to force-enable the prompt for this task; `false` to force-disable."
+          }
+        },
+        "required": ["task_id", "prompt_id", "enabled"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "update_prompt",
+      "description": "Partial-update a prompt. Every field is optional. Clearable fields (`color`, `short_description`, `icon`) follow the tri-state convention: omit = keep, `null` = clear to NULL, string = set. `examples` replaces the whole array (use `[]` to clear). UNIQUE(name) collisions surface as `Conflict`. Returns the freshly-updated Prompt row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Prompt id to update.",
+            "examples": ["pmt_3Jw9XzAa2"]
+          },
+          "name": {
+            "type": "string",
+            "description": "New display name. Must be non-empty after trim if supplied."
+          },
+          "content": {
+            "type": "string",
+            "description": "New prompt body. Markdown allowed."
+          },
+          "color": {
+            "type": ["string", "null"],
+            "description": "Tri-state: omit = keep, `null` = clear, string = set. Must be `#RRGGBB` when set."
+          },
+          "short_description": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable. Omit = keep, `null` = clear, string = set."
+          },
+          "icon": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable. Omit = keep, `null` = clear, string = set."
+          },
+          "examples": {
+            "type": "array",
+            "description": "If supplied, replaces the whole examples array. Pass `[]` to clear.",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "update_prompt_group",
+      "description": "Partial-update a prompt group. Every field is optional. Clearable fields (`color`, `icon`) follow the tri-state convention: omit = keep, `null` = clear, string = set. Returns the freshly-updated PromptGroup row. NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Prompt group id to update.",
+            "examples": ["grp_9KaB12LpQ"]
+          },
+          "name": {
+            "type": "string",
+            "description": "New display name. Non-empty after trim if supplied."
+          },
+          "color": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable. Omit = keep, `null` = clear, string = set."
+          },
+          "icon": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable. Omit = keep, `null` = clear, string = set."
+          },
+          "position": {
+            "type": "integer",
+            "description": "New ordering slot."
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "update_space",
+      "description": "Partial-update a space. Every field is optional. Clearable fields (`description`, `color`, `icon`, `project_folder_path`) follow the tri-state convention: omit = keep, `null` = clear, string = set. Returns the freshly-updated Space row. NotFound when id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Space id to update.",
+            "examples": ["spc_7HhBnGxVa"]
+          },
+          "name": {
+            "type": "string",
+            "description": "New display name. Non-empty after trim if supplied."
+          },
+          "description": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable. Omit = keep, `null` = clear, string = set."
+          },
+          "color": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable. Must be `#RRGGBB` when set."
+          },
+          "icon": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable opaque pixel-icon identifier."
+          },
+          "is_default": {
+            "type": "boolean",
+            "description": "Flip the default-space marker."
+          },
+          "position": {
+            "type": "number",
+            "description": "New ordering slot (float)."
+          },
+          "project_folder_path": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable project folder path."
+          }
+        },
+        "required": ["id"],
         "additionalProperties": false
       }
     }
