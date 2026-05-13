@@ -21,6 +21,7 @@ pub mod mcp_servers;
 pub mod mcp_tools;
 pub mod prompt_groups;
 pub mod prompts;
+pub mod role_notes;
 pub mod roles;
 pub mod search;
 pub mod settings;

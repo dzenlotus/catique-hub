@@ -102,6 +102,13 @@ pub const ROLE_UPDATED: &str = "role:updated";
 /// `role:deleted` — payload `{ id }`.
 pub const ROLE_DELETED: &str = "role:deleted";
 
+/// `role_note:created` — payload `{ roleId, noteId }`. ctq-137 / MEM-S1.
+pub const ROLE_NOTE_CREATED: &str = "role_note:created";
+/// `role_note:updated` — payload `{ roleId, noteId }`.
+pub const ROLE_NOTE_UPDATED: &str = "role_note:updated";
+/// `role_note:deleted` — payload `{ roleId, noteId }`.
+pub const ROLE_NOTE_DELETED: &str = "role_note:deleted";
+
 /// `tag:created` — payload `{ id }`.
 pub const TAG_CREATED: &str = "tag:created";
 /// `tag:updated` — payload `{ id }`.
@@ -262,6 +269,9 @@ mod tests {
             ROLE_CREATED,
             ROLE_UPDATED,
             ROLE_DELETED,
+            ROLE_NOTE_CREATED,
+            ROLE_NOTE_UPDATED,
+            ROLE_NOTE_DELETED,
             TAG_CREATED,
             TAG_UPDATED,
             TAG_DELETED,

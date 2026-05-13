@@ -226,6 +226,14 @@ pub fn run() {
             handlers::roles::remove_role_skill,
             handlers::roles::set_role_prompts,
             handlers::roles::update_role,
+            // ---------------- role notes (ctq-137 / MEM-S1) ----------------
+            handlers::role_notes::add_role_note,
+            handlers::role_notes::delete_role_note,
+            handlers::role_notes::get_role_note,
+            handlers::role_notes::list_role_note_tags,
+            handlers::role_notes::list_role_notes,
+            handlers::role_notes::recall_role_notes,
+            handlers::role_notes::update_role_note,
             // ---------------- skills (E2.x + ctq-117 + ctq-127 + SKILL-S10) ----------------
             handlers::skills::add_skill_file_attachment,
             handlers::skills::add_skill_git_attachment,

@@ -118,6 +118,15 @@ pub(crate) fn render_md_agent(role: &ResolvedRole, now_ms: i64) -> String {
         }
     }
 
+    // ctq-137 / MEM-S1: `## Memory` paragraph documenting the
+    // per-role retrospective store. Slot AFTER the role body /
+    // prompts, BEFORE the `<mcp-tool>` and `<skill>` XML blocks.
+    // Stable position so file diffs stay readable across syncs. The
+    // `<this-role-id>` placeholder is templated at render time from
+    // `role.id` so the agent does not have to guess its own id.
+    out.push('\n');
+    out.push_str(&render_memory_paragraph(&role.id));
+
     // ADR-0008 + ADR-0005 round-21 amendment: per-tool `<mcp-tool>`
     // blocks at the end of the body so the LLM agent learns which
     // tools are reachable through the Catique HUB MCP endpoint.
@@ -136,6 +145,36 @@ pub(crate) fn render_md_agent(role: &ResolvedRole, now_ms: i64) -> String {
     }
 
     out
+}
+
+/// Render the ctq-137 / MEM-S1 `## Memory` paragraph injected between
+/// the role's prompts and the `<mcp-tool>` / `<skill>` XML blocks.
+///
+/// The placeholder for the agent's own role id is substituted from
+/// `role_id` so the tool calls are self-contained — the agent does
+/// not have to look its id up.
+pub(crate) fn render_memory_paragraph(role_id: &str) -> String {
+    // Triple-newline framing keeps the section visually distinct in the
+    // raw markdown without leaning on heading-level conventions the
+    // role body might already use.
+    format!(
+        "## Memory\n\
+\n\
+You have a personal retrospective memory store scoped to this role.\n\
+Use these tools to consult and write to it:\n\
+\n\
+- `list_role_tags(role_id=\"{role_id}\")` — see what tags this role already has. \
+Prefer reusing existing tags over inventing new ones.\n\
+- `recall_role_notes(role_id=\"{role_id}\", tags=[...])` — load past notes by tag \
+overlap BEFORE starting work.\n\
+- `add_role_note(role_id=\"{role_id}\", body=..., tags=[...])` — write a retrospective \
+AFTER the user rates the task. Cover: what was done, what failed, what went well, \
+what went badly, what to do differently next time. Tags should be drawn from \
+`list_role_tags` first; only invent new tags when no existing one fits.\n\
+\n\
+Pinned notes always load; the user curates priority and removes obsolete entries.\n\
+",
+    )
 }
 
 /// Render every attached MCP tool as a `<mcp-tool>` block, sorted
@@ -425,6 +464,7 @@ pub(crate) fn now_unix_ms() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ResolvedPrompt;
 
     #[test]
     fn yaml_quote_escapes_double_quote() {
@@ -488,6 +528,60 @@ mod tests {
         assert!(!body.contains("<mcp-tool"));
         // No skills attached → no `<skill>` blocks rendered.
         assert!(!body.contains("<skill "));
+    }
+
+    #[test]
+    fn render_md_agent_injects_memory_paragraph_after_prompts() {
+        // ctq-137 / MEM-S1: the `## Memory` section sits between the
+        // role body / prompts and the XML tool blocks. The agent's own
+        // role id is templated into every tool example so the agent
+        // does not have to look it up.
+        let role = ResolvedRole {
+            id: "role-xyz".into(),
+            slug: "reviewer".into(),
+            name: "Code Reviewer".into(),
+            content: "Review code carefully.".into(),
+            prompts: vec![ResolvedPrompt {
+                id: "p1".into(),
+                name: "Style".into(),
+                content: "no unwrap".into(),
+            }],
+            mcp_tools: vec![ResolvedMcpTool {
+                qualified_name: "github.search".into(),
+                description: Some("Search code".into()),
+                input_schema_json: "{}".into(),
+            }],
+            skills: vec![],
+        };
+        let body = render_md_agent(&role, 0);
+
+        // Header + every load-bearing tool name present.
+        assert!(body.contains("## Memory"));
+        assert!(body.contains("list_role_tags(role_id=\"role-xyz\")"));
+        assert!(body.contains("recall_role_notes(role_id=\"role-xyz\""));
+        assert!(body.contains("add_role_note(role_id=\"role-xyz\""));
+
+        // Ordering: prompts < memory < mcp tools.
+        let i_prompt = body.find("## Style").expect("prompt heading");
+        let i_memory = body.find("## Memory").expect("memory heading");
+        let i_mcp = body.find("<mcp-tool").expect("mcp tool block");
+        assert!(
+            i_prompt < i_memory,
+            "memory section must follow the prompts; body:\n{body}",
+        );
+        assert!(
+            i_memory < i_mcp,
+            "memory section must precede mcp-tool blocks; body:\n{body}",
+        );
+    }
+
+    #[test]
+    fn render_memory_paragraph_templates_role_id_literally() {
+        let para = render_memory_paragraph("role-7");
+        assert!(para.starts_with("## Memory"));
+        assert!(para.contains("role_id=\"role-7\""));
+        // Three tool references — list, recall, add.
+        assert_eq!(para.matches("role_id=\"role-7\"").count(), 3);
     }
 
     #[test]

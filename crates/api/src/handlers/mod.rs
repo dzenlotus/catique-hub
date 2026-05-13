@@ -15,6 +15,7 @@ pub mod mcp_tools;
 pub mod prompt_groups;
 pub mod prompts;
 pub mod reports;
+pub mod role_notes;
 pub mod roles;
 pub mod search;
 pub mod secrets;

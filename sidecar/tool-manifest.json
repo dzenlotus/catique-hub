@@ -1,5 +1,5 @@
 {
-  "$comment": "Catique HUB MCP tool manifest — ctq-112 / E5 round 1. Post-ADR-0008 (2026-05-12) the surface is restricted to Catique-native reads. The `list_mcp_servers` / `get_mcp_server_connection_hint` entries from ADR-0007 (registry-only model) were removed because external agents must not see upstream-server connection metadata under the pass-through proxy model. The forthcoming `proxy_tool_call` will be added when ctq-126 lands under ADR-0008. TODO(ctq-112-manifest-gen): replace this hand-authored file with an xtask-driven generator that derives tool entries from the dispatch arms.",
+  "$comment": "Catique HUB MCP tool manifest — ctq-112 / E5 round 1. Post-ADR-0008 (2026-05-12) the surface is restricted to Catique-native reads. The `list_mcp_servers` / `get_mcp_server_connection_hint` entries from ADR-0007 (registry-only model) were removed because external agents must not see upstream-server connection metadata under the pass-through proxy model. The forthcoming `proxy_tool_call` will be added when ctq-126 lands under ADR-0008. ctq-137 / MEM-S1 adds the three per-role retrospective-memory tools. TODO(ctq-112-manifest-gen): replace this hand-authored file with an xtask-driven generator that derives tool entries from the dispatch arms.",
   "tools": [
     {
       "name": "list_boards",
@@ -55,6 +55,82 @@
           }
         },
         "required": ["task_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "recall_role_notes",
+      "description": "Load a role's past retrospective notes ranked by tag overlap (or FTS5 body match when no tags are supplied). Pinned notes ALWAYS surface regardless of overlap. Call this BEFORE starting work on a task — it lets the agent reuse prior lessons (what worked, what failed, what to do differently) instead of relearning them. Tag scoring biases toward (a) higher overlap count, (b) higher priority, and (c) more recent notes (30-day soft half-life). Up to 50 notes are returned; default limit is 20.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "The role whose notes to recall. Always pass this role's id — the role-file rendered by Catique HUB injects it for you."
+          },
+          "tags": {
+            "type": "array",
+            "description": "Optional list of tags to intersect against existing notes. Empty array (or omitted) triggers the FTS5 body-match fallback path. Tags are normalised to kebab-case `[a-z0-9-]{1,32}` server-side; mismatched input is dropped silently.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "query": {
+            "type": "string",
+            "description": "FTS5 body query — used only when `tags` is empty/omitted. Free-text words connected with default FTS5 grammar (AND-of-tokens). Double quotes are stripped server-side so the agent can pass arbitrary prose."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of notes to return. Defaults to 20; values above 50 are clamped; zero returns an empty array.",
+            "minimum": 0
+          }
+        },
+        "required": ["role_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "add_role_note",
+      "description": "Append one retrospective note to a role's personal memory store. Call this AFTER the user has rated the task you just finished, with a body that covers: what was done, what failed, what went well, what went badly, and what to do differently next time. The note is recall-keyed by its `tags` array — list_role_tags FIRST and reuse existing tags whenever they fit; only invent new tags when nothing existing applies. `authored_by` is always `agent` on this surface; the user-authored path is reachable only through the desktop UI.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "The role whose memory store to append to. Always pass this role's id — the role-file injects it for you."
+          },
+          "body": {
+            "type": "string",
+            "description": "Free-form retrospective prose. Markdown allowed. Max 8192 chars. Cover what was done, what failed, what to do differently next time. Empty or whitespace-only bodies are rejected."
+          },
+          "tags": {
+            "type": "array",
+            "description": "Agent-invented tag set keying this note for future recall. Tags are normalised to kebab-case `[a-z0-9-]{1,32}` server-side; runs of whitespace and underscores collapse to dashes; non-ASCII characters are stripped. Prefer reusing tags from `list_role_tags` before inventing new ones. Empty array is accepted (note becomes recall-keyed via FTS5 only).",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_task_id": {
+            "type": "string",
+            "description": "Optional task id that produced this retrospective. Server validates the id exists; ON DELETE the link clears to NULL so the note survives the task it was born from."
+          }
+        },
+        "required": ["role_id", "body", "tags"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_role_tags",
+      "description": "Return the role's tag cloud as an array of {tag, count} pairs sorted by count DESC then tag ASC. CALL THIS FIRST before adding a note so you reuse existing tags instead of inventing near-duplicates (e.g. `async-tauri` and `async_tauri` would collapse to the same normalised value, but `async-runtime` and `tokio-runtime` would not — pick the canonical one if it already exists).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "The role whose tag cloud to fetch. Always pass this role's id."
+          }
+        },
+        "required": ["role_id"],
         "additionalProperties": false
       }
     }
