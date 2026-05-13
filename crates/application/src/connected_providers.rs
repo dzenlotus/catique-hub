@@ -26,14 +26,15 @@
 use std::sync::Arc;
 
 use catique_clients::{
-    McpEntry, ResolvedMcpTool, ResolvedPrompt, ResolvedRole, ResolvedSkill, RoleBundle,
+    McpEntry, ResolvedMcpTool, ResolvedPrompt, ResolvedRole, ResolvedSkill, ResolvedSkillStep,
+    RoleBundle,
 };
 use catique_domain::{SyncState, SyncStatus};
 use catique_infrastructure::db::pool::{acquire, Pool};
 use catique_infrastructure::db::repositories::{
     mcp_servers as servers_repo,
     mcp_tools::{self as tools_repo, McpToolRow, McpToolSourceRow},
-    skills as skills_repo,
+    skill_steps as steps_repo, skills as skills_repo,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -224,6 +225,7 @@ fn drain_pending(rx: &mut mpsc::UnboundedReceiver<SyncTrigger>) {
 /// catalog*, not per-task resolved bundles. A future iteration may
 /// expand the per-role prompt set to include the inheritance closure;
 /// the trait surface accepts whatever resolved shape we hand it.
+#[allow(clippy::too_many_lines)]
 fn build_bundle(pool: &Pool) -> Result<RoleBundle, AppError> {
     let conn = acquire(pool).map_err(map_db_err)?;
     // Resolve `<app_data_dir>/skills/` once up front so per-skill
@@ -318,10 +320,24 @@ fn build_bundle(pool: &Pool) -> Result<RoleBundle, AppError> {
         let mut skills = Vec::with_capacity(skill_rows.len());
         for srow in skill_rows {
             let attachments = resolve_skill_attachments(&conn, &srow.id, &skills_root)?;
+            // SKILL-V2-A: every skill now carries an ordered step list.
+            // Empty for legacy skills (the renderer omits the `<step>`
+            // children in that case, preserving the old shape).
+            let step_rows = steps_repo::list_by_skill(&conn, &srow.id).map_err(map_db_err)?;
+            let steps: Vec<ResolvedSkillStep> = step_rows
+                .into_iter()
+                .map(|r| ResolvedSkillStep {
+                    position: r.position,
+                    title: r.title,
+                    body: r.body,
+                    expected_outcome: r.expected_outcome,
+                })
+                .collect();
             skills.push(ResolvedSkill {
                 id: srow.id,
                 name: srow.name,
                 description: srow.description,
+                steps,
                 attachments,
             });
         }

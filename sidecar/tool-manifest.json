@@ -275,6 +275,38 @@
       }
     },
     {
+      "name": "add_skill_step",
+      "description": "Append one ordered step to a skill (SKILL-V2-A). A skill's `description` carries the high-level overview / TL;DR (what the skill is FOR); the step list is the ordered sequence the agent walks during work. Each step is `{title, body, expected_outcome?}`. Use this to author skills programmatically based on what you learned while executing — e.g. you discovered a missing pre-check while running a deploy, you add a `Validate cluster auth` step at position 0. Position defaults to `max(position) + 1` (append) when omitted. Returns the persisted SkillStep row.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skill_id": {
+            "type": "string",
+            "description": "Skill id to attach the step to. NotFound on unknown id.",
+            "examples": ["sk_RtY7nBxA1"]
+          },
+          "title": {
+            "type": "string",
+            "description": "One-line action label. Non-empty, ≤200 chars; Validation otherwise."
+          },
+          "body": {
+            "type": "string",
+            "description": "Markdown 'how' for the step. Empty allowed — title alone often suffices."
+          },
+          "expected_outcome": {
+            "type": "string",
+            "description": "Optional success signal the agent checks after the step. Whitespace-only collapses to null."
+          },
+          "position": {
+            "type": "number",
+            "description": "Optional explicit position (REAL — fractional values supported for insert-between). Omitted → append after current max."
+          }
+        },
+        "required": ["skill_id", "title"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "add_space_prompt",
       "description": "Attach a single prompt to a space at the given position (defaults to end). Upserts: calling twice with a different position updates the slot. Side effect: cascades one `task_prompts` row per task whose board lives in the space, tagged `origin = 'space:<space_id>'`. For desired-state replacement use `set_space_prompts`. Returns void.",
       "inputSchema": {
@@ -926,6 +958,22 @@
       }
     },
     {
+      "name": "delete_skill_step",
+      "description": "Delete one ordered step from a skill (SKILL-V2-A). NotFound when step id is unknown. The parent skill is unaffected; the remaining steps keep their existing positions (call `reorder_skill_steps` if you want to compact them). Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Step id to delete. NotFound when unknown.",
+            "examples": ["stp_4n8XzAa2"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "delete_space",
       "description": "Delete a space and every board/column/task it owns (cascading FK rules apply inside one transaction). NotFound when id is unknown. The default space cannot be deleted while it is marked default — flip another space to default first. Returns void.",
       "inputSchema": {
@@ -1284,6 +1332,35 @@
       }
     },
     {
+      "name": "import_skill_from_url",
+      "description": "Import a public skill resource from a git URL and materialise it as a Catique skill (SKILL-V2-A). Pipeline: (1) HTTP-fetch from allowlist hosts only — github.com, gitlab.com, raw.githubusercontent.com, gist.githubusercontent.com; (2) normalise `github.com/<u>/<r>/blob/<ref>/<path>` to the `raw.githubusercontent.com` equivalent (same shape for gitlab `blob`→`raw`); (3) hard cap at 1 MiB body, 30s timeout; (4) split markdown on top-level `## ` H2 headings — text before the first H2 becomes the skill overview, each H2 block becomes one ordered step, an optional `### Expected outcome` or `### Result` subsection inside a step hoists into `expected_outcome`; (5) persist the skill + steps + a `kind = git` attachment recording the source URL for traceability. When `target_skill_id` is supplied the import applies to that skill (default: replace existing steps; pass `replace_steps: false` to append). When `target_skill_id` is omitted, `name` is required and a new skill is created. Failure modes (mapped to existing AppError variants — no IPC contract growth): unsupported host / oversize body → `Validation`; upstream HTTP non-2xx → `Conflict`; unknown `target_skill_id` → `NotFound`. Auth is intentionally NOT supported in v1 (private repos surface as `Conflict(401)`); future iterations may add per-URL keychain integration. Returns an ImportReport `{ skillId, overviewChars, stepsAdded, attachmentId }`.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Public URL pointing at a markdown skill resource. Must be on the allowlist (github.com / gitlab.com / raw.githubusercontent.com / gist.githubusercontent.com).",
+            "examples": ["https://github.com/anthropics/example/blob/main/skill.md", "https://raw.githubusercontent.com/u/r/main/SKILL.md"]
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name for the new skill. Required when `target_skill_id` is omitted; ignored otherwise. Non-empty, ≤200 chars."
+          },
+          "target_skill_id": {
+            "type": "string",
+            "description": "Optional id of an existing skill to apply the import to. When supplied, `name` is ignored and the existing row's `description` is overwritten with the fetched overview."
+          },
+          "replace_steps": {
+            "type": "boolean",
+            "description": "When applying to an existing skill: `true` (default) atomically wipes the existing step list and inserts the parsed steps; `false` appends the parsed steps after the current max position. Ignored on the create-new path (always full).",
+            "default": true
+          }
+        },
+        "required": ["url"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "list_agent_reports",
       "description": "List agent-report rows (newest first). `task_id` is an optional filter; when omitted (or null), every row is returned. MCP guidance: agents inspecting prior reports for a single task should ALWAYS pass `task_id` — the `idx_agent_reports_task` index makes the filtered path O(matches); the unfiltered path is O(all-reports).",
       "inputSchema": {
@@ -1483,6 +1560,22 @@
           "skill_id": {
             "type": "string",
             "description": "Skill id whose attachments to list. NotFound when unknown.",
+            "examples": ["sk_RtY7nBxA1"]
+          }
+        },
+        "required": ["skill_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_skill_steps",
+      "description": "List every ordered step for a skill (SKILL-V2-A), sorted by `position` then `id`. Returns `SkillStep` rows `{id, skillId, position, title, body, expectedOutcome, createdAt, updatedAt}`. Empty array for skills authored before SKILL-V2-A (the renderer treats those as the legacy flat-markdown shape — the skill's `description` carries the whole instruction). NotFound when `skill_id` is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skill_id": {
+            "type": "string",
+            "description": "Skill id whose steps to list. NotFound when unknown.",
             "examples": ["sk_RtY7nBxA1"]
           }
         },
@@ -1987,6 +2080,27 @@
           }
         },
         "required": ["task_id", "skill_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "reorder_skill_steps",
+      "description": "Bulk re-order the step list of a skill (SKILL-V2-A). `step_ids` must cover every existing step of `skill_id` exactly once — extras, omissions, or unknown ids surface as `BadRequest` so callers don't silently lose entries. Positions are reset to `1.0, 2.0, 3.0, …` so subsequent insert-betweens have plenty of headroom. Returns void.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skill_id": {
+            "type": "string",
+            "description": "Skill id whose step list to reorder. NotFound when unknown.",
+            "examples": ["sk_RtY7nBxA1"]
+          },
+          "step_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Desired order. Must be a permutation of the existing step ids; mismatches surface as `BadRequest`."
+          }
+        },
+        "required": ["skill_id", "step_ids"],
         "additionalProperties": false
       }
     },
@@ -2728,6 +2842,38 @@
           "position": {
             "type": "number",
             "description": "New float ordering slot."
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "update_skill_step",
+      "description": "Partial-update one ordered step on a skill (SKILL-V2-A). Every field is optional. `title` is validated for non-empty trim when supplied (Validation otherwise). `expected_outcome` is the tri-state clearable: omit = keep, `null` = clear, string = set. `position` rewrites the step's slot — `reorder_skill_steps` is preferred for bulk reorders because it resequences every row. NotFound when step id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Step id to update. NotFound when unknown.",
+            "examples": ["stp_4n8XzAa2"]
+          },
+          "title": {
+            "type": "string",
+            "description": "New title. Non-empty after trim, ≤200 chars."
+          },
+          "body": {
+            "type": "string",
+            "description": "New markdown body. Empty allowed."
+          },
+          "expected_outcome": {
+            "type": ["string", "null"],
+            "description": "Tri-state expected-outcome. Omit = keep, `null` = clear, string = set."
+          },
+          "position": {
+            "type": "number",
+            "description": "New float position. Prefer `reorder_skill_steps` for bulk reorders."
           }
         },
         "required": ["id"],

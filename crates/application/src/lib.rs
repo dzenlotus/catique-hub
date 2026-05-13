@@ -30,6 +30,8 @@ pub mod role_notes;
 pub mod roles;
 pub mod search;
 pub mod settings;
+pub mod skill_import;
+pub mod skill_steps;
 pub mod skills;
 pub mod spaces;
 pub mod tags;

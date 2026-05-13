@@ -93,6 +93,24 @@ url = "2"
 # present transitively via reqwest.
 base64 = "0.22"
 
+# SKILL-V2-A: HTTP client for the git-fetch import pipeline
+# (raw GitHub / GitLab / gist URLs). `rustls-tls` avoids dragging
+# OpenSSL into the supply chain (NFR §5.3). `default-features = false`
+# disables `reqwest`'s blocking client + cookies + gzip middleware we
+# don't need; the explicit `json`/`stream` features stay opt-in if a
+# future caller needs them.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+
+# SKILL-V2-A: futures_util::StreamExt for the streamed-body size cap.
+# Pulled in directly so the dependency footprint stays explicit at the
+# crate boundary (rather than relying on a reqwest transitive).
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+
+# SKILL-V2-A test dep: HTTP mock server for `git_fetch::fetch_text`
+# round-trip tests. wiremock-rs is the maintained successor to mockito's
+# 0.31+ async surface and runs entirely in-process — no Docker.
+wiremock = "0.6"
+
 # Test helpers — not pulled into production binaries.
 tempfile = "3"
 

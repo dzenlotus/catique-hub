@@ -134,6 +134,19 @@ pub const SKILL_ATTACHMENT_ADDED: &str = "skill:attachment_added";
 /// call. The payload mirrors `attachment_added` so a single listener
 /// can dedupe and refresh both adds and removes.
 pub const SKILL_ATTACHMENT_REMOVED: &str = "skill:attachment_removed";
+/// `skill:imported` — payload `{ skillId, importReport }`. SKILL-V2-A.
+///
+/// Fires after a successful `import_skill_from_url` IPC call so the UI
+/// can refresh the affected skill (overview, steps, attachments) in
+/// one go.
+pub const SKILL_IMPORTED: &str = "skill:imported";
+
+/// `skill_step:created` — payload `{ skillId, stepId }`. SKILL-V2-A.
+pub const SKILL_STEP_CREATED: &str = "skill_step:created";
+/// `skill_step:updated` — payload `{ skillId, stepId }`. SKILL-V2-A.
+pub const SKILL_STEP_UPDATED: &str = "skill_step:updated";
+/// `skill_step:deleted` — payload `{ skillId, stepId }`. SKILL-V2-A.
+pub const SKILL_STEP_DELETED: &str = "skill_step:deleted";
 
 /// `mcp_tool:created` — payload `{ id }`.
 pub const MCP_TOOL_CREATED: &str = "mcp_tool:created";
@@ -286,6 +299,10 @@ mod tests {
             SKILL_DELETED,
             SKILL_ATTACHMENT_ADDED,
             SKILL_ATTACHMENT_REMOVED,
+            SKILL_IMPORTED,
+            SKILL_STEP_CREATED,
+            SKILL_STEP_UPDATED,
+            SKILL_STEP_DELETED,
             MCP_TOOL_CREATED,
             MCP_TOOL_UPDATED,
             MCP_TOOL_DELETED,

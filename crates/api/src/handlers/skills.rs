@@ -13,8 +13,14 @@
 //! a second JS encoder for the skill flow.
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use catique_application::{skills::SkillsUseCase, tasks::TasksUseCase, AppError};
-use catique_domain::{Skill, SkillAttachment};
+use catique_application::{
+    skill_import::{ImportReport, ImportTarget, SkillImportUseCase},
+    skill_steps::SkillStepsUseCase,
+    skills::SkillsUseCase,
+    tasks::TasksUseCase,
+    AppError,
+};
+use catique_domain::{Skill, SkillAttachment, SkillStep};
 use catique_infrastructure::paths::app_data_dir;
 use serde_json::json;
 use tauri::State;
@@ -298,6 +304,178 @@ fn resolve_data_root() -> Result<std::path::PathBuf, AppError> {
         field: "app_data_dir".into(),
         reason: reason.to_owned(),
     })
+}
+
+// ── SKILL-V2-A step IPC ──────────────────────────────────────────────
+
+/// IPC: append (or insert at a chosen position) a step on a skill.
+///
+/// # Errors
+///
+/// * `AppError::Validation` — empty title.
+/// * `AppError::NotFound` — `skill_id` does not exist.
+#[tauri::command]
+pub async fn add_skill_step(
+    state: State<'_, AppState>,
+    skill_id: String,
+    title: String,
+    body: String,
+    expected_outcome: Option<String>,
+    position: Option<f64>,
+) -> Result<SkillStep, AppError> {
+    let step = SkillStepsUseCase::new(&state.pool).add_step(
+        &skill_id,
+        title,
+        body,
+        expected_outcome,
+        position,
+    )?;
+    events::emit(
+        &state,
+        events::SKILL_STEP_CREATED,
+        json!({ "skillId": step.skill_id, "stepId": step.id }),
+    );
+    Ok(step)
+}
+
+/// IPC: partial-update a step.
+///
+/// # Errors
+///
+/// * `AppError::Validation` — empty title (when supplied).
+/// * `AppError::NotFound` — step id does not exist.
+#[tauri::command]
+pub async fn update_skill_step(
+    state: State<'_, AppState>,
+    id: String,
+    title: Option<String>,
+    body: Option<String>,
+    expected_outcome: Option<Option<String>>,
+    position: Option<f64>,
+) -> Result<SkillStep, AppError> {
+    let step = SkillStepsUseCase::new(&state.pool).update_step(
+        &id,
+        title,
+        body,
+        expected_outcome,
+        position,
+    )?;
+    events::emit(
+        &state,
+        events::SKILL_STEP_UPDATED,
+        json!({ "skillId": step.skill_id, "stepId": step.id }),
+    );
+    Ok(step)
+}
+
+/// IPC: delete a step.
+///
+/// # Errors
+///
+/// `AppError::NotFound` when no step matches.
+#[tauri::command]
+pub async fn delete_skill_step(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
+    // Resolve the skill_id before deletion so the event payload can
+    // carry it.
+    let uc = SkillStepsUseCase::new(&state.pool);
+    let conn = catique_infrastructure::db::pool::acquire(&state.pool).map_err(|e| {
+        AppError::TransactionRolledBack {
+            reason: format!("db acquire: {e}"),
+        }
+    })?;
+    let pre = catique_infrastructure::db::repositories::skill_steps::get_by_id(&conn, &id)
+        .map_err(|e| AppError::TransactionRolledBack {
+            reason: format!("db: {e}"),
+        })?
+        .ok_or_else(|| AppError::NotFound {
+            entity: "skill_step".into(),
+            id: id.clone(),
+        })?;
+    drop(conn);
+    uc.delete_step(&id)?;
+    events::emit(
+        &state,
+        events::SKILL_STEP_DELETED,
+        json!({ "skillId": pre.skill_id, "stepId": id }),
+    );
+    Ok(())
+}
+
+/// IPC: list every step for a skill, ordered by position.
+///
+/// # Errors
+///
+/// `AppError::NotFound` when `skill_id` does not exist.
+#[tauri::command]
+pub async fn list_skill_steps(
+    state: State<'_, AppState>,
+    skill_id: String,
+) -> Result<Vec<SkillStep>, AppError> {
+    SkillStepsUseCase::new(&state.pool).list_steps(&skill_id)
+}
+
+/// IPC: bulk re-position the step list.
+///
+/// # Errors
+///
+/// * `AppError::NotFound` — `skill_id` does not exist.
+/// * `AppError::BadRequest` — supplied ids do not cover every existing
+///   step exactly once.
+#[tauri::command]
+pub async fn reorder_skill_steps(
+    state: State<'_, AppState>,
+    skill_id: String,
+    step_ids: Vec<String>,
+) -> Result<(), AppError> {
+    SkillStepsUseCase::new(&state.pool).reorder_steps(&skill_id, &step_ids)?;
+    // Fan out one "updated" event per step so frontend listeners
+    // backed by id-keyed caches refresh without a separate "list
+    // reordered" channel.
+    for id in &step_ids {
+        events::emit(
+            &state,
+            events::SKILL_STEP_UPDATED,
+            json!({ "skillId": skill_id, "stepId": id }),
+        );
+    }
+    Ok(())
+}
+
+/// IPC: import a skill from a public git URL. See
+/// [`SkillImportUseCase::import_from_url`].
+///
+/// # Errors
+///
+/// See [`SkillImportUseCase::import_from_url`].
+#[tauri::command]
+pub async fn import_skill_from_url(
+    state: State<'_, AppState>,
+    url: String,
+    name: Option<String>,
+    target_skill_id: Option<String>,
+    replace_steps: Option<bool>,
+) -> Result<ImportReport, AppError> {
+    let target = match target_skill_id {
+        Some(skill_id) => ImportTarget::ApplyToExisting {
+            skill_id,
+            replace_steps: replace_steps.unwrap_or(true),
+        },
+        None => ImportTarget::CreateNew {
+            name: name.ok_or_else(|| AppError::Validation {
+                field: "name".into(),
+                reason: "name is required when target_skill_id is omitted".into(),
+            })?,
+        },
+    };
+    let report = SkillImportUseCase::new(&state.pool)
+        .import_from_url(&url, target)
+        .await?;
+    events::emit(
+        &state,
+        events::SKILL_IMPORTED,
+        json!({ "skillId": report.skill_id, "importReport": report }),
+    );
+    Ok(report)
 }
 
 #[cfg(test)]

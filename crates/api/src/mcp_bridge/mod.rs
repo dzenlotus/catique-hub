@@ -66,6 +66,8 @@ use catique_application::{
     roles::RolesUseCase,
     search::SearchUseCase,
     settings::SettingsUseCase,
+    skill_import::{ImportTarget, SkillImportUseCase},
+    skill_steps::SkillStepsUseCase,
     skills::SkillsUseCase,
     spaces::{CreateSpaceArgs, SpacesUseCase, UpdateSpaceArgs},
     tags::TagsUseCase,
@@ -220,9 +222,9 @@ pub async fn install(mgr: &SidecarManager, pool: Pool, orchestrator: Option<Orch
         let orch = captured_orch.clone();
         Box::pin(async move {
             // Async-first arms — they need the Tokio runtime AND either
-            // the wire (proxy_tool_call / refresh_mcp_server) or the
-            // orchestrator (provider mutators). They cannot live in the
-            // `spawn_blocking` path.
+            // the wire (proxy_tool_call / refresh_mcp_server / skill
+            // import HTTP fetch) or the orchestrator (provider mutators).
+            // They cannot live in the `spawn_blocking` path.
             match method.as_str() {
                 "proxy_tool_call" => return proxy_tool_call_arm(&pool, &mgr, params).await,
                 "add_provider" => return add_provider_arm(&pool, orch.as_ref(), params).await,
@@ -230,6 +232,7 @@ pub async fn install(mgr: &SidecarManager, pool: Pool, orchestrator: Option<Orch
                     return remove_provider_arm(&pool, orch.as_ref(), params).await
                 }
                 "refresh_mcp_server" => return refresh_mcp_server_arm(&pool, &mgr, params).await,
+                "import_skill_from_url" => return import_skill_from_url_arm(&pool, params).await,
                 _ => {}
             }
             // Use cases are sync (rusqlite is sync); offload onto a
@@ -361,6 +364,7 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
         "add_role_skill" => add_role_skill_arm(pool, &params),
         "add_skill_file_attachment" => add_skill_file_attachment_arm(pool, &params),
         "add_skill_git_attachment" => add_skill_git_attachment_arm(pool, &params),
+        "add_skill_step" => add_skill_step_arm(pool, &params),
         "add_space_prompt" => {
             let space_id = decode_string(&params, "space_id")?;
             let prompt_id = decode_string(&params, "prompt_id")?;
@@ -565,6 +569,7 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
             Ok(json!({ "ok": true }))
         }
         "delete_skill" => delete_skill_arm(pool, &params),
+        "delete_skill_step" => delete_skill_step_arm(pool, &params),
         "delete_space" => {
             let id = decode_string(&params, "id")?;
             SpacesUseCase::new(pool)
@@ -788,6 +793,13 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&attachments)
         }
+        "list_skill_steps" => {
+            let skill_id = decode_string(&params, "skill_id")?;
+            let steps = SkillStepsUseCase::new(pool)
+                .list_steps(&skill_id)
+                .map_err(stringify_app)?;
+            json_or_err(&steps)
+        }
         "list_skills" => {
             let skills = SkillsUseCase::new(pool).list().map_err(stringify_app)?;
             json_or_err(&skills)
@@ -895,6 +907,7 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "reorder_skill_steps" => reorder_skill_steps_arm(pool, &params),
         "resolve_keychain" => resolve_keychain_arm(pool, &params),
         "route_task_to_board" => {
             let task_id = decode_string(&params, "task_id")?;
@@ -1151,6 +1164,7 @@ fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, String> {
                 .map_err(stringify_app)?;
             json_or_err(&skill)
         }
+        "update_skill_step" => update_skill_step_arm(pool, &params),
         "update_space" => {
             let args = UpdateSpaceArgs {
                 id: decode_string(&params, "id")?,
@@ -1970,6 +1984,96 @@ fn add_skill_git_attachment_arm(pool: &Pool, params: &Value) -> Result<Value, St
     json_or_err(&att)
 }
 
+/// SKILL-V2-A: mirrors `handlers::skills::add_skill_step`. Appends a
+/// step to a skill (or inserts at the supplied position). The agent
+/// surface lets external clients author skills programmatically based
+/// on what they learn during work.
+fn add_skill_step_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let skill_id = decode_string(params, "skill_id")?;
+    let title = decode_string(params, "title")?;
+    let body = decode_optional_string(params, "body").unwrap_or_default();
+    let expected_outcome = decode_optional_string(params, "expected_outcome");
+    let position = decode_optional_f64(params, "position");
+    let step = SkillStepsUseCase::new(pool)
+        .add_step(&skill_id, title, body, expected_outcome, position)
+        .map_err(stringify_app)?;
+    json_or_err(&step)
+}
+
+/// SKILL-V2-A: mirrors `handlers::skills::update_skill_step`.
+/// Tri-state semantics on `expected_outcome` (missing → skip, null →
+/// clear, string → set) matches the existing prompt / role updaters.
+fn update_skill_step_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let id = decode_string(params, "id")?;
+    let title = decode_optional_string(params, "title");
+    let body = decode_optional_string(params, "body");
+    let expected_outcome = decode_tri_state_string(params, "expected_outcome");
+    let position = decode_optional_f64(params, "position");
+    let step = SkillStepsUseCase::new(pool)
+        .update_step(&id, title, body, expected_outcome, position)
+        .map_err(stringify_app)?;
+    json_or_err(&step)
+}
+
+/// SKILL-V2-A: mirrors `handlers::skills::delete_skill_step`.
+fn delete_skill_step_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let id = decode_string(params, "id")?;
+    SkillStepsUseCase::new(pool)
+        .delete_step(&id)
+        .map_err(stringify_app)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// SKILL-V2-A: mirrors `handlers::skills::reorder_skill_steps`. The
+/// `step_ids` array must cover every existing step exactly once;
+/// mismatches surface as `BadRequest`.
+fn reorder_skill_steps_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let skill_id = decode_string(params, "skill_id")?;
+    let step_ids = decode_string_array(params, "step_ids")?;
+    SkillStepsUseCase::new(pool)
+        .reorder_steps(&skill_id, &step_ids)
+        .map_err(stringify_app)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// SKILL-V2-A: mirrors `handlers::skills::import_skill_from_url`.
+/// Async arm — performs an HTTP fetch against the allowlisted hosts
+/// (github.com, gitlab.com, raw.githubusercontent.com, gist.
+/// githubusercontent.com), parses the markdown body on H2 splits, and
+/// persists the skill + steps + git-reference attachment in one tx.
+///
+/// Caller must supply EITHER `target_skill_id` (apply to existing)
+/// OR `name` (create new); supplying both prefers the existing path.
+/// `replace_steps` defaults to `true` and applies only to the
+/// existing-skill path.
+async fn import_skill_from_url_arm(pool: &Pool, params: Value) -> Result<Value, String> {
+    let url = decode_string(&params, "url")?;
+    let target_skill_id = decode_optional_string(&params, "target_skill_id");
+    let replace_steps = params
+        .get("replace_steps")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let target = if let Some(skill_id) = target_skill_id {
+        ImportTarget::ApplyToExisting {
+            skill_id,
+            replace_steps,
+        }
+    } else {
+        let name = decode_optional_string(&params, "name").ok_or_else(|| {
+            stringify_app(AppError::Validation {
+                field: "name".into(),
+                reason: "name is required when target_skill_id is omitted".into(),
+            })
+        })?;
+        ImportTarget::CreateNew { name }
+    };
+    let report = SkillImportUseCase::new(pool)
+        .import_from_url(&url, target)
+        .await
+        .map_err(stringify_app)?;
+    json_or_err(&report)
+}
+
 /// Mirrors `handlers::skills::remove_skill_attachment`. Removes both
 /// the metadata row AND the on-disk blob (file-kind only).
 fn remove_skill_attachment_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
@@ -2633,6 +2737,10 @@ mod tests {
             "remove_provider",
             "proxy_tool_call",
             "refresh_mcp_server",
+            // SKILL-V2-A: import_skill_from_url performs an HTTP fetch
+            // and so lives in the async pre-arm slot, not in sync
+            // dispatch.
+            "import_skill_from_url",
         ];
         for tool in parsed["tools"].as_array().unwrap() {
             let name = tool["name"].as_str().unwrap();

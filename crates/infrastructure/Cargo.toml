@@ -53,6 +53,20 @@ dirs.workspace = true
 # around rusqlite calls (rusqlite is sync; Tauri commands are async).
 tokio.workspace = true
 
+# SKILL-V2-A: HTTP client for the git-fetch import pipeline. Workspace
+# pin is `default-features = false` + `rustls-tls` — keeps OpenSSL out
+# of the supply chain.
+reqwest.workspace = true
+
+# SKILL-V2-A: streamed-body size cap relies on
+# `futures_util::StreamExt::next` over reqwest's `bytes_stream`.
+futures-util.workspace = true
+
+# SKILL-V2-A: URL normalisation for the github/gitlab blob→raw mapper.
+# Already a workspace dep (SKILL-S10 brought it in for git-attachment
+# validation); we promote it onto this crate's direct surface.
+url.workspace = true
+
 # Used by repository unit tests to emit deterministic timestamps when
 # the row's caller doesn't pass one explicitly.
 chrono.workspace = true
@@ -85,6 +99,14 @@ features = ["sync-secret-service", "crypto-rust"]
 [dev-dependencies]
 tempfile.workspace = true
 criterion.workspace = true
+
+# SKILL-V2-A: in-process HTTP mock server for `git_fetch::fetch_text`
+# round-trip tests. No Docker / network — wiremock-rs spawns a hyper
+# server on an ephemeral port.
+wiremock.workspace = true
+
+# wiremock requires a multi-threaded Tokio runtime in async tests.
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 
 # ADR-0006 (resolver perf gate, P99 < 50 ms): criterion harness over a
 # 10k-task seed fixture. Lives at `benches/resolver.rs`; running takes

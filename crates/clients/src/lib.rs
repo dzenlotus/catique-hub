@@ -132,13 +132,27 @@ pub struct ResolvedSkillAttachment {
     pub git_path: Option<String>,
 }
 
+/// One ordered step inside a [`ResolvedSkill`] (SKILL-V2-A).
+///
+/// Each step describes one concrete action the agent should take when
+/// applying the parent skill. `body` carries the markdown "how";
+/// `expected_outcome` is an optional success signal the agent uses to
+/// decide whether the step succeeded.
+#[derive(Debug, Clone)]
+pub struct ResolvedSkillStep {
+    pub position: f64,
+    pub title: String,
+    pub body: String,
+    pub expected_outcome: Option<String>,
+}
+
 /// One skill resolved for inclusion in a rendered role file (SKILL-S11).
 ///
 /// A skill is a named, optionally-described bundle of attachments
-/// (local files + git references) that an agent can read on demand.
-/// The renderer emits one `<skill>` block per skill regardless of
-/// whether `attachments` is empty — the description alone is useful to
-/// the agent.
+/// (local files + git references) and ordered steps (SKILL-V2-A) that
+/// an agent can read on demand. The renderer emits one `<skill>` block
+/// per skill regardless of whether `attachments` or `steps` are empty —
+/// the description alone is useful to the agent.
 #[derive(Debug, Clone)]
 pub struct ResolvedSkill {
     /// Stable skill id (DB primary key).
@@ -146,10 +160,15 @@ pub struct ResolvedSkill {
     /// Human-readable skill name. Rendered on the `name=` attribute
     /// (XML-escaped).
     pub name: String,
-    /// Optional one-line summary. Rendered into the `<description>`
-    /// child element (XML-escaped). Empty / None → empty
-    /// `<description></description>`.
+    /// Optional one-line summary / overview (SKILL-V2-A — what the
+    /// skill is FOR). Rendered into the `<description>` child element
+    /// (XML-escaped). Empty / None → empty `<description></description>`.
     pub description: Option<String>,
+    /// Ordered execution sequence (SKILL-V2-A). Sorted by `position`
+    /// at render time so file diffs stay stable across re-syncs. Empty
+    /// for old-shape skills — the renderer omits the `<step>` blocks
+    /// in that case (backwards-compat).
+    pub steps: Vec<ResolvedSkillStep>,
     /// Attachments in resolver order. The renderer applies its own
     /// alphabetical sort for diff-friendliness.
     pub attachments: Vec<ResolvedSkillAttachment>,

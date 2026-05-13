@@ -126,12 +126,14 @@ fn make_bundle(skills_root: &Path) -> RoleBundle {
         id: SKILL_ID_ANALYTICS.into(),
         name: "analytics".into(),
         description: Some("Crunch numbers".into()),
+        steps: vec![],
         attachments: vec![analytics_file, analytics_git],
     };
     let bash_runner = ResolvedSkill {
         id: SKILL_ID_BASH.into(),
         name: "bash-runner".into(),
         description: Some("Execute bash commands locally".into()),
+        steps: vec![],
         attachments: vec![bash_file],
     };
 

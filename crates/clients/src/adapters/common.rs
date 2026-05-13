@@ -20,7 +20,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::{
     ProviderError, ResolvedMcpTool, ResolvedRole, ResolvedSkill, ResolvedSkillAttachment,
-    ResolvedSkillAttachmentKind, CATIQUE_FILE_PREFIX, CATIQUE_MANAGED_KEY,
+    ResolvedSkillAttachmentKind, ResolvedSkillStep, CATIQUE_FILE_PREFIX, CATIQUE_MANAGED_KEY,
 };
 
 /// Resolve the user's home directory or surface a typed error.
@@ -280,6 +280,39 @@ pub(crate) fn render_skill_blocks(skills: &[ResolvedSkill]) -> String {
             "  <description>{}</description>",
             xml_escape_text(description)
         );
+
+        // SKILL-V2-A: emit `<step>` children BEFORE attachments — steps
+        // describe the work, attachments are supporting material. Sort
+        // by position so the on-disk render is deterministic across
+        // syncs. Old skills with no steps render the `<description>` +
+        // attachments shape unchanged (backwards-compat).
+        let mut steps: Vec<&ResolvedSkillStep> = skill.steps.iter().collect();
+        steps.sort_by(|a, b| {
+            a.position
+                .partial_cmp(&b.position)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        for (idx, step) in steps.iter().enumerate() {
+            // 1-indexed order so the rendered attribute matches the
+            // human convention agents expect.
+            let order = idx + 1;
+            let _ = writeln!(
+                out,
+                "  <step order=\"{order}\" title=\"{}\">",
+                xml_escape_attr(&step.title)
+            );
+            if !step.body.is_empty() {
+                let _ = writeln!(out, "    {}", xml_escape_text(&step.body));
+            }
+            if let Some(outcome) = step.expected_outcome.as_deref() {
+                let _ = writeln!(
+                    out,
+                    "    <expected-outcome>{}</expected-outcome>",
+                    xml_escape_text(outcome)
+                );
+            }
+            out.push_str("  </step>\n");
+        }
 
         // Alphabetical sort key per attachment: filename for File kind,
         // git_url for Git kind. Falls back to id so identical filenames
@@ -715,6 +748,7 @@ mod tests {
                 id: "s-b".into(),
                 name: "bash-runner".into(),
                 description: Some("Run bash".into()),
+                steps: vec![],
                 attachments: vec![file_att(
                     "a1",
                     "run.sh",
@@ -726,6 +760,7 @@ mod tests {
                 id: "s-a".into(),
                 name: "analytics".into(),
                 description: Some("Crunch numbers <fast>".into()),
+                steps: vec![],
                 attachments: vec![
                     file_att(
                         "a2",
@@ -778,6 +813,7 @@ mod tests {
             id: "s".into(),
             name: "lonely".into(),
             description: None,
+            steps: vec![],
             attachments: vec![],
         }];
         let out = render_skill_blocks(&skills);
@@ -795,6 +831,7 @@ mod tests {
             id: "s".into(),
             name: "g".into(),
             description: None,
+            steps: vec![],
             attachments: vec![git_att("a", "https://example.com/r", None, None)],
         }];
         let out = render_skill_blocks(&skills);
@@ -810,6 +847,7 @@ mod tests {
             id: "s".into(),
             name: "tricky".into(),
             description: None,
+            steps: vec![],
             attachments: vec![
                 file_att("a1", "a&b.sh", r#"/abs/skills/s/a"b.sh"#, None),
                 git_att("a2", "https://example.com/<x>", Some("v&w"), None),
@@ -843,6 +881,7 @@ mod tests {
                 id: "s".into(),
                 name: "bash-runner".into(),
                 description: Some("Run bash".into()),
+                steps: vec![],
                 attachments: vec![file_att(
                     "a",
                     "run.sh",
@@ -863,5 +902,95 @@ mod tests {
         assert!(body.contains(r#"<skill name="bash-runner">"#));
         assert!(body.contains("<description>Run bash</description>"));
         assert!(body.contains(r#"<file path="/abs/skills/s/run.sh""#));
+    }
+
+    // -- SKILL-V2-A unit tests --------------------------------------
+
+    #[test]
+    fn render_skill_blocks_emits_steps_before_attachments_in_position_order() {
+        // Out-of-order positions intentionally — sort must happen
+        // inside the renderer so the rendered XML is deterministic
+        // across syncs.
+        let skill = ResolvedSkill {
+            id: "s".into(),
+            name: "deploy".into(),
+            description: Some("Push to prod".into()),
+            steps: vec![
+                ResolvedSkillStep {
+                    position: 2.0,
+                    title: "Run command".into(),
+                    body: "kubectl apply".into(),
+                    expected_outcome: None,
+                },
+                ResolvedSkillStep {
+                    position: 1.0,
+                    title: "Validate input".into(),
+                    body: "Check the YAML".into(),
+                    expected_outcome: Some("YAML parses cleanly".into()),
+                },
+            ],
+            attachments: vec![file_att(
+                "a",
+                "deploy.sh",
+                "/abs/skills/s/deploy.sh",
+                Some("text/x-shellscript"),
+            )],
+        };
+        let out = render_skill_blocks(std::slice::from_ref(&skill));
+
+        // Both steps emitted, in position order (Validate < Run).
+        let i_validate = out
+            .find(r#"<step order="1" title="Validate input">"#)
+            .unwrap();
+        let i_run = out.find(r#"<step order="2" title="Run command">"#).unwrap();
+        assert!(i_validate < i_run);
+
+        // Expected-outcome carried verbatim, XML-escaped if needed.
+        assert!(out.contains("<expected-outcome>YAML parses cleanly</expected-outcome>"));
+
+        // Step block precedes the attachment block.
+        let i_step = out.find("<step ").unwrap();
+        let i_file = out.find("<file ").unwrap();
+        assert!(i_step < i_file, "<step> must precede <file> attachments");
+    }
+
+    #[test]
+    fn render_skill_blocks_xml_escapes_step_fields() {
+        let skill = ResolvedSkill {
+            id: "s".into(),
+            name: "tricky".into(),
+            description: None,
+            steps: vec![ResolvedSkillStep {
+                position: 1.0,
+                title: r#"Run "evil & nasty" <script>"#.into(),
+                body: "echo <hello & bye>".into(),
+                expected_outcome: Some("a < b".into()),
+            }],
+            attachments: vec![],
+        };
+        let out = render_skill_blocks(std::slice::from_ref(&skill));
+        // Attribute escaping: double-quote, ampersand, angle brackets.
+        assert!(out.contains(r#"title="Run &quot;evil &amp; nasty&quot; &lt;script&gt;""#));
+        // Text-node escaping: `<`, `>`, `&`.
+        assert!(out.contains("echo &lt;hello &amp; bye&gt;"));
+        assert!(out.contains("<expected-outcome>a &lt; b</expected-outcome>"));
+    }
+
+    #[test]
+    fn render_skill_blocks_zero_steps_renders_legacy_shape() {
+        // Backwards-compat: old skills (no steps) render the
+        // pre-SKILL-V2-A `<description>` + attachments shape.
+        let skill = ResolvedSkill {
+            id: "s".into(),
+            name: "legacy".into(),
+            description: Some("Old skill".into()),
+            steps: vec![],
+            attachments: vec![git_att("a", "https://example.com/r", None, None)],
+        };
+        let out = render_skill_blocks(std::slice::from_ref(&skill));
+        assert!(!out.contains("<step "));
+        assert!(out.contains(r#"<skill name="legacy">"#));
+        assert!(out.contains("<description>Old skill</description>"));
+        assert!(out.contains(r#"<git url="https://example.com/r" />"#));
     }
 }
