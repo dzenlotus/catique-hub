@@ -1,17 +1,18 @@
-import { useState, type MouseEvent, type ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { useLocation } from "wouter";
 
-import { cn } from "@shared/lib";
 import {
   Button,
   ConfirmDialog,
+  Group,
   KebabIcon,
+  MarqueeText,
   Menu,
   MenuItem,
-  MarqueeText,
   MenuTrigger,
+  Row,
+  RowLeading,
 } from "@shared/ui";
-import { SidebarNavItem } from "@shared/ui/SidebarShell";
 import { booleanCodec, useLocalStorage } from "@shared/storage";
 import type { Space } from "@entities/space";
 import {
@@ -20,8 +21,6 @@ import {
 } from "@entities/board";
 import { boardSettingsPath, spaceSettingsPath } from "@app/routes";
 import { useToast } from "@app/providers/ToastProvider";
-import { ChevronIcon } from "./ChevronIcon";
-import { BoardIcon, SpaceIcon } from "./icons";
 import styles from "./SpacesSidebar.module.css";
 
 // Per-space expanded flag survives reload through `useLocalStorage`. The
@@ -32,6 +31,11 @@ function getExpandedKey(spaceId: string): string {
 
 // ---------------------------------------------------------------------------
 // SpaceRow — inline collapsible space item with board children.
+//
+// Round-26 (Row/Group split): the row chrome (red strip, accent-soft
+// underlay, hover overlay, chevron column) lives in
+// `shared/ui/EntityTree`. This widget only owns the row bodies + the
+// board kebab menu + the delete ConfirmDialog.
 // ---------------------------------------------------------------------------
 
 interface SpaceRowProps {
@@ -66,6 +70,7 @@ export function SpaceRow({
   // intentionally don't trigger this — the active board row carries
   // the highlight there.
   const isOnSpaceSettings = location === spaceSettingsPath(space.id);
+
   // Round-19e: "Settings" from the per-board kebab navigates to the
   // /boards/:id/settings route (replaces the modal-based BoardEditor).
   // Replaces the old `window.confirm` flow — modal shows up via the
@@ -98,108 +103,51 @@ export function SpaceRow({
   // Clicking the space name navigates to the per-space settings page on
   // top of setting the active space so the rest of the app (BoardHome
   // redirects, ScopeSwitch, etc.) stays in sync.
-  function handleNameClick(): void {
+  function handleSelectSpace(): void {
     onSelectSpace(space.id);
     setLocation(spaceSettingsPath(space.id));
   }
 
-  function handleChevronClick(e: MouseEvent): void {
-    e.stopPropagation();
+  function handleToggleExpand(): void {
     setIsExpanded((prev) => !prev);
   }
 
   return (
-    <li className={styles.spaceItem}>
-      {/* Space header row */}
-      <div
-        className={cn(
-          styles.spaceRow,
-          isOnSpaceSettings && styles.spaceRowActive,
+    <>
+      <Group
+        testId={`spaces-sidebar-space-row-${space.id}`}
+        isActive={isOnSpaceSettings}
+        isExpand={isExpanded}
+        onToggleExpand={handleToggleExpand}
+        chevronAriaLabel={
+          isExpanded ? `Collapse ${space.name}` : `Expand ${space.name}`
+        }
+        onClick={handleSelectSpace}
+        renderContent={() => (
+          <SpaceHeaderBody
+            space={space}
+            isActiveSpace={isActiveSpace}
+            onSelect={handleSelectSpace}
+          />
         )}
-        data-testid={`spaces-sidebar-space-row-${space.id}`}
       >
-        {/* Chevron — toggles expand/collapse, does NOT change active space */}
-        <Button
-          variant="ghost"
-          className={styles.spaceChevronBtn}
-          onClick={handleChevronClick}
-          aria-label={isExpanded ? `Collapse ${space.name}` : `Expand ${space.name}`}
-          aria-expanded={isExpanded}
-        >
-          <ChevronIcon open={isExpanded} />
-        </Button>
-
-        {/* Space icon + name — sets active space + navigates to settings */}
-        <button
-          type="button"
-          className={styles.spaceNameBtn}
-          onClick={handleNameClick}
-          aria-label={`${space.name}${isActiveSpace ? " (active space)" : ""}`}
-          data-testid={`spaces-sidebar-space-name-${space.id}`}
-        >
-          <SpaceIcon name={space.name} icon={space.icon} color={space.color} />
-          <MarqueeText text={space.name} className={styles.spaceNameText} />
-        </button>
-      </div>
-
-      {/* Board rows inside expanded space */}
-      {isExpanded && spaceBoards.length > 0 && (
-        <ul className={styles.boardList} role="list">
-          {spaceBoards.map((board) => {
-            const isActive = activeBoardId === board.id;
-            return (
-              <li key={board.id} className={styles.boardItem}>
-                <SidebarNavItem
-                  isActive={isActive}
-                  level={1}
-                  ariaLabel={board.name}
-                  onClick={() => onSelectBoard(board.id)}
-                  trailing={
-                    <MenuTrigger>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`Actions for board ${board.name}`}
-                        data-testid={`spaces-sidebar-board-kebab-${board.id}`}
-                      >
-                        <KebabIcon />
-                      </Button>
-                      <Menu
-                        onAction={(key) => {
-                          if (key === "settings") setLocation(boardSettingsPath(board.id));
-                          else if (key === "delete") handleDeleteBoard(board);
-                        }}
-                      >
-                        <MenuItem id="settings">Settings</MenuItem>
-                        {/*
-                         * Default boards are auto-created with their
-                         * owning space and cannot be deleted via the IPC
-                         * (use-case returns Validation { is_default }).
-                         * Hide the affordance entirely so the user never
-                         * fires a doomed delete.
-                         */}
-                        {board.isDefault ? null : (
-                          <MenuItem id="delete">Delete</MenuItem>
-                        )}
-                      </Menu>
-                    </MenuTrigger>
-                  }
-                >
-                  <BoardIcon
-                    name={board.name}
-                    icon={board.icon}
-                    color={board.color}
-                  />
-                  <MarqueeText
-                    text={board.name}
-                    className={styles.boardRowLabel}
-                  />
-                </SidebarNavItem>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+        {spaceBoards.map((board) => (
+          <Row
+            key={board.id}
+            testId={`spaces-sidebar-board-row-${board.id}`}
+            isActive={activeBoardId === board.id}
+            onClick={() => onSelectBoard(board.id)}
+            renderContent={() => (
+              <BoardRowBody
+                board={board}
+                onSelect={() => onSelectBoard(board.id)}
+                onSettings={() => setLocation(boardSettingsPath(board.id))}
+                onDelete={() => handleDeleteBoard(board)}
+              />
+            )}
+          />
+        ))}
+      </Group>
 
       <ConfirmDialog
         isOpen={boardPendingDelete !== null}
@@ -216,7 +164,90 @@ export function SpaceRow({
         onCancel={() => setBoardPendingDelete(null)}
         data-testid="spaces-sidebar-board-delete-confirm"
       />
-    </li>
+    </>
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Row bodies — canonical `renderContent` shape (same as PromptsSidebar):
+// label-button on the left, kebab MenuTrigger as a sibling on the right.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface SpaceHeaderBodyProps {
+  space: Space;
+  isActiveSpace: boolean;
+  onSelect: () => void;
+}
+
+function SpaceHeaderBody({
+  space,
+  isActiveSpace,
+  onSelect,
+}: SpaceHeaderBodyProps): ReactElement {
+  return (
+    <button
+      type="button"
+      className={styles.spaceNameBtn}
+      onClick={onSelect}
+      aria-label={`${space.name}${isActiveSpace ? " (active space)" : ""}`}
+      data-testid={`spaces-sidebar-space-name-${space.id}`}
+    >
+      <RowLeading icon={space.icon} color={space.color} />
+      <MarqueeText text={space.name} className={styles.spaceNameText} />
+    </button>
+  );
+}
+
+interface BoardRowBodyProps {
+  board: Board;
+  onSelect: () => void;
+  onSettings: () => void;
+  onDelete: () => void;
+}
+
+function BoardRowBody({
+  board,
+  onSelect,
+  onSettings,
+  onDelete,
+}: BoardRowBodyProps): ReactElement {
+  return (
+    <>
+      <button
+        type="button"
+        className={styles.boardRowBtn}
+        onClick={onSelect}
+        aria-label={board.name}
+        data-testid={`spaces-sidebar-board-row-btn-${board.id}`}
+      >
+        <RowLeading icon={board.icon} color={board.color} />
+        <MarqueeText text={board.name} className={styles.boardRowLabel} />
+      </button>
+      <MenuTrigger>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`Actions for board ${board.name}`}
+          data-testid={`spaces-sidebar-board-kebab-${board.id}`}
+        >
+          <KebabIcon />
+        </Button>
+        <Menu
+          onAction={(key) => {
+            if (key === "settings") onSettings();
+            else if (key === "delete") onDelete();
+          }}
+        >
+          <MenuItem id="settings">Settings</MenuItem>
+          {/*
+           * Default boards are auto-created with their owning space and
+           * cannot be deleted via the IPC (use-case returns
+           * Validation { is_default }). Hide the affordance entirely so
+           * the user never fires a doomed delete.
+           */}
+          {board.isDefault ? null : <MenuItem id="delete">Delete</MenuItem>}
+        </Menu>
+      </MenuTrigger>
+    </>
+  );
+}
