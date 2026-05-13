@@ -83,6 +83,26 @@ export interface EntityTreeProps<TMeta = unknown> {
   /** Optional "+" trigger next to the section label. */
   addLabel?: string;
   onAdd?: () => void;
+  /**
+   * Extra trailing affordances rendered in the title's trailing slot,
+   * BEFORE the built-in "+" trigger. Used by rails that need additional
+   * header-level controls (e.g. tag filter, settings cog) without
+   * giving up the canonical add-trigger placement.
+   */
+  titleTrailingNode?: ReactNode;
+  /**
+   * Optional content rendered between the SidebarShell open and the
+   * section label. Use for synthetic top-level affordances (e.g. an
+   * "All …" navigation entry) that should sit above the tree but
+   * inside the same rail chrome.
+   */
+  headerNode?: ReactNode;
+  /**
+   * Optional content rendered after the tree body, inside the same
+   * rail chrome. Use for trailing affordances (e.g. an "+ Add group"
+   * row) that belong below the tree.
+   */
+  footerNode?: ReactNode;
   /** Empty-state copy when `nodes.length === 0`. */
   emptyText?: string;
   /** Pending state — render a skeleton instead of nodes. */

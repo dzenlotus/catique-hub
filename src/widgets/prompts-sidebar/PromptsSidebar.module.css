@@ -1,10 +1,8 @@
 /*
- * PromptsSidebar — secondary rail for the merged Prompts page.
- *
- * Composes `shared/ui/SidebarShell` for chrome and adds two list
- * sections of its own: groups (top) and prompts of the active group
- * (bottom). Row markup mirrors the spaces-sidebar shape so the two
- * rails read as a matched pair.
+ * PromptsSidebar — module-scoped overrides for the EntityTree-backed
+ * rail. The tree body itself (rows, gaps, chevron column, active
+ * treatment) is owned by `shared/ui/EntityTree/EntityTree.module.css`
+ * so do not redefine those values here.
  */
 
 /* Trailing slot of the PROMPTS section label hosts both the filter
@@ -16,222 +14,104 @@
 }
 
 /* ============================================================
- * Group list
+ * renderRow shells — one wrapper per row type so the kebab and
+ * drag-handle affordances share the row's hover/active background
+ * surface provided by EntityTree's `.row` container.
  * ============================================================ */
 
-.groupList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  flex-shrink: 0;
-}
-
-.groupItem {
-  position: relative;
-}
-
-.groupRow {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  width: 100%;
-  padding: 8px var(--space-12) 8px 12px;
-  border-radius: var(--radius-md);
-  border: none;
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-  user-select: none;
-  min-height: 32px;
-  transition:
-    background-color 80ms ease-out,
-    color 80ms ease-out;
-}
-
-.groupRow:hover:not(.groupRowActive) {
-  background-color: var(--color-overlay-hover);
-  color: var(--color-text-default);
-}
-
-.groupRow:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-.groupRowActive {
-  background-color: transparent;
-  color: var(--color-text-default);
-  font-weight: var(--font-weight-semibold);
-}
-
-.groupRowActive::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 4px;
-  right: 0;
-  background-color: var(--color-accent-soft);
-  border-radius: var(--radius-sm);
-  z-index: 0;
-}
-
-.groupRow > * {
-  position: relative;
-  z-index: 1;
-}
-
-.groupActiveStrip {
-  position: absolute;
-  left: -4px;
-  top: 4px;
-  bottom: 4px;
-  width: 5px;
-  border-radius: var(--radius-full);
-  background-color: var(--color-cta-bg);
-  z-index: 2;
-}
-
-/* 16-square slot containing either the icon or the color square. */
-.groupIndicator {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  color: var(--color-text-muted);
-}
-
-.groupSwatch {
-  width: 12px;
-  height: 12px;
-  border-radius: var(--radius-xs);
-  background-color: var(--color-text-subtle);
-  border: 1px solid var(--color-border-default);
-}
-
-.groupName {
+.rowDroppable {
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Kebab trigger sits in the row's trailing slot — round-19e brought
- * every kebab to a single canonical look (Button variant="ghost"
- * size="sm"), no extra opacity-on-hover or fixed-size override. */
-
-/* "All prompts" pseudo-row — first entry in the groups list. */
-.allPromptsRow {
-  /* Reuses .groupRow visuals; keep this hook for future tweaks. */
-}
-
-/* ============================================================
- * Prompt list (bottom section)
- * ============================================================ */
-
-.promptList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  flex-shrink: 0;
-}
-
-.promptItem {
-  position: relative;
-}
-
-.promptRow {
-  position: relative;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-8);
-  width: 100%;
-  padding: 8px var(--space-12) 8px 12px;
-  border-radius: var(--radius-md);
-  border: none;
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-regular);
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-  user-select: none;
-  min-height: 32px;
-  transition:
-    background-color 80ms ease-out,
-    color 80ms ease-out;
+  gap: var(--space-4);
+  border-radius: var(--radius-sm);
+  transition: background-color 80ms ease-out;
+}
+
+.rowDroppable[data-drop-target="true"] {
+  background-color: var(--color-overlay-active);
+}
+
+.rowDraggable {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
   /* Touch-action: none avoids iOS scroll hijacking the drag gesture. */
   touch-action: none;
 }
 
-.promptRow:hover:not(.promptRowActive) {
-  background-color: var(--color-overlay-hover);
-  color: var(--color-text-default);
-}
-
-.promptRow:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-/* Etalon match (PromptsSidebar groupRow): inset accent-soft background
- * + leading red strip rendered as a sibling element by PromptRow. */
-.promptRowActive {
-  background-color: transparent;
-  color: var(--color-text-default);
-  font-weight: var(--font-weight-medium);
-}
-
-.promptRowActive::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 4px;
-  right: 0;
-  background-color: var(--color-accent-soft);
-  border-radius: var(--radius-sm);
-  z-index: 0;
-}
-
-.promptRow > * {
-  position: relative;
-  z-index: 1;
-}
-
-.promptActiveStrip {
-  position: absolute;
-  left: -4px;
-  top: 4px;
-  bottom: 4px;
-  width: 5px;
-  border-radius: var(--radius-full);
-  background-color: var(--color-cta-bg);
-  z-index: 2;
-  pointer-events: none;
-}
-
-.promptDragging {
+.rowDragging {
   opacity: 0.4;
 }
 
-.promptDragHandle {
+/*
+ * Label button — mirrors EntityTree's `.rowMain` so the row body
+ * keeps the same typography + padding rhythm as every other rail.
+ * Cannot import EntityTree's class directly (CSS Modules), so the
+ * values are duplicated; KEEP IN SYNC with EntityTree.module.css.
+ */
+.rowButton {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-2) 0;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  color: var(--color-text-default);
+}
+
+.rowButton:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Synthetic Uncategorised parent — read-only label, no kebab. */
+.uncategorisedLabel {
+  cursor: default;
+  color: var(--color-text-subtle);
+  font-weight: var(--font-weight-medium);
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-body);
+}
+
+.icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--color-text-muted);
+}
+
+.swatch {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--color-overlay-hover);
+  border: 1px solid var(--color-border-default);
+}
+
+/* Drag handle — only visible on row hover or while focused so the
+ * row reads clean at rest, matching the original PromptRow gesture. */
+.dragHandle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -251,101 +131,28 @@
   transition: opacity 120ms ease-out;
 }
 
-.promptItem:hover .promptDragHandle,
-.promptDragHandle:focus-visible {
+.rowDraggable:hover .dragHandle,
+.dragHandle:focus-visible {
   opacity: 1;
 }
 
-.promptDragHandle:hover {
+.dragHandle:hover {
   background: var(--color-overlay-hover);
   color: var(--color-text-default);
 }
 
-.promptDragHandle:active {
+.dragHandle:active {
   cursor: grabbing;
 }
 
-.promptDragHandle:focus-visible {
+.dragHandle:focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
-}
-
-.promptName {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border: none;
-  background: transparent;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.promptName:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-  border-radius: var(--radius-xs);
-}
-
-/*
- * Swatch + icon share a 16-square box so the rest of the row layout
- * stays put when the user switches between "color only" and "icon"
- * appearances. The 8 px dot centres inside its box.
- */
-.promptIndicator {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-}
-
-.promptSwatch {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-full);
-}
-
-.promptIcon {
-  color: var(--color-text-muted);
-}
-
-/* Drop-target highlight when hovering a group with a prompt being
- * dragged. Applied via [data-drop-target="true"] on the group row. */
-.groupRow[data-drop-target="true"] {
-  background-color: var(--color-overlay-active);
-  color: var(--color-text-default);
-}
-
-/* ============================================================
- * Empty / status text
- * ============================================================ */
-
-.bodyEmpty {
-  padding: var(--space-4) var(--space-12);
-}
-
-.bodyEmptyText {
-  font-size: var(--font-size-caption);
-  color: var(--color-text-subtle);
-  font-style: italic;
-}
-
-.bodyError {
-  padding: var(--space-4) var(--space-12);
-  font-size: var(--font-size-caption);
-  color: var(--color-status-danger);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .groupRow,
-  .promptRow,
-  .promptDragHandle {
+  .rowDroppable,
+  .dragHandle {
     transition: none;
   }
 }

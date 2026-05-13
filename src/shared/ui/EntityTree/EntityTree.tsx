@@ -49,6 +49,9 @@ export function EntityTree<TMeta = unknown>(
     onSelect,
     addLabel,
     onAdd,
+    titleTrailingNode,
+    headerNode,
+    footerNode,
     emptyText = "Nothing here yet.",
     isLoading = false,
     errorMessage = null,
@@ -74,16 +77,22 @@ export function EntityTree<TMeta = unknown>(
       {...(ariaLabel !== undefined ? { ariaLabel } : { ariaLabel: title ?? "Entity tree" })}
       testId={`${testIdPrefix}-root`}
     >
+      {headerNode}
       {title !== undefined ? (
         <SidebarSectionLabel
           ariaLabel={title}
           trailing={
-            showAdd ? (
-              <SidebarSectionAddTrigger
-                ariaLabel={addLabel ?? `Add ${title.toLowerCase()}`}
-                onPress={onAdd}
-                testId={`${testIdPrefix}-add`}
-              />
+            titleTrailingNode !== undefined || showAdd ? (
+              <>
+                {titleTrailingNode}
+                {showAdd ? (
+                  <SidebarSectionAddTrigger
+                    ariaLabel={addLabel ?? `Add ${title.toLowerCase()}`}
+                    onPress={onAdd}
+                    testId={`${testIdPrefix}-add`}
+                  />
+                ) : null}
+              </>
             ) : null
           }
         >
@@ -124,6 +133,7 @@ export function EntityTree<TMeta = unknown>(
           ))}
         </ul>
       )}
+      {footerNode}
     </SidebarShell>
   );
 }
