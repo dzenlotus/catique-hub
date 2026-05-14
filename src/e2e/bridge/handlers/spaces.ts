@@ -10,12 +10,37 @@
  * the UI never sees a serde rejection from the bridge.
  */
 
+import type { Column } from "@bindings/Column";
 import type { Space } from "@bindings/Space";
 
 import { emitEvent } from "../events";
 import { nextId } from "../ids";
 import { store } from "../store";
 import { nowBig } from "../time";
+
+const DEFAULT_COLUMN_NAMES = ["To do", "In progress", "Done"] as const;
+
+/**
+ * Seed the three canonical columns for a board. Duplicated from the
+ * boards handler so cross-file imports don't pull on each other; the
+ * function is small enough that the duplication isn't a maintenance
+ * burden, and the bridge handlers all stay self-contained.
+ */
+function seedDefaultColumns(boardId: string): void {
+  DEFAULT_COLUMN_NAMES.forEach((name, idx) => {
+    const id = nextId("column");
+    const column: Column = {
+      id,
+      boardId,
+      name,
+      position: BigInt(idx),
+      roleId: null,
+      createdAt: nowBig(),
+      isDefault: true,
+    };
+    store.columns.set(id, column);
+  });
+}
 
 interface CreateSpaceArgs {
   name: string;
@@ -97,6 +122,10 @@ export function handleSpaces(
         updatedAt: ts,
         ownerRoleId: "maintainer-system",
       });
+      // Seed the canonical kanban columns alongside the default board
+      // so navigating into it doesn't drop the user on the empty
+      // "Create column" state.
+      seedDefaultColumns(boardId);
       emitEvent("space:created", { id });
       emitEvent("board:created", { id: boardId });
       return space;

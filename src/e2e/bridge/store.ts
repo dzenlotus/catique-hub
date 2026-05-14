@@ -18,8 +18,10 @@ import type { Prompt } from "@bindings/Prompt";
 import type { PromptGroup } from "@bindings/PromptGroup";
 import type { Role } from "@bindings/Role";
 import type { Skill } from "@bindings/Skill";
+import type { SkillStep } from "@bindings/SkillStep";
 import type { Space } from "@bindings/Space";
 import type { Tag } from "@bindings/Tag";
+import type { Task } from "@bindings/Task";
 
 import { resetIds } from "./ids";
 import { resetClock } from "./time";
@@ -32,9 +34,13 @@ export interface MockStore {
   prompts: Map<string, Prompt>;
   promptGroups: Map<string, PromptGroup>;
   skills: Map<string, Skill>;
+  /** Per-skill ordered list of structured steps (SKILL-V2-A). */
+  skillSteps: Map<string, SkillStep>;
   mcpServers: Map<string, McpServer>;
   mcpTools: Map<string, McpTool>;
   tags: Map<string, Tag>;
+  /** Iteration-2: per-board task rows (id → Task). */
+  tasks: Map<string, Task>;
   /** Join: promptId -> tagId[] (ordered set semantics). */
   promptTags: Map<string, string[]>;
   /** Join: groupId -> ordered promptId[]. */
@@ -58,9 +64,11 @@ function freshStore(): MockStore {
     prompts: new Map(),
     promptGroups: new Map(),
     skills: new Map(),
+    skillSteps: new Map(),
     mcpServers: new Map(),
     mcpTools: new Map(),
     tags: new Map(),
+    tasks: new Map(),
     promptTags: new Map(),
     promptGroupMembers: new Map(),
     rolePrompts: new Map(),

@@ -7,11 +7,35 @@
  */
 
 import type { Board } from "@bindings/Board";
+import type { Column } from "@bindings/Column";
 
 import { emitEvent } from "../events";
 import { nextId } from "../ids";
 import { store } from "../store";
 import { nowBig } from "../time";
+
+const DEFAULT_COLUMN_NAMES = ["To do", "In progress", "Done"] as const;
+
+/**
+ * Seed the three canonical columns ("To do", "In progress", "Done")
+ * for a board. Mirrors the Rust `create_board` behaviour so the kanban
+ * UI doesn't open into the "No columns yet" empty state during e2e.
+ */
+function seedDefaultColumns(boardId: string): void {
+  DEFAULT_COLUMN_NAMES.forEach((name, idx) => {
+    const id = nextId("column");
+    const column: Column = {
+      id,
+      boardId,
+      name,
+      position: BigInt(idx),
+      roleId: null,
+      createdAt: nowBig(),
+      isDefault: true,
+    };
+    store.columns.set(id, column);
+  });
+}
 
 interface CreateBoardArgs {
   name: string;
@@ -75,6 +99,11 @@ export function handleBoards(
         ownerRoleId: a.ownerRoleId ?? "maintainer-system",
       };
       store.boards.set(id, board);
+      // Bridge-only convenience: matches Rust's `create_board` which
+      // seeds three default columns. Iteration-2 scenarios assert the
+      // rendered defaults appear in the kanban, so the bridge has to
+      // create them or the UI would show the "no columns" empty state.
+      seedDefaultColumns(id);
       emitEvent("board:created", { id });
       return board;
     }

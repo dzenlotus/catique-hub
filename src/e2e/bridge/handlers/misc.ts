@@ -27,19 +27,17 @@ export function handleMisc(
 ): unknown {
   switch (command) {
     // -------------- tasks --------------
-    case "list_tasks":
+    // Core CRUD (`list_tasks`, `create_task`, `update_task`,
+    // `delete_task`, `move_task`, `get_task`) lives in `handlers/tasks.ts`
+    // so iteration-2 kanban scenarios can round-trip state. The aux
+    // surfaces below remain stubbed because no spec exercises them yet.
     case "list_task_prompts":
     case "list_task_skills":
     case "list_task_mcp_tools":
       return [];
-    case "get_task":
     case "get_task_bundle":
     case "get_task_rating":
       return null;
-    case "create_task":
-    case "update_task":
-    case "delete_task":
-    case "move_task":
     case "log_step":
     case "get_step_log":
     case "rate_task":

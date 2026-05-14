@@ -7,6 +7,7 @@
 
 import type { Column } from "@bindings/Column";
 
+import { emitEvent } from "../events";
 import { nextId } from "../ids";
 import { store } from "../store";
 import { nowBig } from "../time";
@@ -15,6 +16,13 @@ interface CreateColumnArgs {
   boardId: string;
   name: string;
   position: number;
+}
+
+interface UpdateColumnArgs {
+  id: string;
+  name?: string;
+  position?: number;
+  roleId?: string | null;
 }
 
 export function handleColumns(
@@ -48,16 +56,38 @@ export function handleColumns(
         isDefault: false,
       };
       store.columns.set(id, column);
+      emitEvent("column:created", { id, board_id: a.boardId });
       return column;
     }
-    case "update_column":
+    case "update_column": {
+      const a = args as unknown as UpdateColumnArgs;
+      const prev = store.columns.get(a.id);
+      if (!prev) return null;
+      const next: Column = {
+        ...prev,
+        ...(a.name !== undefined ? { name: a.name } : {}),
+        ...(a.position !== undefined ? { position: BigInt(a.position) } : {}),
+        ...(a.roleId !== undefined ? { roleId: a.roleId } : {}),
+      };
+      store.columns.set(a.id, next);
+      emitEvent("column:updated", { id: a.id, board_id: next.boardId });
+      return next;
+    }
     case "set_column_prompts":
     case "set_column_skills":
     case "set_column_mcp_tools":
       return null;
     case "delete_column": {
       const id = String(args["id"]);
+      const prev = store.columns.get(id);
       store.columns.delete(id);
+      // Cascade tasks living in this column to keep the store sane.
+      for (const [tid, t] of store.tasks) {
+        if (t.columnId === id) store.tasks.delete(tid);
+      }
+      if (prev) {
+        emitEvent("column:deleted", { id, board_id: prev.boardId });
+      }
       return null;
     }
     default:

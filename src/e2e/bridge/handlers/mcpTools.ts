@@ -6,6 +6,7 @@
 
 import type { McpTool } from "@bindings/McpTool";
 
+import { emitEvent } from "../events";
 import { nextId } from "../ids";
 import { store } from "../store";
 import { nowBig } from "../time";
@@ -58,6 +59,7 @@ export function handleMcpTools(
         updatedAt: ts,
       };
       store.mcpTools.set(id, tool);
+      emitEvent("mcp_tool:created", { id });
       return tool;
     }
     case "update_mcp_tool":
@@ -65,6 +67,7 @@ export function handleMcpTools(
     case "delete_mcp_tool": {
       const id = String(args["id"]);
       store.mcpTools.delete(id);
+      emitEvent("mcp_tool:deleted", { id });
       return null;
     }
     case "list_role_mcp_tools":

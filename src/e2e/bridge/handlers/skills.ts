@@ -1,14 +1,34 @@
 /**
- * Skills command dispatcher (CRUD only — SKILL-V2 attachment + step
- * surfaces stay no-op since iteration-1 scenarios don't touch them).
+ * Skills command dispatcher.
+ *
+ * Iteration-2 added the step CRUD surface (SKILL-V2-A) so the skill
+ * editor's `<SkillStepsSection>` can round-trip per-skill steps. The
+ * attachment + import surfaces stay no-op since no spec drives them.
  */
 
 import type { Skill } from "@bindings/Skill";
+import type { SkillStep } from "@bindings/SkillStep";
 
 import { emitEvent } from "../events";
 import { nextId } from "../ids";
 import { store } from "../store";
 import { nowBig } from "../time";
+
+interface AddSkillStepArgs {
+  skillId: string;
+  title: string;
+  body: string;
+  expectedOutcome?: string | null;
+  position?: number;
+}
+
+interface UpdateSkillStepArgs {
+  id: string;
+  title?: string;
+  body?: string;
+  expectedOutcome?: string | null;
+  position?: number;
+}
 
 interface CreateSkillArgs {
   name: string;
@@ -90,17 +110,70 @@ export function handleSkills(
       emitEvent("skill:deleted", { id });
       return null;
     }
-    // SKILL-V2-A / B step + attachment surfaces — empty list / no-op
-    // outputs are enough for iteration-1.
-    case "list_skill_steps":
+    // SKILL-V2-A steps: full CRUD against `store.skillSteps`.
+    case "list_skill_steps": {
+      const skillId = String(args["skillId"]);
+      return Array.from(store.skillSteps.values())
+        .filter((s) => s.skillId === skillId)
+        .sort((a, b) => a.position - b.position);
+    }
+    case "add_skill_step": {
+      const a = args as unknown as AddSkillStepArgs;
+      const id = nextId("skill-step");
+      const ts = nowBig();
+      const existing = Array.from(store.skillSteps.values()).filter(
+        (s) => s.skillId === a.skillId,
+      );
+      const step: SkillStep = {
+        id,
+        skillId: a.skillId,
+        position: a.position ?? existing.length,
+        title: a.title,
+        body: a.body,
+        expectedOutcome: a.expectedOutcome ?? null,
+        createdAt: ts,
+        updatedAt: ts,
+      };
+      store.skillSteps.set(id, step);
+      return step;
+    }
+    case "update_skill_step": {
+      const a = args as unknown as UpdateSkillStepArgs;
+      const prev = store.skillSteps.get(a.id);
+      if (!prev) return null;
+      const next: SkillStep = {
+        ...prev,
+        ...(a.title !== undefined ? { title: a.title } : {}),
+        ...(a.body !== undefined ? { body: a.body } : {}),
+        ...(a.expectedOutcome !== undefined
+          ? { expectedOutcome: a.expectedOutcome }
+          : {}),
+        ...(a.position !== undefined ? { position: a.position } : {}),
+        updatedAt: nowBig(),
+      };
+      store.skillSteps.set(a.id, next);
+      return next;
+    }
+    case "delete_skill_step": {
+      const id = String(args["id"]);
+      store.skillSteps.delete(id);
+      return null;
+    }
+    case "reorder_skill_steps": {
+      const stepIds = args["stepIds"] as string[];
+      stepIds.forEach((id, idx) => {
+        const step = store.skillSteps.get(id);
+        if (!step) return;
+        store.skillSteps.set(id, { ...step, position: idx });
+      });
+      return null;
+    }
+    // Other SKILL-V2 surfaces — empty / no-op outputs are enough for
+    // iteration-2 since no spec drives them.
     case "list_skill_attachments":
     case "list_role_skills":
     case "list_task_skills":
       return [];
-    case "add_skill_step":
-    case "update_skill_step":
-    case "delete_skill_step":
-    case "reorder_skill_steps":
     case "add_skill_file_attachment":
     case "add_skill_git_attachment":
     case "remove_skill_attachment":

@@ -61,3 +61,66 @@ export async function waitForBridge(page: Page): Promise<void> {
 export async function clickTestId(page: Page, testId: string): Promise<void> {
   await page.getByTestId(testId).click({ force: true });
 }
+
+/**
+ * Invoke an arbitrary mock IPC command. Useful for tests that need to
+ * exercise the same backend code path the UI would dispatch without
+ * jumping through every dialog (creating fixture data fast).
+ */
+export async function invokeBridge<T = unknown>(
+  page: Page,
+  command: string,
+  args: Record<string, unknown> = {},
+): Promise<T> {
+  return (await page.evaluate(
+    async (payload) =>
+      await window.__TAURI_INTERNALS__.invoke(payload.command, payload.args),
+    { command, args },
+  )) as T;
+}
+
+/**
+ * SPA-friendly navigation. `page.goto()` causes a full reload, which
+ * re-executes the bundle, which calls `installMockBridge()` again,
+ * which constructs a fresh empty store — wiping any state seeded by a
+ * preceding `invokeBridge`. We sidestep that by driving wouter via
+ * `history.pushState` + a synthetic `popstate` event, which wouter
+ * listens to (it doesn't depend on `page.goto`).
+ *
+ * Use this in any test that seeds bridge state via `invokeBridge` and
+ * then needs to navigate to a deep-link route afterwards.
+ */
+export async function spaNavigate(page: Page, path: string): Promise<void> {
+  await page.evaluate((p) => {
+    window.history.pushState({}, "", p);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, path);
+}
+
+/**
+ * Single space-create helper — exercises the dialog flow end-to-end so
+ * tests don't redundantly type into name/prefix inputs. Returns the new
+ * space id.
+ */
+export async function createSpaceViaDialog(
+  page: Page,
+  args: { name: string; prefix: string },
+): Promise<string> {
+  await page.getByTestId("spaces-sidebar-add-space").click();
+  await page
+    .getByTestId("space-create-dialog-name-input")
+    .fill(args.name);
+  await page
+    .getByTestId("space-create-dialog-prefix-input")
+    .fill(args.prefix);
+  await page.getByTestId("space-create-dialog-save").click();
+  await page
+    .getByTestId("space-create-dialog")
+    .waitFor({ state: "detached" })
+    .catch(() => undefined);
+  const state = await readBridge(page);
+  const spaces = state["spaces"] as Array<[string, { name: string }]>;
+  const row = spaces.find(([, s]) => s.name === args.name);
+  if (!row) throw new Error(`space ${args.name} not in store`);
+  return row[0];
+}

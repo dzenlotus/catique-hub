@@ -47,4 +47,32 @@ test.describe("onboarding / empty states", () => {
     await expect(page.getByTestId(sel.spacesSidebar)).toBeVisible();
     await expect(page.getByRole("heading", { name: "All quiet here" })).toBeVisible();
   });
+
+  test("empty PROMPTS section shows the empty copy", async ({ page }) => {
+    await page
+      .getByTestId(sel.mainSidebar)
+      .getByRole("button", { name: "Prompts" })
+      .click();
+    await expect(page.getByTestId(sel.promptsPage)).toBeVisible();
+    // PromptsSidebar renders "No prompts yet." inside the PROMPTS RailSection.
+    await expect(page.getByText("No prompts yet.")).toBeVisible();
+  });
+
+  test("empty ROLES list shows the empty copy", async ({ page }) => {
+    await page
+      .getByTestId(sel.mainSidebar)
+      .getByRole("button", { name: "Roles" })
+      .click();
+    await expect(page.getByTestId(sel.rolesPage)).toBeVisible();
+    await expect(page.getByText("No roles yet.")).toBeVisible();
+  });
+
+  test("empty MCP servers list shows the empty copy", async ({ page }) => {
+    await page
+      .getByTestId(sel.mainSidebar)
+      .getByRole("button", { name: "MCP servers" })
+      .click();
+    await expect(page.getByTestId(sel.mcpServersPage)).toBeVisible();
+    await expect(page.getByText("No MCP servers yet.")).toBeVisible();
+  });
 });

@@ -39,6 +39,29 @@
  * - `window.__E2E_RESET__()`           wipes state.
  * - `window.__E2E_SEED__(snapshot)`    seeds state (per-Map entries).
  * - `window.__E2E_GET_STATE__()`       returns a snapshot for assertions.
+ *
+ * # Bridge extensions added with iteration-2 scenarios
+ * - `create_space` now seeds the canonical kanban columns ("To do",
+ *   "In progress", "Done") on the bootstrapped default board, matching
+ *   Rust's `create_board` behaviour. Tests that assert default kanban
+ *   layout depend on this seeding.
+ * - `create_board` seeds the same three default columns on the new
+ *   board, again matching Rust.
+ * - `list_tasks` returns the live task map (filtered client-side by
+ *   `useTasksByBoard`), and `create_task` / `update_task` /
+ *   `delete_task` / `move_task` round-trip through `store.tasks` so
+ *   kanban DnD assertions can verify column membership through
+ *   `readBridge`. Previously every task IPC returned `null`.
+ * - `list_skill_steps` / `add_skill_step` / `update_skill_step` /
+ *   `delete_skill_step` / `reorder_skill_steps` round-trip through
+ *   `store.skillSteps` so the skill editor's structured-steps UI is
+ *   testable end-to-end.
+ * - `column:created` / `column:updated` / `column:deleted` events now
+ *   emit from the columns handler so React Query invalidates the
+ *   per-board cache after a kanban mutation.
+ * - `mcp_tool:created` / `mcp_tool:deleted` events emit from the MCP
+ *   tools handler — needed for `useMcpTools` to refresh after a
+ *   tool is added/removed via the bridge from a mounted role editor.
  */
 
 import { handleBoards } from "./handlers/boards";
@@ -52,6 +75,7 @@ import { handleRoles } from "./handlers/roles";
 import { handleSkills } from "./handlers/skills";
 import { handleSpaces } from "./handlers/spaces";
 import { handleTags } from "./handlers/tags";
+import { handleTasks } from "./handlers/tasks";
 import {
   pluginEventListen,
   pluginEventUnlisten,
@@ -88,6 +112,11 @@ const DISPATCHERS = [
   handleMcpServers,
   handleMcpTools,
   handleTags,
+  // Tasks must run BEFORE `handleMisc` because misc's catch-all returns
+  // `[]` for `list_tasks`. Putting tasks first lets the proper handler
+  // claim its commands; misc still owns the iteration-1 stubs (rate,
+  // step log, agent reports, etc.).
+  handleTasks,
   handleMisc,
 ];
 
