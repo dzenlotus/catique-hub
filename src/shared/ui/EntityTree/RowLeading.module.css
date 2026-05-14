@@ -1,0 +1,33 @@
+/*
+ * RowLeading — canonical 14×14 leading visual for `<Row>` / `<Group>`
+ * bodies. Mirrors the icon + swatch + spacer trio EntityTree shipped
+ * before the round-26 split; keep these values in sync with
+ * `EntityTree.module.css` so labels stay flush across rails.
+ */
+
+.icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-muted);
+}
+
+.swatch {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-xs);
+  background-color: var(--color-overlay-hover);
+  box-shadow: inset 0 0 0 1px var(--color-border-default);
+}
+
+.spacer {
+  flex: 0 0 auto;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+}

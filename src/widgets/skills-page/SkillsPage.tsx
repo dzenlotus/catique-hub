@@ -1,19 +1,24 @@
 /**
  * SkillsPage — two-pane shell wrapping the existing `<SkillsList>`.
  *
- * Round-23 (entity-tree unification): rail uses the shared
- * `<EntityTree>` primitive (was `<EntityListSidebar>`).
+ * Round-26 (Row/Group split): rail composes `<RailSection>` + `<Row>`
+ * directly so the page owns iteration over `useSkills().data`.
  *
- * audit-#9: editor is a routed PAGE on `/skills/:skillId` rather than a
- * modal.
+ * audit-#9: editor is a routed PAGE on `/skills/:skillId` rather than
+ * a modal.
  */
 
-import { useMemo, useState, type ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { useLocation, useRoute } from "wouter";
 
 import { useSkills } from "@entities/skill";
-import { EntityTree, Scrollable } from "@shared/ui";
-import type { EntityTreeNode } from "@shared/ui";
+import {
+  RailSection,
+  Row,
+  RowLabelButton,
+  Scrollable,
+  SidebarShell,
+} from "@shared/ui";
 import { SkillCreateDialog } from "@widgets/skill-create-dialog";
 import { SkillEditorPanel } from "@widgets/skill-editor";
 import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
@@ -27,15 +32,7 @@ export function SkillsPage(): ReactElement {
   const selectedId = match ? params?.skillId ?? null : null;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  const nodes = useMemo<ReadonlyArray<EntityTreeNode>>(
-    () =>
-      (skillsQuery.data ?? []).map((s) => ({
-        id: s.id,
-        label: s.name,
-        ...(s.color != null ? { leadingColor: s.color } : {}),
-      })),
-    [skillsQuery.data],
-  );
+  const skills = skillsQuery.data ?? [];
 
   const handleSelect = (id: string | null): void => {
     setLocation(id ? skillPath(id) : routes.skills);
@@ -44,25 +41,43 @@ export function SkillsPage(): ReactElement {
   return (
     <section className={shellStyles.root} data-testid="skills-page-root">
       <div className={shellStyles.sidebarSlot}>
-        <EntityTree
-          title="SKILLS"
+        <SidebarShell
           ariaLabel="Skills navigation"
-          nodes={nodes}
-          selectedId={selectedId}
-          expandedIds={[]}
-          onToggleExpand={() => {}}
-          onSelect={(id) => handleSelect(id)}
-          addLabel="Add skill"
-          onAdd={() => setIsCreateOpen(true)}
-          emptyText="No skills yet."
-          testIdPrefix="skills-sidebar"
-          isLoading={skillsQuery.status === "pending"}
-          errorMessage={
-            skillsQuery.status === "error"
-              ? `Failed to load skills: ${skillsQuery.error.message}`
-              : null
-          }
-        />
+          testId="skills-sidebar-root-shell"
+        >
+          <RailSection
+            title="SKILLS"
+            titleAriaLabel="Skills navigation"
+            testIdPrefix="skills-sidebar"
+            addLabel="Add skill"
+            onAdd={() => setIsCreateOpen(true)}
+            emptyText="No skills yet."
+            isLoading={skillsQuery.status === "pending"}
+            errorMessage={
+              skillsQuery.status === "error"
+                ? `Failed to load skills: ${skillsQuery.error.message}`
+                : null
+            }
+            isEmpty={skills.length === 0}
+          >
+            {skills.map((skill) => (
+              <Row
+                key={skill.id}
+                testId={`skills-sidebar-item-${skill.id}`}
+                isActive={skill.id === selectedId}
+                onClick={() => handleSelect(skill.id)}
+                renderContent={() => (
+                  <RowLabelButton
+                    label={skill.name}
+                    color={skill.color}
+                    onClick={() => handleSelect(skill.id)}
+                    testId={`skills-sidebar-row-${skill.id}`}
+                  />
+                )}
+              />
+            ))}
+          </RailSection>
+        </SidebarShell>
       </div>
 
       <Scrollable

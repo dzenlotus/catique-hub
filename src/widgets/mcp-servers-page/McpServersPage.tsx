@@ -1,9 +1,8 @@
 /**
  * McpServersPage — master-detail shell for /mcp-servers.
  *
- * Round-23 (entity-tree unification): rail uses the shared
- * `<EntityTree>` primitive (was `<EntityListSidebar>`). Server rows
- * expand to show introspected tools as children. URL drives the
+ * Round-26 (Row/Group split): rail composes `<RailSection>` +
+ * `<Group>` (servers) + `<Row>` (tools) directly. URL drives the
  * selection state:
  *
  *   /mcp-servers                          → overview pane.
@@ -13,7 +12,7 @@
  * The "+" trigger in the rail opens `McpServerCreateDialog` —
  * modal-only-for-creation invariant.
  *
- * Sidebar item ids are namespaced (`srv:<id>` / `tool:<id>`) so a
+ * Row testids use namespaced ids (`srv:<id>` / `tool:<id>`) so a
  * single `selectedId` highlights one row at a time across both levels.
  */
 
@@ -28,8 +27,14 @@ import {
   type McpServer,
 } from "@entities/mcp-server";
 import type { McpTool } from "@bindings/McpTool";
-import { EntityTree, Scrollable } from "@shared/ui";
-import type { EntityTreeNode } from "@shared/ui";
+import {
+  Group,
+  RailSection,
+  Row,
+  RowLabelButton,
+  Scrollable,
+  SidebarShell,
+} from "@shared/ui";
 import { McpServerCreateDialog } from "@widgets/mcp-server-create-dialog";
 import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
 import {
@@ -41,9 +46,6 @@ import {
 import { McpServersOverview } from "./McpServersOverview";
 import { McpServerDetailPanel } from "./McpServerDetailPanel";
 import { McpToolDetailPanel } from "./McpToolDetailPanel";
-
-const SRV_PREFIX = "srv:";
-const TOOL_PREFIX = "tool:";
 
 export function McpServersPage(): ReactElement {
   const serversQuery = useMcpServers();
@@ -75,11 +77,15 @@ export function McpServersPage(): ReactElement {
     () => serversQuery.data ?? [],
     [serversQuery.data],
   );
+  const expandedSet = useMemo(
+    () => new Set(expandedServerIds),
+    [expandedServerIds],
+  );
 
   // Fetch tools for every expanded server in one batched hook call.
-  // Mirrors `useMcpToolsByServer` but keeps the page's render-side
-  // tree stable (no hook calls inside `.map`). Cache keys + queryFn
-  // match `useMcpToolsByServer` so the data is shared.
+  // Mirrors `useMcpToolsByServer` but keeps the page's render tree
+  // stable (no hook calls inside `.map`). Cache keys + queryFn match
+  // `useMcpToolsByServer` so the data is shared.
   const toolsQueries = useQueries({
     queries: expandedServerIds.map((id) => ({
       queryKey: mcpServersKeys.tools(id),
@@ -99,35 +105,15 @@ export function McpServersPage(): ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandedServerIds, toolsQueries]);
 
-  const nodes = useMemo<ReadonlyArray<EntityTreeNode>>(
-    () => buildSidebarNodes(servers, expandedServerIds, toolsByServerId),
-    [servers, expandedServerIds, toolsByServerId],
-  );
-
-  const selectedSidebarId = selectedToolId
-    ? `${TOOL_PREFIX}${selectedToolId}`
-    : selectedServerId
-      ? `${SRV_PREFIX}${selectedServerId}`
-      : null;
-  const expandedSidebarIds = expandedServerIds.map((id) => `${SRV_PREFIX}${id}`);
-
-  const handleSelect = (id: string): void => {
-    if (id.startsWith(TOOL_PREFIX)) {
-      const toolId = id.slice(TOOL_PREFIX.length);
-      const ownerServerId = findToolOwner(toolsByServerId, toolId);
-      if (ownerServerId === null) return;
-      setLocation(mcpServerToolPath(ownerServerId, toolId));
-      return;
-    }
-    if (id.startsWith(SRV_PREFIX)) {
-      const serverId = id.slice(SRV_PREFIX.length);
-      setLocation(mcpServerPath(serverId));
-    }
+  const handleSelectServer = (serverId: string): void => {
+    setLocation(mcpServerPath(serverId));
   };
 
-  const handleToggle = (id: string): void => {
-    if (!id.startsWith(SRV_PREFIX)) return;
-    const serverId = id.slice(SRV_PREFIX.length);
+  const handleSelectTool = (serverId: string, toolId: string): void => {
+    setLocation(mcpServerToolPath(serverId, toolId));
+  };
+
+  const handleToggleServer = (serverId: string): void => {
     setExpandedServerIds((prev) =>
       prev.includes(serverId)
         ? prev.filter((x) => x !== serverId)
@@ -141,25 +127,71 @@ export function McpServersPage(): ReactElement {
       data-testid="mcp-servers-page-root"
     >
       <div className={shellStyles.sidebarSlot}>
-        <EntityTree
-          title="MCP"
+        <SidebarShell
           ariaLabel="MCP servers navigation"
-          nodes={nodes}
-          selectedId={selectedSidebarId}
-          onSelect={handleSelect}
-          addLabel="Add MCP server"
-          onAdd={() => setIsCreateOpen(true)}
-          emptyText="No MCP servers yet."
-          testIdPrefix="mcp-servers-sidebar"
-          isLoading={serversQuery.status === "pending"}
-          errorMessage={
-            serversQuery.status === "error"
-              ? `Failed to load MCP servers: ${serversQuery.error.message}`
-              : null
-          }
-          expandedIds={expandedSidebarIds}
-          onToggleExpand={handleToggle}
-        />
+          testId="mcp-servers-sidebar-root-shell"
+        >
+          <RailSection
+            title="MCP"
+            titleAriaLabel="MCP servers navigation"
+            testIdPrefix="mcp-servers-sidebar"
+            addLabel="Add MCP server"
+            onAdd={() => setIsCreateOpen(true)}
+            emptyText="No MCP servers yet."
+            isLoading={serversQuery.status === "pending"}
+            errorMessage={
+              serversQuery.status === "error"
+                ? `Failed to load MCP servers: ${serversQuery.error.message}`
+                : null
+            }
+            isEmpty={servers.length === 0}
+          >
+            {servers.map((server) => {
+              const isExpanded = expandedSet.has(server.id);
+              const isServerActive =
+                selectedServerId === server.id && selectedToolId === null;
+              const tools = isExpanded ? toolsByServerId[server.id] ?? [] : [];
+              return (
+                <Group
+                  key={server.id}
+                  testId={`mcp-servers-sidebar-item-srv:${server.id}`}
+                  isActive={isServerActive}
+                  isExpand={isExpanded}
+                  onToggleExpand={() => handleToggleServer(server.id)}
+                  chevronAriaLabel={
+                    isExpanded ? `Collapse ${server.name}` : `Expand ${server.name}`
+                  }
+                  chevronTestId={`mcp-servers-sidebar-toggle-srv:${server.id}`}
+                  childrenTestId={`mcp-servers-sidebar-children-srv:${server.id}`}
+                  onClick={() => handleSelectServer(server.id)}
+                  renderContent={() => (
+                    <RowLabelButton
+                      label={server.name}
+                      onClick={() => handleSelectServer(server.id)}
+                      testId={`mcp-servers-sidebar-row-srv:${server.id}`}
+                    />
+                  )}
+                >
+                  {tools.map((tool) => (
+                    <Row
+                      key={tool.id}
+                      testId={`mcp-servers-sidebar-item-tool:${tool.id}`}
+                      isActive={selectedToolId === tool.id}
+                      onClick={() => handleSelectTool(server.id, tool.id)}
+                      renderContent={() => (
+                        <RowLabelButton
+                          label={tool.name}
+                          onClick={() => handleSelectTool(server.id, tool.id)}
+                          testId={`mcp-servers-sidebar-row-tool:${tool.id}`}
+                        />
+                      )}
+                    />
+                  ))}
+                </Group>
+              );
+            })}
+          </RailSection>
+        </SidebarShell>
       </div>
 
       <Scrollable
@@ -188,37 +220,4 @@ export function McpServersPage(): ReactElement {
       />
     </section>
   );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-function buildSidebarNodes(
-  servers: ReadonlyArray<McpServer>,
-  expandedServerIds: ReadonlyArray<string>,
-  toolsByServerId: Record<string, ReadonlyArray<McpTool>>,
-): ReadonlyArray<EntityTreeNode> {
-  const expandedSet = new Set(expandedServerIds);
-  return servers.map((server) => {
-    const tools = expandedSet.has(server.id)
-      ? toolsByServerId[server.id] ?? []
-      : [];
-    return {
-      id: `${SRV_PREFIX}${server.id}`,
-      label: server.name,
-      children: tools.map((tool) => ({
-        id: `${TOOL_PREFIX}${tool.id}`,
-        label: tool.name,
-      })),
-    };
-  });
-}
-
-function findToolOwner(
-  toolsByServerId: Record<string, ReadonlyArray<McpTool>>,
-  toolId: string,
-): string | null {
-  for (const [serverId, tools] of Object.entries(toolsByServerId)) {
-    if (tools.some((t) => t.id === toolId)) return serverId;
-  }
-  return null;
 }

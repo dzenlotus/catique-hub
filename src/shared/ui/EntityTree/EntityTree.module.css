@@ -1,11 +1,16 @@
 /*
- * EntityTree — declarative tree-list primitive (round-23 unification).
+ * EntityTree primitives — `<Row>` and `<Group>`.
  *
- * Values mirror `widgets/spaces-sidebar/SpacesSidebar.module.css` 1:1
- * so visual parity between the SPACES rail and every other entity
- * rail is structural, not coincidental. Do NOT diverge any number
- * here without applying the same change to SpacesSidebar.
+ * Canonical rail geometry. Keep these values in sync with
+ *   - `widgets/main-sidebar/MainSidebar.module.css` (`.navItem.active::after`)
+ *   - `shared/ui/SidebarShell/SidebarShell.module.css` (`.navItemRow`,
+ *     `.activeStrip`)
+ * so every sidebar in the app reads as one family.
  */
+
+/* ---------------------------------------------------------------------------
+ * List container — `<ul>` clusters siblings.
+ * ------------------------------------------------------------------------- */
 
 .list {
   list-style: none;
@@ -17,47 +22,85 @@
   flex-shrink: 0;
 }
 
+/* Nested children — indented one step (24-px) past the parent's
+ * label-column start, matching SpacesSidebar's board-children inset. */
+.children {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0 0 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* ---------------------------------------------------------------------------
+ * `<li>` item — direct child of the sortable `<ul>`. `useSortable`'s
+ * ref MUST land here; placing it on an inner div breaks flex layout
+ * because @dnd-kit transforms a node that isn't a flex child of `.list`.
+ * ------------------------------------------------------------------------- */
+
 .item {
   display: flex;
   flex-direction: column;
+  /* `.list` is a flex column; this min-width:0 lets a long label inside
+   * the row ellipsise instead of forcing the column wider than the rail
+   * when a drag transform is applied. */
+  min-width: 0;
 }
 
-.itemDisabled {
-  opacity: 0.5;
-  pointer-events: none;
+/* Draggable / dragging states live on the `<li>` so siblings keep their
+ * flex-column layout while the dragged row visually lifts. */
+.item[data-draggable="true"] {
+  touch-action: none;
+  user-select: none;
 }
 
-/* Row container — mirrors SpacesSidebar `.spaceRow`:
- * 28-px chevron column + name column. The -4-px margin pulls the
- * row leftwards by the same amount the active-row red strip
- * extends, so the active treatment lines up with the rail edge. */
+.item[data-draggable="true"] .row {
+  cursor: grab;
+}
+
+.item[data-dragging="true"] {
+  opacity: 0.4;
+}
+
+.item[data-dragging="true"] .row {
+  cursor: grabbing;
+}
+
+/* ---------------------------------------------------------------------------
+ * Row container — flex row hosting (in order):
+ *   1. `.dragHandle` (optional, when the row is draggable)
+ *   2. `.chevronBtn` (Group only — toggles expand state)
+ *   3. `.rowContent` — the consumer's `renderContent` output
+ *
+ * Aligns its left edge with `.list`'s padding edge so the red
+ * `::after` strip (`left: -5px`) sits ENTIRELY outside the row.
+ * ------------------------------------------------------------------------- */
+
 .row {
   position: relative;
-  display: grid;
-  grid-template-columns: 28px 1fr;
+  display: flex;
   align-items: center;
   border-radius: var(--radius-sm);
   min-height: 40px;
-  margin-left: -4px;
+  transition:
+    background-color 120ms ease,
+    opacity 120ms ease;
 }
 
-/* Flat-tree variant: when NO node in the tree is expandable (Roles,
- * Skills, settings categories…) drop the chevron column entirely so
- * labels sit flush against the rail's inner gutter instead of being
- * pushed 28 px right by a never-used affordance. */
-.listFlat .row {
-  grid-template-columns: 1fr;
-}
-
-/* Active-row treatment — accent-soft inset background +
- * leading red strip. Copied verbatim from SpacesSidebar so the two
- * rails are pixel-identical when a row is selected. */
+/* Active-row treatment. Canonical geometry across every rail:
+ *   - Red strip (`::after`) at row-x=-5..0 — entirely to the LEFT of
+ *     the row, ending exactly at the row's left edge. Never overlaps
+ *     the active underlay.
+ *   - Underlay (`::before`) starts at row-x=`var(--space-2)` — the
+ *     2-px gap between strip and underlay is canonical (matches
+ *     `SidebarShell.navItemRow`). */
 .rowActive::before {
   content: "";
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 4px;
+  left: var(--space-2);
   right: 0;
   background-color: var(--color-accent-soft);
   border-radius: var(--radius-sm);
@@ -68,7 +111,7 @@
 .rowActive::after {
   content: "";
   position: absolute;
-  left: -4px;
+  left: -5px;
   top: 4px;
   bottom: 4px;
   width: 5px;
@@ -78,19 +121,23 @@
   pointer-events: none;
 }
 
-/* Hover treatment for non-active rows. Mirrors the same surface the
- * Spaces rail uses on hover. */
+/* Hover treatment for non-active rows. Matches the active underlay
+ * geometry so the surface stays the same shape — only the colour
+ * changes between hover and active states. The 80ms ease-out timing
+ * mirrors the rest of the sidebar surfaces (SidebarShell, MainSidebar)
+ * for hover transitions specifically. */
 .row:hover:not(.rowActive)::before {
   content: "";
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 4px;
+  left: var(--space-2);
   right: 0;
   background-color: var(--color-overlay-hover);
   border-radius: var(--radius-sm);
   z-index: 0;
   pointer-events: none;
+  transition: background-color 80ms ease-out;
 }
 
 .row > * {
@@ -98,51 +145,77 @@
   z-index: 1;
 }
 
-/* Column 2 holder — clusters the row body (button + trailing slot)
- * inside a single grid cell so the `28px 1fr` grid stays clean.
- * No padding here; the rail's outer 20-px sectionsWrap padding +
- * the row's grid column already handle the right gutter. */
+/* ---------------------------------------------------------------------------
+ * Row content — where the consumer's `renderContent` output lands.
+ * `flex: 1` + `min-width: 0` lets a long label ellipsise instead of
+ * overflowing.
+ * ------------------------------------------------------------------------- */
+
 .rowContent {
+  flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--space-4);
 }
 
-/* Mirrors SpacesSidebar `.spaceNameBtn`: padding only vertical, gap
- * 12 px between leading icon and label, font defaults to body size +
- * semibold so a top-level row reads heavier than nested children. */
-.rowMain {
-  flex: 1;
-  min-width: 0;
-  display: flex;
+/* ---------------------------------------------------------------------------
+ * Drag handle — rendered ONLY when the row is `isDraggable`. Hidden at
+ * rest, fades in on row hover or keyboard focus. Sits as the FIRST
+ * flex child of `.row` so the consumer's content stays clean of drag
+ * affordances.
+ * ------------------------------------------------------------------------- */
+
+.dragHandle {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-12);
-  padding: var(--space-2) 0;
-  cursor: pointer;
-  background: transparent;
+  justify-content: center;
+  margin-left: var(--space-2);
+  padding: 0;
   border: 0;
-  text-align: left;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-subtle);
   font: inherit;
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1.4;
+  font-size: 12px;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 80ms ease-out;
+}
+
+.row:hover .dragHandle,
+.dragHandle:focus-visible {
+  opacity: 1;
+}
+
+.dragHandle:hover {
+  background: var(--color-overlay-hover);
   color: var(--color-text-default);
 }
 
-.rowMain:disabled {
-  cursor: not-allowed;
+.dragHandle:active {
+  cursor: grabbing;
 }
 
-.rowMain:focus-visible {
+.dragHandle:focus-visible {
   outline: 2px solid var(--color-border-focus);
-  outline-offset: -2px;
-  border-radius: var(--radius-sm);
+  outline-offset: 2px;
 }
 
-/* Chevron toggle — fills the leading 28-px gutter exactly, like
- * SpacesSidebar `.spaceChevronBtn`. Matches the column track so click
- * surface aligns with the visible gutter. */
+@media (prefers-reduced-motion: reduce) {
+  .dragHandle {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Chevron toggle (Group only) — fills the leading 28-px gutter so
+ * click surface aligns with the visible gutter.
+ * ------------------------------------------------------------------------- */
+
 .chevronBtn {
   display: inline-flex;
   align-items: center;
@@ -172,83 +245,16 @@
   color: var(--color-text-subtle);
 }
 
-/* Spacer for rows without children. Width MUST equal the chevron
- * column so siblings stay aligned. */
-.chevronSpacer {
-  display: inline-block;
-  width: 28px;
-  height: 28px;
-}
+/* ---------------------------------------------------------------------------
+ * RailSection — section label + loading / error / empty / list scaffolding
+ * the four consumers share. Lives alongside Row / Group so the lookup is
+ * obvious for a maintainer reading the rail file.
+ * ------------------------------------------------------------------------- */
 
-/* Nested children — indented one step (24-px) past the parent's
- * label-column start, matching SpacesSidebar's board-children inset. */
-.children {
-  list-style: none;
-  margin: var(--space-2) 0 0;
-  padding: 0 0 0 24px;
+.section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
-}
-
-.swatch {
-  display: inline-block;
-  flex: 0 0 auto;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background-color: var(--color-overlay-hover);
-  border: 1px solid var(--color-border-default);
-}
-
-.icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  color: var(--color-text-muted);
-}
-
-.labelWrap {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  flex: 1;
-  min-width: 0;
-}
-
-.label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--font-size-body);
-}
-
-.labelStrikethrough {
-  text-decoration: line-through;
-  color: var(--color-text-subtle);
-}
-
-.badge {
-  flex: 0 0 auto;
-  font-size: var(--font-size-caption);
-  color: var(--color-text-subtle);
-}
-
-.trailing {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.subtitle {
-  width: 100%;
-  font-size: var(--font-size-caption);
-  color: var(--color-text-subtle);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .bodyEmpty {
@@ -265,4 +271,13 @@
   padding: var(--space-4) var(--space-12);
   font-size: var(--font-size-caption);
   color: var(--color-status-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    transition: none;
+  }
+  .row:hover:not(.rowActive)::before {
+    transition: none;
+  }
 }

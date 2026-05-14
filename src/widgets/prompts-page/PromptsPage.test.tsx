@@ -141,7 +141,7 @@ describe("PromptsPage", () => {
     });
   });
 
-  it("renders one EntityTree row per group at the top of the tree", async () => {
+  it("renders one row per group in the GROUPS section", async () => {
     mockIpc({
       prompts: [],
       groups: [
@@ -153,39 +153,31 @@ describe("PromptsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-row-group:grp-1"),
+        screen.getByTestId("prompts-sidebar-groups-row-grp-1"),
       ).toBeInTheDocument();
     });
     expect(
-      screen.getByTestId("prompts-sidebar-row-group:grp-2"),
+      screen.getByTestId("prompts-sidebar-groups-row-grp-2"),
     ).toBeInTheDocument();
   });
 
-  it("surfaces ungrouped prompts inside the Uncategorised pseudo-group", async () => {
+  it("surfaces every prompt in the flat PROMPTS section, regardless of group membership", async () => {
     mockIpc({
       prompts: [makePrompt({ id: "prm-1", name: "Solo" })],
       groups: [],
     });
-    const { user } = renderPage();
+    renderPage();
 
+    // Round-25 revert: no Uncategorised pseudo-group, no chevron — the
+    // PROMPTS section lists every prompt flat, ungrouped prompts included.
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-row-group:uncategorised"),
-      ).toBeInTheDocument();
-    });
-
-    // Expand the synthetic parent — the prompt then surfaces underneath.
-    await user.click(
-      screen.getByTestId("prompts-sidebar-toggle-group:uncategorised"),
-    );
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("prompts-sidebar-row-prompt:prm-1"),
+        screen.getByTestId("prompts-sidebar-prompts-row-prm-1"),
       ).toBeInTheDocument();
     });
   });
 
-  it("clicking a group opens the inline group view; prompts surface under their group when expanded", async () => {
+  it("clicking a group row opens the inline group view; prompts stay in their flat list", async () => {
     mockIpc({
       prompts: [
         makePrompt({ id: "prm-1", name: "Member" }),
@@ -198,37 +190,31 @@ describe("PromptsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-row-group:grp-1"),
+        screen.getByTestId("prompts-sidebar-groups-row-grp-1"),
       ).toBeInTheDocument();
     });
 
-    // Expand grp-1 (member prm-1) + Uncategorised (solo prm-2).
-    await user.click(screen.getByTestId("prompts-sidebar-toggle-group:grp-1"));
-    await user.click(
-      screen.getByTestId("prompts-sidebar-toggle-group:uncategorised"),
-    );
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("prompts-sidebar-row-prompt:prm-1"),
-      ).toBeInTheDocument();
-    });
+    // Both prompts already visible in the flat PROMPTS section.
     expect(
-      screen.getByTestId("prompts-sidebar-row-prompt:prm-2"),
+      screen.getByTestId("prompts-sidebar-prompts-row-prm-1"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("prompts-sidebar-prompts-row-prm-2"),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("prompts-sidebar-row-group:grp-1"));
+    await user.click(screen.getByTestId("prompts-sidebar-groups-row-grp-1"));
 
     // Right pane swaps to the inline group view.
     await waitFor(() => {
       expect(screen.getByTestId("inline-group-view")).toBeInTheDocument();
     });
 
-    // Sidebar still surfaces both prompts (expanded state survives).
+    // Sidebar still surfaces both prompts in the flat list.
     expect(
-      screen.getByTestId("prompts-sidebar-row-prompt:prm-1"),
+      screen.getByTestId("prompts-sidebar-prompts-row-prm-1"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("prompts-sidebar-row-prompt:prm-2"),
+      screen.getByTestId("prompts-sidebar-prompts-row-prm-2"),
     ).toBeInTheDocument();
   });
 
@@ -241,29 +227,17 @@ describe("PromptsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-row-group:uncategorised"),
+        screen.getByTestId("prompts-sidebar-prompts-row-prm-x"),
       ).toBeInTheDocument();
     });
 
-    // Expand Uncategorised first — the ungrouped prompt nests under it.
-    await user.click(
-      screen.getByTestId("prompts-sidebar-toggle-group:uncategorised"),
-    );
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("prompts-sidebar-row-prompt:prm-x"),
-      ).toBeInTheDocument();
-    });
+    await user.click(screen.getByTestId("prompts-sidebar-prompts-row-prm-x"));
 
-    await user.click(screen.getByTestId("prompts-sidebar-row-prompt:prm-x"));
-
-    // Round-19d: editor renders inline as a panel, not as a Dialog.
+    // Editor renders inline as a panel, not as a Dialog.
     await waitFor(() => {
       expect(screen.getByTestId("prompt-editor-panel")).toBeInTheDocument();
     });
-    // No <Dialog role="dialog"> should be mounted for the prompt editor
-    // (modals from other widgets — eg. group create — are NOT triggered
-    // by this click path, so role=dialog should be entirely absent).
+    // No <Dialog role="dialog"> should be mounted for the prompt editor.
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -272,25 +246,15 @@ describe("PromptsPage", () => {
       prompts: [makePrompt({ id: "prm-h", name: "Drag target" })],
       groups: [],
     });
-    const { user } = renderPage();
-
-    // The handle lives inside Uncategorised — expand to access it.
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("prompts-sidebar-toggle-group:uncategorised"),
-      ).toBeInTheDocument();
-    });
-    await user.click(
-      screen.getByTestId("prompts-sidebar-toggle-group:uncategorised"),
-    );
+    renderPage();
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-prompt-handle-prm-h"),
+        screen.getByTestId("prompts-sidebar-prompts-handle-prm-h"),
       ).toBeInTheDocument();
     });
-    const handle = screen.getByTestId("prompts-sidebar-prompt-handle-prm-h");
-    expect(handle).toHaveAttribute("aria-label", "Drag prompt Drag target");
+    const handle = screen.getByTestId("prompts-sidebar-prompts-handle-prm-h");
+    expect(handle).toHaveAttribute("aria-label", "Drag Drag target");
     // Handle is a <button>, so it's keyboard-reachable by default.
     expect(handle.tagName).toBe("BUTTON");
   });
@@ -299,14 +263,16 @@ describe("PromptsPage", () => {
     mockIpc({ prompts: [], groups: [] });
     renderPage();
 
-    // Round-24 migration: Add prompt is the EntityTree title's add
-    // trigger (`<prefix>-add`); Add group is a footer affordance.
+    // Round-25: each section header owns its own add trigger
+    // (prefixed by the EntityTree's testIdPrefix).
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-add-group"),
+        screen.getByTestId("prompts-sidebar-groups-add"),
       ).toBeInTheDocument();
     });
-    expect(screen.getByTestId("prompts-sidebar-add")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("prompts-sidebar-prompts-add"),
+    ).toBeInTheDocument();
   });
 
   it("exposes a tags filter trigger next to the PROMPTS section label", async () => {
