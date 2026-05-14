@@ -35,7 +35,7 @@ function fakeReport(overrides: Partial<ImportReport> = {}): ImportReport {
     skillId: "skill-1",
     overviewChars: 120,
     stepsAdded: 3,
-    attachmentId: null,
+    attachmentId: "att-1",
     ...overrides,
   };
 }

@@ -92,7 +92,7 @@ export function useRoleNoteFilters(
         case "oldest":
           return Number(a.createdAt - b.createdAt);
         case "highestPriority":
-          return b.priority - a.priority;
+          return Number(b.priority - a.priority);
         case "mostRecentUpdate":
           return Number(b.updatedAt - a.updatedAt);
       }

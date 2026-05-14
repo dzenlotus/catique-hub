@@ -96,7 +96,7 @@ export function RoleNoteRow({ note, onToast }: RoleNoteRowProps): ReactElement {
           initial={{
             body: note.body,
             tags: note.tags,
-            priority: note.priority,
+            priority: Number(note.priority),
             pinned: note.pinned,
           }}
           onSubmit={handleEditSubmit}

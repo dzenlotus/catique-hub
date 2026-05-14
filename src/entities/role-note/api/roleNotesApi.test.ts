@@ -32,7 +32,7 @@ function makeNote(overrides: Partial<RoleNote> = {}): RoleNote {
     sourceTaskId: null,
     body: "remember to lint",
     tags: ["lint"],
-    priority: 0,
+    priority: 0n,
     pinned: false,
     authoredBy: "user",
     createdAt: 0n,

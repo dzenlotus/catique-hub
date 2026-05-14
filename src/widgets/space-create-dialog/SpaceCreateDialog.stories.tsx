@@ -38,6 +38,7 @@ function stubSpace(overrides?: Partial<Space>): Space {
     createdAt: 0n,
     updatedAt: 0n,
     workflowGraphJson: null,
+    projectFolderPath: null,
     ...overrides,
   };
 }
