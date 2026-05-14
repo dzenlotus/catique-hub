@@ -18,7 +18,11 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "tokens:build": "tsx tools/tokens-build.ts",
-    "icons:build": "tsx tools/icons-build.ts"
+    "icons:build": "tsx tools/icons-build.ts",
+    "e2e:build": "VITE_E2E=1 vite build",
+    "e2e:preview": "VITE_E2E=1 vite preview --port 4173 --strictPort",
+    "e2e": "pnpm run e2e:build && playwright test",
+    "e2e:dev": "playwright test --headed --debug"
   },
   "dependencies": {
     "@dnd-kit/abstract": "^0.4.0",
@@ -43,6 +47,7 @@
     "wouter": "^3.9.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@storybook/addon-a11y": "10.3.5",
     "@storybook/addon-themes": "10.3.5",
     "@storybook/react-vite": "10.3.5",

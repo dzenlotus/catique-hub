@@ -41,5 +41,10 @@ coverage/
 # Storybook
 storybook-static/
 
+# Playwright e2e artifacts (test traces, screenshots, reports)
+e2e/.artifacts/
+playwright-report/
+test-results/
+
 # Local Claude Code state (per-project, not for repo)
 .claude/
