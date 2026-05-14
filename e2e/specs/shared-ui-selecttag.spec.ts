@@ -140,13 +140,12 @@ test.describe("SelectTag primitive (role editor)", () => {
     const roleId = await openRoleEditor(page);
     const ids = await seedPrompts(page, 2);
     if (ids.length !== 2) throw new Error("seed prompts missing");
-    // Attach via dropdown so the mutation invalidates the cache.
+    // Attach via dropdown so the mutation invalidates the cache. Wait
+    // for the chip after each click so successive clicks don't race
+    // with the popover dismiss/re-open animation.
     for (const id of ids) {
       await page.getByTestId(sel.rolePromptsInput).focus();
       await page.getByTestId(sel.rolePromptOption(id)).click();
-    }
-    // Wait for both chips.
-    for (const id of ids) {
       await expect(page.getByTestId(sel.rolePromptChip(id))).toBeVisible();
     }
 
@@ -175,10 +174,14 @@ test.describe("SelectTag primitive (role editor)", () => {
     await openRoleEditor(page);
     const ids = await seedPrompts(page, 5);
     // Attach via dropdown clicks so React Query's mutation invalidates
-    // the cache; the chips will render as the mutation settles.
+    // the cache. Wait for each chip to render before clicking the next
+    // option — fast successive clicks on the combobox can race with
+    // the popover dismiss/re-open animation and leave one option's
+    // click hitting a closing popover.
     for (const id of ids) {
       await page.getByTestId(sel.rolePromptsInput).focus();
       await page.getByTestId(sel.rolePromptOption(id)).click();
+      await expect(page.getByTestId(sel.rolePromptChip(id))).toBeVisible();
     }
 
     for (const id of ids) {
