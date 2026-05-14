@@ -117,14 +117,7 @@ pub fn insert(conn: &Connection, draft: &PromptGroupDraft) -> Result<PromptGroup
         "INSERT INTO prompt_groups \
             (id, name, color, icon, position, created_at, updated_at) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
-        params![
-            id,
-            draft.name,
-            draft.color,
-            draft.icon,
-            draft.position,
-            now
-        ],
+        params![id, draft.name, draft.color, draft.icon, draft.position, now],
     )?;
     Ok(PromptGroupRow {
         id,
@@ -162,10 +155,8 @@ pub fn update(
          position = COALESCE(?2, position)",
     );
     let mut next_param = 3_usize;
-    let mut params_vec: Vec<rusqlite::types::Value> = vec![
-        patch.name.clone().into(),
-        patch.position.into(),
-    ];
+    let mut params_vec: Vec<rusqlite::types::Value> =
+        vec![patch.name.clone().into(), patch.position.into()];
     if let Some(c) = color_new {
         let _ = write!(sql, ", color = ?{next_param}");
         params_vec.push(rusqlite::types::Value::from(c.clone()));

@@ -13,19 +13,13 @@
  *   - Role (optional)
  */
 
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 
-import { useBoards } from "@entities/board";
-import type { Board } from "@entities/board";
 import { useColumns } from "@entities/column";
 import type { Column } from "@entities/column";
-import { useRoles } from "@entities/role";
-import type { Role } from "@entities/role";
 import { useCreateTaskMutation } from "@entities/task";
-import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { useToast } from "@app/providers/ToastProvider";
-import { Dialog, Button, Input, Listbox, ListboxItem, MarkdownPreview, Scrollable } from "@shared/ui";
-import { cn } from "@shared/lib";
+import { Dialog, Button, Input, MarkdownField, Scrollable } from "@shared/ui";
 
 import styles from "./TaskCreateDialog.module.css";
 
@@ -86,48 +80,36 @@ function TaskCreateDialogContent({
   defaultBoardId,
   defaultColumnId,
 }: TaskCreateDialogContentProps): ReactElement {
-  const { activeSpaceId } = useActiveSpace();
   const { pushToast } = useToast();
   const createTask = useCreateTaskMutation();
 
   // ── Form state ──────────────────────────────────────────────────────────
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [descriptionMode, setDescriptionMode] = useState<"edit" | "preview">("edit");
-  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(defaultBoardId);
+  const [selectedBoardId] = useState<string | null>(defaultBoardId);
   const [selectedColumnId, setSelectedColumnId] = useState<string | null>(defaultColumnId);
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // ── Data queries ────────────────────────────────────────────────────────
-  const boardsQuery = useBoards();
   const columnsQuery = useColumns(selectedBoardId ?? "");
-  const rolesQuery = useRoles();
-
-  // Filter boards to the active space.
-  const boards: Board[] =
-    boardsQuery.status === "success"
-      ? boardsQuery.data.filter(
-          (b) => activeSpaceId === null || b.spaceId === activeSpaceId,
-        )
-      : [];
 
   const columns: Column[] = columnsQuery.data ?? [];
-  const roles: Role[] = rolesQuery.data ?? [];
+
+  // Auto-pick the first column of the selected board when none is set.
+  // The dialog no longer exposes a Status picker — tasks land in the
+  // board's first column ("Owner" / "todo") and the user moves them
+  // via kanban drag.
+  useEffect(() => {
+    if (selectedColumnId === null && columns.length > 0) {
+      setSelectedColumnId(columns[0].id);
+    }
+  }, [columns, selectedColumnId]);
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const canSubmit =
     title.trim().length > 0 &&
     selectedBoardId !== null &&
     selectedColumnId !== null;
-
-  // ── Handlers ─────────────────────────────────────────────────────────────
-
-  const handleBoardChange = (id: string): void => {
-    setSelectedBoardId(id);
-    // Reset column when board changes.
-    setSelectedColumnId(null);
-  };
 
   const handleSave = (): void => {
     setSaveError(null);
@@ -158,7 +140,9 @@ function TaskCreateDialogContent({
       description: description.trim() !== "" ? description.trim() : null,
       position,
     };
-    if (selectedRoleId !== null) mutationArgs.roleId = selectedRoleId;
+    // audit-2026-05-06: roleId resolved server-side from the
+    // board's owner_role_id (1:1 board↔role rule). Frontend no
+    // longer sends a role on create_task.
 
     createTask.mutate(
       mutationArgs,
@@ -196,157 +180,23 @@ function TaskCreateDialogContent({
         />
       </div>
 
-      {/* Description */}
+      {/* Description — canonical MarkdownField (in-place edit ⇄ preview). */}
       <div className={styles.section}>
-        <div className={styles.descriptionHeader}>
-          <span className={styles.sectionLabel}>Description</span>
-          <div className={styles.descriptionTabs}>
-            <button
-              type="button"
-              className={cn(
-                styles.descriptionTab,
-                descriptionMode === "edit" && styles.descriptionTabActive,
-              )}
-              onClick={() => setDescriptionMode("edit")}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              className={cn(
-                styles.descriptionTab,
-                descriptionMode === "preview" && styles.descriptionTabActive,
-              )}
-              onClick={() => setDescriptionMode("preview")}
-            >
-              Preview
-            </button>
-          </div>
-        </div>
-        {descriptionMode === "edit" ? (
-          <textarea
-            className={styles.textarea}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Optional. Markdown is supported."
-            rows={4}
-            aria-label="Description"
-            data-testid="task-create-dialog-description-textarea"
-          />
-        ) : (
-          <div className={styles.markdownPreviewWrapper}>
-            {description.trim() ? (
-              <MarkdownPreview source={description} />
-            ) : (
-              <p className={styles.previewEmpty}>Nothing to preview.</p>
-            )}
-          </div>
-        )}
+        <p className={styles.sectionLabel}>Description</p>
+        <MarkdownField
+          value={description}
+          onChange={setDescription}
+          placeholder="Optional. Markdown is supported."
+          ariaLabel="Description"
+          data-testid="task-create-dialog-description-textarea"
+        />
       </div>
 
-      {/* Board */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Board</p>
-        {boardsQuery.status === "pending" ? (
-          <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
-        ) : boardsQuery.status === "error" ? (
-          <p className={styles.fieldError}>
-            Failed to load boards: {boardsQuery.error.message}
-          </p>
-        ) : boards.length === 0 ? (
-          <p className={styles.fieldError}>No boards available.</p>
-        ) : (
-          <Listbox
-            aria-label="Board"
-            selectionMode="single"
-            selectedKeys={selectedBoardId !== null ? new Set([selectedBoardId]) : new Set()}
-            onSelectionChange={(keys) => {
-              const selected = [...keys][0];
-              if (typeof selected === "string") {
-                handleBoardChange(selected);
-              }
-            }}
-            data-testid="task-create-dialog-board-select"
-          >
-            {boards.map((board) => (
-              <ListboxItem key={board.id} id={board.id}>
-                {board.name}
-              </ListboxItem>
-            ))}
-          </Listbox>
-        )}
-      </div>
-
-      {/* Column / Status */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Status</p>
-        {selectedBoardId === null ? (
-          <p className={styles.fieldHint}>Select a board first.</p>
-        ) : columnsQuery.status === "pending" ? (
-          <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
-        ) : columnsQuery.status === "error" ? (
-          <p className={styles.fieldError}>
-            Failed to load columns: {columnsQuery.error.message}
-          </p>
-        ) : columns.length === 0 ? (
-          <p className={styles.fieldError}>This board has no columns.</p>
-        ) : (
-          <Listbox
-            aria-label="Status"
-            selectionMode="single"
-            selectedKeys={selectedColumnId !== null ? new Set([selectedColumnId]) : new Set()}
-            onSelectionChange={(keys) => {
-              const selected = [...keys][0];
-              if (typeof selected === "string") {
-                setSelectedColumnId(selected);
-              }
-            }}
-            data-testid="task-create-dialog-column-select"
-          >
-            {columns.map((column) => (
-              <ListboxItem key={column.id} id={column.id}>
-                {column.name}
-              </ListboxItem>
-            ))}
-          </Listbox>
-        )}
-      </div>
-
-      {/* Role */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Role</p>
-        {rolesQuery.status === "pending" ? (
-          <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
-        ) : rolesQuery.status === "error" ? (
-          <p className={styles.fieldError}>
-            Failed to load roles: {rolesQuery.error.message}
-          </p>
-        ) : (
-          <Listbox
-            aria-label="Role"
-            selectionMode="single"
-            selectedKeys={selectedRoleId !== null ? new Set([selectedRoleId]) : new Set(["__none__"])}
-            onSelectionChange={(keys) => {
-              const selected = [...keys][0];
-              if (selected === "__none__" || selected === undefined) {
-                setSelectedRoleId(null);
-              } else if (typeof selected === "string") {
-                setSelectedRoleId(selected);
-              }
-            }}
-            data-testid="task-create-dialog-role-select"
-          >
-            <ListboxItem key="__none__" id="__none__">
-              (no role)
-            </ListboxItem>
-            {roles.map((role) => (
-              <ListboxItem key={role.id} id={role.id}>
-                {role.name}
-              </ListboxItem>
-            ))}
-          </Listbox>
-        )}
-      </div>
+      {/* audit (2026-05-06): Board, Status, AND Role pickers removed.
+          Per the role model: every board belongs to exactly one role
+          (1:1), so a task's role is always the board's owner_role_id.
+          The Rust create_task path resolves it server-side; no
+          user-facing picker needed. */}
 
       {/* Footer */}
       <div className={styles.footer}>

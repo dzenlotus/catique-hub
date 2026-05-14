@@ -1,5 +1,6 @@
 /*
- * ConnectedAgentsSection — settings section for discovered clients.
+ * ConnectedAgentsSection — Settings section for connected providers.
+ * Round-21: list-shaped (one row per provider), not a grid of cards.
  * Token-based; no hard-coded colour values.
  */
 
@@ -26,12 +27,67 @@
   color: var(--color-text-default);
 }
 
-/* ── Client grid ───────────────────────────────────────────── */
+/* ── Provider rows ─────────────────────────────────────────── */
 
-.grid {
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
   gap: var(--space-12);
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+}
+
+.rowSkeleton {
+  height: 36px;
+  border-style: dashed;
+  border-color: var(--color-border-subtle);
+  background-color: var(--color-overlay-hover);
+}
+
+.rowName {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Sync-state pill ───────────────────────────────────────── */
+
+.syncPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-8);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  background-color: var(--color-overlay-hover);
+  white-space: nowrap;
+}
+
+.syncPillSyncing {
+  color: var(--color-text-default);
+  background-color: var(--color-accent-soft);
+}
+
+.syncPillError {
+  color: var(--color-status-danger);
+  background-color: var(--color-status-danger-soft);
 }
 
 /* ── Status / empty / error messages ──────────────────────── */
@@ -45,5 +101,5 @@
 }
 
 .errorMessage {
-  color: var(--color-status-danger, #dc2626);
+  color: var(--color-status-danger);
 }

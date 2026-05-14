@@ -13,42 +13,9 @@
  *     with explicit `null` meaning "clear the field".
  */
 
-import { invoke } from "@shared/api";
-import { AppErrorInstance } from "@entities/board";
-import type { AppError } from "@bindings/AppError";
+import { invokeWithAppError } from "@shared/api";
 import type { Prompt } from "@bindings/Prompt";
 import type { PromptTagMapEntry } from "@bindings/PromptTagMapEntry";
-
-/** Same `AppError` discriminator guard as in `boardsApi` / `columnsApi`. */
-function isAppErrorShape(value: unknown): value is AppError {
-  if (typeof value !== "object" || value === null) return false;
-  const kind = (value as { kind?: unknown }).kind;
-  if (typeof kind !== "string") return false;
-  return (
-    kind === "validation" ||
-    kind === "transactionRolledBack" ||
-    kind === "dbBusy" ||
-    kind === "lockTimeout" ||
-    kind === "internalPanic" ||
-    kind === "notFound" ||
-    kind === "conflict" ||
-    kind === "secretAccessDenied"
-  );
-}
-
-async function invokeWithAppError<T>(
-  command: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (raw) {
-    if (isAppErrorShape(raw)) {
-      throw new AppErrorInstance(raw);
-    }
-    throw raw;
-  }
-}
 
 /** `list_prompts` — return every prompt, ordered by `createdAt` (server-side). */
 export async function listPrompts(): Promise<Prompt[]> {

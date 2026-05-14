@@ -9,3 +9,8 @@ export {
   useDeletePromptMutation,
   useRecomputePromptTokenCountMutation,
 } from "./store";
+export {
+  PROMPT_TEMPLATE_STORAGE_KEY,
+  promptTemplateCodec,
+} from "./template";
+export type { PromptTemplate } from "./template";

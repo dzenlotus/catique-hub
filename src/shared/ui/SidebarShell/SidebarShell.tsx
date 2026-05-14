@@ -55,7 +55,7 @@ export function SidebarShell({
       {...dataTestIdProps}
     >
       <Scrollable axis="y" className={styles.sectionsWrap}>
-        {children}
+        <div className={styles.sectionsContent}>{children}</div>
       </Scrollable>
     </aside>
   );
@@ -71,6 +71,12 @@ export interface SidebarSectionLabelProps {
   /** Mirrored as `aria-label` so AT picks the same string. */
   ariaLabel?: string;
   className?: string;
+  /**
+   * Optional trailing slot rendered on the right side of the label —
+   * typically a filter trigger. Sits flush with the section's right
+   * gutter without disturbing the label's own padding.
+   */
+  trailing?: ReactNode;
 }
 
 /**
@@ -81,13 +87,15 @@ export function SidebarSectionLabel({
   children,
   ariaLabel,
   className,
+  trailing,
 }: SidebarSectionLabelProps): ReactElement {
   const labelProps =
     ariaLabel !== undefined ? { "aria-label": ariaLabel } : {};
 
   return (
     <div className={cn(styles.sectionLabel, className)} {...labelProps}>
-      {children}
+      <span className={styles.sectionLabelText}>{children}</span>
+      {trailing}
     </div>
   );
 }
@@ -134,6 +142,49 @@ export function SidebarAddRow({
         className={styles.addRowIcon}
       />
       <span>{label}</span>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section add trigger
+// ---------------------------------------------------------------------------
+
+export interface SidebarSectionAddTriggerProps {
+  /** Click handler — typically opens a create dialog. */
+  onPress: () => void;
+  /** Accessible label (e.g. "Add space"). */
+  ariaLabel: string;
+  /** Stable test id for the trigger. */
+  testId?: string;
+}
+
+/**
+ * Compact "+" icon button rendered in the trailing slot of a
+ * `<SidebarSectionLabel>`. Replaces the bottom-of-section
+ * `<SidebarAddRow>` for surfaces where the label-row affordance reads
+ * as visual clutter (per maintainer feedback — round-21).
+ */
+export function SidebarSectionAddTrigger({
+  onPress,
+  ariaLabel,
+  testId,
+}: SidebarSectionAddTriggerProps): ReactElement {
+  const dataTestIdProps =
+    testId !== undefined ? { "data-testid": testId } : {};
+  return (
+    <button
+      type="button"
+      className={styles.sectionAddTrigger}
+      onClick={onPress}
+      aria-label={ariaLabel}
+      {...dataTestIdProps}
+    >
+      <PixelInterfaceEssentialPlus
+        width={12}
+        height={12}
+        aria-hidden={true}
+      />
     </button>
   );
 }
@@ -202,7 +253,13 @@ export function SidebarNavItem({
   const buttonProps =
     testId !== undefined ? { "data-testid": testId } : {};
   return (
-    <div className={cn(styles.navItemRow, className)}>
+    <div
+      className={cn(
+        styles.navItemRow,
+        isActive && styles.navItemRowActive,
+        className,
+      )}
+    >
       {isActive ? (
         <span className={styles.activeStrip} aria-hidden="true" />
       ) : null}

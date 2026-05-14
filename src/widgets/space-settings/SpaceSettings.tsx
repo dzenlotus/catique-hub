@@ -6,23 +6,47 @@
  * "Space settings" from the kebab menu.
  *
  * Surface:
- *   - Editable: name, description.
+ *   - Editable: name, icon, color.
  *   - Read-only: prefix (immutable per Rust `update_space` contract).
  *   - "Save" button fires `useUpdateSpaceMutation` and surfaces success /
  *     error inline.
  *
  * On mount the page sets `activeSpaceId` so the rest of the shell stays
  * aligned with the URL.
+ *
+ * Audit-#13: the `description` form field was removed. `Space.description`
+ * is never rendered anywhere in the space view, so the input was dead.
+ * Schema column kept; field can return when a rendering surface needs it.
  */
 
 import { useEffect, useState, type ReactElement } from "react";
 import { useParams, useLocation } from "wouter";
 
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
-import { routes } from "@app/routes";
-import { useSpace, useUpdateSpaceMutation } from "@entities/space";
-import { Button, Input, Scrollable } from "@shared/ui";
-import { PixelInterfaceEssentialSettingCog } from "@shared/ui/Icon";
+import { boardPath, routes } from "@app/routes";
+import { invoke } from "@shared/api";
+import { pickFolder } from "@shared/lib";
+import {
+  useDeleteSpaceMutation,
+  useSpace,
+  useUpdateSpaceMutation,
+} from "@entities/space";
+import {
+  useBoards,
+  useCreateBoardMutation,
+  useDeleteBoardMutation,
+} from "@entities/board";
+import { useRoles } from "@entities/role";
+import type { Role } from "@entities/role";
+import {
+  Button,
+  ConfirmDialog,
+  IconColorPicker,
+  Input,
+  Scrollable,
+} from "@shared/ui";
+import { useToast } from "@app/providers/ToastProvider";
+import { cn } from "@shared/lib";
 
 import styles from "./SpaceSettings.module.css";
 
@@ -75,7 +99,7 @@ export function SpaceSettings(): ReactElement {
             <Button
               variant="secondary"
               size="sm"
-              onPress={() => setLocation(routes.spaces)}
+              onPress={() => setLocation(routes.boards)}
             >
               Back to spaces
             </Button>
@@ -92,33 +116,14 @@ export function SpaceSettings(): ReactElement {
       data-testid="space-settings-scroll"
     >
       <div className={styles.root} data-testid="space-settings">
-        <header
-          className={styles.pageHeader}
-          aria-labelledby="space-settings-heading"
-        >
-          <PixelInterfaceEssentialSettingCog
-            width={20}
-            height={20}
-            className={styles.pageHeaderIcon}
-            aria-hidden={true}
-          />
-          <div className={styles.pageHeaderText}>
-            <h2 id="space-settings-heading" className={styles.pageTitle}>
-              {spaceQuery.data.name}
-            </h2>
-            <p className={styles.pageDescription}>
-              Space settings. The prefix is set at creation and cannot be
-              changed.
-            </p>
-          </div>
-        </header>
-
         <SpaceSettingsForm
           key={spaceQuery.data.id}
           spaceId={spaceQuery.data.id}
           initialName={spaceQuery.data.name}
-          initialDescription={spaceQuery.data.description ?? ""}
+          initialIcon={spaceQuery.data.icon ?? null}
+          initialColor={spaceQuery.data.color ?? ""}
           prefix={spaceQuery.data.prefix}
+          initialProjectFolderPath={spaceQuery.data.projectFolderPath ?? ""}
         />
       </div>
     </Scrollable>
@@ -133,31 +138,77 @@ export function SpaceSettings(): ReactElement {
 interface SpaceSettingsFormProps {
   spaceId: string;
   initialName: string;
-  initialDescription: string;
+  /** Pixel-icon identifier or `null` if unset. */
+  initialIcon: string | null;
+  /** Hex color or `""` if unset. */
+  initialColor: string;
   prefix: string;
+  /** Round-21: absolute project folder path or `""` if unset. */
+  initialProjectFolderPath: string;
 }
 
 function SpaceSettingsForm({
   spaceId,
   initialName,
-  initialDescription,
+  initialIcon,
+  initialColor,
   prefix,
+  initialProjectFolderPath,
 }: SpaceSettingsFormProps): ReactElement {
   const updateMutation = useUpdateSpaceMutation();
 
   const [name, setName] = useState(initialName);
-  const [description, setDescription] = useState(initialDescription);
+  const [icon, setIcon] = useState<string | null>(initialIcon);
+  const [color, setColor] = useState<string>(initialColor);
+  const [projectFolderPath, setProjectFolderPath] = useState<string>(
+    initialProjectFolderPath,
+  );
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const trimmedName = name.trim();
-  const trimmedDescription = description.trim();
+  const resolvedColor = color === "" ? null : color;
+  const initialResolvedColor = initialColor === "" ? null : initialColor;
+  const trimmedProjectFolderPath = projectFolderPath.trim();
+  const resolvedProjectFolderPath: string | null =
+    trimmedProjectFolderPath.length === 0 ? null : trimmedProjectFolderPath;
+  const initialResolvedProjectFolderPath: string | null =
+    initialProjectFolderPath.trim().length === 0
+      ? null
+      : initialProjectFolderPath.trim();
 
   const isDirty =
     trimmedName !== initialName.trim() ||
-    trimmedDescription !== initialDescription.trim();
+    icon !== initialIcon ||
+    resolvedColor !== initialResolvedColor ||
+    resolvedProjectFolderPath !== initialResolvedProjectFolderPath;
 
   const canSubmit = trimmedName.length > 0 && isDirty;
+
+  const handleBrowseProjectFolder = async (): Promise<void> => {
+    const picked = await pickFolder({
+      title: "Select project folder",
+      ...(resolvedProjectFolderPath !== null
+        ? { defaultPath: resolvedProjectFolderPath }
+        : {}),
+    });
+    if (picked !== null) setProjectFolderPath(picked);
+  };
+
+  const handleRevealProjectFolder = (): void => {
+    if (resolvedProjectFolderPath === null) return;
+    // TODO(round-21-backend): expose `reveal_path_in_default_app` (or
+    // similar) IPC. The frontend forwards the path; the Rust side opens
+    // the folder in Finder / Explorer using whichever Tauri plugin
+    // (`opener` / `shell`) the backend chooses to install. Falls back
+    // to a no-op if the IPC isn't wired yet — surfacing an error toast
+    // would be premature noise during the round-21 ship.
+    void invoke("reveal_path_in_default_app", {
+      path: resolvedProjectFolderPath,
+    }).catch(() => {
+      // Silent: backend handler may not be installed yet.
+    });
+  };
 
   const handleSave = (): void => {
     setError(null);
@@ -171,10 +222,10 @@ function SpaceSettingsForm({
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
     const args: MutationArgs = { id: spaceId };
     if (trimmedName !== initialName) args.name = trimmedName;
-    // `description` is `Option<Option<String>>` on the Rust side: pass
-    // `null` to clear, the trimmed string to set, omit to leave alone.
-    if (trimmedDescription !== initialDescription.trim()) {
-      args.description = trimmedDescription.length > 0 ? trimmedDescription : null;
+    if (icon !== initialIcon) args.icon = icon;
+    if (resolvedColor !== initialResolvedColor) args.color = resolvedColor;
+    if (resolvedProjectFolderPath !== initialResolvedProjectFolderPath) {
+      args.projectFolderPath = resolvedProjectFolderPath;
     }
 
     updateMutation.mutate(args, {
@@ -188,10 +239,35 @@ function SpaceSettingsForm({
   };
 
   return (
-    <section className={styles.card} aria-labelledby="space-settings-form">
-      <h3 id="space-settings-form" className={styles.cardHeading}>
-        General
-      </h3>
+    <>
+      <header
+        className={styles.pageHeader}
+        aria-labelledby="space-settings-heading"
+      >
+        <IconColorPicker
+          value={{ icon, color: resolvedColor }}
+          onChange={(next) => {
+            setIcon(next.icon);
+            setColor(next.color ?? "");
+          }}
+          ariaLabel="Space icon and color"
+          data-testid="space-settings-appearance-picker"
+        />
+        <div className={styles.pageHeaderText}>
+          <h2 id="space-settings-heading" className={styles.pageTitle}>
+            {trimmedName.length > 0 ? trimmedName : initialName}
+          </h2>
+          <p className={styles.pageDescription}>
+            Space settings. The prefix is set at creation and cannot be
+            changed.
+          </p>
+        </div>
+      </header>
+
+      <section className={styles.card} aria-labelledby="space-settings-form">
+        <h3 id="space-settings-form" className={styles.cardHeading}>
+          General
+        </h3>
       <div className={styles.cardBody}>
         <div className={styles.fields}>
           <Input
@@ -202,14 +278,6 @@ function SpaceSettingsForm({
             data-testid="space-settings-name-input"
           />
 
-          <Input
-            label="Description"
-            value={description}
-            onChange={setDescription}
-            placeholder="Optional description…"
-            data-testid="space-settings-description-input"
-          />
-
           <div className={styles.readOnlyRow}>
             <span className={styles.readOnlyLabel}>Prefix</span>
             <span
@@ -218,6 +286,40 @@ function SpaceSettingsForm({
             >
               {prefix}
             </span>
+          </div>
+
+          {/* Project folder. The Browse button opens the OS-native
+           * folder picker (Finder on macOS, Explorer on Windows, GTK /
+           * KDE on Linux); the picked path lands in the input below. */}
+          <div className={styles.projectFolderRow}>
+            <Input
+              label="Project folder"
+              value={projectFolderPath}
+              onChange={setProjectFolderPath}
+              placeholder="/Users/you/projects/my-app"
+              description="Optional. Click Browse to pick a folder, or paste a path."
+              className={styles.projectFolderInput}
+              data-testid="space-settings-project-folder-input"
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => void handleBrowseProjectFolder()}
+              aria-label="Browse for project folder"
+              data-testid="space-settings-project-folder-browse"
+            >
+              Browse…
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={handleRevealProjectFolder}
+              isDisabled={resolvedProjectFolderPath === null}
+              aria-label="Reveal project folder in Finder"
+              data-testid="space-settings-project-folder-reveal"
+            >
+              Reveal in Finder
+            </Button>
           </div>
         </div>
 
@@ -252,6 +354,275 @@ function SpaceSettingsForm({
           </Button>
         </div>
       </div>
-    </section>
+      </section>
+
+      <RolesSection spaceId={spaceId} spaceName={initialName} />
+
+      <DangerZone spaceId={spaceId} spaceName={initialName} />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Roles section — attach roles from the global pool to this space.
+// Each attached role corresponds to one board (1 role per space rule).
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RolesSectionProps {
+  spaceId: string;
+  spaceName: string;
+}
+
+function RolesSection({ spaceId, spaceName }: RolesSectionProps): ReactElement {
+  const [, setLocation] = useLocation();
+  const { pushToast } = useToast();
+  const rolesQuery = useRoles();
+  const boardsQuery = useBoards();
+  const createBoard = useCreateBoardMutation();
+  const deleteBoard = useDeleteBoardMutation();
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    boardId: string;
+    boardName: string;
+  } | null>(null);
+
+  const allRoles: Role[] = rolesQuery.data ?? [];
+  const allBoards = boardsQuery.data ?? [];
+  const boardsInSpace = allBoards.filter((b) => b.spaceId === spaceId);
+
+  // Map: roleId → board in this space (1:1).
+  const roleToBoard = new Map(
+    boardsInSpace.map((b) => [b.ownerRoleId, b]),
+  );
+
+  const attachedRoles = allRoles.filter(
+    (r) => !r.isSystem && roleToBoard.has(r.id),
+  );
+  const availableRoles = allRoles.filter(
+    (r) => !r.isSystem && !roleToBoard.has(r.id),
+  );
+
+  const handleAttach = (role: Role): void => {
+    createBoard.mutate(
+      {
+        name: role.name,
+        spaceId,
+        ownerRoleId: role.id,
+        ...(role.color !== null ? { color: role.color } : {}),
+      },
+      {
+        onSuccess: (board) => {
+          pushToast("success", `${role.name} attached`);
+          setLocation(boardPath(board.id));
+        },
+        onError: (err) => {
+          // UNIQUE(space_id, owner_role_id) collision → role already
+          // attached (likely cache lag). Show a friendly message
+          // instead of a SQL string.
+          const raw = err instanceof Error ? err.message : String(err);
+          const isDuplicate =
+            raw.toLowerCase().includes("unique constraint") ||
+            raw.toLowerCase().includes("conflict");
+          pushToast(
+            "error",
+            isDuplicate
+              ? `${role.name} is already attached to this space.`
+              : `Failed to attach: ${raw}`,
+          );
+        },
+      },
+    );
+  };
+
+  const handleRemoveConfirmed = (): void => {
+    if (pendingRemoval === null) return;
+    deleteBoard.mutate(pendingRemoval.boardId, {
+      onSuccess: () => {
+        pushToast(
+          "success",
+          `Role detached from ${spaceName}`,
+        );
+        setPendingRemoval(null);
+      },
+      onError: (err) => {
+        pushToast("error", `Failed to detach role: ${err.message}`);
+        setPendingRemoval(null);
+      },
+    });
+  };
+
+  return (
+    <>
+      <section
+        className={styles.card}
+        aria-labelledby="space-settings-roles"
+        data-testid="space-settings-roles-section"
+      >
+        <h3 id="space-settings-roles" className={styles.cardHeading}>
+          Roles
+        </h3>
+
+        {attachedRoles.length > 0 && (
+          <ul className={styles.roleList} role="list">
+            {attachedRoles.map((r) => {
+              const board = roleToBoard.get(r.id);
+              return (
+                <li key={r.id} className={styles.roleRow}>
+                  <button
+                    type="button"
+                    className={styles.roleChip}
+                    onClick={() => board && setLocation(boardPath(board.id))}
+                    data-testid={`space-settings-roles-attached-${r.id}`}
+                  >
+                    {r.color !== null && (
+                      <span
+                        className={styles.roleSwatch}
+                        style={{ backgroundColor: r.color }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className={styles.roleName}>{r.name}</span>
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onPress={() => {
+                      if (board) {
+                        setPendingRemoval({
+                          boardId: board.id,
+                          boardName: board.name,
+                        });
+                      }
+                    }}
+                    aria-label={`Detach role ${r.name}`}
+                    data-testid={`space-settings-roles-detach-${r.id}`}
+                  >
+                    Detach
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {availableRoles.length > 0 && (
+          <ul className={styles.roleList} role="list">
+            {availableRoles.map((r) => (
+              <li key={r.id} className={styles.roleRow}>
+                <button
+                  type="button"
+                  className={cn(styles.roleChip, styles.roleChipAvailable)}
+                  onClick={() => handleAttach(r)}
+                  disabled={createBoard.isPending}
+                  data-testid={`space-settings-roles-attach-${r.id}`}
+                >
+                  {r.color !== null && (
+                    <span
+                      className={styles.roleSwatch}
+                      style={{ backgroundColor: r.color }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span className={styles.roleName}>{r.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <ConfirmDialog
+        isOpen={pendingRemoval !== null}
+        title={
+          pendingRemoval
+            ? `Detach role and delete board "${pendingRemoval.boardName}"?`
+            : "Detach role?"
+        }
+        description="The board this role owns in the current space will be removed, along with its tasks and columns. The role itself stays in the global Roles list."
+        confirmLabel="Detach"
+        destructive
+        isPending={deleteBoard.status === "pending"}
+        onConfirm={handleRemoveConfirmed}
+        onCancel={() => setPendingRemoval(null)}
+        data-testid="space-settings-roles-detach-confirm"
+      />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Danger zone — destructive actions for the space.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface DangerZoneProps {
+  spaceId: string;
+  spaceName: string;
+}
+
+function DangerZone({ spaceId, spaceName }: DangerZoneProps): ReactElement {
+  const [, setLocation] = useLocation();
+  const deleteMutation = useDeleteSpaceMutation();
+  const { pushToast } = useToast();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const handleDelete = (): void => {
+    deleteMutation.mutate(spaceId, {
+      onSuccess: () => {
+        setConfirmOpen(false);
+        pushToast("success", `Space "${spaceName}" deleted`);
+        // Land on the home shell (boards + sidebar visible) rather
+        // than a standalone spaces page — round-19e: the sidebar-less
+        // "/spaces" listing was retired.
+        setLocation(routes.boards);
+      },
+      onError: (err) => {
+        pushToast("error", `Failed to delete space: ${err.message}`);
+        setConfirmOpen(false);
+      },
+    });
+  };
+
+  return (
+    <>
+      <section
+        className={styles.dangerCard}
+        aria-labelledby="space-settings-danger"
+      >
+        <h3 id="space-settings-danger" className={styles.dangerHeading}>
+          Danger zone
+        </h3>
+        <p className={styles.dangerHint}>
+          Deleting a space removes every board it owns and every task,
+          column, and prompt-attachment those boards carry. This cannot
+          be undone.
+        </p>
+        <div>
+          <Button
+            variant="secondary"
+            size="md"
+            onPress={() => setConfirmOpen(true)}
+            data-testid="space-settings-delete"
+          >
+            Delete space
+          </Button>
+        </div>
+      </section>
+
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        title={`Delete space "${spaceName}"?`}
+        description={
+          <p>
+            Every board inside this space, plus the columns and tasks
+            those boards own, will be removed. This cannot be undone.
+          </p>
+        }
+        confirmLabel="Delete space"
+        destructive
+        isPending={deleteMutation.status === "pending"}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmOpen(false)}
+        data-testid="space-settings-delete-confirm"
+      />
+    </>
   );
 }

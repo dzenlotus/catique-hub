@@ -20,6 +20,7 @@ tauri-build.workspace = true
 # layer; the workspace pin disables them, so re-enable defaults here.
 tauri = { workspace = true, default-features = true }
 tauri-plugin-dialog.workspace = true
+tauri-plugin-single-instance.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

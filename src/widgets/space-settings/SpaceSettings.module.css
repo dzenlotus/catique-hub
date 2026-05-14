@@ -21,7 +21,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-16);
-  padding: var(--space-24);
+  padding: 24px 20px 28px;
   box-sizing: border-box;
   max-width: 680px;
   width: 100%;
@@ -142,6 +142,19 @@
   width: fit-content;
 }
 
+/* ── Project folder + Reveal-in-Finder (round-21) ──────────────────── */
+
+.projectFolderRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-8);
+}
+
+.projectFolderInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* ── Empty / loading / error shells ──────────────────────────────── */
 
 .statusPanel {
@@ -159,4 +172,117 @@
   margin: 0;
   font-size: var(--font-size-body);
   color: var(--color-text-default);
+}
+
+/* ── Danger zone ─────────────────────────────────────────────────── */
+
+.dangerCard {
+  margin-top: var(--space-16);
+  padding: var(--space-16);
+  border: 1px solid var(--color-status-danger);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-danger-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.dangerHeading {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-status-danger);
+}
+
+.dangerHint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-status-danger);
+}
+
+/*
+ * Roles section — attach roles to this space (one board per role rule).
+ */
+.roleList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.roleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.roleChip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--color-text-default);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 80ms ease-out, border-color 80ms ease-out;
+}
+
+.roleChip:hover:not(:disabled) {
+  background-color: var(--color-overlay-hover);
+  border-color: var(--color-border-focus);
+}
+
+.roleChip:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.roleChip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.roleSwatch {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border-default);
+  flex-shrink: 0;
+}
+
+.roleName {
+  flex: 1;
+  font-weight: var(--font-weight-medium);
+}
+
+.roleAction {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-caption);
+}
+
+.rolePicker {
+  margin-top: var(--space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.rolePickerLabel {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.roleChipAvailable {
+  border-style: dashed;
+  color: var(--color-text-muted);
 }

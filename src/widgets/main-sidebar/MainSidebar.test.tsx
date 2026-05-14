@@ -20,9 +20,15 @@ const activeSpaceStore = new LocalStorageStore<string>({
 // Mock the Tauri invoke wrapper — ActiveSpaceProvider runs useSpaces() on
 // mount and we don't want a real IPC roundtrip here.
 // ---------------------------------------------------------------------------
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 
@@ -111,7 +117,7 @@ describe("MainSidebar — nav items", () => {
   it("renders all 6 workspace nav items", () => {
     setup();
     expect(screen.getByRole("button", { name: /^boards$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /agent roles/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^roles$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^prompts$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^skills$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /mcp servers/i })).toBeInTheDocument();
@@ -138,7 +144,7 @@ describe("MainSidebar — nav items", () => {
       setup(view);
       const labelMap: Record<NavView, RegExp> = {
         boards: /^boards$/i,
-        "agent-roles": /agent roles/i,
+        "agent-roles": /^roles$/i,
         prompts: /^prompts$/i,
         skills: /^skills$/i,
         "mcp-servers": /mcp servers/i,
@@ -153,7 +159,7 @@ describe("MainSidebar — nav items", () => {
   it("does not set aria-current on inactive items", () => {
     setup("boards");
     const inactiveRegexes = [
-      /agent roles/i,
+      /^roles$/i,
       /^prompts$/i,
       /^skills$/i,
       /mcp servers/i,
@@ -179,7 +185,7 @@ describe("MainSidebar — nav items", () => {
 
     const itemsToClick: Array<[NavView, RegExp]> = [
       ["boards", /^boards$/i],
-      ["agent-roles", /agent roles/i],
+      ["agent-roles", /^roles$/i],
       ["prompts", /^prompts$/i],
       ["skills", /^skills$/i],
       ["mcp-servers", /mcp servers/i],

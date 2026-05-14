@@ -20,6 +20,13 @@ import { boardsKeys } from "@entities/board";
 import { columnsKeys } from "@entities/column";
 import { tasksKeys } from "@entities/task";
 import { connectedClientsKeys } from "@entities/connected-client";
+import { mcpServersKeys } from "@entities/mcp-server";
+import { roleNotesKeys, roleNoteTagsKeys } from "@entities/role-note";
+import {
+  skillAttachmentsKeys,
+  skillStepsKeys,
+  skillsKeys,
+} from "@entities/skill";
 import { on } from "@shared/api";
 
 /** Top-level provider — wire listeners and tear them down on unmount. */
@@ -186,6 +193,41 @@ export function EventsProvider({
         void qc.invalidateQueries({ queryKey: ["roles"] });
       }),
     );
+
+    // ---------------- role notes (ctq-137 / MEM-S1) ----------------
+    sub(
+      on("role_note:created", ({ roleId, noteId }) => {
+        void qc.invalidateQueries({
+          queryKey: roleNotesKeys.byRole(roleId),
+        });
+        void qc.invalidateQueries({
+          queryKey: roleNoteTagsKeys.byRole(roleId),
+        });
+        void qc.invalidateQueries({ queryKey: roleNotesKeys.detail(noteId) });
+      }),
+    );
+    sub(
+      on("role_note:updated", ({ roleId, noteId }) => {
+        void qc.invalidateQueries({
+          queryKey: roleNotesKeys.byRole(roleId),
+        });
+        void qc.invalidateQueries({
+          queryKey: roleNoteTagsKeys.byRole(roleId),
+        });
+        void qc.invalidateQueries({ queryKey: roleNotesKeys.detail(noteId) });
+      }),
+    );
+    sub(
+      on("role_note:deleted", ({ roleId, noteId }) => {
+        void qc.invalidateQueries({
+          queryKey: roleNotesKeys.byRole(roleId),
+        });
+        void qc.invalidateQueries({
+          queryKey: roleNoteTagsKeys.byRole(roleId),
+        });
+        qc.removeQueries({ queryKey: roleNotesKeys.detail(noteId) });
+      }),
+    );
     sub(
       on("tag:created", () => {
         void qc.invalidateQueries({ queryKey: ["tags"] });
@@ -218,6 +260,64 @@ export function EventsProvider({
         void qc.invalidateQueries({ queryKey: ["skills"] });
       }),
     );
+    // ---------------- skill attachments (SKILL-S10 / S12) ----------------
+    // Backend emits these when a file/git attachment row is inserted or
+    // dropped. Both events carry `skillId` so we can invalidate only the
+    // single per-skill list — broader invalidation would be wasteful on
+    // pages that list many skills' editor panels.
+    sub(
+      on("skill:attachment_added", ({ skillId }) => {
+        void qc.invalidateQueries({
+          queryKey: skillAttachmentsKeys.byList(skillId),
+        });
+      }),
+    );
+    sub(
+      on("skill:attachment_removed", ({ skillId }) => {
+        void qc.invalidateQueries({
+          queryKey: skillAttachmentsKeys.byList(skillId),
+        });
+      }),
+    );
+    // ---------------- skill steps (SKILL-V2-A / B) ----------------
+    // Step events carry both the owning `skillId` and the `stepId`.
+    // We only need `skillId` here — the steps cache is keyed by the
+    // per-skill list, not by individual step ids.
+    sub(
+      on("skill_step:created", ({ skillId }) => {
+        void qc.invalidateQueries({
+          queryKey: skillStepsKeys.byList(skillId),
+        });
+      }),
+    );
+    sub(
+      on("skill_step:updated", ({ skillId }) => {
+        void qc.invalidateQueries({
+          queryKey: skillStepsKeys.byList(skillId),
+        });
+      }),
+    );
+    sub(
+      on("skill_step:deleted", ({ skillId }) => {
+        void qc.invalidateQueries({
+          queryKey: skillStepsKeys.byList(skillId),
+        });
+      }),
+    );
+    // Skill import touches overview (skills.detail), steps, and may
+    // attach the source file — fan out invalidation across the trio.
+    sub(
+      on("skill:imported", ({ skillId }) => {
+        void qc.invalidateQueries({ queryKey: skillsKeys.list() });
+        void qc.invalidateQueries({ queryKey: skillsKeys.detail(skillId) });
+        void qc.invalidateQueries({
+          queryKey: skillStepsKeys.byList(skillId),
+        });
+        void qc.invalidateQueries({
+          queryKey: skillAttachmentsKeys.byList(skillId),
+        });
+      }),
+    );
     sub(
       on("mcp_tool:created", () => {
         void qc.invalidateQueries({ queryKey: ["mcp_tools"] });
@@ -231,6 +331,34 @@ export function EventsProvider({
     sub(
       on("mcp_tool:deleted", () => {
         void qc.invalidateQueries({ queryKey: ["mcp_tools"] });
+      }),
+    );
+
+    // ---------------- mcp servers (PROXY-S6 / ADR-0008) ----------------
+    // Per-server status and per-server tool lists hang off the same
+    // root key (`["mcp_servers"]`) — invalidating the root cascades.
+    // The Rust side emits `mcp_server:updated` whenever the row OR its
+    // status changes (refresh + introspect-on-create both bump status),
+    // so the dot and the tools list stay live without polling.
+    sub(
+      on("mcp_server:created", () => {
+        void qc.invalidateQueries({ queryKey: mcpServersKeys.all });
+      }),
+    );
+    sub(
+      on("mcp_server:updated", ({ id }) => {
+        void qc.invalidateQueries({ queryKey: mcpServersKeys.list() });
+        void qc.invalidateQueries({ queryKey: mcpServersKeys.detail(id) });
+        void qc.invalidateQueries({ queryKey: mcpServersKeys.status(id) });
+        void qc.invalidateQueries({ queryKey: mcpServersKeys.tools(id) });
+      }),
+    );
+    sub(
+      on("mcp_server:deleted", ({ id }) => {
+        void qc.invalidateQueries({ queryKey: mcpServersKeys.list() });
+        qc.removeQueries({ queryKey: mcpServersKeys.detail(id) });
+        qc.removeQueries({ queryKey: mcpServersKeys.status(id) });
+        qc.removeQueries({ queryKey: mcpServersKeys.tools(id) });
       }),
     );
 
@@ -306,7 +434,11 @@ export function EventsProvider({
       }),
     );
 
-    // ---------------- connected clients (ctq-67 / ctq-68 / ctq-69) ----------------
+    // ---------------- connected providers (round-21) ----------------
+    // Provider lifecycle events still mirror the connected list query
+    // key. The `client:` namespace is preserved on the wire; only the
+    // semantics changed (no more discovery / instructions / per-card
+    // sync).
     sub(
       on("client:discovered", () => {
         void qc.invalidateQueries({
@@ -328,17 +460,14 @@ export function EventsProvider({
         });
       }),
     );
+    // Round-21: server-side sync fanout pushes its current state via
+    // `sync:status_changed`. The topbar `useSyncStatus` query refetches
+    // on this event so "Syncing…" → "Synced"/"Error" is reflected
+    // without polling.
     sub(
-      on("client:instructions_changed", ({ clientId }) => {
+      on("sync:status_changed", () => {
         void qc.invalidateQueries({
-          queryKey: connectedClientsKeys.instructions(clientId),
-        });
-      }),
-    );
-    sub(
-      on("client:roles_synced", ({ clientId }) => {
-        void qc.invalidateQueries({
-          queryKey: connectedClientsKeys.syncedRoles(clientId),
+          queryKey: connectedClientsKeys.syncStatus(),
         });
       }),
     );

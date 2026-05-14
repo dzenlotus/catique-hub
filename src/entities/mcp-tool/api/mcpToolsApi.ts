@@ -16,41 +16,8 @@
  * `isAppErrorShape` + `invokeWithAppError`.
  */
 
-import { invoke } from "@shared/api";
-import { AppErrorInstance } from "@entities/board";
-import type { AppError } from "@bindings/AppError";
+import { invokeWithAppError } from "@shared/api";
 import type { McpTool } from "@bindings/McpTool";
-
-/** Same `AppError` discriminator used in `boardsApi` / `rolesApi`. */
-function isAppErrorShape(value: unknown): value is AppError {
-  if (typeof value !== "object" || value === null) return false;
-  const kind = (value as { kind?: unknown }).kind;
-  if (typeof kind !== "string") return false;
-  return (
-    kind === "validation" ||
-    kind === "transactionRolledBack" ||
-    kind === "dbBusy" ||
-    kind === "lockTimeout" ||
-    kind === "internalPanic" ||
-    kind === "notFound" ||
-    kind === "conflict" ||
-    kind === "secretAccessDenied"
-  );
-}
-
-async function invokeWithAppError<T>(
-  command: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (raw) {
-    if (isAppErrorShape(raw)) {
-      throw new AppErrorInstance(raw);
-    }
-    throw raw;
-  }
-}
 
 /** `list_mcp_tools` — return every MCP tool. */
 export async function listMcpTools(): Promise<McpTool[]> {
@@ -67,6 +34,15 @@ export interface CreateMcpToolArgs {
   description?: string;
   schemaJson: string;
   color?: string;
+  /**
+   * Sort rank assigned to the new tool.  Required by the Rust handler
+   * (`crates/api/src/handlers/mcp_tools.rs::create_mcp_tool` takes a
+   * non-optional `position: f64`); omitting it triggers a serde error
+   * before the handler body runs.  Callers default to a monotonically-
+   * increasing value (`Date.now()`) so each new row lands at the end
+   * of the list.
+   */
+  position: number;
 }
 
 /** `create_mcp_tool` — create a new MCP tool. */
@@ -74,6 +50,7 @@ export async function createMcpTool(args: CreateMcpToolArgs): Promise<McpTool> {
   const payload: Record<string, unknown> = {
     name: args.name,
     schemaJson: args.schemaJson,
+    position: args.position,
   };
   if (args.description !== undefined) payload.description = args.description;
   if (args.color !== undefined) payload.color = args.color;

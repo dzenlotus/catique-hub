@@ -6,7 +6,7 @@ import {
   useAgentReports,
   useAgentReportsByTask,
 } from "@entities/agent-report";
-import { Button, EmptyState } from "@shared/ui";
+import { Button, EmptyState, Scrollable } from "@shared/ui";
 
 import styles from "./AgentReportsList.module.css";
 
@@ -63,6 +63,11 @@ export function AgentReportsList({
   }
 
   return (
+    <Scrollable
+      axis="y"
+      className={styles.scrollHost}
+      data-testid="agent-reports-list-scroll"
+    >
     <section
       className={styles.root}
       aria-labelledby="agent-reports-list-heading"
@@ -126,5 +131,6 @@ export function AgentReportsList({
         </div>
       )}
     </section>
+    </Scrollable>
   );
 }

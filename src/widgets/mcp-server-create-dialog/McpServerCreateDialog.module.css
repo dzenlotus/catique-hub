@@ -1,0 +1,121 @@
+/*
+ * McpServerCreateDialog — create MCP server modal.
+ *
+ * Mirrors McpToolCreateDialog.module.css for visual consistency. All
+ * surface / text colours flow from design tokens (no hex / rgb literals).
+ */
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Form sections ───────────────────────────────────────────────── */
+
+.section {
+  padding: var(--space-16) 0;
+  border-bottom: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.section:first-child {
+  padding-top: 0;
+}
+
+.sectionLabel {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.fullWidthInput {
+  width: 100%;
+}
+
+/* ── Transport radio group ───────────────────────────────────────── */
+
+.radioGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.radioRow {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.radio {
+  /* Mirror Button.secondary sizing so the three transport choices read
+     as a chip group. Layout uses a plain label + native input — the
+     react-aria-components <Radio> primitive owns focus/keyboard. */
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-size: var(--font-size-body-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.radio[data-selected] {
+  border-color: var(--color-accent-bg);
+  background-color: var(--color-accent-bg-soft, var(--color-surface-raised));
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-medium);
+}
+
+.radio[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.radio[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.radioDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border-default);
+  background-color: transparent;
+  flex-shrink: 0;
+}
+
+.radio[data-selected] .radioDot {
+  background-color: var(--color-accent-bg);
+  border-color: var(--color-accent-bg);
+}
+
+/* ── Hint / footer ───────────────────────────────────────────────── */
+
+.hint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.saveError {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}

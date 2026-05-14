@@ -34,15 +34,67 @@ impl<'a> AttachmentsUseCase<'a> {
         Self { pool }
     }
 
-    /// List every attachment metadata row (newest first).
+    /// List attachment metadata rows (newest first).
+    ///
+    /// `task_id` is an optional filter. When `None`, every row is
+    /// returned — preserving legacy callers' behaviour. When `Some`, the
+    /// filter `task_id = ?1` is applied at the SQL layer using the
+    /// `idx_task_attachments_task` index. The repository's `list_all`
+    /// is reused for the unfiltered branch; the filtered query is
+    /// issued in-place here so the repository crate stays untouched
+    /// (per ctq-92 minimal-change rule).
     ///
     /// # Errors
     ///
     /// Forwards storage-layer errors.
-    pub fn list(&self) -> Result<Vec<Attachment>, AppError> {
+    pub fn list(&self, task_id: Option<String>) -> Result<Vec<Attachment>, AppError> {
         let conn = acquire(self.pool).map_err(map_db_err)?;
-        let rows = repo::list_all(&conn).map_err(map_db_err)?;
-        Ok(rows.into_iter().map(row_to_attachment).collect())
+        match task_id {
+            None => {
+                let rows = repo::list_all(&conn).map_err(map_db_err)?;
+                Ok(rows.into_iter().map(row_to_attachment).collect())
+            }
+            Some(tid) => {
+                // SQL: `WHERE (?1 IS NULL OR task_id = ?1)` per spec.
+                // Branch on `Option` outside the query: the `Some` arm
+                // is the indexed path; the `None` arm reuses the
+                // repository helper. Same end result either way.
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT id, task_id, filename, mime_type, size_bytes, \
+                                storage_path, uploaded_at, uploaded_by \
+                         FROM task_attachments \
+                         WHERE (?1 IS NULL OR task_id = ?1) \
+                         ORDER BY uploaded_at DESC",
+                    )
+                    .map_err(|e| {
+                        map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e))
+                    })?;
+                let rows = stmt
+                    .query_map(params![tid], |row| {
+                        Ok(AttachmentRow {
+                            id: row.get("id")?,
+                            task_id: row.get("task_id")?,
+                            filename: row.get("filename")?,
+                            mime_type: row.get("mime_type")?,
+                            size_bytes: row.get("size_bytes")?,
+                            storage_path: row.get("storage_path")?,
+                            uploaded_at: row.get("uploaded_at")?,
+                            uploaded_by: row.get("uploaded_by")?,
+                        })
+                    })
+                    .map_err(|e| {
+                        map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e))
+                    })?;
+                let mut out = Vec::new();
+                for r in rows {
+                    out.push(row_to_attachment(r.map_err(|e| {
+                        map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e))
+                    })?));
+                }
+                Ok(out)
+            }
+        }
     }
 
     /// Look up an attachment by id.
@@ -156,8 +208,16 @@ impl<'a> AttachmentsUseCase<'a> {
         }
     }
 
-    /// Delete an attachment metadata row. Does NOT touch the on-disk
-    /// blob — callers are responsible for that (E3 will wire it).
+    /// Delete an attachment metadata row.
+    ///
+    /// **Metadata-only.** Does not touch the on-disk blob. Use
+    /// [`AttachmentsUseCase::delete_with_blob`] from the IPC layer (or
+    /// any caller that has resolved the on-disk root) so the file is
+    /// removed in lock-step with the row.
+    ///
+    /// Kept as a separate entry point for callers that intentionally
+    /// don't own the filesystem (e.g. unit tests for the metadata path,
+    /// or future remote-storage backends).
     ///
     /// # Errors
     ///
@@ -173,6 +233,80 @@ impl<'a> AttachmentsUseCase<'a> {
                 id: id.to_owned(),
             })
         }
+    }
+
+    /// Delete an attachment metadata row **and** unlink the underlying
+    /// blob from disk.
+    ///
+    /// `blob_root` is the root directory under which task-scoped
+    /// attachments live — typically `$APPLOCALDATA/catique/attachments`.
+    /// The full blob path is reconstructed as
+    /// `<blob_root>/<task_id>/<storage_path>` so deletion mirrors the
+    /// layout `upload_attachment` writes (`handlers/attachments.rs`).
+    ///
+    /// Failure modes:
+    ///
+    /// * If the row is missing → `AppError::NotFound` (same as `delete`).
+    /// * If the row was deleted but the file is **not present** on disk
+    ///   → success, with a `[catique-hub]` warning logged. Idempotency
+    ///   over orphan-cleanup correctness is the right tradeoff: a re-run
+    ///   of `delete` on a half-cleaned attachment must not fail.
+    /// * If `fs::remove_file` returns any other error
+    ///   (permission, mount-busy, …) → success with a warning. The
+    ///   metadata row is already gone and surfacing the FS error to the
+    ///   IPC caller would force the UI to handle a half-deleted state
+    ///   that is functionally equivalent to "blob orphaned" — the
+    ///   nightly orphan-sweep job (E3) will reconcile.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound` if id is unknown.
+    pub fn delete_with_blob(&self, id: &str, blob_root: &std::path::Path) -> Result<(), AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        // Look up the row first so we know the on-disk path before the
+        // metadata vanishes. If the row is missing, surface `NotFound`
+        // before touching the filesystem.
+        let Some(row) = repo::get_by_id(&conn, id).map_err(map_db_err)? else {
+            return Err(AppError::NotFound {
+                entity: "attachment".into(),
+                id: id.to_owned(),
+            });
+        };
+        let removed = repo::delete(&conn, id).map_err(map_db_err)?;
+        if !removed {
+            // Race: another caller deleted the row between our SELECT
+            // and DELETE. Treat as `NotFound` for the same reason
+            // `delete` does — the post-condition (no row with this id)
+            // is satisfied.
+            return Err(AppError::NotFound {
+                entity: "attachment".into(),
+                id: id.to_owned(),
+            });
+        }
+        // Reconstruct the on-disk path. `storage_path` is a leaf name
+        // produced by `upload_attachment` (`<id>_<sanitized_name>`),
+        // which is already collision-safe.
+        let blob_path = blob_root.join(&row.task_id).join(&row.storage_path);
+        match std::fs::remove_file(&blob_path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // File missing on disk: log + continue. This is the
+                // idempotent re-delete path — see the doc-comment.
+                eprintln!(
+                    "[catique-hub] delete_attachment: blob already missing at {} ({})",
+                    blob_path.display(),
+                    e
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "[catique-hub] delete_attachment: failed to remove blob at {}: {}",
+                    blob_path.display(),
+                    e
+                );
+            }
+        }
+        Ok(())
     }
 }
 
@@ -268,12 +402,66 @@ mod tests {
                 None,
             )
             .unwrap();
-        assert_eq!(uc.list().unwrap().len(), 1);
+        assert_eq!(uc.list(None).unwrap().len(), 1);
         uc.delete(&a.id).unwrap();
         match uc.delete(&a.id).expect_err("second") {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "attachment"),
             other => panic!("got {other:?}"),
         }
+    }
+
+    fn fresh_pool_with_two_tasks() -> Pool {
+        let pool = memory_pool_for_tests();
+        let mut conn = pool.get().unwrap();
+        run_pending(&mut conn).unwrap();
+        conn.execute_batch(
+            "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
+                 VALUES ('sp1','Space','sp',0,0,0,0); \
+             INSERT INTO boards (id, name, space_id, position, created_at, updated_at) \
+                 VALUES ('bd1','B','sp1',0,0,0); \
+             INSERT INTO columns (id, board_id, name, position, created_at) \
+                 VALUES ('c1','bd1','C',0,0); \
+             INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES ('t1','bd1','c1','sp-1','T1',0,0,0), \
+                        ('t2','bd1','c1','sp-2','T2',1,0,0);",
+        )
+        .unwrap();
+        drop(conn);
+        pool
+    }
+
+    #[test]
+    fn list_with_task_id_filters_to_that_task() {
+        let pool = fresh_pool_with_two_tasks();
+        let uc = AttachmentsUseCase::new(&pool);
+        let a1 = uc
+            .create(
+                "t1".into(),
+                "a.png".into(),
+                "image/png".into(),
+                10,
+                "a.png".into(),
+                None,
+            )
+            .unwrap();
+        let _b = uc
+            .create(
+                "t2".into(),
+                "b.png".into(),
+                "image/png".into(),
+                10,
+                "b.png".into(),
+                None,
+            )
+            .unwrap();
+        // Unfiltered: both rows.
+        assert_eq!(uc.list(None).unwrap().len(), 2);
+        // Filtered to t1: just a1.
+        let only_t1 = uc.list(Some("t1".into())).unwrap();
+        assert_eq!(only_t1.len(), 1);
+        assert_eq!(only_t1[0].id, a1.id);
+        // Filter to non-existent task: empty.
+        assert!(uc.list(Some("ghost".into())).unwrap().is_empty());
     }
 
     #[test]
@@ -295,5 +483,82 @@ mod tests {
             .unwrap();
         assert_eq!(renamed.filename, "new.png");
         assert_eq!(renamed.storage_path, "stored.png");
+    }
+
+    #[test]
+    fn delete_attachment_removes_blob_from_disk() {
+        // Stand up a temp blob root mirroring the production layout
+        // `<root>/<task_id>/<storage_path>` and assert the file is
+        // unlinked alongside the row.
+        let pool = fresh_pool_with_task();
+        let uc = AttachmentsUseCase::new(&pool);
+        let blob_root = tempfile::tempdir().unwrap();
+        let storage_name = "abc_screenshot.png".to_owned();
+        let task_dir = blob_root.path().join("t1");
+        std::fs::create_dir_all(&task_dir).unwrap();
+        let blob_path = task_dir.join(&storage_name);
+        std::fs::write(&blob_path, b"fake-png-bytes").unwrap();
+        assert!(blob_path.exists(), "fixture file should be on disk");
+
+        let a = uc
+            .create(
+                "t1".into(),
+                "screenshot.png".into(),
+                "image/png".into(),
+                14,
+                storage_name,
+                None,
+            )
+            .unwrap();
+
+        uc.delete_with_blob(&a.id, blob_root.path()).unwrap();
+
+        assert!(!blob_path.exists(), "blob should be removed from disk");
+        // Row gone, second delete is `NotFound`.
+        match uc
+            .delete_with_blob(&a.id, blob_root.path())
+            .expect_err("nf")
+        {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "attachment"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn delete_attachment_idempotent_when_blob_missing() {
+        // Pre-delete the file before calling `delete_with_blob` —
+        // the use case must succeed (warn-and-continue path).
+        let pool = fresh_pool_with_task();
+        let uc = AttachmentsUseCase::new(&pool);
+        let blob_root = tempfile::tempdir().unwrap();
+        let storage_name = "ghosted.png".to_owned();
+
+        let a = uc
+            .create(
+                "t1".into(),
+                "ghosted.png".into(),
+                "image/png".into(),
+                0,
+                storage_name.clone(),
+                None,
+            )
+            .unwrap();
+
+        // No file ever written — directory does not even exist.
+        let blob_path = blob_root.path().join("t1").join(&storage_name);
+        assert!(
+            !blob_path.exists(),
+            "precondition: blob must be missing before the call"
+        );
+
+        // Must succeed despite the missing file.
+        uc.delete_with_blob(&a.id, blob_root.path())
+            .expect("delete should succeed when blob is already gone");
+
+        // Row removed.
+        match uc.get(&a.id).expect_err("nf") {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "attachment"),
+            other => panic!("got {other:?}"),
+        }
     }
 }

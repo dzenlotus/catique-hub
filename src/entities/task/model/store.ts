@@ -27,6 +27,7 @@ import {
   listTasksByColumn,
   updateTask,
   addTaskPrompt,
+  setTaskPrompts,
   listTaskPrompts,
   type CreateTaskArgs,
   type UpdateTaskArgs,
@@ -206,15 +207,56 @@ export function useDeleteTaskMutation(): UseMutationResult<
 }
 
 /**
- * `useAddTaskPromptMutation` — attach a prompt directly to a task.
- * No cache invalidation needed: the join-table is write-only at this layer.
+ * `useAddTaskPromptMutation` — attach a prompt directly to a task and
+ * invalidate the task-prompts list cache so the editor's chip row
+ * reflects the new attachment without an extra round-trip.
+ *
+ * Without the `onSuccess` invalidation the backend persists the row
+ * but the `useTaskPrompts(taskId)` cache stays stale until the user
+ * closes and reopens the dialog (audit F-11).
  */
 export function useAddTaskPromptMutation(): UseMutationResult<
   void,
   Error,
   AddTaskPromptArgs
 > {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: addTaskPrompt,
+    onSuccess: (_void, vars) => {
+      void queryClient.invalidateQueries({
+        queryKey: tasksKeys.prompts(vars.taskId),
+      });
+    },
+  });
+}
+
+export interface SetTaskPromptsArgs {
+  taskId: string;
+  /** Prompts currently attached, in render order. */
+  previous: ReadonlyArray<string>;
+  /** Desired prompt list, in render order. */
+  next: ReadonlyArray<string>;
+}
+
+/**
+ * `useSetTaskPromptsMutation` — bulk set the directly-attached prompts
+ * of a task. Used by the inline `<MultiSelect>` in TaskDialog
+ * (audit-#8). Diffs internally via `setTaskPrompts`.
+ */
+export function useSetTaskPromptsMutation(): UseMutationResult<
+  void,
+  Error,
+  SetTaskPromptsArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, previous, next }) =>
+      setTaskPrompts(taskId, previous, next),
+    onSettled: (_void, _err, vars) => {
+      void queryClient.invalidateQueries({
+        queryKey: tasksKeys.prompts(vars.taskId),
+      });
+    },
   });
 }

@@ -21,9 +21,15 @@ import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 // Mock IPC
 // ---------------------------------------------------------------------------
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Mock GlobalSearch + useGlobalSearchKeybind
@@ -127,7 +133,12 @@ beforeEach(() => {
   invokeMock.mockReset();
   capturedIsOpen = false;
   mockOnClose.mockReset();
-  invokeMock.mockResolvedValue([]);
+  // Round-21: SyncIndicator subscribes to `get_sync_status`. Stub a
+  // benign idle response so the indicator stays hidden in TopBar tests.
+  invokeMock.mockImplementation((cmd: string) => {
+    if (cmd === "get_sync_status") return Promise.resolve({ state: "idle" });
+    return Promise.resolve([]);
+  });
 });
 
 afterEach(() => {

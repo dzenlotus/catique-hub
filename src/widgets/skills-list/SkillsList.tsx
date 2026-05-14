@@ -1,16 +1,16 @@
-import { useState, type ReactElement } from "react";
+import { type ReactElement } from "react";
 
 import { SkillCard, useSkills } from "@entities/skill";
-import { Button, EmptyState } from "@shared/ui";
+import { Button, EmptyState, Scrollable } from "@shared/ui";
 import { PixelDesignMagicWand } from "@shared/ui/Icon";
-import { SkillEditor } from "@widgets/skill-editor";
-import { SkillCreateDialog } from "@widgets/skill-create-dialog";
 
 import styles from "./SkillsList.module.css";
 
 export interface SkillsListProps {
   /** Called when the user activates a skill card. */
   onSelectSkill?: (skillId: string) => void;
+  /** Called when the user clicks the header "Create skill" button. */
+  onCreate?: () => void;
 }
 
 /**
@@ -22,12 +22,18 @@ export interface SkillsListProps {
  *   3. empty — friendly headline + CTA.
  *   4. populated — CSS-grid of `SkillCard`s.
  */
-export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElement {
-  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+export function SkillsList({
+  onSelectSkill,
+  onCreate,
+}: SkillsListProps = {}): ReactElement {
   const skillsQuery = useSkills();
 
   return (
+    <Scrollable
+      axis="y"
+      className={styles.scrollHost}
+      data-testid="skills-list-scroll"
+    >
     <section className={styles.root} aria-labelledby="skills-list-heading">
       <header className={styles.header}>
         <div className={styles.headingGroup}>
@@ -50,13 +56,10 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
           <Button
             variant="primary"
             size="md"
-            onPress={() => setIsCreateOpen(true)}
+            onPress={() => onCreate?.()}
             data-testid="skills-list-create-button"
           >
-            <span className={styles.btnLabel}>
-              <span aria-hidden="true">+</span>
-              + Create skill
-            </span>
+            Create skill
           </Button>
         </div>
       </header>
@@ -92,12 +95,9 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
               <Button
                 variant="primary"
                 size="md"
-                onPress={() => setIsCreateOpen(true)}
+                onPress={() => onCreate?.()}
               >
-                <span className={styles.btnLabel}>
-                  <span aria-hidden="true">+</span>
-                  + Create skill
-                </span>
+                Create skill
               </Button>
             }
           />
@@ -108,24 +108,13 @@ export function SkillsList({ onSelectSkill }: SkillsListProps = {}): ReactElemen
             <SkillCard
               key={skill.id}
               skill={skill}
-              onSelect={(id) => {
-                setSelectedSkillId(id);
-                onSelectSkill?.(id);
-              }}
+              onSelect={(id) => onSelectSkill?.(id)}
             />
           ))}
         </div>
       )}
 
-      <SkillEditor
-        skillId={selectedSkillId}
-        onClose={() => setSelectedSkillId(null)}
-      />
-
-      <SkillCreateDialog
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-      />
     </section>
+    </Scrollable>
   );
 }

@@ -6,9 +6,15 @@ import type { ReactElement } from "react";
 
 import type { PromptGroup } from "@entities/prompt-group";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { PromptGroupCreateDialog } from "./PromptGroupCreateDialog";
@@ -152,6 +158,30 @@ describe("PromptGroupCreateDialog", () => {
       ([cmd]) => cmd === "create_prompt_group",
     );
     expect(createCalls).toHaveLength(0);
+  });
+
+  it("audit-D: identity row places color picker BEFORE the name field", () => {
+    renderWithClient(
+      <PromptGroupCreateDialog isOpen onClose={() => undefined} />,
+    );
+    const identityRow = screen.getByTestId(
+      "prompt-group-create-dialog-identity-row",
+    );
+    const colorInput = screen.getByTestId(
+      "prompt-group-create-dialog-color-input",
+    );
+    const nameInput = screen.getByTestId(
+      "prompt-group-create-dialog-name-input",
+    );
+    expect(identityRow).toContainElement(colorInput);
+    expect(identityRow).toContainElement(nameInput);
+    // DOM order — picker comes first; name second.
+    const order = identityRow.compareDocumentPosition(nameInput);
+    // eslint-disable-next-line no-bitwise
+    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const pickerBeforeName = colorInput.compareDocumentPosition(nameInput);
+    // eslint-disable-next-line no-bitwise
+    expect(pickerBeforeName & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("does not render content when isOpen is false", () => {

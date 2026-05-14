@@ -7,9 +7,15 @@ import type { ReactElement } from "react";
 import type { PromptGroup } from "@entities/prompt-group";
 import type { Prompt } from "@entities/prompt";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { PromptGroupEditor } from "./PromptGroupEditor";
@@ -112,16 +118,16 @@ describe("PromptGroupEditor", () => {
     expect(screen.getByTestId("prompt-group-editor-name-input")).toHaveValue(
       "Тестовая группа",
     );
+    // Round-19d: the standalone color input was replaced with a
+    // combined `<IconColorPicker>`. The trigger is rendered on the
+    // form; the actual color input lives inside the popover.
     expect(
-      (
-        screen.getByTestId(
-          "prompt-group-editor-color-input",
-        ) as HTMLInputElement
-      ).value,
-    ).toBe("#ff0000");
+      screen.getByTestId("prompt-group-editor-color-input"),
+    ).toBeInTheDocument();
+    // audit-#12: position field is no longer exposed in the form.
     expect(
-      screen.getByTestId("prompt-group-editor-position-input"),
-    ).toHaveValue("1");
+      screen.queryByTestId("prompt-group-editor-position-input"),
+    ).not.toBeInTheDocument();
   });
 
   it("name input is editable", async () => {

@@ -1,13 +1,9 @@
 export {
   connectedClientsKeys,
   useConnectedClients,
-  useDiscoverClientsMutation,
-  useSetClientEnabledMutation,
-  useClientInstructions,
-  useWriteClientInstructionsMutation,
-  useSyncedClientRoles,
-  useSyncRolesToClientMutation,
-  syncRolesToAllSupportingClients,
+  useSupportedProviders,
+  useAddProviderMutation,
+  useRemoveProviderMutation,
+  useSyncStatus,
 } from "./store";
 export type { ConnectedClient } from "./types";
-export type { WriteClientInstructionsArgs } from "./store";

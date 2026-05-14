@@ -72,14 +72,30 @@
 
 .listColumn {
   min-width: 0;
+  /* Grid items default to `min-height: auto` which lets content
+   * push the row taller than the cell. Force min-height: 0 so the
+   * `.listScroll` viewport can clip + scroll instead of overflowing
+   * the grid row. */
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-surface-canvas);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* Inner Scrollable host — owns the actual scroll axis. */
+.listScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.listInner {
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
   padding: var(--space-12);
-  background-color: var(--color-surface-canvas);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
-  overflow-y: auto;
 }
 
 .listColumn[data-drop-target="true"] {
@@ -126,7 +142,9 @@
 .previewBody {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+}
+
+.previewBodyInner {
   padding: var(--space-16);
 }
 

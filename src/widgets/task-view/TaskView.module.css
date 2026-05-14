@@ -1,0 +1,26 @@
+/*
+ * TaskView — page-shell layout matching SidebarShell.sectionsWrap so
+ * this page reads as a peer to other settings pages.
+ */
+
+.scrollHost {
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: 24px 20px 28px;
+  box-sizing: border-box;
+  max-width: 760px;
+  width: 100%;
+}
+
+.backRow {
+  display: flex;
+  align-items: center;
+  padding-bottom: var(--space-4);
+}

@@ -14,7 +14,6 @@ path = "src/lib.rs"
 
 [dependencies]
 catique-domain = { path = "../domain" }
-catique-clients = { path = "../clients" }
 
 # Bundled rusqlite — ships SQLite C source statically with the crate, so
 # the resulting binary works on Win/macOS without a system libsqlite. The
@@ -54,12 +53,73 @@ dirs.workspace = true
 # around rusqlite calls (rusqlite is sync; Tauri commands are async).
 tokio.workspace = true
 
+# SKILL-V2-A: HTTP client for the git-fetch import pipeline. Workspace
+# pin is `default-features = false` + `rustls-tls` — keeps OpenSSL out
+# of the supply chain.
+reqwest.workspace = true
+
+# SKILL-V2-A: streamed-body size cap relies on
+# `futures_util::StreamExt::next` over reqwest's `bytes_stream`.
+futures-util.workspace = true
+
+# SKILL-V2-A: URL normalisation for the github/gitlab blob→raw mapper.
+# Already a workspace dep (SKILL-S10 brought it in for git-attachment
+# validation); we promote it onto this crate's direct surface.
+url.workspace = true
+
 # Used by repository unit tests to emit deterministic timestamps when
 # the row's caller doesn't pass one explicitly.
 chrono.workspace = true
 
+# OS-keychain backend for the MCP pass-through proxy (ADR-0008 /
+# PROXY-S3 round 2 / ctq-130). The workspace dep is declared with
+# `default-features = false`; each target below opts into its
+# platform-native credential store. Without these feature flags
+# keyring falls back to an in-memory mock store, which would silently
+# drop secrets on app restart.
+keyring.workspace = true
+
+# Per-target keyring features. The Linux entry uses `sync-secret-service`
+# (libsecret via dbus) plus `crypto-rust` to keep openssl out of the
+# supply chain. Headless CI without a running Secret Service daemon
+# cannot exercise this backend — see the test module-level comment in
+# `src/secrets/mod.rs` for the gating strategy.
+[target.'cfg(target_os = "macos")'.dependencies.keyring]
+workspace = true
+features = ["apple-native"]
+
+[target.'cfg(target_os = "windows")'.dependencies.keyring]
+workspace = true
+features = ["windows-native"]
+
+[target.'cfg(target_os = "linux")'.dependencies.keyring]
+workspace = true
+features = ["sync-secret-service", "crypto-rust"]
+
 [dev-dependencies]
 tempfile.workspace = true
+criterion.workspace = true
+
+# SKILL-V2-A: in-process HTTP mock server for `git_fetch::fetch_text`
+# round-trip tests. No Docker / network — wiremock-rs spawns a hyper
+# server on an ephemeral port.
+wiremock.workspace = true
+
+# wiremock requires a multi-threaded Tokio runtime in async tests.
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+
+# ADR-0006 (resolver perf gate, P99 < 50 ms): criterion harness over a
+# 10k-task seed fixture. Lives at `benches/resolver.rs`; running takes
+# ~30 s on an M-series Mac so it is excluded from default `cargo test`.
+[[bench]]
+name = "resolver"
+harness = false
+
+# ctq-84 (cat-as-Agent search perf gate, P99 < 100 ms on 10k tasks).
+# Same harness style as `resolver` — `cargo bench` only.
+[[bench]]
+name = "search_by_cat_and_space"
+harness = false
 
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }

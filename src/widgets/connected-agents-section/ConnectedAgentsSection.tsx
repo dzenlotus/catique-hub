@@ -1,159 +1,193 @@
+/**
+ * ConnectedAgentsSection — round-21 rewrite.
+ *
+ * Settings pane for managing connected providers. Detection runs once
+ * on first launch (backend); afterwards the user adds / removes
+ * providers manually here.
+ *
+ * Each row: provider name + sync-state indicator + a single "Remove"
+ * action. The "Add provider" button opens a modal listing the
+ * supported-provider catalog.
+ *
+ * What was removed (round-21):
+ *   - Per-card "Rescan" / discover trigger.
+ *   - Per-card "Edit instructions" action (widget deleted).
+ *   - Per-card "Sync roles" button (sync is automatic on every save).
+ *   - The enabled/disabled toggle (a row exists iff the provider is
+ *     connected — there is no third "disabled" state).
+ */
+
 import { useState, type ReactElement } from "react";
 
 import { Button } from "@shared/ui";
 import { cn } from "@shared/lib";
 import {
-  ConnectedClientCard,
   useConnectedClients,
-  useDiscoverClientsMutation,
-  useSetClientEnabledMutation,
-  useSyncedClientRoles,
-  useSyncRolesToClientMutation,
+  useRemoveProviderMutation,
+  useSyncStatus,
+  type ConnectedClient,
 } from "@entities/connected-client";
-import { ClientInstructionsEditor } from "@widgets/client-instructions-editor";
+import { useToast } from "@app/providers/ToastProvider";
 
+import { AddProviderDialog } from "./AddProviderDialog";
 import styles from "./ConnectedAgentsSection.module.css";
 
 /**
- * `ClientCardRow` — one card with its synced-roles query and sync mutation
- * isolated in a component boundary so hooks aren't called in a loop.
- */
-function ClientCardRow({
-  client,
-  onToggleEnabled,
-  onEditInstructions,
-  isToggling,
-  syncMutation,
-}: {
-  client: import("@entities/connected-client").ConnectedClient;
-  onToggleEnabled: (id: string, enabled: boolean) => void;
-  onEditInstructions: (id: string) => void;
-  isToggling: boolean;
-  syncMutation: ReturnType<typeof useSyncRolesToClientMutation>;
-}): ReactElement {
-  const { data: syncedRoles } = useSyncedClientRoles(
-    client.supportsRoleSync ? client.id : "",
-  );
-
-  const handleSyncRoles = (id: string): void => {
-    syncMutation.mutate(id);
-  };
-
-  return (
-    <ConnectedClientCard
-      client={client}
-      onToggleEnabled={onToggleEnabled}
-      onEditInstructions={onEditInstructions}
-      onSyncRoles={handleSyncRoles}
-      isSyncing={
-        syncMutation.isPending && syncMutation.variables === client.id
-      }
-      {...(syncedRoles !== undefined ? { syncedRoles } : {})}
-      isToggling={isToggling}
-    />
-  );
-}
-
-/**
- * `ConnectedAgentsSection` — "Connected agents" section for the
- * Settings view (ctq-67 / ctq-68 / ctq-69).
- *
- * Shows all known agentic clients with their installed/enabled status.
- * Provides a "Rescan" button that triggers a filesystem rescan via
- * `discover_clients`. Each card exposes "Edit instructions" (ctq-68)
- * and "Sync roles" (ctq-69).
+ * `ConnectedAgentsSection` — list connected providers with an
+ * "Add provider" trigger. Rows expose a Remove button that calls
+ * `useRemoveProviderMutation`.
  */
 export function ConnectedAgentsSection(): ReactElement {
-  const { data: clients, status, error } = useConnectedClients();
-  const discoverMutation = useDiscoverClientsMutation();
-  const toggleMutation = useSetClientEnabledMutation();
-  const syncMutation = useSyncRolesToClientMutation();
+  const { data: providers, status, error } = useConnectedClients();
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
-  /** Id of the client whose instructions are currently being edited. */
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-
-  const handleDiscover = (): void => {
-    discoverMutation.mutate();
+  const handleOpenAdd = (): void => {
+    setIsAddOpen(true);
   };
 
-  const handleToggle = (id: string, enabled: boolean): void => {
-    toggleMutation.mutate({ id, enabled });
+  const handleCloseAdd = (): void => {
+    setIsAddOpen(false);
   };
 
-  const handleEditInstructions = (id: string): void => {
-    setSelectedClientId(id);
-  };
-
-  const handleEditorClose = (): void => {
-    setSelectedClientId(null);
-  };
-
-  // Resolve display name for the currently selected client.
-  const selectedClient = clients?.find((c) => c.id === selectedClientId);
+  // Every row in `connected_providers` is by definition connected —
+  // round-21 dropped the soft-disable state when it renamed the field
+  // from `enabled` to `connectionStatus` (Idle / Syncing / Error). A
+  // failed-sync row is still a connected row; the failure surfaces via
+  // the per-row sync pill below, not by hiding the card.
+  const connected: ConnectedClient[] = providers ?? [];
 
   return (
-    <div className={styles.root}>
+    <div className={styles.root} data-testid="connected-agents-section">
       {/* ── Header ──────────────────────────────────────────── */}
       <div className={styles.header}>
-        <h3 className={styles.title}>Connected agents</h3>
+        <h3 className={styles.title}>Connected providers</h3>
         <Button
           variant="secondary"
           size="sm"
-          onPress={handleDiscover}
-          isDisabled={discoverMutation.isPending}
-          data-testid="discover-clients-button"
+          onPress={handleOpenAdd}
+          data-testid="connected-agents-add-provider"
         >
-          {discoverMutation.isPending ? "Scanning…" : "Rescan"}
+          Add provider
         </Button>
       </div>
 
       {/* ── Body ────────────────────────────────────────────── */}
       {status === "pending" && (
-        <div className={styles.grid} data-testid="connected-agents-skeleton">
-          {[0, 1, 2, 3].map((i) => (
-            <ConnectedClientCard key={i} isPending />
+        <ul className={styles.list} data-testid="connected-agents-skeleton">
+          {[0, 1].map((i) => (
+            <li key={i} className={cn(styles.row, styles.rowSkeleton)} aria-hidden="true" />
           ))}
-        </div>
+        </ul>
       )}
 
       {status === "error" && (
-        <p className={cn(styles.message, styles.errorMessage)} role="alert" data-testid="connected-agents-error">
-          Failed to load clients:{" "}
+        <p
+          className={cn(styles.message, styles.errorMessage)}
+          role="alert"
+          data-testid="connected-agents-error"
+        >
+          Failed to load providers:{" "}
           {error instanceof Error ? error.message : "unknown error"}
         </p>
       )}
 
-      {status === "success" && clients.length === 0 && (
+      {status === "success" && connected.length === 0 && (
         <p className={styles.message} data-testid="connected-agents-empty">
-          No clients found. Press &ldquo;Rescan&rdquo; to discover installed
-          agentic clients.
+          No providers connected. Press &ldquo;Add provider&rdquo; to connect
+          one of the supported agentic clients.
         </p>
       )}
 
-      {status === "success" && clients.length > 0 && (
-        <div className={styles.grid} data-testid="connected-agents-grid">
-          {clients.map((client) => (
-            <ClientCardRow
-              key={client.id}
-              client={client}
-              onToggleEnabled={handleToggle}
-              onEditInstructions={handleEditInstructions}
-              isToggling={
-                toggleMutation.isPending &&
-                toggleMutation.variables?.id === client.id
-              }
-              syncMutation={syncMutation}
-            />
+      {status === "success" && connected.length > 0 && (
+        <ul
+          className={styles.list}
+          data-testid="connected-agents-list"
+          role="list"
+        >
+          {connected.map((provider) => (
+            <ProviderRow key={provider.id} provider={provider} />
           ))}
-        </div>
+        </ul>
       )}
 
-      {/* ── Instructions editor dialog ───────────────────────── */}
-      <ClientInstructionsEditor
-        clientId={selectedClientId}
-        displayName={selectedClient?.displayName ?? selectedClientId ?? ""}
-        onClose={handleEditorClose}
-      />
+      <AddProviderDialog isOpen={isAddOpen} onClose={handleCloseAdd} />
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Row — name + sync-state pill + Remove action.
+// Kept as a sibling component so the remove mutation per row is scoped
+// (not called inside a `.map`).
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ProviderRowProps {
+  provider: ConnectedClient;
+}
+
+function ProviderRow({ provider }: ProviderRowProps): ReactElement {
+  const removeMutation = useRemoveProviderMutation();
+  const syncQuery = useSyncStatus();
+  const { pushToast } = useToast();
+
+  const isThisFailing =
+    syncQuery.data?.state === "error" &&
+    (syncQuery.data.failingProviders ?? []).includes(provider.id);
+
+  // Per-row sync state: per-provider failure surfaces inline; otherwise
+  // we mirror the global state so the row reads "Syncing…" while the
+  // backend fanout is in flight.
+  const rowSyncLabel: string = (() => {
+    if (isThisFailing) return "Sync error";
+    switch (syncQuery.data?.state) {
+      case "syncing":
+        return "Syncing…";
+      case "error":
+      case "idle":
+      case undefined:
+      default:
+        return "Synced";
+    }
+  })();
+
+  const handleRemove = (): void => {
+    removeMutation.mutate(provider.id, {
+      onSuccess: () => {
+        pushToast("success", `${provider.displayName} removed`);
+      },
+      onError: (err) => {
+        pushToast("error", `Failed to remove: ${err.message}`);
+      },
+    });
+  };
+
+  return (
+    <li
+      className={styles.row}
+      data-testid={`connected-agents-row-${provider.id}`}
+    >
+      <span className={styles.rowName}>{provider.displayName}</span>
+      <span
+        className={cn(
+          styles.syncPill,
+          isThisFailing && styles.syncPillError,
+          syncQuery.data?.state === "syncing" && styles.syncPillSyncing,
+        )}
+        data-testid={`connected-agents-row-sync-${provider.id}`}
+        aria-live="polite"
+      >
+        {rowSyncLabel}
+      </span>
+      <Button
+        variant="ghost"
+        size="sm"
+        onPress={handleRemove}
+        isPending={removeMutation.isPending}
+        aria-label={`Remove ${provider.displayName}`}
+        data-testid={`connected-agents-row-remove-${provider.id}`}
+      >
+        Remove
+      </Button>
+    </li>
   );
 }

@@ -1,63 +1,49 @@
 /**
- * Storybook — ConnectedAgentsSection.
+ * Storybook — ConnectedAgentsSection (round-21).
  *
  * Stories:
- *   Loading    — query pending, skeleton cards visible.
- *   Empty      — success with 0 clients, empty message shown.
- *   Populated  — 3 clients (mix of installed/disabled/role-sync capable).
- *   WithError  — query failed, error message visible.
+ *   Loading    — query pending, skeleton rows visible.
+ *   Empty      — success with 0 connected providers.
+ *   Populated  — two connected providers with steady sync state.
+ *   Syncing    — global sync indicator is in flight.
+ *   WithError  — failing-providers payload renders the error pill.
  */
 
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import { connectedClientsKeys } from "@entities/connected-client";
-import type { ConnectedClient } from "@entities/connected-client";
+import {
+  connectedClientsKeys,
+  type ConnectedClient,
+  type SyncStatus,
+} from "@entities/connected-client";
 import { ToastProvider } from "@app/providers/ToastProvider";
 
 import { ConnectedAgentsSection } from "./ConnectedAgentsSection";
 
 // ── Stub factory ──────────────────────────────────────────────────────────────
 
-function stubClient(overrides?: Partial<ConnectedClient>): ConnectedClient {
+function stubProvider(overrides?: Partial<ConnectedClient>): ConnectedClient {
   return {
     id: "claude-code",
     displayName: "Claude Code",
-    configDir: "/Users/dev/.claude",
-    signatureFile: "/Users/dev/.claude/settings.json",
-    installed: true,
-    enabled: true,
-    lastSeenAt: 0n,
-    supportsRoleSync: true,
+    connectionStatus: "connected",
+    lastSyncedAt: 0n,
+    lastError: null,
+    createdAt: 0n,
+    updatedAt: 0n,
     ...overrides,
   };
 }
 
-const sampleClients: ConnectedClient[] = [
-  stubClient({
+const sampleProviders: ConnectedClient[] = [
+  stubProvider({
     id: "claude-code",
     displayName: "Claude Code",
-    installed: true,
-    enabled: true,
-    supportsRoleSync: true,
   }),
-  stubClient({
-    id: "cursor",
-    displayName: "Cursor",
-    configDir: "/Users/dev/.cursor",
-    signatureFile: "/Users/dev/.cursor/settings.json",
-    installed: true,
-    enabled: false,
-    supportsRoleSync: false,
-  }),
-  stubClient({
-    id: "cline",
-    displayName: "Cline",
-    configDir: "/Users/dev/.cline",
-    signatureFile: "/Users/dev/.cline/settings.json",
-    installed: false,
-    enabled: false,
-    supportsRoleSync: true,
+  stubProvider({
+    id: "codex",
+    displayName: "Codex",
   }),
 ];
 
@@ -72,13 +58,17 @@ function makeBaseClient(): QueryClient {
 }
 
 function makePendingClient(): QueryClient {
-  // No data set → query remains pending (never fires IPC in Storybook).
   return makeBaseClient();
 }
 
-function makeSeededClient(clients: ConnectedClient[]): QueryClient {
+function makeSeededClient(
+  providers: ConnectedClient[],
+  syncStatus: SyncStatus = { state: "idle" },
+): QueryClient {
   const client = makeBaseClient();
-  client.setQueryData(connectedClientsKeys.list(), clients);
+  client.setQueryData(connectedClientsKeys.list(), providers);
+  client.setQueryData(connectedClientsKeys.syncStatus(), syncStatus);
+  client.setQueryData(connectedClientsKeys.supported(), []);
   return client;
 }
 
@@ -102,6 +92,7 @@ function makeErrorClient(message: string): QueryClient {
     status: "error",
     fetchStatus: "idle",
   });
+  client.setQueryData(connectedClientsKeys.syncStatus(), { state: "idle" });
   return client;
 }
 
@@ -138,7 +129,6 @@ type Story = StoryObj<typeof meta>;
 
 // ── Stories ───────────────────────────────────────────────────────────────────
 
-/** Query still loading — skeleton cards visible. */
 export const Loading: Story = {
   decorators: [
     (Story) => (
@@ -149,7 +139,6 @@ export const Loading: Story = {
   ],
 };
 
-/** No clients found after scanning — empty prompt. */
 export const Empty: Story = {
   decorators: [
     (Story) => (
@@ -160,19 +149,44 @@ export const Empty: Story = {
   ],
 };
 
-/** Three clients: installed+enabled, installed+disabled, not-found. */
 export const Populated: Story = {
   decorators: [
     (Story) => (
-      <Wrapper client={makeSeededClient(sampleClients)}>
+      <Wrapper client={makeSeededClient(sampleProviders)}>
         <Story />
       </Wrapper>
     ),
   ],
 };
 
-/** Query error — error banner shown. */
+export const Syncing: Story = {
+  decorators: [
+    (Story) => (
+      <Wrapper
+        client={makeSeededClient(sampleProviders, { state: "syncing" })}
+      >
+        <Story />
+      </Wrapper>
+    ),
+  ],
+};
+
 export const WithError: Story = {
+  decorators: [
+    (Story) => (
+      <Wrapper
+        client={makeSeededClient(sampleProviders, {
+          state: "error",
+          failingProviders: ["cursor"],
+        })}
+      >
+        <Story />
+      </Wrapper>
+    ),
+  ],
+};
+
+export const ListLoadFailed: Story = {
   decorators: [
     (Story) => (
       <Wrapper client={makeErrorClient("IPC channel unavailable")}>

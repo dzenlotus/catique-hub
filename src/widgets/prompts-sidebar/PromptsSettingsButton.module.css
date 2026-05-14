@@ -1,0 +1,33 @@
+/*
+ * PromptsSettingsButton — sidebar trigger that navigates to the
+ * standalone prompts-settings page (round-19e). Sits flush with the
+ * right edge of the PROMPTS section label, paired with the existing
+ * <TagsFilterButton>.
+ */
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.trigger:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}

@@ -1,14 +1,14 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
+import { useLocation } from "wouter";
 import { PixelInterfaceEssentialPencilEdit1 } from "@shared/ui/Icon";
 
 import { BoardCard, useBoards } from "@entities/board";
 import { useSpaces } from "@entities/space";
-import { Button, EmptyState } from "@shared/ui";
+import { Button, EmptyState, Scrollable } from "@shared/ui";
 import { PixelPetAnimalsCat, PixelCodingAppsWebsitesModule } from "@shared/ui/Icon";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
-import { BoardCreateDialog } from "@widgets/board-create-dialog";
-import { BoardEditor } from "@widgets/board-editor";
+import { boardSettingsPath } from "@app/routes";
 import { SpaceCreateDialog } from "@widgets/space-create-dialog";
 
 import styles from "./BoardsList.module.css";
@@ -36,9 +36,8 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
   const { activeSpaceId } = useActiveSpace();
   const boardsQuery = useBoards();
   const spacesQuery = useSpaces();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [, setLocation] = useLocation();
   const [isSpaceCreateOpen, setIsSpaceCreateOpen] = useState(false);
-  const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
 
   const hasNoSpaces =
     spacesQuery.status === "success" && spacesQuery.data.length === 0;
@@ -51,24 +50,19 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
       : [];
 
   return (
+    <Scrollable
+      axis="y"
+      className={styles.scrollHost}
+      data-testid="boards-list-scroll"
+    >
     <section className={styles.root} aria-labelledby="boards-list-heading">
       <header className={styles.header}>
         <h2 id="boards-list-heading" className={styles.heading}>
           Boards
         </h2>
-        <div className={styles.headerActions}>
-          <Button
-            variant="primary"
-            size="md"
-            onPress={() => setIsCreateOpen(true)}
-            data-testid="boards-list-create-button"
-          >
-            <span className={styles.btnLabel}>
-              <span aria-hidden="true">+</span>
-              Create board
-            </span>
-          </Button>
-        </div>
+        {/* audit-#6: head invariant — no standalone board creation.
+            Boards materialise when a role is added to a space; trigger
+            lives in the SpacesSidebar per-space "+" affordance. */}
       </header>
 
       <div className={styles.layout}>
@@ -108,10 +102,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                       onPress={() => setIsSpaceCreateOpen(true)}
                       data-testid="boards-list-create-space-button"
                     >
-                      <span className={styles.btnLabel}>
-                        <span aria-hidden="true">+</span>
-                        + Create space
-                      </span>
+                      Create space
                     </Button>
                   }
                 />
@@ -119,19 +110,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                 <EmptyState
                   icon={<PixelCodingAppsWebsitesModule width={64} height={64} />}
                   title="No boards yet"
-                  description="Create your first board to start organising tasks."
-                  action={
-                    <Button
-                      variant="primary"
-                      size="md"
-                      onPress={() => setIsCreateOpen(true)}
-                    >
-                      <span className={styles.btnLabel}>
-                        <span aria-hidden="true">+</span>
-                        + Create board
-                      </span>
-                    </Button>
-                  }
+                  description="Add a role to a space (sidebar “+”) and the board appears here automatically."
                 />
               )}
             </div>
@@ -150,17 +129,19 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                       console.info("[boards-list] select board:", id);
                     }}
                   />
-                  <button
-                    type="button"
-                    className={styles.editButton}
+                  {/* Audit-#22: shared `<Button variant="ghost">`
+                      replaces a raw `<button>` so all CTAs in this
+                      widget run through the design-system primitive. */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     aria-label="Edit board"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingBoardId(board.id);
-                    }}
+                    className={styles.editButton}
+                    onPress={() => setLocation(boardSettingsPath(board.id))}
+                    data-testid={`boards-list-edit-${board.id}`}
                   >
                     <PixelInterfaceEssentialPencilEdit1 width={14} height={14} aria-hidden="true" />
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
@@ -168,20 +149,17 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
         </div>
       </div>
 
-      <BoardCreateDialog
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-      />
+      {/* audit-#6: BoardCreateDialog is no longer reachable from
+          BoardsList. The dialog component still exists for the
+          SpacesSidebar add-role flow that materialises a board as a
+          side-effect of role creation. */}
 
       <SpaceCreateDialog
         isOpen={isSpaceCreateOpen}
         onClose={() => setIsSpaceCreateOpen(false)}
       />
 
-      <BoardEditor
-        boardId={editingBoardId}
-        onClose={() => setEditingBoardId(null)}
-      />
     </section>
+    </Scrollable>
   );
 }

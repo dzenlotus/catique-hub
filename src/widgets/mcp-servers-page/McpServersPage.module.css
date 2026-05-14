@@ -1,0 +1,287 @@
+/*
+ * McpServersPage — master-detail shell (round-22).
+ *
+ * The page's outer layout comes from `EntityPageShell.module.css`.
+ * Everything here is content-pane chrome (overview / server detail /
+ * tool detail). All colour values come from design tokens — no hex /
+ * rgb literals.
+ */
+
+/* ── Overview pane ────────────────────────────────────────────────── */
+
+.overviewRoot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-24);
+  max-width: 720px;
+  box-sizing: border-box;
+}
+
+.overviewHeading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.overviewIcon {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.overviewTitle {
+  margin: 0;
+  font-family: var(--font-family-display, var(--font-family-sans));
+  font-size: var(--font-size-headline);
+  color: var(--color-text-default);
+}
+
+.overviewDescription {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.overviewCount {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-default);
+}
+
+.overviewActions {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.overviewHint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+/* ── Detail pane (server + tool share root chrome) ─────────────────── */
+
+.detailRoot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-24);
+  max-width: 760px;
+  box-sizing: border-box;
+}
+
+.detailHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.detailIdentity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.detailTitle {
+  margin: 0;
+  font-family: var(--font-family-display, var(--font-family-sans));
+  font-size: var(--font-size-headline);
+  color: var(--color-text-default);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detailActions {
+  display: flex;
+  gap: var(--space-4);
+  flex-shrink: 0;
+}
+
+.detailMeta {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.detailMetaList {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: var(--space-12);
+  row-gap: var(--space-4);
+  font-size: var(--font-size-body-sm);
+}
+
+.detailMetaRow {
+  display: contents;
+}
+
+.detailMetaList dt {
+  color: var(--color-text-subtle);
+  font-weight: var(--font-weight-medium);
+}
+
+.detailMetaList dd {
+  margin: 0;
+  color: var(--color-text-default);
+  word-break: break-all;
+}
+
+.detailMuted {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.detailError {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+.detailHint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+}
+
+/* ── Status dot ───────────────────────────────────────────────────── */
+
+.statusDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-color: var(--color-text-subtle);
+}
+
+.statusDotHealthy {
+  background-color: var(--color-status-success);
+}
+
+.statusDotDegraded {
+  background-color: var(--color-status-warning);
+}
+
+.statusDotUnreachable {
+  background-color: var(--color-status-danger);
+}
+
+/* ── Icon button (Refresh / Delete) ───────────────────────────────── */
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--color-text-default);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background-color: var(--color-surface-hover, var(--color-surface-raised));
+}
+
+.iconButton[data-focus-visible],
+.iconButton:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.iconButton[data-pending] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .iconButton[data-pending] svg {
+    animation: catique-mcp-spin 1.2s linear infinite;
+  }
+}
+
+@keyframes catique-mcp-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Tool detail ──────────────────────────────────────────────────── */
+
+.toolNameSoftDeleted {
+  text-decoration: line-through;
+  color: var(--color-text-subtle);
+}
+
+.softDeletedBanner {
+  margin: 0;
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--color-status-warning);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-status-warning-soft, var(--color-overlay-hover));
+  color: var(--color-status-warning);
+  font-size: var(--font-size-body-sm);
+}
+
+.toolDescription {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-default);
+  line-height: 1.5;
+}
+
+.schemaSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.toolChevron {
+  align-self: flex-start;
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-8);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: var(--font-size-caption);
+}
+
+.toolChevron:hover {
+  color: var(--color-text-default);
+  background-color: var(--color-overlay-hover);
+}
+
+.toolChevron:focus-visible,
+.toolChevron[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.schemaPreview {
+  margin: 0;
+  padding: var(--space-8) var(--space-12);
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono, var(--font-sans));
+  font-size: var(--font-size-caption);
+  color: var(--color-text-default);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+}

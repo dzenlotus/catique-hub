@@ -4,8 +4,10 @@
  * Round-19d: replaces the modal-based group editor with an inline
  * settings page accessed from the "Settings" item on a group's kebab
  * menu in the sidebar. Hosts:
+ *   - Header: `<IconColorPicker>` to the LEFT of the title — same
+ *     placement as `<PromptEditorPanel>` so appearance always sits
+ *     next to the title, not in a labelled body section.
  *   - Name field (controlled).
- *   - Appearance: combined icon + color via `<IconColorPicker>`.
  *   - Danger zone: delete (confirm + parent handler).
  *
  * Member management lives in `<InlineGroupView>` — the user opens
@@ -157,6 +159,18 @@ export function InlineGroupSettings({
         </Button>
       </div>
       <header className={styles.header}>
+        <IconColorPicker
+          value={{
+            icon: localIcon,
+            color: localColor === "" ? null : localColor,
+          }}
+          onChange={(next) => {
+            setLocalIcon(next.icon);
+            setLocalColor(next.color ?? "");
+          }}
+          ariaLabel="Group icon and color"
+          data-testid="inline-group-settings-appearance"
+        />
         <h2 className={styles.title}>{group.name} · Settings</h2>
       </header>
 
@@ -169,26 +183,6 @@ export function InlineGroupSettings({
             placeholder="Group name"
             className={styles.fullWidthInput}
             data-testid="inline-group-settings-name-input"
-          />
-        </div>
-
-        <div className={styles.section}>
-          <p className={styles.sectionLabel}>Appearance</p>
-          <p className={styles.sectionHint}>
-            Picks the leading swatch shown in the sidebar and on the
-            group's card.
-          </p>
-          <IconColorPicker
-            value={{
-              icon: localIcon,
-              color: localColor === "" ? null : localColor,
-            }}
-            onChange={(next) => {
-              setLocalIcon(next.icon);
-              setLocalColor(next.color ?? "");
-            }}
-            ariaLabel="Group icon and color"
-            data-testid="inline-group-settings-appearance"
           />
         </div>
 

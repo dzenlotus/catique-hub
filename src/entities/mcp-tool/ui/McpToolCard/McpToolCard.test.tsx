@@ -6,6 +6,10 @@ import type { McpTool } from "../../model/types";
 import { McpToolCard } from "./McpToolCard";
 
 function makeTool(overrides: Partial<McpTool> = {}): McpTool {
+  // PROXY-S6: McpTool gained `serverId`, `upstreamName`, `source`,
+  // and `lastSyncedAt` on the wire. Defaults below match the
+  // manual-source case so existing tests keep passing without
+  // exercising the new server-link path.
   return {
     id: "tool-001",
     name: "My MCP Tool",
@@ -13,6 +17,10 @@ function makeTool(overrides: Partial<McpTool> = {}): McpTool {
     schemaJson: "{}",
     color: null,
     position: 0,
+    serverId: null,
+    upstreamName: null,
+    source: "manual",
+    lastSyncedAt: null,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,

@@ -15,41 +15,9 @@
  * request.
  */
 
-import { invoke } from "@shared/api";
-import { AppErrorInstance } from "@entities/board";
-import type { AppError } from "@bindings/AppError";
+import { invokeWithAppError } from "@shared/api";
 import type { Prompt } from "@bindings/Prompt";
 import type { Task } from "@bindings/Task";
-
-function isAppErrorShape(value: unknown): value is AppError {
-  if (typeof value !== "object" || value === null) return false;
-  const kind = (value as { kind?: unknown }).kind;
-  if (typeof kind !== "string") return false;
-  return (
-    kind === "validation" ||
-    kind === "transactionRolledBack" ||
-    kind === "dbBusy" ||
-    kind === "lockTimeout" ||
-    kind === "internalPanic" ||
-    kind === "notFound" ||
-    kind === "conflict" ||
-    kind === "secretAccessDenied"
-  );
-}
-
-async function invokeWithAppError<T>(
-  command: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (raw) {
-    if (isAppErrorShape(raw)) {
-      throw new AppErrorInstance(raw);
-    }
-    throw raw;
-  }
-}
 
 /**
  * `list_tasks` for an entire board. Filters client-side by `boardId`.
@@ -157,4 +125,43 @@ export async function addTaskPrompt(args: AddTaskPromptArgs): Promise<void> {
     promptId: args.promptId,
     position: args.position,
   });
+}
+
+export interface RemoveTaskPromptArgs {
+  taskId: string;
+  promptId: string;
+}
+
+/** `remove_task_prompt` — detach a directly-attached prompt from a task. */
+export async function removeTaskPrompt(
+  args: RemoveTaskPromptArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("remove_task_prompt", {
+    taskId: args.taskId,
+    promptId: args.promptId,
+  });
+}
+
+/**
+ * `setTaskPrompts` — bulk set the directly-attached prompt list of a
+ * task by computing the diff against `previous` and dispatching the
+ * existing `add_task_prompt` / `remove_task_prompt` IPCs (audit-#8).
+ */
+export async function setTaskPrompts(
+  taskId: string,
+  previous: ReadonlyArray<string>,
+  next: ReadonlyArray<string>,
+): Promise<void> {
+  const previousSet = new Set(previous);
+  const nextSet = new Set(next);
+  const toRemove = previous.filter((id) => !nextSet.has(id));
+  const toAdd = next.filter((id) => !previousSet.has(id));
+  for (const promptId of toRemove) {
+    await removeTaskPrompt({ taskId, promptId });
+  }
+  let position = previous.length - toRemove.length;
+  for (const promptId of toAdd) {
+    await addTaskPrompt({ taskId, promptId, position });
+    position += 1;
+  }
 }

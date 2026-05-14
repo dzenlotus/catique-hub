@@ -31,6 +31,7 @@ import {
   listBoards,
   updateBoard,
   addBoardPrompt,
+  setBoardPrompts,
   type CreateBoardArgs,
   type UpdateBoardArgs,
   type AddBoardPromptArgs,
@@ -143,5 +144,24 @@ export function useAddBoardPromptMutation(): UseMutationResult<
 > {
   return useMutation({
     mutationFn: addBoardPrompt,
+  });
+}
+
+export interface SetBoardPromptsArgs {
+  boardId: string;
+  promptIds: ReadonlyArray<string>;
+}
+
+/**
+ * `useSetBoardPromptsMutation` — bulk set the board's prompt list. Used
+ * by the BoardSettings `<MultiSelect>` (audit-#8).
+ */
+export function useSetBoardPromptsMutation(): UseMutationResult<
+  void,
+  Error,
+  SetBoardPromptsArgs
+> {
+  return useMutation({
+    mutationFn: ({ boardId, promptIds }) => setBoardPrompts(boardId, promptIds),
   });
 }

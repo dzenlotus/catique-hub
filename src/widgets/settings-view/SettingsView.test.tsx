@@ -9,9 +9,15 @@ import { ToastProvider } from "@app/providers/ToastProvider";
 // SettingsTokensView (rendered inside SettingsView) calls usePrompts(), which
 // issues IPC via @shared/api. Mock at that boundary so the test suite doesn't
 // require a live Tauri backend.
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { SettingsView } from "./SettingsView";

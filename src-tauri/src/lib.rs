@@ -36,6 +36,23 @@ pub fn run() {
     };
 
     let app = match tauri::Builder::default()
+        // Round-21 (maintainer feedback): a fresh `tauri dev` rebuild
+        // would happily open a new OS window every iteration while
+        // older instances still owned the SQLite WAL — multiple
+        // windows accumulated and confused the user. The single-
+        // instance plugin short-circuits the second launch by
+        // forwarding to the running process; the callback below
+        // un-minimises and focuses the existing main window so a
+        // double-click on the dock icon (or a parallel `tauri dev`)
+        // surfaces the running instance instead of spawning a new
+        // shell.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+                let _ = window.show();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .manage(state)
         .setup(|app| {
@@ -47,7 +64,66 @@ pub fn run() {
             let state = app.state::<AppState>();
             state.set_app_handle(handle);
 
-            // ADR-0002 spike (ctq-56): spawn the Node sidecar at startup.
+            // Round-21 Connected Providers: spawn the orchestrator
+            // task and stash its handle in AppState. The handle is
+            // cheap (Arc-backed channels) and is read by both the
+            // `add_provider` IPC (to fire a post-add trigger) and the
+            // `get_sync_status` IPC (to read the watch channel).
+            //
+            // We spawn the orchestrator BEFORE the bootstrap so the
+            // first-launch detected providers have a sync target
+            // ready when their first user-driven mutation lands.
+            //
+            // `spawn_orchestrator` internally calls `tokio::spawn`,
+            // which requires an active tokio runtime context. Tauri's
+            // `setup` runs on the main thread BEFORE the runtime
+            // context is entered there, so a bare call panics with
+            // "there is no reactor running" — the panic crosses the
+            // Cocoa FFI boundary and surfaces as `panic_cannot_unwind`
+            // in `tao::app_delegate::did_finish_launching` (round-21
+            // crash report). `block_on` enters the runtime context so
+            // the inner `tokio::spawn` lands cleanly.
+            let orchestrator = tauri::async_runtime::block_on(async {
+                catique_application::connected_providers::spawn_orchestrator(state.pool.clone())
+            });
+            // Hook the orchestrator's status broadcast to the Tauri
+            // event bus so the frontend gets `sync:status_changed`.
+            let mut status_rx = orchestrator.subscribe_status();
+            let app_for_events = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                use tauri::Emitter;
+                while let Ok(status) = status_rx.recv().await {
+                    if let Err(e) =
+                        app_for_events.emit(catique_api::events::SYNC_STATUS_CHANGED, &status)
+                    {
+                        eprintln!("[catique-hub] sync:status_changed emit failed: {e}");
+                    }
+                }
+            });
+            state.set_orchestrator(orchestrator);
+
+            // First-launch zero-state bootstrap. The KV flag in the
+            // settings table guarantees this runs at most once.
+            let bootstrap_pool = state.pool.clone();
+            tauri::async_runtime::spawn(async move {
+                let uc =
+                    catique_application::clients::ConnectedProvidersUseCase::new(&bootstrap_pool);
+                match uc.bootstrap_first_launch_if_needed().await {
+                    Ok(ids) if !ids.is_empty() => {
+                        eprintln!("[catique-hub] first-launch detected providers: {ids:?}");
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("[catique-hub] first-launch bootstrap failed: {e}");
+                    }
+                }
+            });
+
+            // ADR-0002 spike (ctq-56) + ctq-112 / E5 round 1: spawn the
+            // Node sidecar at startup AND install the MCP bridge so
+            // `tools/call` over MCP reaches a Rust use-case directly
+            // (no Tauri IPC re-entry).
+            //
             // Failure is non-fatal — the sidecar badge in Settings will
             // reflect the Stopped / Crashed state.
             //
@@ -59,7 +135,17 @@ pub fn run() {
             // point for async work scheduled from setup.
             let sidecar_dir = state.sidecar_dir.clone();
             let sidecar_mgr = state.sidecar.clone();
+            let pool = state.pool.clone();
+            // Snapshot the orchestrator handle for the MCP bridge.
+            // `OnceCell` has been set above (`state.set_orchestrator`)
+            // so `get().cloned()` is always `Some` by this point; the
+            // explicit `cloned()` keeps the bridge installable from a
+            // unit test that bypasses orchestrator wiring.
+            let bridge_orchestrator = state.orchestrator.get().cloned();
             tauri::async_runtime::spawn(async move {
+                // Install the bridge BEFORE spawning the child so the
+                // very first `ipc_call` from Node has a handler ready.
+                catique_api::mcp_bridge::install(&sidecar_mgr, pool, bridge_orchestrator).await;
                 match sidecar_mgr.start(&sidecar_dir).await {
                     Ok(pid) => eprintln!("[catique-hub] sidecar started, pid={pid}"),
                     Err(e) => eprintln!("[catique-hub] sidecar spawn failed: {e}"),
@@ -75,27 +161,51 @@ pub fn run() {
             handlers::spaces::get_space,
             handlers::spaces::list_spaces,
             handlers::spaces::update_space,
-            // ---------------- boards (E2.1 + E2.4) ----------------
+            // ---------------- space_prompts + space_skills/mcp_tools (ctq-99 + ctq-120) ----------------
+            handlers::spaces::add_space_prompt,
+            handlers::spaces::list_space_prompts,
+            handlers::spaces::remove_space_prompt,
+            handlers::spaces::set_space_mcp_tools,
+            handlers::spaces::set_space_prompts,
+            handlers::spaces::set_space_skills,
+            // ---------------- spaces.workflow_graph_json (ctq-113, Phase 5 stub) ----------------
+            handlers::spaces::get_workflow_graph,
+            handlers::spaces::set_workflow_graph,
+            // ---------------- boards (E2.1 + E2.4 + ctq-101 + ctq-108 + ctq-120) ----------------
             handlers::boards::create_board,
             handlers::boards::delete_board,
             handlers::boards::get_board,
             handlers::boards::list_boards,
+            handlers::boards::set_board_mcp_tools,
+            handlers::boards::set_board_owner,
+            handlers::boards::set_board_prompts,
+            handlers::boards::set_board_skills,
             handlers::boards::update_board,
-            // ---------------- columns (E2.4) ----------------
+            // ---------------- columns (E2.4 + ctq-108 + ctq-120) ----------------
             handlers::columns::create_column,
             handlers::columns::delete_column,
             handlers::columns::get_column,
             handlers::columns::list_columns,
+            handlers::columns::set_column_mcp_tools,
+            handlers::columns::set_column_prompts,
+            handlers::columns::set_column_skills,
             handlers::columns::update_column,
             // ---------------- tasks (E2.4) ----------------
             handlers::tasks::add_task_prompt,
             handlers::tasks::clear_task_prompt_override,
             handlers::tasks::create_task,
             handlers::tasks::delete_task,
+            handlers::tasks::get_step_log,
             handlers::tasks::get_task,
+            handlers::tasks::get_task_bundle,
+            handlers::tasks::get_task_rating,
             handlers::tasks::list_task_prompts,
             handlers::tasks::list_tasks,
+            handlers::tasks::log_step,
+            handlers::tasks::move_task,
+            handlers::tasks::rate_task,
             handlers::tasks::remove_task_prompt,
+            handlers::tasks::route_task_to_board,
             handlers::tasks::set_task_prompt_override,
             handlers::tasks::update_task,
             // ---------------- prompts (E2.4) ----------------
@@ -109,7 +219,7 @@ pub fn run() {
             handlers::prompts::remove_column_prompt,
             handlers::prompts::recompute_prompt_token_count,
             handlers::prompts::update_prompt,
-            // ---------------- roles (E2.4) ----------------
+            // ---------------- roles (E2.4 + ctq-108) ----------------
             handlers::roles::add_role_mcp_tool,
             handlers::roles::add_role_prompt,
             handlers::roles::add_role_skill,
@@ -120,20 +230,57 @@ pub fn run() {
             handlers::roles::remove_role_mcp_tool,
             handlers::roles::remove_role_prompt,
             handlers::roles::remove_role_skill,
+            handlers::roles::set_role_prompts,
             handlers::roles::update_role,
-            // ---------------- skills (E2.x) ----------------
+            // ---------------- role notes (ctq-137 / MEM-S1) ----------------
+            handlers::role_notes::add_role_note,
+            handlers::role_notes::delete_role_note,
+            handlers::role_notes::get_role_note,
+            handlers::role_notes::list_role_note_tags,
+            handlers::role_notes::list_role_notes,
+            handlers::role_notes::recall_role_notes,
+            handlers::role_notes::update_role_note,
+            // ---------------- skills (E2.x + ctq-117 + ctq-127 + SKILL-S10 + SKILL-V2-A) ----------------
+            handlers::skills::add_skill_file_attachment,
+            handlers::skills::add_skill_git_attachment,
+            handlers::skills::add_skill_step,
+            handlers::skills::add_task_skill,
             handlers::skills::create_skill,
             handlers::skills::delete_skill,
+            handlers::skills::delete_skill_step,
             handlers::skills::get_skill,
+            handlers::skills::import_skill_from_url,
+            handlers::skills::list_role_skills,
+            handlers::skills::list_skill_attachments,
+            handlers::skills::list_skill_steps,
             handlers::skills::list_skills,
+            handlers::skills::list_task_skills,
+            handlers::skills::remove_skill_attachment,
+            handlers::skills::remove_task_skill,
+            handlers::skills::reorder_skill_steps,
             handlers::skills::update_skill,
-            // ---------------- mcp tools (E2.x) ----------------
+            handlers::skills::update_skill_step,
+            // ---------------- mcp tools (E2.x + ctq-117 + ctq-127) ----------------
+            handlers::mcp_tools::add_task_mcp_tool,
             handlers::mcp_tools::create_mcp_tool,
             handlers::mcp_tools::delete_mcp_tool,
             handlers::mcp_tools::get_mcp_tool,
             handlers::mcp_tools::list_mcp_tools,
+            handlers::mcp_tools::list_role_mcp_tools,
+            handlers::mcp_tools::list_task_mcp_tools,
+            handlers::mcp_tools::remove_task_mcp_tool,
             handlers::mcp_tools::update_mcp_tool,
-            // ---------------- tags (E2.4) ----------------
+            // ---------------- mcp servers (ctq-115, ADR-0008) ----------------
+            handlers::mcp_servers::create_mcp_server,
+            handlers::mcp_servers::delete_mcp_server,
+            handlers::mcp_servers::get_mcp_server,
+            handlers::mcp_servers::get_mcp_server_connection_hint,
+            handlers::mcp_servers::get_mcp_server_status,
+            handlers::mcp_servers::list_mcp_servers,
+            handlers::mcp_servers::list_mcp_tools_by_server,
+            handlers::mcp_servers::refresh_mcp_server,
+            handlers::mcp_servers::update_mcp_server,
+            // ---------------- tags (E2.4 + ctq-108) ----------------
             handlers::tags::add_prompt_tag,
             handlers::tags::create_tag,
             handlers::tags::delete_tag,
@@ -141,6 +288,7 @@ pub fn run() {
             handlers::tags::list_prompt_tags_map,
             handlers::tags::list_tags,
             handlers::tags::remove_prompt_tag,
+            handlers::tags::set_tag_prompts,
             handlers::tags::update_tag,
             // ---------------- agent reports (E2.4) ----------------
             handlers::reports::create_agent_report,
@@ -148,13 +296,14 @@ pub fn run() {
             handlers::reports::get_agent_report,
             handlers::reports::list_agent_reports,
             handlers::reports::update_agent_report,
-            // ---------------- attachments (E2.4 + E5) ----------------
+            // ---------------- attachments (E2.4 + E5 + ctq-110) ----------------
             handlers::attachments::create_attachment,
             handlers::attachments::delete_attachment,
             handlers::attachments::get_attachment,
             handlers::attachments::list_attachments,
             handlers::attachments::update_attachment,
             handlers::attachments::upload_attachment,
+            handlers::attachments::upload_attachment_blob,
             // ---------------- prompt groups (E2.x) ----------------
             handlers::prompt_groups::add_prompt_group_member,
             handlers::prompt_groups::create_prompt_group,
@@ -166,23 +315,24 @@ pub fn run() {
             handlers::prompt_groups::set_prompt_group_members,
             handlers::prompt_groups::update_prompt_group,
             // ---------------- settings ----------------
+            handlers::settings::get_setting,
             handlers::settings::ping,
-            // ---------------- search (E4.1) ----------------
+            handlers::settings::set_setting,
+            // ---------------- search (E4.1 + ctq-84) ----------------
             handlers::search::search_tasks,
             handlers::search::search_agent_reports,
             handlers::search::search_all,
+            handlers::search::search_tasks_by_cat_and_space,
             // ---------------- sidecar (ADR-0002 spike, ctq-56) ----------------
             handlers::sidecar::sidecar_status,
             handlers::sidecar::sidecar_ping,
             handlers::sidecar::sidecar_restart,
-            // ---------------- connected clients (ctq-67 / ctq-68 / ctq-69) ----------------
-            handlers::clients::discover_clients,
-            handlers::clients::list_connected_clients,
-            handlers::clients::set_client_enabled,
-            handlers::clients::read_client_instructions,
-            handlers::clients::write_client_instructions,
-            handlers::clients::list_synced_client_roles,
-            handlers::clients::sync_roles_to_client,
+            // ---------------- connected providers (round-21) ----------------
+            handlers::clients::add_provider,
+            handlers::clients::get_sync_status,
+            handlers::clients::list_connected_providers,
+            handlers::clients::list_supported_providers,
+            handlers::clients::remove_provider,
         ])
         .build(tauri::generate_context!())
     {
@@ -253,5 +403,18 @@ fn init_state(sidecar_dir: PathBuf) -> Result<AppState, String> {
         let names: Vec<&str> = applied.iter().map(|m| m.name.as_str()).collect();
         eprintln!("[catique-hub] applied migrations: {names:?}");
     }
+
+    // ADR-0006 (resolver-backfill): on first boot post-ctq-98, walk
+    // every existing role/board/column/space attachment and materialise
+    // origin-tagged rows in `task_prompts`. Idempotent + chunked — see
+    // `resolver_backfill::run_if_pending` for the strategy. Failure
+    // here is non-fatal: the resolver still works for any new
+    // attachments going forward, and the next boot retries the walker.
+    match catique_application::resolver_backfill::run_if_pending(&pool) {
+        Ok(0) => {}
+        Ok(n) => eprintln!("[catique-hub] resolver backfill materialised {n} rows"),
+        Err(e) => eprintln!("[catique-hub] resolver backfill skipped: {e}"),
+    }
+
     Ok(AppState::new(pool, sidecar_dir))
 }

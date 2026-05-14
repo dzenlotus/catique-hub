@@ -15,11 +15,18 @@ pub mod agent_reports;
 pub mod attachments;
 pub mod boards;
 pub mod columns;
+pub mod inheritance;
+pub mod mcp_call_log;
+pub mod mcp_servers;
 pub mod mcp_tools;
 pub mod prompt_groups;
 pub mod prompts;
+pub mod role_notes;
 pub mod roles;
 pub mod search;
+pub mod settings;
+pub mod skill_attachments;
+pub mod skill_steps;
 pub mod skills;
 pub mod spaces;
 pub mod tags;
@@ -27,3 +34,7 @@ pub mod task_ratings;
 pub mod tasks;
 
 mod util;
+
+/// ID minting helper exposed to the application layer — see
+/// [`util::pre_mint_id`] for the ADR-0008 use case.
+pub use util::pre_mint_id;

@@ -20,9 +20,15 @@ const activeSpaceStore = new LocalStorageStore<string>({
 // Mock the Tauri invoke wrapper so we can control what useSpaces() /
 // useBoards() return.
 // ---------------------------------------------------------------------------
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 
@@ -188,7 +194,7 @@ describe("SpacesSidebar — SPACES tree (inline collapsible)", () => {
     });
   });
 
-  it("renders a global '+ Add space' button at the bottom", async () => {
+  it("renders a '+' add-space trigger next to the SPACES section label", async () => {
     invokeMock.mockResolvedValue(STUB_SPACES);
     setup();
     await waitFor(() => {
@@ -196,7 +202,7 @@ describe("SpacesSidebar — SPACES tree (inline collapsible)", () => {
     });
   });
 
-  it("clicking '+ Add space' opens the space-create dialog", async () => {
+  it("clicking the '+' add-space trigger opens the space-create dialog", async () => {
     invokeMock.mockImplementation((cmd: unknown) => {
       if (cmd === "list_spaces") return Promise.resolve(STUB_SPACES);
       if (cmd === "list_boards") return Promise.resolve([]);

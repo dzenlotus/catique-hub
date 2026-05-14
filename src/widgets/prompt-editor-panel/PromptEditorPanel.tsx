@@ -20,10 +20,12 @@ import {
   Input,
   MarkdownField,
   IconColorPicker,
+  Scrollable,
 } from "@shared/ui";
 import { PixelInterfaceEssentialBin } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
+import { PromptTagsField } from "@widgets/prompt-tags-field";
 
 import styles from "./PromptEditorPanel.module.css";
 
@@ -80,14 +82,18 @@ export function PromptEditorPanel({
         data-testid="prompt-editor-panel"
       >
         <div className={styles.scrollArea}>
-          <div className={styles.section}>
-            <div className={cn(styles.skeletonRow, styles.skeletonRowNarrow)} />
-            <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
-          </div>
-          <div className={styles.section}>
-            <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
-            <div className={styles.skeletonBlock} />
-          </div>
+          <Scrollable axis="y" className={styles.scrollableHost}>
+            <div className={styles.scrollAreaInner}>
+              <div className={styles.section}>
+                <div className={cn(styles.skeletonRow, styles.skeletonRowNarrow)} />
+                <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
+              </div>
+              <div className={styles.section}>
+                <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
+                <div className={styles.skeletonBlock} />
+              </div>
+            </div>
+          </Scrollable>
         </div>
         <div className={styles.footer}>
           <Button
@@ -303,6 +309,8 @@ export function PromptEditorPanel({
         <h2 className={styles.title}>{prompt.name}</h2>
       </header>
       <div className={styles.scrollArea}>
+      <Scrollable axis="y" className={styles.scrollableHost}>
+        <div className={styles.scrollAreaInner}>
         {/* Name */}
         <div className={styles.section}>
           <Input
@@ -325,6 +333,14 @@ export function PromptEditorPanel({
             className={styles.fullWidthInput}
             data-testid="prompt-editor-panel-shortdesc-input"
           />
+        </div>
+
+        {/* Tags — live-mutating (no draft state). The IPC writes through
+            on each toggle; the prompts→tags map invalidation refreshes
+            the chip row + sidebar filter together. */}
+        <div className={styles.section}>
+          <p className={styles.sectionLabel}>Tags</p>
+          <PromptTagsField promptId={prompt.id} />
         </div>
 
         {/* Content */}
@@ -390,7 +406,14 @@ export function PromptEditorPanel({
           )}
         </div>
 
-        {/* Token count — auto-recomputed on save (round-19d). */}
+        </div>
+      </Scrollable>
+      </div>
+
+      <div className={styles.footer}>
+        {/* Token count — auto-recomputed on save. Lives inline on the
+            footer's left edge so the action buttons stay right-aligned
+            (audit-3). */}
         <div
           className={styles.tokenRow}
           data-testid="prompt-editor-panel-token-row"
@@ -401,9 +424,6 @@ export function PromptEditorPanel({
               : "Current count: not computed"}
           </span>
         </div>
-      </div>
-
-      <div className={styles.footer}>
         {saveError ? (
           <p
             className={styles.saveError}

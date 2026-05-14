@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import {
   SidebarShell,
   SidebarSectionLabel,
-  SidebarAddRow,
+  SidebarSectionAddTrigger,
 } from "@shared/ui";
 import { PixelInterfaceEssentialAlertCircle1 } from "@shared/ui/Icon";
 import { useSpaces } from "@entities/space";
@@ -39,9 +39,12 @@ export function SpacesSidebar(): ReactElement {
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
-  // Derive the currently active board id from the URL.
+  // Derive the currently active board id from the URL. Both
+  // `/boards/:id` and `/boards/:id/settings` keep the same row
+  // highlighted in the sidebar — when the user opens settings the
+  // board still reads as "the active surface".
   const activeBoardId: string | null = (() => {
-    const match = location.match(/^\/boards\/(.+)$/);
+    const match = location.match(/^\/boards\/([^/]+)(?:\/.*)?$/);
     return match ? match[1] : null;
   })();
 
@@ -105,23 +108,21 @@ export function SpacesSidebar(): ReactElement {
         ariaLabel="Spaces navigation"
         testId="spaces-sidebar-root"
       >
-        <SidebarSectionLabel ariaLabel="Spaces">SPACES</SidebarSectionLabel>
+        <SidebarSectionLabel
+          ariaLabel="Spaces"
+          trailing={
+            spacesQuery.status === "success" ? (
+              <SidebarSectionAddTrigger
+                ariaLabel="Add space"
+                onPress={() => setCreateDialogOpen(true)}
+                testId="spaces-sidebar-add-space"
+              />
+            ) : null
+          }
+        >
+          SPACES
+        </SidebarSectionLabel>
         {renderBody()}
-
-        {/*
-         * Ctq-76 item 1: "+ Add space" trigger replaces the per-space kebab.
-         * Sits at the bottom of the spaces tree so creation is always one
-         * click away regardless of how many spaces are loaded. Hidden while
-         * the spaces query is pending or errored — both branches return
-         * earlier in `renderBody()`.
-         */}
-        {spacesQuery.status === "success" ? (
-          <SidebarAddRow
-            label="Add space"
-            onPress={() => setCreateDialogOpen(true)}
-            testId="spaces-sidebar-add-space"
-          />
-        ) : null}
       </SidebarShell>
 
       <SpaceCreateDialog

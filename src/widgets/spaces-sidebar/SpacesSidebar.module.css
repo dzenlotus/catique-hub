@@ -5,13 +5,18 @@
  * space tree (with board children inline). Width is set on the grid
  * track in `App.module.css` — this widget fills its column.
  *
- * Round-19c: cosmetic chrome (root <aside>, scrollable wrap, section
- * label, "+ Add ..." trigger) lifted into `shared/ui/SidebarShell`.
- * Only the row-specific styles remain here.
+ * Round-26 (Row/Group split): row chrome (chevron column, red strip,
+ * accent-soft underlay, hover overlay, child indent) lives in
+ * `shared/ui/EntityTree/EntityTree.module.css`. This file only owns:
+ *   - the `<ul>` wrapper for the space list,
+ *   - typography of the space header button + its label text,
+ *   - typography of the board row button + its label text,
+ *   - skeleton / error / empty state helpers,
+ *   - AddRoleToSpaceDialog sub-styles.
  */
 
 /* ============================================================
- * SPACES list — collapsible space rows
+ * SPACES list — flex column hosting `<Group>` siblings.
  * ============================================================ */
 
 .spaceList {
@@ -24,46 +29,13 @@
   flex-shrink: 0;
 }
 
-.spaceItem {
-  display: flex;
-  flex-direction: column;
-}
-
-/* Space header row (chevron + name).
- * Ctq-76 item 1: kebab column removed; the trailing 28-px track is gone. */
-.spaceRow {
-  display: grid;
-  grid-template-columns: 28px 1fr;
-  align-items: center;
-  border-radius: var(--radius-sm);
-  min-height: 40px;
-  margin-left: -4px;
-}
-
-.spaceRowActive {
-  /* No special highlight on the space header itself — active board row
-     carries it. */
-}
-
-/* Chevron toggle button */
-.spaceChevronBtn {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  padding: 0;
-  border-radius: var(--radius-xs);
-  color: var(--color-text-default);
-}
-
-.spaceChevronBtn[data-hovered],
-.spaceChevronBtn[data-pressed] {
-  color: var(--color-cta-bg);
-}
-
 /* Space name button (icon + name) — Round 20b: font-size matches MainSidebar
  * `.navItem` (`--font-size-body`). Weight stays semibold so the parent space
- * still reads heavier than its child board rows. */
+ * still reads heavier than its child board rows. Lives inside `<Group>`'s
+ * `.rowContent` slot — the primitive supplies the surrounding row chrome. */
 .spaceNameBtn {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--space-12);
@@ -77,13 +49,12 @@
   text-align: left;
   cursor: pointer;
   padding: var(--space-2) 0;
-  min-width: 0;
 }
 
 .spaceNameBtn:focus-visible {
   outline: 2px solid var(--color-border-focus);
-  outline-offset: 1px;
-  border-radius: var(--radius-xs);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
 }
 
 .spaceNameText {
@@ -93,119 +64,31 @@
   white-space: nowrap;
 }
 
-/* Board rows inside expanded space */
-.boardList {
-  list-style: none;
-  margin: 0;
-  padding: var(--space-2) 0 var(--space-8) 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-/* `.boardItem` wraps the board button + the kebab menu trigger so they
- * share a hover row. The kebab is hidden until the row is hovered or
- * the menu trigger is focused (revealed via `:hover` / `:focus-within`
- * below). */
-.boardItem {
-  position: relative;
-}
-
-.boardKebabBtn {
-  position: absolute;
-  top: 50%;
-  right: var(--space-8);
-  transform: translateY(-50%);
-  width: 24px;
-  height: 24px;
+/* Board row label button — same shape as the space-header button so the
+ * two levels read as one family. Lives inside `<Row>`'s `.rowContent`
+ * slot beside the kebab MenuTrigger. */
+.boardRowBtn {
+  flex: 1;
   min-width: 0;
-  padding: 0;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-subtle);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease-out;
-  z-index: 2;
-}
-
-.boardItem:hover .boardKebabBtn,
-.boardItem:focus-within .boardKebabBtn,
-.boardKebabBtn[aria-expanded="true"] {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.boardKebabBtn:hover {
-  background-color: var(--color-overlay-active);
-  color: var(--color-text-default);
-}
-
-.boardRow {
-  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-12);
-  width: 100%;
-  padding: 10px var(--space-12) 10px 24px;
-  border-radius: var(--radius-md);
   border: none;
-  background-color: transparent;
-  color: var(--color-text-muted);
+  background: transparent;
+  color: var(--color-text-default);
   font-family: var(--font-sans);
-  /* Round 20b: match MainSidebar `.navItem` font-size. */
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-medium);
   line-height: 1.4;
   text-align: left;
   cursor: pointer;
-  user-select: none;
-  min-height: 38px;
-  transition:
-    background-color 80ms ease-out,
-    color 80ms ease-out;
+  padding: var(--space-2) 0;
 }
 
-.boardRow:hover:not(.boardRowActive) {
-  background-color: var(--color-overlay-hover);
-  color: var(--color-text-default);
-}
-
-.boardRow:focus-visible {
+.boardRowBtn:focus-visible {
   outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-.boardRowActive {
-  background-color: transparent;
-  font-weight: var(--font-weight-semibold);
-}
-
-.boardRowActive::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 16px;
-  right: 0;
-  background-color: var(--color-accent-soft);
+  outline-offset: -2px;
   border-radius: var(--radius-sm);
-  z-index: 0;
-}
-
-.boardRow > * {
-  position: relative;
-  z-index: 1;
-}
-
-.boardActiveStrip {
-  position: absolute;
-  left: 7px;
-  top: 4px;
-  bottom: 4px;
-  width: 5px;
-  border-radius: var(--radius-full);
-  background-color: var(--color-cta-bg);
-  z-index: 2;
 }
 
 .boardRowLabel {
@@ -213,12 +96,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .boardRow {
-    transition: none;
-  }
 }
 
 /* ============================================================
@@ -271,4 +148,63 @@
   .spaceSwitcherSkeleton {
     animation: none;
   }
+}
+
+/*
+ * AddRoleToSpaceDialog — picker for adding an EXISTING role to a
+ * space (creates a board owned by that role as a side-effect).
+ */
+.addRoleDialogBody {
+  min-width: 320px;
+  max-width: 480px;
+}
+
+.addRoleList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.addRoleItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  width: 100%;
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-default);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 80ms ease-out, border-color 80ms ease-out;
+}
+
+.addRoleItem:hover {
+  background-color: var(--color-overlay-hover);
+  border-color: var(--color-border-focus);
+}
+
+.addRoleItem:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.addRoleSwatch {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border-default);
+  flex-shrink: 0;
+}
+
+.addRoleEmpty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
+  margin: 0;
 }

@@ -7,9 +7,15 @@ import type { Prompt } from "@entities/prompt";
 import { ToastProvider } from "@app/providers/ToastProvider";
 
 // Mock Tauri invoke at the shared/api boundary.
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { SettingsTokensView } from "./SettingsTokensView";

@@ -42,15 +42,8 @@ describe("PromptCard", () => {
     expect(screen.queryByText("A short description here")).toBeNull();
   });
 
-  it("renders color swatch when color is present", () => {
+  it("does not render a color swatch on the meta row anymore", () => {
     render(<PromptCard prompt={makePrompt({ color: "#ff6347" })} />);
-    const swatch = screen.getByLabelText("Color: #ff6347");
-    expect(swatch).toBeInTheDocument();
-    expect(swatch).toHaveStyle({ backgroundColor: "#ff6347" });
-  });
-
-  it("does not render color swatch when color is null", () => {
-    render(<PromptCard prompt={makePrompt({ color: null })} />);
     expect(screen.queryByLabelText(/Color:/)).toBeNull();
   });
 

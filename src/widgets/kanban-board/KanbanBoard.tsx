@@ -9,9 +9,9 @@ import type {
 import { move } from "@dnd-kit/helpers";
 import { useLocation } from "wouter";
 
-import { taskPath } from "@app/routes";
+import { boardSettingsPath, taskPath } from "@app/routes";
 import { useToast } from "@app/providers/ToastProvider";
-import { useBoard } from "@entities/board";
+import { useBoard, useUpdateBoardMutation } from "@entities/board";
 import type { Column } from "@entities/column";
 import {
   useColumns,
@@ -26,16 +26,14 @@ import {
   useMoveTaskMutation,
   useTasksByBoard,
 } from "@entities/task";
-import { Button, Scrollable } from "@shared/ui";
+import { Button, IconColorPicker, Scrollable } from "@shared/ui";
 import {
-  PixelCodingAppsWebsitesModule,
   PixelInterfaceEssentialSettingCog,
   PixelInterfaceEssentialPlus,
 } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { TaskCreateDialog } from "@widgets/task-create-dialog";
 import { ColumnCreateDialog } from "@widgets/column-create-dialog";
-import { BoardEditor } from "@widgets/board-editor";
 import { lastBoardStore } from "@shared/storage";
 
 import { KanbanColumn } from "./KanbanColumn";
@@ -123,6 +121,7 @@ export function KanbanBoard({
   const moveTask = useMoveTaskMutation();
   const createTask = useCreateTaskMutation();
   const deleteTask = useDeleteTaskMutation();
+  const updateBoard = useUpdateBoardMutation();
   const taskSelection = useTaskSelection();
 
   const { pushToast } = useToast();
@@ -136,7 +135,6 @@ export function KanbanBoard({
   // Ctq-76 item 4: column creation now lives in `ColumnCreateDialog`,
   // not in an inline form. We track only the dialog visibility here.
   const [isColumnDialogOpen, setIsColumnDialogOpen] = useState(false);
-  const [isBoardEditorOpen, setIsBoardEditorOpen] = useState(false);
   const [taskColumnId, setTaskColumnId] = useState<string | null>(null);
 
   // Stabilise the empty-fallback references so `useMemo`s and downstream
@@ -531,11 +529,21 @@ export function KanbanBoard({
     <div className={styles.root}>
       <header className={styles.boardHeader}>
         <div className={styles.boardTitle}>
-          <PixelCodingAppsWebsitesModule
-            width={20}
-            height={20}
-            aria-hidden="true"
-            className={styles.boardIcon}
+          <IconColorPicker
+            value={{
+              icon: boardQuery.data?.icon ?? null,
+              color: boardQuery.data?.color ?? null,
+            }}
+            onChange={(next) => {
+              if (boardQuery.data === undefined) return;
+              updateBoard.mutate({
+                id: boardQuery.data.id,
+                icon: next.icon,
+                color: next.color,
+              });
+            }}
+            ariaLabel="Board icon and color"
+            data-testid="kanban-board-appearance-picker"
           />
           <h1 className={styles.boardHeading}>
             {boardQuery.data?.name ?? boardId}
@@ -550,7 +558,7 @@ export function KanbanBoard({
           type="button"
           className={styles.iconButton}
           aria-label="Board options"
-          onClick={() => setIsBoardEditorOpen(true)}
+          onClick={() => setLocation(boardSettingsPath(boardId))}
           data-testid="kanban-board-options-button"
         >
           <PixelInterfaceEssentialSettingCog
@@ -625,11 +633,6 @@ export function KanbanBoard({
         onClose={() => setIsColumnDialogOpen(false)}
         boardId={boardId}
         nextPosition={nextColumnPosition}
-      />
-
-      <BoardEditor
-        boardId={isBoardEditorOpen ? boardId : null}
-        onClose={() => setIsBoardEditorOpen(false)}
       />
 
       <BulkActionsBar

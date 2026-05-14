@@ -10,9 +10,15 @@ import { ToastProvider } from "@app/providers/ToastProvider";
 // Mock the Tauri invoke wrapper at the shared/api boundary so the page's
 // fan-out queries (prompts, groups, per-group members) all run against
 // fixtures.
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { PromptsPage } from "./PromptsPage";
@@ -88,12 +94,26 @@ function mockIpc({ prompts, groups, members = {} }: IpcFixture): void {
   });
 }
 
+function clearSidebarStorage(): void {
+  // Round-24 migration stores the prompt-groups expansion set under
+  // `catique:sidebar:expanded:prompt-groups`. Reset between tests so
+  // the previous test's toggle ordering doesn't leak into the next.
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i);
+    if (key !== null && key.startsWith("catique:sidebar:expanded")) {
+      localStorage.removeItem(key);
+    }
+  }
+}
+
 beforeEach(() => {
   invokeMock.mockReset();
+  clearSidebarStorage();
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
+  clearSidebarStorage();
 });
 
 describe("PromptsPage", () => {
@@ -112,19 +132,16 @@ describe("PromptsPage", () => {
     });
   });
 
-  it("shows GROUPS + PROMPTS section labels in the sidebar", async () => {
+  it("renders the canonical PROMPTS section label", async () => {
     mockIpc({ prompts: [], groups: [] });
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText("GROUPS")).toBeInTheDocument();
+      expect(screen.getByText("PROMPTS")).toBeInTheDocument();
     });
-    // Round-19d: bottom section header is always just "PROMPTS" — the
-    // active group no longer filters the sidebar list.
-    expect(screen.getByText("PROMPTS")).toBeInTheDocument();
   });
 
-  it("lists groups in the top section", async () => {
+  it("renders one row per group in the GROUPS section", async () => {
     mockIpc({
       prompts: [],
       groups: [
@@ -136,29 +153,31 @@ describe("PromptsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-group-row-grp-1"),
+        screen.getByTestId("prompts-sidebar-groups-row-grp-1"),
       ).toBeInTheDocument();
     });
     expect(
-      screen.getByTestId("prompts-sidebar-group-row-grp-2"),
+      screen.getByTestId("prompts-sidebar-groups-row-grp-2"),
     ).toBeInTheDocument();
   });
 
-  it("lists ungrouped prompts in the bottom section by default", async () => {
+  it("surfaces every prompt in the flat PROMPTS section, regardless of group membership", async () => {
     mockIpc({
       prompts: [makePrompt({ id: "prm-1", name: "Solo" })],
       groups: [],
     });
     renderPage();
 
+    // Round-25 revert: no Uncategorised pseudo-group, no chevron — the
+    // PROMPTS section lists every prompt flat, ungrouped prompts included.
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-prompt-row-prm-1"),
+        screen.getByTestId("prompts-sidebar-prompts-row-prm-1"),
       ).toBeInTheDocument();
     });
   });
 
-  it("clicking a group opens the inline group view and keeps all prompts in the sidebar", async () => {
+  it("clicking a group row opens the inline group view; prompts stay in their flat list", async () => {
     mockIpc({
       prompts: [
         makePrompt({ id: "prm-1", name: "Member" }),
@@ -171,34 +190,31 @@ describe("PromptsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-group-select-grp-1"),
+        screen.getByTestId("prompts-sidebar-groups-row-grp-1"),
       ).toBeInTheDocument();
     });
-    // Both prompts are visible in the sidebar regardless of group state.
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("prompts-sidebar-prompt-row-prm-1"),
-      ).toBeInTheDocument();
-    });
+
+    // Both prompts already visible in the flat PROMPTS section.
     expect(
-      screen.getByTestId("prompts-sidebar-prompt-row-prm-2"),
+      screen.getByTestId("prompts-sidebar-prompts-row-prm-1"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("prompts-sidebar-prompts-row-prm-2"),
     ).toBeInTheDocument();
 
-    await user.click(
-      screen.getByTestId("prompts-sidebar-group-select-grp-1"),
-    );
+    await user.click(screen.getByTestId("prompts-sidebar-groups-row-grp-1"));
 
     // Right pane swaps to the inline group view.
     await waitFor(() => {
       expect(screen.getByTestId("inline-group-view")).toBeInTheDocument();
     });
 
-    // Sidebar still shows BOTH prompts.
+    // Sidebar still surfaces both prompts in the flat list.
     expect(
-      screen.getByTestId("prompts-sidebar-prompt-row-prm-1"),
+      screen.getByTestId("prompts-sidebar-prompts-row-prm-1"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("prompts-sidebar-prompt-row-prm-2"),
+      screen.getByTestId("prompts-sidebar-prompts-row-prm-2"),
     ).toBeInTheDocument();
   });
 
@@ -211,21 +227,17 @@ describe("PromptsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-prompt-select-prm-x"),
+        screen.getByTestId("prompts-sidebar-prompts-row-prm-x"),
       ).toBeInTheDocument();
     });
 
-    await user.click(
-      screen.getByTestId("prompts-sidebar-prompt-select-prm-x"),
-    );
+    await user.click(screen.getByTestId("prompts-sidebar-prompts-row-prm-x"));
 
-    // Round-19d: editor renders inline as a panel, not as a Dialog.
+    // Editor renders inline as a panel, not as a Dialog.
     await waitFor(() => {
       expect(screen.getByTestId("prompt-editor-panel")).toBeInTheDocument();
     });
-    // No <Dialog role="dialog"> should be mounted for the prompt editor
-    // (modals from other widgets — eg. group create — are NOT triggered
-    // by this click path, so role=dialog should be entirely absent).
+    // No <Dialog role="dialog"> should be mounted for the prompt editor.
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -238,11 +250,11 @@ describe("PromptsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-prompt-handle-prm-h"),
+        screen.getByTestId("prompts-sidebar-prompts-handle-prm-h"),
       ).toBeInTheDocument();
     });
-    const handle = screen.getByTestId("prompts-sidebar-prompt-handle-prm-h");
-    expect(handle).toHaveAttribute("aria-label", "Drag prompt Drag target");
+    const handle = screen.getByTestId("prompts-sidebar-prompts-handle-prm-h");
+    expect(handle).toHaveAttribute("aria-label", "Drag Drag target");
     // Handle is a <button>, so it's keyboard-reachable by default.
     expect(handle.tagName).toBe("BUTTON");
   });
@@ -251,13 +263,26 @@ describe("PromptsPage", () => {
     mockIpc({ prompts: [], groups: [] });
     renderPage();
 
+    // Round-25: each section header owns its own add trigger
+    // (prefixed by the EntityTree's testIdPrefix).
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-add-group"),
+        screen.getByTestId("prompts-sidebar-groups-add"),
       ).toBeInTheDocument();
     });
     expect(
-      screen.getByTestId("prompts-sidebar-add-prompt"),
+      screen.getByTestId("prompts-sidebar-prompts-add"),
     ).toBeInTheDocument();
+  });
+
+  it("exposes a tags filter trigger next to the PROMPTS section label", async () => {
+    mockIpc({ prompts: [], groups: [] });
+    renderPage();
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompts-sidebar-tags-filter-trigger"),
+      ).toBeInTheDocument();
+    });
   });
 });

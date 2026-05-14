@@ -10,8 +10,17 @@ export type {
   DialogFooterProps,
 } from "./Dialog";
 
+export { ConfirmDialog } from "./ConfirmDialog";
+export type { ConfirmDialogProps } from "./ConfirmDialog";
+
+export { Collapsible } from "./Collapsible";
+export type { CollapsibleProps } from "./Collapsible";
+
 export { Input } from "./Input";
 export type { InputProps } from "./Input";
+
+export { TextArea } from "./TextArea";
+export type { TextAreaProps } from "./TextArea";
 
 export { Tabs, TabList, Tab, TabPanel } from "./Tabs";
 export type {
@@ -39,6 +48,18 @@ export type {
 
 export { Combobox } from "./Combobox";
 export type { ComboboxProps, ComboboxItem } from "./Combobox";
+
+export { MultiTagInput } from "./MultiTagInput";
+export type {
+  MultiTagInputProps,
+  MultiTagInputItem,
+} from "./MultiTagInput";
+
+export { MultiSelect } from "./MultiSelect";
+export type { MultiSelectProps, MultiSelectOption } from "./MultiSelect";
+
+export { SelectTag } from "./SelectTag";
+export type { SelectTagProps, SelectTagOption } from "./SelectTag";
 
 export { Tooltip, TooltipTrigger } from "./Tooltip";
 export type { TooltipProps, TooltipTriggerProps } from "./Tooltip";
@@ -70,10 +91,19 @@ export type { EmptyStateProps } from "./EmptyState";
 export { Scrollable } from "./Scrollable";
 export type { ScrollableProps } from "./Scrollable";
 
+export { EditorShell } from "./EditorShell";
+export type {
+  EditorShellProps,
+  EditorShellHeaderProps,
+  EditorShellBodyProps,
+  EditorShellFooterProps,
+} from "./EditorShell";
+
 export {
   SidebarShell,
   SidebarSectionLabel,
   SidebarAddRow,
+  SidebarSectionAddTrigger,
   SidebarSectionDivider,
   SidebarNavItem,
 } from "./SidebarShell";
@@ -81,8 +111,28 @@ export type {
   SidebarShellProps,
   SidebarSectionLabelProps,
   SidebarAddRowProps,
+  SidebarSectionAddTriggerProps,
   SidebarNavItemProps,
 } from "./SidebarShell";
+
+export {
+  Row,
+  Group,
+  RailSection,
+  RowLeading,
+  RowLabelButton,
+  EntityTreeChevron,
+  useEntityTreeExpandedStorage,
+} from "./EntityTree";
+export type {
+  RowProps,
+  RowRenderContentArgs,
+  GroupProps,
+  RailSectionProps,
+  RowLeadingProps,
+  RowLabelButtonProps,
+  UseEntityTreeExpandedStorageResult,
+} from "./EntityTree";
 
 export { PortalProvider, PORTAL_ROOT_ID } from "./PortalProvider";
 export type { PortalProviderProps } from "./PortalProvider";

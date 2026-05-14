@@ -102,6 +102,13 @@ pub const ROLE_UPDATED: &str = "role:updated";
 /// `role:deleted` — payload `{ id }`.
 pub const ROLE_DELETED: &str = "role:deleted";
 
+/// `role_note:created` — payload `{ roleId, noteId }`. ctq-137 / MEM-S1.
+pub const ROLE_NOTE_CREATED: &str = "role_note:created";
+/// `role_note:updated` — payload `{ roleId, noteId }`.
+pub const ROLE_NOTE_UPDATED: &str = "role_note:updated";
+/// `role_note:deleted` — payload `{ roleId, noteId }`.
+pub const ROLE_NOTE_DELETED: &str = "role_note:deleted";
+
 /// `tag:created` — payload `{ id }`.
 pub const TAG_CREATED: &str = "tag:created";
 /// `tag:updated` — payload `{ id }`.
@@ -115,6 +122,31 @@ pub const SKILL_CREATED: &str = "skill:created";
 pub const SKILL_UPDATED: &str = "skill:updated";
 /// `skill:deleted` — payload `{ id }`.
 pub const SKILL_DELETED: &str = "skill:deleted";
+/// `skill:attachment_added` — payload `{ skillId, attachmentId }`.
+///
+/// SKILL-S10. Fires after a successful `add_skill_file_attachment` or
+/// `add_skill_git_attachment` IPC call so the role-file renderer can
+/// rebuild without polling the list endpoint.
+pub const SKILL_ATTACHMENT_ADDED: &str = "skill:attachment_added";
+/// `skill:attachment_removed` — payload `{ skillId, attachmentId }`.
+///
+/// SKILL-S10. Fires after a successful `remove_skill_attachment` IPC
+/// call. The payload mirrors `attachment_added` so a single listener
+/// can dedupe and refresh both adds and removes.
+pub const SKILL_ATTACHMENT_REMOVED: &str = "skill:attachment_removed";
+/// `skill:imported` — payload `{ skillId, importReport }`. SKILL-V2-A.
+///
+/// Fires after a successful `import_skill_from_url` IPC call so the UI
+/// can refresh the affected skill (overview, steps, attachments) in
+/// one go.
+pub const SKILL_IMPORTED: &str = "skill:imported";
+
+/// `skill_step:created` — payload `{ skillId, stepId }`. SKILL-V2-A.
+pub const SKILL_STEP_CREATED: &str = "skill_step:created";
+/// `skill_step:updated` — payload `{ skillId, stepId }`. SKILL-V2-A.
+pub const SKILL_STEP_UPDATED: &str = "skill_step:updated";
+/// `skill_step:deleted` — payload `{ skillId, stepId }`. SKILL-V2-A.
+pub const SKILL_STEP_DELETED: &str = "skill_step:deleted";
 
 /// `mcp_tool:created` — payload `{ id }`.
 pub const MCP_TOOL_CREATED: &str = "mcp_tool:created";
@@ -160,28 +192,18 @@ pub const ATTACHMENT_DELETED: &str = "attachment:deleted";
 pub const APP_REFRESH_REQUIRED: &str = "app:refresh-required";
 
 // -----------------------------------------------------------------
-// Connected-client lifecycle events (ctq-67).
+// Connected-provider lifecycle events (round-21).
 // -----------------------------------------------------------------
 
-/// `client:discovered` — emitted after a full rescan; payload is the
-/// complete updated list `{ clients: ConnectedClient[] }`.
-pub const CLIENT_DISCOVERED: &str = "client:discovered";
+/// `connected_provider:added` — payload `{ id }`.
+pub const CONNECTED_PROVIDER_ADDED: &str = "connected_provider:added";
 
-/// `client:updated` — emitted when a single client's `enabled` flag is
-/// toggled; payload `{ id }`.
-pub const CLIENT_UPDATED: &str = "client:updated";
+/// `connected_provider:removed` — payload `{ id }`.
+pub const CONNECTED_PROVIDER_REMOVED: &str = "connected_provider:removed";
 
-/// `client:removed` — reserved for future use when an adapter is
-/// explicitly removed from the registry. Not currently emitted.
-pub const CLIENT_REMOVED: &str = "client:removed";
-
-/// `client:instructions_changed` — emitted after a successful
-/// `write_client_instructions`; payload `{ client_id }`.
-pub const CLIENT_INSTRUCTIONS_CHANGED: &str = "client:instructions_changed";
-
-/// `client:roles_synced` — emitted after `sync_roles_to_client` succeeds
-/// (ctq-69); payload is the full `RoleSyncReport` JSON object.
-pub const CLIENT_ROLES_SYNCED: &str = "client:roles_synced";
+/// `sync:status_changed` — fan-out sync state. Payload is a full
+/// `SyncStatus` JSON object (see `crates/domain/src/connected_provider.rs`).
+pub const SYNC_STATUS_CHANGED: &str = "sync:status_changed";
 
 /// Emit a typed Tauri event to every webview attached to the app.
 ///
@@ -260,6 +282,9 @@ mod tests {
             ROLE_CREATED,
             ROLE_UPDATED,
             ROLE_DELETED,
+            ROLE_NOTE_CREATED,
+            ROLE_NOTE_UPDATED,
+            ROLE_NOTE_DELETED,
             TAG_CREATED,
             TAG_UPDATED,
             TAG_DELETED,
@@ -272,6 +297,12 @@ mod tests {
             SKILL_CREATED,
             SKILL_UPDATED,
             SKILL_DELETED,
+            SKILL_ATTACHMENT_ADDED,
+            SKILL_ATTACHMENT_REMOVED,
+            SKILL_IMPORTED,
+            SKILL_STEP_CREATED,
+            SKILL_STEP_UPDATED,
+            SKILL_STEP_DELETED,
             MCP_TOOL_CREATED,
             MCP_TOOL_UPDATED,
             MCP_TOOL_DELETED,
@@ -280,11 +311,9 @@ mod tests {
             PROMPT_GROUP_UPDATED,
             PROMPT_GROUP_DELETED,
             PROMPT_GROUP_MEMBERS_CHANGED,
-            CLIENT_DISCOVERED,
-            CLIENT_UPDATED,
-            CLIENT_REMOVED,
-            CLIENT_INSTRUCTIONS_CHANGED,
-            CLIENT_ROLES_SYNCED,
+            CONNECTED_PROVIDER_ADDED,
+            CONNECTED_PROVIDER_REMOVED,
+            SYNC_STATUS_CHANGED,
         ] {
             assert!(
                 name.contains(':') || name.contains('-'),

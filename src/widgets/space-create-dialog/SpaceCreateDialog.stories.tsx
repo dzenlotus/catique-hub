@@ -31,10 +31,14 @@ function stubSpace(overrides?: Partial<Space>): Space {
     name: "Разработка",
     prefix: "РЗ",
     description: null,
+    color: null,
+    icon: null,
     isDefault: true,
     position: 1,
     createdAt: 0n,
     updatedAt: 0n,
+    workflowGraphJson: null,
+    projectFolderPath: null,
     ...overrides,
   };
 }

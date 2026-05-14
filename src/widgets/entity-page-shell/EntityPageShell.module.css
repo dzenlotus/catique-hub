@@ -1,0 +1,35 @@
+/*
+ * EntityPageShell — two-pane layout (sidebar + content) reused by every
+ * entity page that needs a list-rail. Mirrors PromptsPage's grid so
+ * the rail width stays uniform across pages.
+ */
+
+.root {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebarSlot {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.contentSlot {
+  height: 100%;
+  min-height: 0;
+  background-color: var(--color-bg-default);
+}
+
+@media (max-width: 720px) {
+  .root {
+    grid-template-columns: 1fr;
+  }
+  .sidebarSlot {
+    display: none;
+  }
+}

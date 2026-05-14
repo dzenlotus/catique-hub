@@ -13,7 +13,7 @@ import { useState, type ReactElement } from "react";
 
 import { useCreatePromptGroupMutation } from "@entities/prompt-group";
 import type { PromptGroup } from "@entities/prompt-group";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 
 import styles from "./PromptGroupCreateDialog.module.css";
 
@@ -100,48 +100,35 @@ function PromptGroupCreateDialogContent({
 
   return (
     <>
-      {/* Name */}
-      <div className={styles.section}>
-        <Input
-          label="Name"
-          value={name}
-          onChange={setName}
-          placeholder="Group name"
-          autoFocus
-          className={styles.fullWidthInput}
-          data-testid="prompt-group-create-dialog-name-input"
-        />
-      </div>
-
-      {/* Color */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {color !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: color }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={color === "" ? "#000000" : color}
-            onChange={(e) => setColor(e.target.value)}
-            aria-label="Group color"
+      {/*
+       * audit-D: identity picker (color) renders on the LEFT of the
+       * name field in a horizontal row. Compact ~64-72 px square so
+       * the name column flexes to fill remaining width. Reset hangs
+       * below the color square inside the same column to keep the
+       * picker self-contained.
+       */}
+      <div
+        className={styles.identityRow}
+        data-testid="prompt-group-create-dialog-identity-row"
+      >
+        <div className={styles.identityPicker}>
+          <IconColorPicker
+            value={{ icon: null, color: color === "" ? null : color }}
+            onChange={(next) => setColor(next.color ?? "")}
+            ariaLabel="Group color"
             data-testid="prompt-group-create-dialog-color-input"
           />
-          {color !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setColor("")}
-              data-testid="prompt-group-create-dialog-color-reset"
-            >
-              Reset
-            </Button>
-          )}
+        </div>
+        <div className={styles.identityFields}>
+          <Input
+            label="Name"
+            value={name}
+            onChange={setName}
+            placeholder="Group name"
+            autoFocus
+            className={styles.fullWidthInput}
+            data-testid="prompt-group-create-dialog-name-input"
+          />
         </div>
       </div>
 

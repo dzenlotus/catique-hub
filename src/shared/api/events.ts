@@ -83,6 +83,19 @@ export type AppEvent =
   | { type: "role:created"; payload: { id: string } }
   | { type: "role:updated"; payload: { id: string } }
   | { type: "role:deleted"; payload: { id: string } }
+  // ---------------- role notes (ctq-137 / MEM-S1) ----------------
+  | {
+      type: "role_note:created";
+      payload: { roleId: string; noteId: string };
+    }
+  | {
+      type: "role_note:updated";
+      payload: { roleId: string; noteId: string };
+    }
+  | {
+      type: "role_note:deleted";
+      payload: { roleId: string; noteId: string };
+    }
   // ---------------- tags ----------------
   | { type: "tag:created"; payload: { id: string } }
   | { type: "tag:updated"; payload: { id: string } }
@@ -91,10 +104,53 @@ export type AppEvent =
   | { type: "skill:created"; payload: { id: string } }
   | { type: "skill:updated"; payload: { id: string } }
   | { type: "skill:deleted"; payload: { id: string } }
+  // ---------------- skill attachments (SKILL-S10 / S12) ----------------
+  | {
+      type: "skill:attachment_added";
+      payload: { skillId: string; attachmentId: string };
+    }
+  | {
+      type: "skill:attachment_removed";
+      payload: { skillId: string; attachmentId: string };
+    }
+  // ---------------- skill steps (SKILL-V2-A / B) ----------------
+  | {
+      type: "skill_step:created";
+      payload: { skillId: string; stepId: string };
+    }
+  | {
+      type: "skill_step:updated";
+      payload: { skillId: string; stepId: string };
+    }
+  | {
+      type: "skill_step:deleted";
+      payload: { skillId: string; stepId: string };
+    }
+  | {
+      /**
+       * Emitted after a successful `import_skill_from_url`. The
+       * `importReport` payload mirrors the IPC return value so the
+       * frontend can re-use existing toasts on cross-instance imports.
+       */
+      type: "skill:imported";
+      payload: {
+        skillId: string;
+        importReport: {
+          skillId: string;
+          overviewChars: number;
+          stepsAdded: number;
+          attachmentId: string | null;
+        };
+      };
+    }
   // ---------------- mcp tools ----------------
   | { type: "mcp_tool:created"; payload: { id: string } }
   | { type: "mcp_tool:updated"; payload: { id: string } }
   | { type: "mcp_tool:deleted"; payload: { id: string } }
+  // ---------------- mcp servers (PROXY-S6 / ADR-0008) ----------------
+  | { type: "mcp_server:created"; payload: { id: string } }
+  | { type: "mcp_server:updated"; payload: { id: string } }
+  | { type: "mcp_server:deleted"; payload: { id: string } }
   // ---------------- agent reports ----------------
   | {
       type: "agent_report:created";
@@ -126,7 +182,7 @@ export type AppEvent =
   | { type: "prompt_group:updated"; payload: { id: string } }
   | { type: "prompt_group:deleted"; payload: { id: string } }
   | { type: "prompt_group:members_changed"; payload: { group_id: string } }
-  // ---------------- connected clients (ctq-67 / ctq-68 / ctq-69) ----------------
+  // ---------------- connected providers (round-21) ----------------
   | {
       type: "client:discovered";
       payload: { clients: unknown[] };
@@ -134,13 +190,16 @@ export type AppEvent =
   | { type: "client:updated"; payload: { id: string } }
   | { type: "client:removed"; payload: { id: string } }
   | {
-      type: "client:instructions_changed";
-      payload: { clientId: string };
-    }
-  | {
-      /** Emitted after a successful `sync_roles_to_client` (ctq-69). */
-      type: "client:roles_synced";
-      payload: { clientId: string };
+      /**
+       * Round-21: emitted by the backend whenever the global
+       * provider-sync fanout changes state (idle → syncing →
+       * synced/error). The frontend uses this as a cache-invalidation
+       * hint for `useSyncStatus`; the canonical state is fetched via
+       * `get_sync_status`. Payload-less because the topbar reads the
+       * full SyncStatus object after invalidation.
+       */
+      type: "sync:status_changed";
+      payload: Record<string, never>;
     }
   // ---------------- generic ----------------
   | { type: "app:refresh-required"; payload: Record<string, never> };

@@ -6,8 +6,11 @@
  *   - `onClose`   — called on Cancel, successful Save, or Esc.
  *   - `onCreated` — optional callback with the newly-created Skill.
  *
- * Fields: name (required), description (optional, single-line),
- * color (optional with reset).
+ * Fields: name (required), description (optional, single-line).
+ *
+ * Round-21 (maintainer feedback): the IconColorPicker affordance was
+ * removed — Skill has no `icon` field, so the icon grid in the popover
+ * was inert and the colour-only path read as confused UI.
  */
 
 import { useState, type ReactElement } from "react";
@@ -68,7 +71,6 @@ function SkillCreateDialogContent({
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [color, setColor] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const canSubmit = name.trim().length > 0;
@@ -81,10 +83,13 @@ function SkillCreateDialogContent({
       return;
     }
 
+    // `position` is required by the Rust handler (non-optional `f64`).
+    // Use `Date.now()` so each new skill lands at the end of the list —
+    // monotonically increasing, no list dependency, matches the
+    // server-side `(position, name)` ordering.
     type MutationArgs = Parameters<typeof createMutation.mutate>[0];
-    const args: MutationArgs = { name: trimmedName };
+    const args: MutationArgs = { name: trimmedName, position: Date.now() };
     if (description !== "") args.description = description;
-    if (color !== "") args.color = color;
 
     createMutation.mutate(args, {
       onSuccess: (skill) => {
@@ -128,37 +133,18 @@ function SkillCreateDialogContent({
         />
       </div>
 
-      {/* Color */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {color !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: color }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={color === "" ? "#000000" : color}
-            onChange={(e) => setColor(e.target.value)}
-            aria-label="Skill color"
-            data-testid="skill-create-dialog-color-input"
-          />
-          {color !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setColor("")}
-              data-testid="skill-create-dialog-color-reset"
-            >
-              Reset
-            </Button>
-          )}
-        </div>
-      </div>
+      {/*
+        SKILL-V2-B: attachments, structured steps, and git imports are
+        intentionally NOT collected here. Modal-only-for-creation
+        invariant — the create modal stays minimal; everything else is
+        managed on the editor page once the skill row exists.
+      */}
+      <p
+        className={styles.attachmentsHint}
+        data-testid="skill-create-dialog-attachments-hint"
+      >
+        Steps, files, and git imports can be added after creation.
+      </p>
 
       {/* Footer */}
       <div className={styles.footer}>

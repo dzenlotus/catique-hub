@@ -14,10 +14,10 @@
 //! require a normalisation step; that complexity is out of scope for this
 //! slice — see follow-up E4.x "unified BM25-rank interleaving in search_all".
 
-use catique_domain::SearchResult;
+use catique_domain::{SearchResult, TaskMatch};
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
-    repositories::search as repo,
+    repositories::{search as repo, tasks as tasks_repo},
 };
 
 use crate::{error::AppError, error_map::map_db_err};
@@ -91,5 +91,27 @@ impl<'a> SearchUseCase<'a> {
             repo::search_agent_reports(&conn, &query, limit_per_kind).map_err(map_db_err)?;
         results.extend(reports);
         Ok(results)
+    }
+
+    /// Cat-as-Agent Phase 1 (ctq-84): FTS5 search over tasks restricted
+    /// to one `(space_id, cat_id)` pair, ordered by BM25 rank, capped at
+    /// 20 hits. Empty `query` returns an empty `Vec`. The cat scope is
+    /// strict: `tasks.role_id = cat_id` only — no fallback through
+    /// `column.role_id` / `board.role_id`. The MCP tool description
+    /// mirrors the same wording so agents understand the predicate.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors as `AppError`.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn search_tasks_by_cat_and_space(
+        &self,
+        space_id: String,
+        cat_id: String,
+        query: String,
+    ) -> Result<Vec<TaskMatch>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        tasks_repo::search_tasks_by_cat_and_space(&conn, &space_id, &cat_id, &query)
+            .map_err(map_db_err)
     }
 }

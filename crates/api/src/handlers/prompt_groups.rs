@@ -71,8 +71,7 @@ pub async fn update_prompt_group(
     icon: Option<Option<String>>,
     position: Option<i64>,
 ) -> Result<PromptGroup, AppError> {
-    let group =
-        PromptGroupsUseCase::new(&state.pool).update(id, name, color, icon, position)?;
+    let group = PromptGroupsUseCase::new(&state.pool).update(id, name, color, icon, position)?;
     events::emit(
         &state,
         events::PROMPT_GROUP_UPDATED,

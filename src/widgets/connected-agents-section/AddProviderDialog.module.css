@@ -1,0 +1,56 @@
+/*
+ * AddProviderDialog — round-21 modal listing the supported-provider
+ * catalog. Token-based; mirrors SpaceCreateDialog spacing.
+ */
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.section {
+  padding: var(--space-16) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.section:first-child {
+  padding-top: 0;
+}
+
+.message {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.errorMessage {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+.optionName {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+}
+
+.optionId {
+  margin-left: var(--space-8);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-8);
+  padding-top: var(--space-16);
+}

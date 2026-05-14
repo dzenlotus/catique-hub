@@ -67,13 +67,58 @@ anyhow = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 dirs = "5"
 
+# OS-keychain backend for the MCP pass-through proxy (ADR-0008 /
+# PROXY-S3 round 2 / ctq-130). Per-target features are applied in
+# `crates/infrastructure/Cargo.toml` — by default keyring 3 enables
+# no platform store, so each target must opt into its native backend:
+#   macOS   → `apple-native`
+#   Windows → `windows-native`
+#   Linux   → `sync-secret-service` + `crypto-rust`
+# MIT/Apache-2.0, no Tauri-plugin lifecycle (no app handle needed).
+keyring = { version = "3", default-features = false }
+
 # Tauri pinned to the same minor as src-tauri/ scaffold (Katya, E1.1).
 tauri = { version = "2.10", default-features = false }
 tauri-build = { version = "2.5", features = [] }
 tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+
+# SKILL-S10: URL parsing for git-attachment validation. Already in the
+# lockfile transitively (via tauri / reqwest); promoting to a direct
+# workspace dep keeps the validator visible at the crate boundary.
+url = "2"
+
+# SKILL-S10: base64 decode for file-blob IPC payloads (the frontend
+# sends raw bytes wrapped in base64). 0.22 = current LTS line; already
+# present transitively via reqwest.
+base64 = "0.22"
+
+# SKILL-V2-A: HTTP client for the git-fetch import pipeline
+# (raw GitHub / GitLab / gist URLs). `rustls-tls` avoids dragging
+# OpenSSL into the supply chain (NFR §5.3). `default-features = false`
+# disables `reqwest`'s blocking client + cookies + gzip middleware we
+# don't need; the explicit `json`/`stream` features stay opt-in if a
+# future caller needs them.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+
+# SKILL-V2-A: futures_util::StreamExt for the streamed-body size cap.
+# Pulled in directly so the dependency footprint stays explicit at the
+# crate boundary (rather than relying on a reqwest transitive).
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+
+# SKILL-V2-A test dep: HTTP mock server for `git_fetch::fetch_text`
+# round-trip tests. wiremock-rs is the maintained successor to mockito's
+# 0.31+ async surface and runs entirely in-process — no Docker.
+wiremock = "0.6"
 
 # Test helpers — not pulled into production binaries.
 tempfile = "3"
+
+# Bench harness — gated as `[dev-dependencies]` everywhere; never
+# pulled into release artefacts. Pinned to the 0.5.x line because
+# criterion's MSRV bump in 0.6 sits above our `rust-version = 1.81`
+# floor; the 0.5 API surface is stable for our needs.
+criterion = "0.5"
 
 [profile.release]
 panic = "abort"

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { routes, boardPath, taskPath, pathForView, viewForPath } from "./routes";
+import {
+  routes,
+  boardPath,
+  taskPath,
+  pathForView,
+  viewForPath,
+  mcpServerPath,
+  mcpServerToolPath,
+} from "./routes";
 import type { NavView } from "@widgets/main-sidebar";
 
 // ---------------------------------------------------------------------------
@@ -9,13 +17,17 @@ import type { NavView } from "@widgets/main-sidebar";
 // "tags" and "reports" removed from sidebar nav but routes still exist
 // ---------------------------------------------------------------------------
 
+// Round-19e: "spaces" stays in the NavView union for deep-link
+// resolution but no longer round-trips through pathForView/viewForPath
+// — the standalone /spaces page was retired so /spaces resolves to
+// "boards" (sidebar visible, BoardHome content). The list omits it
+// from the round-trip table accordingly.
 const ALL_VIEWS: NavView[] = [
   "boards",
   "prompts",
   "agent-roles",
   "skills",
   "mcp-servers",
-  "spaces",
   "settings",
 ];
 
@@ -52,6 +64,34 @@ describe("taskPath", () => {
 });
 
 // ---------------------------------------------------------------------------
+// mcpServerPath / mcpServerToolPath — round-22 master-detail routes
+// ---------------------------------------------------------------------------
+
+describe("mcpServerPath", () => {
+  it("returns /mcp-servers/<id>", () => {
+    expect(mcpServerPath("srv-1")).toBe("/mcp-servers/srv-1");
+  });
+
+  it("route constant has :serverId placeholder", () => {
+    expect(routes.mcpServer).toBe("/mcp-servers/:serverId");
+  });
+});
+
+describe("mcpServerToolPath", () => {
+  it("returns /mcp-servers/<serverId>/tools/<toolId>", () => {
+    expect(mcpServerToolPath("srv-1", "tool-1")).toBe(
+      "/mcp-servers/srv-1/tools/tool-1",
+    );
+  });
+
+  it("route constant has :serverId and :toolId placeholders", () => {
+    expect(routes.mcpServerTool).toBe(
+      "/mcp-servers/:serverId/tools/:toolId",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // pathForView — each view has a distinct path
 // ---------------------------------------------------------------------------
 
@@ -73,8 +113,9 @@ describe("pathForView", () => {
     expect(pathForView("skills")).toBe("/skills");
   });
 
-  it("maps mcp-servers → /mcp-tools", () => {
-    expect(pathForView("mcp-servers")).toBe("/mcp-tools");
+  // PROXY-S6: canonical path was renamed `/mcp-tools` → `/mcp-servers`.
+  it("maps mcp-servers → /mcp-servers", () => {
+    expect(pathForView("mcp-servers")).toBe("/mcp-servers");
   });
 
   it("maps spaces → /spaces", () => {
@@ -127,12 +168,16 @@ describe("viewForPath", () => {
     expect(viewForPath("/skills")).toBe("skills");
   });
 
-  it("maps /mcp-tools → mcp-servers (renamed in Round 4)", () => {
+  it("maps /mcp-servers → mcp-servers (PROXY-S6 canonical path)", () => {
+    expect(viewForPath("/mcp-servers")).toBe("mcp-servers");
+  });
+
+  it("maps /mcp-tools → mcp-servers (PROXY-S6 legacy alias)", () => {
     expect(viewForPath("/mcp-tools")).toBe("mcp-servers");
   });
 
-  it("maps /spaces → spaces", () => {
-    expect(viewForPath("/spaces")).toBe("spaces");
+  it("maps /spaces → boards (round-19e: standalone listing retired)", () => {
+    expect(viewForPath("/spaces")).toBe("boards");
   });
 
   it("maps /settings → settings", () => {

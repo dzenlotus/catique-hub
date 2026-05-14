@@ -1,16 +1,16 @@
-import { useState, type ReactElement } from "react";
+import { type ReactElement } from "react";
 
 import { RoleCard, useRoles } from "@entities/role";
-import { Button, EmptyState } from "@shared/ui";
-import { PixelBusinessProductsNetworkUser } from "@shared/ui/Icon";
-import { RoleEditor } from "@widgets/role-editor";
-import { RoleCreateDialog } from "@widgets/role-create-dialog";
+import { Button, EmptyState, Scrollable } from "@shared/ui";
+import { PixelPetAnimalsCat } from "@shared/ui/Icon";
 
 import styles from "./RolesList.module.css";
 
 export interface RolesListProps {
   /** Called when the user activates a role card. */
   onSelectRole?: (roleId: string) => void;
+  /** Called when the user clicks the header "Create role" button. */
+  onCreate?: () => void;
 }
 
 /**
@@ -25,16 +25,22 @@ export interface RolesListProps {
  * Prompt-attach DnD was removed when the widget was migrated off
  * `@dnd-kit/core`.
  */
-export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+export function RolesList({
+  onSelectRole,
+  onCreate,
+}: RolesListProps = {}): ReactElement {
   const rolesQuery = useRoles();
 
   return (
+    <Scrollable
+      axis="y"
+      className={styles.scrollHost}
+      data-testid="roles-list-scroll"
+    >
     <section className={styles.root} aria-labelledby="roles-list-heading">
       <header className={styles.header}>
         <div className={styles.headingGroup}>
-          <PixelBusinessProductsNetworkUser
+          <PixelPetAnimalsCat
             width={20}
             height={20}
             className={styles.headingIcon}
@@ -42,10 +48,10 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
           />
           <div className={styles.headingText}>
             <h2 id="roles-list-heading" className={styles.heading}>
-              Agent roles
+              Roles
             </h2>
             <p className={styles.description}>
-              Personas your AI agents adopt for a task.
+              Roles — personas your AI agents adopt for a task.
             </p>
           </div>
         </div>
@@ -53,13 +59,10 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
           <Button
             variant="primary"
             size="md"
-            onPress={() => setIsCreateOpen(true)}
+            onPress={() => onCreate?.()}
             data-testid="roles-list-create-button"
           >
-            <span className={styles.btnLabel}>
-              <span aria-hidden="true">+</span>
-              + Create role
-            </span>
+            Create role
           </Button>
         </div>
       </header>
@@ -90,19 +93,16 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
           ) : rolesQuery.data.length === 0 ? (
             <div className={styles.empty} data-testid="roles-list-empty">
               <EmptyState
-                icon={<PixelBusinessProductsNetworkUser width={64} height={64} />}
-                title="No agent roles yet"
+                icon={<PixelPetAnimalsCat width={64} height={64} />}
+                title="No roles yet"
                 description="Personas your AI agents adopt for tasks."
                 action={
                   <Button
                     variant="primary"
                     size="md"
-                    onPress={() => setIsCreateOpen(true)}
+                    onPress={() => onCreate?.()}
                   >
-                    <span className={styles.btnLabel}>
-                      <span aria-hidden="true">+</span>
-                      + Create role
-                    </span>
+                    Create role
                   </Button>
                 }
               />
@@ -113,10 +113,7 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
                 <RoleCard
                   key={role.id}
                   role={role}
-                  onSelect={(id) => {
-                    setSelectedRoleId(id);
-                    onSelectRole?.(id);
-                  }}
+                  onSelect={(id) => onSelectRole?.(id)}
                 />
               ))}
             </div>
@@ -124,15 +121,7 @@ export function RolesList({ onSelectRole }: RolesListProps = {}): ReactElement {
         </div>
       </div>
 
-      <RoleEditor
-        roleId={selectedRoleId}
-        onClose={() => setSelectedRoleId(null)}
-      />
-
-      <RoleCreateDialog
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-      />
     </section>
+    </Scrollable>
   );
 }

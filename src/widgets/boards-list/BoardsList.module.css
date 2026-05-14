@@ -290,3 +290,9 @@
     transition: none;
   }
 }
+
+.scrollHost {
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}

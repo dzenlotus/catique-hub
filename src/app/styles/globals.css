@@ -117,3 +117,12 @@ pre {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Round-19f: rely on OverlayScrollbars (the existing `<Scrollable>`
+ * primitive) for every scroll surface in the app. Per-component
+ * `overflow: auto` divs are wrapped in `<Scrollable>` so they pick up
+ * the same thin, auto-hiding thumb. No global ::-webkit-scrollbar
+ * override here — that bypasses the library and creates two scrollbar
+ * styles to maintain.
+ */

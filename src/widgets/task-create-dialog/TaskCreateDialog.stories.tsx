@@ -36,6 +36,9 @@ function stubBoard(overrides?: Partial<Board>): Board {
     roleId: null,
     position: 1,
     description: null,
+    color: null,
+    icon: null,
+    isDefault: false,
     ownerRoleId: "maintainer-system",
     createdAt: 0n,
     updatedAt: 0n,
@@ -51,6 +54,7 @@ function stubColumn(overrides?: Partial<Column>): Column {
     position: 1n,
     roleId: null,
     createdAt: 0n,
+    isDefault: false,
     ...overrides,
   };
 }
@@ -64,6 +68,7 @@ function stubRole(overrides?: Partial<Role>): Role {
     isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,
+    icon: null,
     ...overrides,
   };
 }

@@ -5,21 +5,22 @@ import { Switch, Route, useLocation } from "wouter";
 import { BoardHome } from "@widgets/board-home";
 import { KanbanBoard } from "@widgets/kanban-board";
 import { PromptsPage } from "@widgets/prompts-page";
-import { RolesList } from "@widgets/roles-list";
+import { RolesPage } from "@widgets/roles-page";
 import { TagsList } from "@widgets/tags-list";
 import { AgentReportsList } from "@widgets/agent-reports-list";
-import { SkillsList } from "@widgets/skills-list";
-import { McpToolsList } from "@widgets/mcp-tools-list";
+import { SkillsPage } from "@widgets/skills-page";
+import { McpServersPage } from "@widgets/mcp-servers-page";
 import { SettingsView } from "@widgets/settings-view";
-import { SpacesList } from "@widgets/spaces-list";
 import { SpaceSettings } from "@widgets/space-settings";
+import { BoardSettings } from "@widgets/board-settings";
 import { MainSidebar } from "@widgets/main-sidebar";
 import type { NavView } from "@widgets/main-sidebar";
 import { SpacesSidebar } from "@widgets/spaces-sidebar";
 import { TopBar } from "@widgets/top-bar";
 import { Toaster } from "@widgets/toaster";
-import { TaskDialog } from "@widgets/task-dialog";
+import { TaskView } from "@widgets/task-view";
 
+import { BoardOwnershipReviewMount } from "./providers/BoardOwnershipReviewMount";
 import { routes, pathForView, viewForPath } from "./routes";
 import styles from "./App.module.css";
 
@@ -52,9 +53,9 @@ export default function App(): ReactElement {
     setLocation(pathForView(view));
   }
 
-  // SpacesSidebar is only relevant for board-centric views (BoardHome, the
-  // kanban detail, and the task deep-link that renders BoardHome behind it).
-  // viewForPath() maps `/`, `/boards/:id`, and `/tasks/:id` all to "boards".
+  // SpacesSidebar is only relevant for board-centric views (BoardHome,
+  // the kanban detail, and the task deep-link). viewForPath() maps `/`,
+  // `/boards/:id`, and `/tasks/:id` all to "boards".
   const showSpacesSidebar = activeView === "boards";
 
   return (
@@ -80,21 +81,19 @@ export default function App(): ReactElement {
 
       <main className={styles.mainPane}>
         <Switch>
-          {/* Task deep-link — BoardHome behind the dialog handles redirect to
-              the last-opened board; dialog closes back to /. */}
+          {/* Round-19e: task editor as a routed page in mainPane,
+              same shell as space/board/prompts settings. Back returns
+              to /. */}
           <Route path={routes.task}>
-            {(params) => (
-              <>
-                <BoardHome />
-                <TaskDialog
-                  taskId={params.taskId}
-                  onClose={() => setLocation(routes.boards)}
-                />
-              </>
-            )}
+            <TaskView />
           </Route>
 
-          {/* Board detail — boardId comes from URL params */}
+          {/* Board detail — boardId comes from URL params. The
+              settings sub-route must come BEFORE the parent so wouter
+              doesn't short-circuit. */}
+          <Route path={routes.boardSettings}>
+            <BoardSettings />
+          </Route>
           <Route path={routes.board}>
             {(params) => <KanbanBoard boardId={params.boardId} />}
           </Route>
@@ -111,25 +110,47 @@ export default function App(): ReactElement {
             <PromptsPage />
           </Route>
           <Route path={routes.roles}>
-            <RolesList />
+            <RolesPage />
+          </Route>
+          {/* Selected-role editor in the content slot (audit-#9). */}
+          <Route path={routes.role}>
+            <RolesPage />
           </Route>
           <Route path={routes.tags}>
+            <TagsList />
+          </Route>
+          <Route path={routes.tag}>
             <TagsList />
           </Route>
           <Route path={routes.reports}>
             <AgentReportsList />
           </Route>
           <Route path={routes.skills}>
-            <SkillsList />
+            <SkillsPage />
           </Route>
-          <Route path={routes.mcpTools}>
-            <McpToolsList />
+          <Route path={routes.skill}>
+            <SkillsPage />
+          </Route>
+          {/* PROXY-S6: canonical path + one-release legacy alias. Both
+              render the same page so deep-links to `/mcp-tools` resolve.
+              Round-22: nested selection — `:serverId` shows the server
+              detail pane, `:serverId/tools/:toolId` shows the tool
+              detail pane. Routes ordered most-specific first so wouter
+              doesn't short-circuit on the parent. */}
+          <Route path={routes.mcpServerTool}>
+            <McpServersPage />
+          </Route>
+          <Route path={routes.mcpServer}>
+            <McpServersPage />
+          </Route>
+          <Route path={routes.mcpServers}>
+            <McpServersPage />
+          </Route>
+          <Route path={routes.mcpServersLegacy}>
+            <McpServersPage />
           </Route>
           <Route path={routes.spaceSettings}>
             <SpaceSettings />
-          </Route>
-          <Route path={routes.spaces}>
-            <SpacesList onSelectView={handleSelectView} />
           </Route>
           <Route path={routes.settings}>
             <SettingsView />
@@ -143,6 +164,9 @@ export default function App(): ReactElement {
       </main>
 
       <Toaster />
+      {/* ctq-82 (P1-T4): one-shot post-migration review modal. Renders
+          only while `settings.cat_migration_reviewed === 'false'`. */}
+      <BoardOwnershipReviewMount />
     </div>
   );
 }

@@ -8,9 +8,12 @@
 
 import { useEffect, useState, type ReactElement } from "react";
 import { useSkill, useUpdateSkillMutation } from "@entities/skill";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, Input, TextArea } from "@shared/ui";
 import { cn } from "@shared/lib";
 
+import { SkillAttachmentsSection } from "./SkillAttachmentsSection";
+import { SkillStepsSection } from "./SkillStepsSection";
+import { SkillImportButton } from "./SkillImportButton";
 import styles from "./SkillEditor.module.css";
 
 export interface SkillEditorProps {
@@ -21,10 +24,11 @@ export interface SkillEditorProps {
 }
 
 /**
- * `SkillEditor` — modal for viewing and editing a skill's name, description and color.
- *
- * Delegates open/close tracking to `skillId` — when null the `<Dialog>`
- * `isOpen` prop is false, so RAC handles exit animations and focus restoration.
+ * `SkillEditor` — modal for viewing and editing a skill's name and
+ * overview. SKILL-V2-B: the formerly-single-blob "description" is
+ * relabelled "Overview" and rendered as a multi-line markdown
+ * textarea; the structured steps live in the dedicated
+ * `<SkillStepsSection>`.
  */
 export function SkillEditor({ skillId, onClose }: SkillEditorProps): ReactElement {
   const isOpen = skillId !== null;
@@ -51,12 +55,27 @@ export function SkillEditor({ skillId, onClose }: SkillEditorProps): ReactElemen
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * `SkillEditorPanel` — non-modal version mounted inline on the
+ * `/skills/:skillId` route per audit-#9.
+ */
+export function SkillEditorPanel({
+  skillId,
+  onClose,
+}: { skillId: string; onClose: () => void }): ReactElement {
+  return (
+    <div className={styles.panel} data-testid="skill-editor-panel">
+      <SkillEditorContent skillId={skillId} onClose={onClose} />
+    </div>
+  );
+}
+
 interface SkillEditorContentProps {
   skillId: string;
   onClose: () => void;
 }
 
-function SkillEditorContent({
+export function SkillEditorContent({
   skillId,
   onClose,
 }: SkillEditorContentProps): ReactElement {
@@ -65,16 +84,14 @@ function SkillEditorContent({
 
   // Local edit state — initialised from the loaded skill.
   const [localName, setLocalName] = useState("");
-  const [localColor, setLocalColor] = useState("");
-  const [localDescription, setLocalDescription] = useState("");
+  const [localOverview, setLocalOverview] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Sync local state when skill data loads or skillId changes.
   useEffect(() => {
     if (query.data) {
       setLocalName(query.data.name);
-      setLocalColor(query.data.color ?? "");
-      setLocalDescription(query.data.description ?? "");
+      setLocalOverview(query.data.description ?? "");
       setSaveError(null);
     }
   }, [query.data, skillId]);
@@ -93,20 +110,10 @@ function SkillEditorContent({
           <div className={styles.skeletonBlock} />
         </div>
         <div className={styles.footer}>
-          <Button
-            variant="ghost"
-            size="md"
-            isDisabled
-            data-testid="skill-editor-cancel"
-          >
+          <Button variant="ghost" size="md" isDisabled data-testid="skill-editor-cancel">
             Cancel
           </Button>
-          <Button
-            variant="primary"
-            size="md"
-            isDisabled
-            data-testid="skill-editor-save"
-          >
+          <Button variant="primary" size="md" isDisabled data-testid="skill-editor-save">
             Save
           </Button>
         </div>
@@ -159,9 +166,7 @@ function SkillEditorContent({
           role="alert"
           data-testid="skill-editor-not-found"
         >
-          <p className={styles.notFoundBannerMessage}>
-            Skill not found.
-          </p>
+          <p className={styles.notFoundBannerMessage}>Skill not found.</p>
         </div>
         <div className={styles.footer}>
           <Button
@@ -188,48 +193,31 @@ function SkillEditorContent({
       setSaveError("Name cannot be empty.");
       return;
     }
-
-    // Empty string → clear to null; non-empty → use value as-is.
-    const resolvedColor = localColor === "" ? null : localColor;
-    const resolvedDescription = localDescription.trim() === "" ? null : localDescription;
+    const resolvedOverview =
+      localOverview.trim() === "" ? null : localOverview;
 
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
     const mutationArgs: MutationArgs = { id: skill.id };
-
-    if (trimmedName !== skill.name) {
-      mutationArgs.name = trimmedName;
-    }
-    // For nullable description: only include when resolved value differs from stored.
-    if (resolvedDescription !== skill.description) {
-      mutationArgs.description = resolvedDescription;
-    }
-    // For nullable color: only include when the resolved value differs from stored.
-    if (resolvedColor !== skill.color) {
-      mutationArgs.color = resolvedColor;
+    if (trimmedName !== skill.name) mutationArgs.name = trimmedName;
+    if (resolvedOverview !== skill.description) {
+      mutationArgs.description = resolvedOverview;
     }
 
     updateMutation.mutate(mutationArgs, {
-      onSuccess: () => {
-        onClose();
-      },
-      onError: (err) => {
-        setSaveError(`Failed to save: ${err.message}`);
-      },
+      onSuccess: () => onClose(),
+      onError: (err) => setSaveError(`Failed to save: ${err.message}`),
     });
   };
 
   const handleCancel = (): void => {
-    // Reset local state back to skill values before closing.
     setLocalName(skill.name);
-    setLocalColor(skill.color ?? "");
-    setLocalDescription(skill.description ?? "");
+    setLocalOverview(skill.description ?? "");
     setSaveError(null);
     onClose();
   };
 
   return (
     <>
-      {/* Name */}
       <div className={styles.section}>
         <Input
           label="Name"
@@ -241,50 +229,26 @@ function SkillEditorContent({
         />
       </div>
 
-      {/* Description */}
       <div className={styles.section}>
-        <Input
-          label="Description"
-          value={localDescription}
-          onChange={setLocalDescription}
-          placeholder="Short description of the skill"
+        <TextArea
+          label="Overview"
+          value={localOverview}
+          onChange={setLocalOverview}
+          rows={4}
+          placeholder="What is this skill for? When should the agent reach for it?"
           className={styles.fullWidthInput}
-          data-testid="skill-editor-description-input"
+          data-testid="skill-editor-overview-input"
         />
       </div>
 
-      {/* Color */}
+      <SkillStepsSection skillId={skill.id} />
+
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {localColor !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: localColor }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={localColor === "" ? "#000000" : localColor}
-            onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Skill color"
-            data-testid="skill-editor-color-input"
-          />
-          {localColor !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setLocalColor("")}
-            >
-              Reset
-            </Button>
-          )}
-        </div>
+        <SkillImportButton skillId={skill.id} />
       </div>
 
-      {/* Footer */}
+      <SkillAttachmentsSection skillId={skill.id} />
+
       <div className={styles.footer}>
         {saveError ? (
           <p

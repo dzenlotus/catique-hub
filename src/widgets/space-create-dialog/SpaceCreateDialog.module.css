@@ -28,6 +28,19 @@
   width: 100%;
 }
 
+/* Project-folder row pairs the path input with a Browse trigger that
+ * opens the OS-native folder picker. */
+.projectFolderRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-8);
+}
+
+.projectFolderInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* ── Prefix inline validation hint ──────────────────────────────── */
 
 .fieldError {

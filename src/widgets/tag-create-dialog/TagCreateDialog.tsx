@@ -13,7 +13,7 @@ import { useState, type ReactElement } from "react";
 
 import { useCreateTagMutation } from "@entities/tag";
 import type { Tag } from "@entities/tag";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 
 import styles from "./TagCreateDialog.module.css";
 
@@ -113,36 +113,15 @@ function TagCreateDialogContent({
         />
       </div>
 
-      {/* Color */}
+      {/* Color (canonical IconColorPicker — color-only mode). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {color !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: color }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={color === "" ? "#000000" : color}
-            onChange={(e) => setColor(e.target.value)}
-            aria-label="Tag color"
-            data-testid="tag-create-dialog-color-input"
-          />
-          {color !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setColor("")}
-              data-testid="tag-create-dialog-color-reset"
-            >
-              Reset
-            </Button>
-          )}
-        </div>
+        <IconColorPicker
+          value={{ icon: null, color: color === "" ? null : color }}
+          onChange={(next) => setColor(next.color ?? "")}
+          ariaLabel="Tag color"
+          data-testid="tag-create-dialog-color-input"
+        />
       </div>
 
       {/* Footer */}

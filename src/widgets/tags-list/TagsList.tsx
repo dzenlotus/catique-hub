@@ -69,10 +69,7 @@ export function TagsList({
           onPress={() => setIsCreateOpen(true)}
           data-testid="tags-list-create-button"
         >
-          <span className={styles.btnLabel}>
-            <span aria-hidden="true">+</span>
-            + Create tag
-          </span>
+          Create tag
         </Button>
       </div>
     </header>
@@ -134,10 +131,7 @@ export function TagsList({
               size="md"
               onPress={() => setIsCreateOpen(true)}
             >
-              <span className={styles.btnLabel}>
-                <span aria-hidden="true">+</span>
-                + Create tag
-              </span>
+              Create tag
             </Button>
           }
         />

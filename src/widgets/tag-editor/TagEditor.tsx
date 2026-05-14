@@ -11,7 +11,7 @@
 
 import { useEffect, useState, type ReactElement } from "react";
 import { useTag, useUpdateTagMutation } from "@entities/tag";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
@@ -55,12 +55,27 @@ export function TagEditor({ tagId, onClose }: TagEditorProps): ReactElement {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * `TagEditorPanel` — non-modal version mounted inline on the
+ * `/tags/:tagId` route per audit-#9.
+ */
+export function TagEditorPanel({
+  tagId,
+  onClose,
+}: { tagId: string; onClose: () => void }): ReactElement {
+  return (
+    <div className={styles.panel} data-testid="tag-editor-panel">
+      <TagEditorContent tagId={tagId} onClose={onClose} />
+    </div>
+  );
+}
+
 interface TagEditorContentProps {
   tagId: string;
   onClose: () => void;
 }
 
-function TagEditorContent({
+export function TagEditorContent({
   tagId,
   onClose,
 }: TagEditorContentProps): ReactElement {
@@ -239,35 +254,15 @@ function TagEditorContent({
         />
       </div>
 
-      {/* Color */}
+      {/* Color (canonical IconColorPicker — color-only mode). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {localColor !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: localColor }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={localColor === "" ? "#000000" : localColor}
-            onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Tag color"
-            data-testid="tag-editor-color-input"
-          />
-          {localColor !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setLocalColor("")}
-            >
-              Reset
-            </Button>
-          )}
-        </div>
+        <IconColorPicker
+          value={{ icon: null, color: localColor === "" ? null : localColor }}
+          onChange={(next) => setLocalColor(next.color ?? "")}
+          ariaLabel="Tag color"
+          data-testid="tag-editor-color-input"
+        />
       </div>
 
       {/* Footer */}

@@ -37,6 +37,7 @@ import { PromptGroupEditor } from "@widgets/prompt-group-editor";
 import { PromptsSidebar } from "@widgets/prompts-sidebar";
 import { InlineGroupView } from "@widgets/inline-group-view";
 import { InlineGroupSettings } from "@widgets/inline-group-settings";
+import { PromptsSettings } from "@widgets/prompts-settings";
 
 import styles from "./PromptsPage.module.css";
 
@@ -105,6 +106,10 @@ export function PromptsPage(): ReactElement {
   // Round-19d: inline group-settings page (right pane). Distinct from
   // `editingGroupId` which still drives the rename modal.
   const [groupSettingsId, setGroupSettingsId] = useState<string | null>(null);
+  // Round-19e: prompts-global settings opens inline in the right pane
+  // (tag library + new-prompt template). Triggered by the cog next to
+  // the PROMPTS section label.
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Optimistic reorder state for `<InlineGroupView>` sortable cards.
   // `reorderGroupId` is the group whose members are being dragged;
@@ -290,6 +295,20 @@ export function PromptsPage(): ReactElement {
   );
 
   const renderRightPane = (): ReactElement => {
+    // Prompts settings (round-19e) win over everything — opened from
+    // the cog next to the PROMPTS section label. Back returns to the
+    // grid (selection state is already cleared by the click handler).
+    if (isSettingsOpen) {
+      return (
+        <Scrollable
+          axis="y"
+          className={styles.contentSlot}
+          data-testid="prompts-page-content-scroll"
+        >
+          <PromptsSettings onBack={() => setIsSettingsOpen(false)} />
+        </Scrollable>
+      );
+    }
     // Group settings page wins over everything else — opened from the
     // sidebar kebab and drops back to the previously-selected group
     // view (or grid) on close.
@@ -368,15 +387,18 @@ export function PromptsPage(): ReactElement {
             selectedGroupId={selectedGroupId}
             onSelectGroup={(groupId) => {
               // Switching tabs in the sidebar always exits the
-              // group-settings page and the prompt editor.
+              // group-settings page, the prompt editor, and the
+              // prompts-global settings page.
               setSelectedGroupId(groupId);
               setSelectedPromptId(null);
               setGroupSettingsId(null);
+              setIsSettingsOpen(false);
             }}
             onSelectPrompt={(id) => {
               setSelectedPromptId(id);
               setSelectedGroupId(null);
               setGroupSettingsId(null);
+              setIsSettingsOpen(false);
             }}
             onRenameGroup={(id) => setEditingGroupId(id)}
             onGroupSettings={(id) => {
@@ -386,8 +408,18 @@ export function PromptsPage(): ReactElement {
               setGroupSettingsId(id);
               setSelectedGroupId(id);
               setSelectedPromptId(null);
+              setIsSettingsOpen(false);
             }}
             onDeleteGroup={handleDeleteGroup}
+            onOpenSettings={() => {
+              // Settings owns the right pane until the user picks Back —
+              // clear other selection so the sidebar's active strip
+              // doesn't fight the settings header for visual focus.
+              setIsSettingsOpen(true);
+              setSelectedPromptId(null);
+              setSelectedGroupId(null);
+              setGroupSettingsId(null);
+            }}
             groupMembers={groupMembers}
           />
         </div>

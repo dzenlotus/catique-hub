@@ -8,9 +8,15 @@ import type { Space } from "@entities/space";
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 import { LocalStorageStore, stringCodec } from "@shared/storage";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { SpaceCreateDialog } from "./SpaceCreateDialog";
@@ -28,10 +34,16 @@ function makeSpace(overrides: Partial<Space> = {}): Space {
     name: "My Space",
     prefix: "my",
     description: null,
+    color: null,
+    icon: null,
     isDefault: false,
     position: 1,
     createdAt: 0n,
     updatedAt: 0n,
+    workflowGraphJson: null,
+    // Round-21: optional project folder path. Default to null in
+    // fixtures; specific tests override when they exercise the field.
+    projectFolderPath: null,
     ...overrides,
   };
 }
@@ -76,7 +88,10 @@ describe("SpaceCreateDialog", () => {
     renderWithProviders(<SpaceCreateDialog isOpen onClose={() => undefined} />);
     expect(screen.getByTestId("space-create-dialog-name-input")).toBeInTheDocument();
     expect(screen.getByTestId("space-create-dialog-prefix-input")).toBeInTheDocument();
-    expect(screen.getByTestId("space-create-dialog-description-input")).toBeInTheDocument();
+    // audit-#13: description field is no longer exposed in the form.
+    expect(
+      screen.queryByTestId("space-create-dialog-description-input"),
+    ).not.toBeInTheDocument();
   });
 
   it("Save button is disabled when required fields are empty", () => {
@@ -172,31 +187,9 @@ describe("SpaceCreateDialog", () => {
     expect(createCall?.[1]).not.toHaveProperty("description");
   });
 
-  it("includes optional description in payload when filled", async () => {
-    const newSpace = makeSpace();
-    invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === "list_spaces") return new Promise(() => {});
-      if (cmd === "create_space") return Promise.resolve(newSpace);
-      return Promise.resolve(undefined);
-    });
-
-    const { user } = renderWithProviders(
-      <SpaceCreateDialog isOpen onClose={() => undefined} />,
-    );
-
-    await user.type(screen.getByTestId("space-create-dialog-name-input"), "Alpha");
-    await user.type(screen.getByTestId("space-create-dialog-prefix-input"), "alp");
-    await user.type(
-      screen.getByTestId("space-create-dialog-description-input"),
-      "Some description",
-    );
-    await user.click(screen.getByTestId("space-create-dialog-save"));
-
-    await waitFor(() => {
-      const createCall = invokeMock.mock.calls.find(([cmd]) => cmd === "create_space");
-      expect(createCall?.[1]).toMatchObject({ description: "Some description" });
-    });
-  });
+  // audit-#13: the description field was removed from the form (the
+  // backing column stays). The "fills description" test was retired
+  // along with the input.
 
   it("sets active space id on success", async () => {
     const newSpace = makeSpace({ id: "spc-created" });
@@ -259,5 +252,69 @@ describe("SpaceCreateDialog", () => {
       <SpaceCreateDialog isOpen={false} onClose={() => undefined} />,
     );
     expect(screen.queryByTestId("space-create-dialog-name-input")).toBeNull();
+  });
+
+  // ── Round-21: project folder field ──────────────────────────────────
+  it("renders the project folder input", () => {
+    renderWithProviders(<SpaceCreateDialog isOpen onClose={() => undefined} />);
+    expect(
+      screen.getByTestId("space-create-dialog-project-folder-input"),
+    ).toBeInTheDocument();
+  });
+
+  it("forwards projectFolderPath into create_space when filled", async () => {
+    const newSpace = makeSpace({ id: "spc-new", name: "Alpha", prefix: "alp" });
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "list_spaces") return new Promise(() => {});
+      if (cmd === "create_space") return Promise.resolve(newSpace);
+      return Promise.resolve(undefined);
+    });
+
+    const { user } = renderWithProviders(
+      <SpaceCreateDialog isOpen onClose={() => undefined} />,
+    );
+
+    await user.type(screen.getByTestId("space-create-dialog-name-input"), "Alpha");
+    await user.type(screen.getByTestId("space-create-dialog-prefix-input"), "alp");
+    await user.type(
+      screen.getByTestId("space-create-dialog-project-folder-input"),
+      "/Users/test/projects/alpha",
+    );
+    await user.click(screen.getByTestId("space-create-dialog-save"));
+
+    await waitFor(() => {
+      const createCall = invokeMock.mock.calls.find(
+        ([cmd]) => cmd === "create_space",
+      );
+      expect(createCall?.[1]).toMatchObject({
+        name: "Alpha",
+        prefix: "alp",
+        projectFolderPath: "/Users/test/projects/alpha",
+      });
+    });
+  });
+
+  it("omits projectFolderPath when the field is left blank", async () => {
+    const newSpace = makeSpace({ id: "spc-new", name: "Alpha", prefix: "alp" });
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "list_spaces") return new Promise(() => {});
+      if (cmd === "create_space") return Promise.resolve(newSpace);
+      return Promise.resolve(undefined);
+    });
+
+    const { user } = renderWithProviders(
+      <SpaceCreateDialog isOpen onClose={() => undefined} />,
+    );
+
+    await user.type(screen.getByTestId("space-create-dialog-name-input"), "Alpha");
+    await user.type(screen.getByTestId("space-create-dialog-prefix-input"), "alp");
+    await user.click(screen.getByTestId("space-create-dialog-save"));
+
+    await waitFor(() => {
+      const createCall = invokeMock.mock.calls.find(
+        ([cmd]) => cmd === "create_space",
+      );
+      expect(createCall?.[1]).not.toHaveProperty("projectFolderPath");
+    });
   });
 });

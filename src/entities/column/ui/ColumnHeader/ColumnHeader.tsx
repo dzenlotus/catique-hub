@@ -7,7 +7,15 @@ import {
   PixelInterfaceEssentialPlus,
 } from "@shared/ui/Icon";
 
-import { Button, Dialog, Input, Menu, MenuItem, MenuTrigger } from "@shared/ui";
+import {
+  Button,
+  Dialog,
+  Input,
+  KebabIcon,
+  Menu,
+  MenuItem,
+  MenuTrigger,
+} from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import styles from "./ColumnHeader.module.css";
@@ -98,6 +106,10 @@ export function ColumnHeader({
   const [renameValue, setRenameValue] = useState(name);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
+  // TODO(audit-F14): the column overflow menu loses "Attach prompt"
+  // until the column edit page lands a `<MultiSelect>` for column-
+  // attached prompts (audit-#8 + audit-F14). The widget is intentionally
+  // stripped down here to remove the broken dialog wiring.
   const handleMenuAction = (key: React.Key): void => {
     if (key === "rename") {
       setRenameValue(name);
@@ -174,9 +186,8 @@ export function ColumnHeader({
           variant="ghost"
           size="sm"
           aria-label={`Column actions for ${name}`}
-          className={styles.moreButton}
         >
-          <span aria-hidden="true">⋯</span>
+          <KebabIcon />
         </Button>
         <Menu onAction={handleMenuAction} placement="bottom end">
           <MenuItem id="rename">Rename</MenuItem>

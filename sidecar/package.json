@@ -1,10 +1,13 @@
 {
   "name": "catique-sidecar",
   "private": true,
-  "version": "0.0.1-spike",
+  "version": "0.1.0",
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "build": "echo 'no build step in spike'"
+    "build": "echo 'no build step — pure ESM'"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0"
   }
 }

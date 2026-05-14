@@ -12,10 +12,19 @@ import {
   useUpdateRoleMutation,
   useDeleteRoleMutation,
 } from "@entities/role";
-import { Dialog, DialogFooter, Button, Input, MarkdownField } from "@shared/ui";
+import {
+  Dialog,
+  EditorShell,
+  Button,
+  IconColorPicker,
+  Input,
+  MarkdownField,
+} from "@shared/ui";
 import { cn } from "@shared/lib";
 import { useToast } from "@app/providers/ToastProvider";
 
+import { RoleAttachmentsSections } from "./RoleAttachmentsSections";
+import { RoleMemorySection } from "./RoleMemorySection";
 import styles from "./RoleEditor.module.css";
 
 export interface RoleEditorProps {
@@ -56,12 +65,33 @@ export function RoleEditor({ roleId, onClose }: RoleEditorProps): ReactElement {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * `RoleEditorPanel` — non-modal version mounted inline on the
+ * `/roles/:roleId` route per audit-#9. The page renders this in its
+ * content slot so editing happens in the workspace, not over a
+ * scrim. Body sections + EditorShell.Footer fragment from
+ * `RoleEditorContent` render in a flex-column shell; the page's
+ * existing scroll wrapper owns scroll. The footer's
+ * `EditorShell.Footer` styled div lands as the last flex child →
+ * appears below the form sections.
+ */
+export function RoleEditorPanel({
+  roleId,
+  onClose,
+}: { roleId: string; onClose: () => void }): ReactElement {
+  return (
+    <div className={styles.panel} data-testid="role-editor-panel">
+      <RoleEditorContent roleId={roleId} onClose={onClose} />
+    </div>
+  );
+}
+
 interface RoleEditorContentProps {
   roleId: string;
   onClose: () => void;
 }
 
-function RoleEditorContent({
+export function RoleEditorContent({
   roleId,
   onClose,
 }: RoleEditorContentProps): ReactElement {
@@ -73,6 +103,7 @@ function RoleEditorContent({
   // Local edit state — initialised from the loaded role.
   const [localName, setLocalName] = useState("");
   const [localColor, setLocalColor] = useState("");
+  const [localIcon, setLocalIcon] = useState<string | null>(null);
   const [localContent, setLocalContent] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -81,6 +112,7 @@ function RoleEditorContent({
     if (query.data) {
       setLocalName(query.data.name);
       setLocalColor(query.data.color ?? "");
+      setLocalIcon((query.data as { icon?: string | null }).icon ?? null);
       setLocalContent(query.data.content);
       setSaveError(null);
     }
@@ -99,7 +131,7 @@ function RoleEditorContent({
           <div className={cn(styles.skeletonRow, styles.skeletonRowMedium)} />
           <div className={styles.skeletonBlock} />
         </div>
-        <DialogFooter className={styles.footer}>
+        <EditorShell.Footer className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -116,7 +148,7 @@ function RoleEditorContent({
           >
             Save
           </Button>
-        </DialogFooter>
+        </EditorShell.Footer>
       </>
     );
   }
@@ -142,7 +174,7 @@ function RoleEditorContent({
             Retry
           </Button>
         </div>
-        <DialogFooter className={styles.footer}>
+        <EditorShell.Footer className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -151,7 +183,7 @@ function RoleEditorContent({
           >
             Close
           </Button>
-        </DialogFooter>
+        </EditorShell.Footer>
       </>
     );
   }
@@ -170,7 +202,7 @@ function RoleEditorContent({
             Role not found.
           </p>
         </div>
-        <DialogFooter className={styles.footer}>
+        <EditorShell.Footer className={styles.footer}>
           <Button
             variant="ghost"
             size="md"
@@ -179,7 +211,7 @@ function RoleEditorContent({
           >
             Close
           </Button>
-        </DialogFooter>
+        </EditorShell.Footer>
       </>
     );
   }
@@ -198,6 +230,8 @@ function RoleEditorContent({
 
     // Empty string → clear to null; non-empty → use value as-is.
     const resolvedColor = localColor === "" ? null : localColor;
+    const storedIcon =
+      (role as { icon?: string | null }).icon ?? null;
 
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
     const mutationArgs: MutationArgs = { id: role.id };
@@ -212,6 +246,10 @@ function RoleEditorContent({
     // For nullable color: only include when the resolved value differs from stored.
     if (resolvedColor !== role.color) {
       mutationArgs.color = resolvedColor;
+    }
+    // For nullable icon: same skip-on-equal pattern.
+    if (localIcon !== storedIcon) {
+      (mutationArgs as { icon?: string | null }).icon = localIcon;
     }
 
     updateMutation.mutate(mutationArgs, {
@@ -230,6 +268,7 @@ function RoleEditorContent({
     // Reset local state back to role values before closing.
     setLocalName(role.name);
     setLocalColor(role.color ?? "");
+    setLocalIcon((role as { icon?: string | null }).icon ?? null);
     setLocalContent(role.content);
     setSaveError(null);
     onClose();
@@ -265,40 +304,21 @@ function RoleEditorContent({
         />
       </div>
 
-      {/* Color */}
+      {/* Identity row (icon + color). */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {localColor !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: localColor }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={localColor === "" ? "#000000" : localColor}
-            onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Role color"
-            data-testid="role-editor-color-input"
-          />
-          {localColor !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setLocalColor("")}
-            >
-              Reset
-            </Button>
-          )}
-        </div>
+        <IconColorPicker
+          value={{ icon: localIcon, color: localColor === "" ? null : localColor }}
+          onChange={(next) => {
+            setLocalIcon(next.icon);
+            setLocalColor(next.color ?? "");
+          }}
+          ariaLabel="Role color"
+          data-testid="role-editor-color-input"
+        />
       </div>
 
       {/* Content — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Content</p>
         <MarkdownField
           value={localContent}
           onChange={setLocalContent}
@@ -308,8 +328,14 @@ function RoleEditorContent({
         />
       </div>
 
+      {/* Attached prompts / skills / MCP tools (ctq-103, ctq-116). */}
+      <RoleAttachmentsSections roleId={role.id} />
+
+      {/* Memory — ctq-137 retrospective curation (MEM-S2). */}
+      <RoleMemorySection roleId={role.id} />
+
       {/* Footer */}
-      <DialogFooter className={styles.footer}>
+      <EditorShell.Footer className={styles.footer}>
         <span className={styles.deleteSpacer}>
           <Button
             variant="ghost"
@@ -350,7 +376,7 @@ function RoleEditorContent({
         >
           Save
         </Button>
-      </DialogFooter>
+      </EditorShell.Footer>
     </>
   );
 }

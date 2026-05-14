@@ -7,9 +7,15 @@ import type { ReactElement } from "react";
 import type { Prompt } from "@entities/prompt";
 import { ToastProvider } from "@app/providers/ToastProvider";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { PromptEditor } from "./PromptEditor";
@@ -309,6 +315,25 @@ describe("PromptEditor", () => {
     const textarea = screen.getByTestId("prompt-editor-content-textarea");
     expect(textarea.tagName).toBe("TEXTAREA");
     expect(textarea).toHaveValue("## Заголовок\n\nАбзац");
+  });
+
+  // ── Sticky footer (audit-#7) ─────────────────────────────────────
+
+  it("Cancel + Save buttons live in the sticky-footer container", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_prompt") return makePrompt();
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    renderWithClient(<PromptEditor promptId="prm-1" onClose={vi.fn()} />);
+
+    const save = await screen.findByTestId("prompt-editor-save");
+    const cancel = screen.getByTestId("prompt-editor-cancel");
+    // Both buttons share the same EditorShell.Footer parent — the
+    // sticky-bottom wrapper. The wrapper carries the layout class
+    // matched by name prefix (resilient to CSS-modules hashes).
+    expect(save.parentElement).toBe(cancel.parentElement);
+    const footerClass = save.parentElement?.getAttribute("class") ?? "";
+    expect(footerClass).toMatch(/footer/);
   });
 
 });

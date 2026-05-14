@@ -16,41 +16,8 @@
  * `isAppErrorShape` + `invokeWithAppError`.
  */
 
-import { invoke } from "@shared/api";
-import { AppErrorInstance } from "@entities/board";
-import type { AppError } from "@bindings/AppError";
+import { invokeWithAppError } from "@shared/api";
 import type { Skill } from "@bindings/Skill";
-
-/** Same `AppError` discriminator used in `boardsApi` / `columnsApi`. */
-function isAppErrorShape(value: unknown): value is AppError {
-  if (typeof value !== "object" || value === null) return false;
-  const kind = (value as { kind?: unknown }).kind;
-  if (typeof kind !== "string") return false;
-  return (
-    kind === "validation" ||
-    kind === "transactionRolledBack" ||
-    kind === "dbBusy" ||
-    kind === "lockTimeout" ||
-    kind === "internalPanic" ||
-    kind === "notFound" ||
-    kind === "conflict" ||
-    kind === "secretAccessDenied"
-  );
-}
-
-async function invokeWithAppError<T>(
-  command: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (raw) {
-    if (isAppErrorShape(raw)) {
-      throw new AppErrorInstance(raw);
-    }
-    throw raw;
-  }
-}
 
 /** `list_skills` — return every skill. */
 export async function listSkills(): Promise<Skill[]> {
@@ -66,11 +33,22 @@ export interface CreateSkillArgs {
   name: string;
   description?: string;
   color?: string;
+  /**
+   * Sort rank assigned to the new skill.  Required by the Rust handler
+   * (`crates/api/src/handlers/skills.rs::create_skill` takes a non-optional
+   * `position: f64`); omitting it triggers a serde error before the
+   * handler body runs.  Callers default to a monotonically-increasing
+   * value (`Date.now()`) so each new row lands at the end of the list.
+   */
+  position: number;
 }
 
 /** `create_skill` — create a new skill. */
 export async function createSkill(args: CreateSkillArgs): Promise<Skill> {
-  const payload: Record<string, unknown> = { name: args.name };
+  const payload: Record<string, unknown> = {
+    name: args.name,
+    position: args.position,
+  };
   if (args.description !== undefined) payload.description = args.description;
   if (args.color !== undefined) payload.color = args.color;
   return invokeWithAppError<Skill>("create_skill", payload);

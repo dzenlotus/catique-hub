@@ -6,13 +6,17 @@
  *   - `onClose` — called on Cancel, successful Save, or Esc (via RAC).
  *
  * Sections:
- *   1. Metadata: name, color, position (saved via Save button).
+ *   1. Metadata: name, color (saved via Save button).
  *   2. Members: ordered prompt list with add/remove (immediate save on action).
  *
  * Member operations fire immediately without a Save gate — they use
  * useAddPromptGroupMemberMutation and useRemovePromptGroupMemberMutation
- * directly. Only the metadata fields (name/color/position) go through the
+ * directly. Only the metadata fields (name/color) go through the
  * Save/Cancel footer.
+ *
+ * Audit-#12: the explicit `position` field was removed. Group ordering is
+ * driven by drag-reorder in the prompts page; the entity still persists
+ * `position` server-side, but exposing a numeric input was vestigial.
  */
 
 import { useEffect, useState, useMemo, type ReactElement } from "react";
@@ -25,7 +29,14 @@ import {
   useRemovePromptGroupMemberMutation,
 } from "@entities/prompt-group";
 import { usePrompts, usePrompt } from "@entities/prompt";
-import { Dialog, Button, Input, Combobox, type ComboboxItem } from "@shared/ui";
+import {
+  Dialog,
+  Button,
+  IconColorPicker,
+  Input,
+  Combobox,
+  type ComboboxItem,
+} from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import styles from "./PromptGroupEditor.module.css";
@@ -84,7 +95,6 @@ function PromptGroupEditorContent({
   // Local edit state — initialised from the loaded group.
   const [localName, setLocalName] = useState("");
   const [localColor, setLocalColor] = useState("");
-  const [localPosition, setLocalPosition] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Sync local state when group data loads or groupId changes.
@@ -92,7 +102,6 @@ function PromptGroupEditorContent({
     if (query.data) {
       setLocalName(query.data.name);
       setLocalColor(query.data.color ?? "");
-      setLocalPosition(query.data.position.toString());
       setSaveError(null);
     }
   }, [query.data, groupId]);
@@ -215,11 +224,6 @@ function PromptGroupEditorContent({
     if (resolvedColor !== group.color) {
       mutationArgs.color = resolvedColor;
     }
-    // Parse position only when changed.
-    const parsedPosition = BigInt(localPosition.trim() || "0");
-    if (parsedPosition !== group.position) {
-      mutationArgs.position = parsedPosition;
-    }
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
@@ -234,7 +238,6 @@ function PromptGroupEditorContent({
   const handleCancel = (): void => {
     setLocalName(group.name);
     setLocalColor(group.color ?? "");
-    setLocalPosition(group.position.toString());
     setSaveError(null);
     onClose();
   };
@@ -253,46 +256,14 @@ function PromptGroupEditorContent({
         />
       </div>
 
-      {/* Color */}
+      {/* Color (canonical IconColorPicker — color-only mode). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {localColor !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: localColor }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={localColor === "" ? "#000000" : localColor}
-            onChange={(e) => setLocalColor(e.target.value)}
-            aria-label="Group color"
-            data-testid="prompt-group-editor-color-input"
-          />
-          {localColor !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setLocalColor("")}
-            >
-              Reset
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Position */}
-      <div className={styles.section}>
-        <Input
-          label="Position"
-          value={localPosition}
-          onChange={setLocalPosition}
-          placeholder="0"
-          className={styles.fullWidthInput}
-          data-testid="prompt-group-editor-position-input"
+        <IconColorPicker
+          value={{ icon: null, color: localColor === "" ? null : localColor }}
+          onChange={(next) => setLocalColor(next.color ?? "")}
+          ariaLabel="Group color"
+          data-testid="prompt-group-editor-color-input"
         />
       </div>
 

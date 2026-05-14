@@ -54,6 +54,23 @@ describe("ColumnHeader", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not surface a deprecated 'Attach prompt' menu item (audit-#8)", async () => {
+    // The column overflow menu lost its `Attach prompt` action when
+    // `<AttachPromptDialog>` was retired. The replacement is the
+    // column-edit page MultiSelect (audit-F14, deferred). Until that
+    // page lands the column header must not advertise a broken option.
+    const user = userEvent.setup();
+    render(<ColumnHeader id="col-1" name="Backlog" taskCount={0} />);
+    await user.click(screen.getByRole("button", { name: /column actions/i }));
+
+    expect(
+      await screen.findByRole("menuitem", { name: /rename/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: /attach prompt/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("requires confirmation before invoking onDelete", async () => {
     const onDelete = vi.fn();
     const user = userEvent.setup();

@@ -1,0 +1,93 @@
+/*
+ * Collapsible — card surface with an optional disclosure toggle.
+ * Visual rhythm mirrors the BoardSettings / SpaceSettings cards so
+ * swapping a `<section className="card">` for `<Collapsible>` is a
+ * no-op layout change.
+ */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  width: 100%;
+  margin: 0;
+  padding: var(--space-12) var(--space-16);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background-color 80ms ease-out;
+}
+
+.heading[role="heading"] {
+  cursor: default;
+}
+
+button.heading:hover {
+  background-color: var(--color-overlay-hover);
+}
+
+button.heading:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+}
+
+.chevron {
+  flex: 0 0 auto;
+  color: var(--color-text-subtle);
+}
+
+.headingText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.headingTitle {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.headingDescription {
+  font-weight: var(--font-weight-regular);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.headingTrailing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex: 0 0 auto;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: 0 var(--space-16) var(--space-16);
+}
+
+.body[hidden] {
+  display: none;
+}

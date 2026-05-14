@@ -207,6 +207,25 @@
   color: var(--color-text-default);
 }
 
+/* "No icon" cell — visually distinct so it doesn't read as just
+ * another glyph. Dashed border signals "absent / placeholder" without
+ * fighting the active-state treatment when the user picks it. */
+.iconCellNone {
+  border-style: dashed;
+  border-color: var(--color-border-default);
+  color: var(--color-text-subtle);
+}
+
+.noneGlyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 14px;
+  line-height: 1;
+}
+
 .empty {
   padding: var(--space-16);
   text-align: center;

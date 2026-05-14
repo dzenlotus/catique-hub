@@ -9,9 +9,15 @@ import type { AgentReport } from "@entities/agent-report";
 // Mock the Tauri invoke wrapper at the shared/api boundary — this is
 // the single place IPC traffic crosses, so all four states (loading,
 // error, empty, populated) can be driven from here.
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { AgentReportsList } from "./AgentReportsList";

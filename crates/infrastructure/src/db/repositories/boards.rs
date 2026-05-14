@@ -1,7 +1,11 @@
 //! Boards repository — pure synchronous SQL.
 //!
 //! Reads and writes against the `boards` table from
-//! `db/migrations/001_initial.sql` (Promptery v0.4 lines 22-33).
+//! `db/migrations/001_initial.sql` (Promptery v0.4 lines 22-33), plus
+//! `description` (migration `003_board_description.sql`),
+//! `owner_role_id` (migration `004_cat_as_agent_phase1.sql`), and the
+//! optional `color` / `icon` columns from migration
+//! `008_space_board_icons_colors.sql`.
 //!
 //! Naming convention: this module exposes a [`BoardRow`] that mirrors
 //! the table's columns 1:1 (`snake_case`, with `created_at`/`updated_at`
@@ -24,6 +28,18 @@ pub struct BoardRow {
     pub role_id: Option<String>,
     pub position: f64,
     pub description: Option<String>,
+    /// Optional `#RRGGBB` colour (migration `008_space_board_icons_colors.sql`).
+    pub color: Option<String>,
+    /// Optional pixel-icon identifier (migration
+    /// `008_space_board_icons_colors.sql`). The frontend maps this
+    /// string onto a React component from `src/shared/ui/Icon/`.
+    pub icon: Option<String>,
+    /// `true` for the auto-created default board (migration
+    /// `009_default_boards.sql`). Stored as `INTEGER` 0/1 — converted
+    /// here on read. Immutable after insert: there is no `update` path
+    /// that touches this column, the use-case layer refuses delete on
+    /// it, and the only legitimate setter is the space-creation flow.
+    pub is_default: bool,
     pub created_at: i64,
     pub updated_at: i64,
     /// Owning cat. NOT NULL at the schema level — see migration
@@ -43,6 +59,9 @@ impl BoardRow {
             role_id: row.get("role_id")?,
             position: row.get("position")?,
             description: row.get("description")?,
+            color: row.get("color")?,
+            icon: row.get("icon")?,
+            is_default: row.get::<_, i64>("is_default")? != 0,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
             owner_role_id: row.get("owner_role_id")?,
@@ -61,6 +80,15 @@ pub struct BoardDraft {
     pub role_id: Option<String>,
     pub position: Option<f64>,
     pub description: Option<String>,
+    /// Optional `#RRGGBB` colour. `None` stores SQL NULL.
+    pub color: Option<String>,
+    /// Pixel-icon identifier. `None` stores SQL NULL.
+    pub icon: Option<String>,
+    /// `true` flags the auto-created default board for a new space
+    /// (migration `009_default_boards.sql`). Set on insert only — the
+    /// patch path deliberately does not expose a setter, mirroring how
+    /// `roles.is_system` is treated as immutable provenance.
+    pub is_default: bool,
     /// Owning cat — required by the schema (Cat-as-Agent Phase 1,
     /// ctq-73). `None` resolves to the deterministic
     /// `"maintainer-system"` row that migration
@@ -70,19 +98,42 @@ pub struct BoardDraft {
     pub owner_role_id: Option<String>,
 }
 
-/// `SELECT id, name, space_id, role_id, position, description, created_at, updated_at
-///   FROM boards ORDER BY position ASC, name ASC`.
+/// `SELECT … FROM boards ORDER BY position ASC, name ASC`.
 ///
 /// # Errors
 ///
 /// Surfaces any rusqlite error from `prepare` / `query_map`.
 pub fn list_all(conn: &Connection) -> Result<Vec<BoardRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, space_id, role_id, position, description, created_at, updated_at, owner_role_id \
+        "SELECT id, name, space_id, role_id, position, description, color, icon, \
+                is_default, created_at, updated_at, owner_role_id \
          FROM boards \
          ORDER BY position ASC, name ASC",
     )?;
     let rows = stmt.query_map([], BoardRow::from_row)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// `SELECT … FROM boards WHERE space_id = ?1 ORDER BY position, name`.
+/// Used by the space-creation flow's smoke-test to confirm the default
+/// board landed in the new space's row-set.
+///
+/// # Errors
+///
+/// Surfaces any rusqlite error from `prepare` / `query_map`.
+pub fn list_by_space(conn: &Connection, space_id: &str) -> Result<Vec<BoardRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, space_id, role_id, position, description, color, icon, \
+                is_default, created_at, updated_at, owner_role_id \
+         FROM boards \
+         WHERE space_id = ?1 \
+         ORDER BY position ASC, name ASC",
+    )?;
+    let rows = stmt.query_map(params![space_id], BoardRow::from_row)?;
     let mut out = Vec::new();
     for row in rows {
         out.push(row?);
@@ -97,7 +148,8 @@ pub fn list_all(conn: &Connection) -> Result<Vec<BoardRow>, DbError> {
 /// Surfaces any non-`QueryReturnedNoRows` rusqlite error.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<BoardRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, space_id, role_id, position, description, created_at, updated_at, owner_role_id \
+        "SELECT id, name, space_id, role_id, position, description, color, icon, \
+                is_default, created_at, updated_at, owner_role_id \
          FROM boards \
          WHERE id = ?1",
     )?;
@@ -105,24 +157,31 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<BoardRow>, DbErro
 }
 
 /// Partial-update payload for [`update`] — every field is optional;
-/// `None` keeps the stored value via `COALESCE(?, current)`. The
-/// `role_id` and `description` fields are `Option<Option<…>>` so the
-/// caller can distinguish "skip this field" (outer None) from "clear to
-/// NULL" (Some(None)).
+/// `None` keeps the stored value. Nullable fields use
+/// `Option<Option<…>>` so the caller can distinguish "skip this field"
+/// (outer None) from "clear to NULL" (Some(None)) and "set to value"
+/// (Some(Some(v))).
 #[derive(Debug, Clone, Default)]
 pub struct BoardPatch {
     pub name: Option<String>,
     pub position: Option<f64>,
     pub role_id: Option<Option<String>>,
     pub description: Option<Option<String>>,
+    /// `None` = leave alone; `Some(None)` = clear; `Some(Some(s))` = set.
+    pub color: Option<Option<String>>,
+    /// `None` = leave alone; `Some(None)` = clear; `Some(Some(s))` = set.
+    pub icon: Option<Option<String>>,
 }
 
-/// Partial update via `COALESCE`. Bumps `updated_at`. Returns the
-/// updated row, or `Ok(None)` if no row matched the id.
+/// Partial update via a dynamic SET clause. Bumps `updated_at`. Returns
+/// the updated row, or `Ok(None)` if no row matched the id.
 ///
-/// For nullable fields (`role_id`, `description`) the patch uses
-/// `Option<Option<T>>`: `None` = skip, `Some(None)` = clear,
-/// `Some(Some(v))` = set to `v`.
+/// For nullable fields (`role_id`, `description`, `color`, `icon`) the
+/// patch uses `Option<Option<T>>`: `None` = skip, `Some(None)` = clear,
+/// `Some(Some(v))` = set to `v`. Nullable columns are appended to the
+/// SQL only when the patch carries an explicit `Some(_)` — same
+/// pattern as `prompt_groups` so the SQL stays linear in the number of
+/// patched fields.
 ///
 /// # Errors
 ///
@@ -132,33 +191,46 @@ pub fn update(
     id: &str,
     patch: &BoardPatch,
 ) -> Result<Option<BoardRow>, DbError> {
+    use std::fmt::Write as _;
     let now = now_millis();
 
-    // Build a dynamic SET clause to handle the two nullable fields
-    // independently without a combinatorial explosion of SQL variants.
-    let mut set_parts: Vec<&str> = Vec::new();
+    let mut sql = String::from(
+        "UPDATE boards SET name = COALESCE(?1, name), \
+         position = COALESCE(?2, position)",
+    );
+    let mut next_param = 3_usize;
+    let mut params_vec: Vec<rusqlite::types::Value> =
+        vec![patch.name.clone().into(), patch.position.into()];
 
-    // Always-coalesced scalar fields.
-    set_parts.push("name = COALESCE(?1, name)");
-    set_parts.push("position = COALESCE(?2, position)");
-
-    if patch.role_id.is_some() {
-        set_parts.push("role_id = ?3");
+    if let Some(r) = patch.role_id.as_ref() {
+        let _ = write!(sql, ", role_id = ?{next_param}");
+        params_vec.push(rusqlite::types::Value::from(r.clone()));
+        next_param += 1;
     }
-    if patch.description.is_some() {
-        set_parts.push("description = ?4");
+    if let Some(d) = patch.description.as_ref() {
+        let _ = write!(sql, ", description = ?{next_param}");
+        params_vec.push(rusqlite::types::Value::from(d.clone()));
+        next_param += 1;
     }
-    set_parts.push("updated_at = ?5");
+    if let Some(c) = patch.color.as_ref() {
+        let _ = write!(sql, ", color = ?{next_param}");
+        params_vec.push(rusqlite::types::Value::from(c.clone()));
+        next_param += 1;
+    }
+    if let Some(i) = patch.icon.as_ref() {
+        let _ = write!(sql, ", icon = ?{next_param}");
+        params_vec.push(rusqlite::types::Value::from(i.clone()));
+        next_param += 1;
+    }
+    let _ = write!(
+        sql,
+        ", updated_at = ?{next_param} WHERE id = ?{}",
+        next_param + 1
+    );
+    params_vec.push(rusqlite::types::Value::from(now));
+    params_vec.push(rusqlite::types::Value::from(id.to_owned()));
 
-    let sql = format!("UPDATE boards SET {} WHERE id = ?6", set_parts.join(", "));
-
-    let role_val: Option<&str> = patch.role_id.as_ref().and_then(|o| o.as_deref());
-    let desc_val: Option<&str> = patch.description.as_ref().and_then(|o| o.as_deref());
-
-    let updated = conn.execute(
-        &sql,
-        params![patch.name, patch.position, role_val, desc_val, now, id],
-    )?;
+    let updated = conn.execute(&sql, rusqlite::params_from_iter(params_vec.iter()))?;
     if updated == 0 {
         return Ok(None);
     }
@@ -193,6 +265,7 @@ pub fn insert(conn: &Connection, draft: &BoardDraft) -> Result<BoardRow, DbError
     let id = new_id();
     let now = now_millis();
     let position = draft.position.unwrap_or(0.0);
+    let is_default = i64::from(draft.is_default);
 
     let owner = draft
         .owner_role_id
@@ -201,8 +274,9 @@ pub fn insert(conn: &Connection, draft: &BoardDraft) -> Result<BoardRow, DbError
 
     conn.execute(
         "INSERT INTO boards \
-            (id, name, space_id, role_id, position, description, created_at, updated_at, owner_role_id) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8)",
+            (id, name, space_id, role_id, position, description, color, icon, \
+             is_default, created_at, updated_at, owner_role_id) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, ?11)",
         params![
             id,
             draft.name,
@@ -210,6 +284,9 @@ pub fn insert(conn: &Connection, draft: &BoardDraft) -> Result<BoardRow, DbError
             draft.role_id,
             position,
             draft.description,
+            draft.color,
+            draft.icon,
+            is_default,
             now,
             owner,
         ],
@@ -222,6 +299,9 @@ pub fn insert(conn: &Connection, draft: &BoardDraft) -> Result<BoardRow, DbError
         role_id: draft.role_id.clone(),
         position,
         description: draft.description.clone(),
+        color: draft.color.clone(),
+        icon: draft.icon.clone(),
+        is_default: draft.is_default,
         created_at: now,
         updated_at: now,
         owner_role_id: owner,
@@ -300,6 +380,20 @@ mod tests {
         .expect("seed space");
     }
 
+    fn empty_draft(name: &str, space_id: &str) -> BoardDraft {
+        BoardDraft {
+            name: name.into(),
+            space_id: space_id.into(),
+            role_id: None,
+            position: None,
+            description: None,
+            color: None,
+            icon: None,
+            is_default: false,
+            owner_role_id: None,
+        }
+    }
+
     #[test]
     fn list_all_on_empty_db_returns_empty_vec() {
         let conn = fresh_db();
@@ -319,6 +413,9 @@ mod tests {
                 role_id: None,
                 position: Some(1.0),
                 description: None,
+                color: None,
+                icon: None,
+                is_default: false,
                 owner_role_id: None,
             },
         )
@@ -337,6 +434,15 @@ mod tests {
     fn list_all_orders_by_position_then_name() {
         let conn = fresh_db();
         seed_space(&conn, "sp1", "abc");
+        // Migration 016 enforces UNIQUE(space_id, owner_role_id), so each
+        // board needs a distinct owner-role row to coexist.
+        conn.execute_batch(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) VALUES \
+                 ('rl-beta','Beta','',0,0), \
+                 ('rl-alpha','Alpha','',0,0), \
+                 ('rl-zeta','Zeta','',0,0);",
+        )
+        .unwrap();
         let _b = insert(
             &conn,
             &BoardDraft {
@@ -345,7 +451,10 @@ mod tests {
                 role_id: None,
                 position: Some(2.0),
                 description: None,
-                owner_role_id: None,
+                color: None,
+                icon: None,
+                is_default: false,
+                owner_role_id: Some("rl-beta".into()),
             },
         )
         .unwrap();
@@ -357,7 +466,10 @@ mod tests {
                 role_id: None,
                 position: Some(2.0),
                 description: None,
-                owner_role_id: None,
+                color: None,
+                icon: None,
+                is_default: false,
+                owner_role_id: Some("rl-alpha".into()),
             },
         )
         .unwrap();
@@ -369,7 +481,10 @@ mod tests {
                 role_id: None,
                 position: Some(1.0),
                 description: None,
-                owner_role_id: None,
+                color: None,
+                icon: None,
+                is_default: false,
+                owner_role_id: Some("rl-zeta".into()),
             },
         )
         .unwrap();
@@ -389,18 +504,7 @@ mod tests {
     fn get_by_id_returns_some_for_existing() {
         let conn = fresh_db();
         seed_space(&conn, "sp1", "abc");
-        let inserted = insert(
-            &conn,
-            &BoardDraft {
-                name: "Board".into(),
-                space_id: "sp1".into(),
-                role_id: None,
-                position: None,
-                description: None,
-                owner_role_id: None,
-            },
-        )
-        .unwrap();
+        let inserted = insert(&conn, &empty_draft("Board", "sp1")).unwrap();
         let fetched = get_by_id(&conn, &inserted.id).unwrap();
         assert_eq!(fetched, Some(inserted));
     }
@@ -410,18 +514,8 @@ mod tests {
         let conn = fresh_db();
         // No space seeded; FK should refuse the insert under
         // PRAGMA foreign_keys = ON.
-        let err = insert(
-            &conn,
-            &BoardDraft {
-                name: "Doomed".into(),
-                space_id: "ghost".into(),
-                role_id: None,
-                position: None,
-                description: None,
-                owner_role_id: None,
-            },
-        )
-        .expect_err("FK violation expected");
+        let err =
+            insert(&conn, &empty_draft("Doomed", "ghost")).expect_err("FK violation expected");
         match err {
             DbError::Sqlite(rusqlite::Error::SqliteFailure(code, _)) => {
                 assert_eq!(code.code, rusqlite::ErrorCode::ConstraintViolation);
@@ -450,6 +544,9 @@ mod tests {
                 role_id: None,
                 position: None,
                 description: Some("A test description.".into()),
+                color: None,
+                icon: None,
+                is_default: false,
                 owner_role_id: None,
             },
         )
@@ -477,6 +574,9 @@ mod tests {
                 role_id: None,
                 position: None,
                 description: None,
+                color: None,
+                icon: None,
+                is_default: false,
                 owner_role_id: Some("rA".into()),
             },
         )
@@ -501,18 +601,7 @@ mod tests {
     fn set_owner_rejects_unknown_role_via_fk() {
         let conn = fresh_db();
         seed_space(&conn, "sp1", "abc");
-        let row = insert(
-            &conn,
-            &BoardDraft {
-                name: "B".into(),
-                space_id: "sp1".into(),
-                role_id: None,
-                position: None,
-                description: None,
-                owner_role_id: None,
-            },
-        )
-        .unwrap();
+        let row = insert(&conn, &empty_draft("B", "sp1")).unwrap();
         let err = set_owner(&conn, &row.id, "ghost-role").expect_err("FK");
         match err {
             DbError::Sqlite(rusqlite::Error::SqliteFailure(code, _)) => {
@@ -526,18 +615,7 @@ mod tests {
     fn update_description_set_then_clear() {
         let conn = fresh_db();
         seed_space(&conn, "sp1", "abc");
-        let row = insert(
-            &conn,
-            &BoardDraft {
-                name: "B".into(),
-                space_id: "sp1".into(),
-                role_id: None,
-                position: None,
-                description: None,
-                owner_role_id: None,
-            },
-        )
-        .unwrap();
+        let row = insert(&conn, &empty_draft("B", "sp1")).unwrap();
 
         // Set description.
         let patched = update(
@@ -564,5 +642,221 @@ mod tests {
         .unwrap()
         .expect("found");
         assert_eq!(cleared.description, None);
+    }
+
+    // ------------------------------------------------------------------
+    // Icon + colour round-trip — mirror of the prompt_groups coverage.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn insert_with_icon_and_color_round_trips() {
+        let conn = fresh_db();
+        seed_space(&conn, "sp1", "abc");
+        let row = insert(
+            &conn,
+            &BoardDraft {
+                name: "Iconic".into(),
+                space_id: "sp1".into(),
+                role_id: None,
+                position: None,
+                description: None,
+                color: Some("#abcdef".into()),
+                icon: Some("star".into()),
+                is_default: false,
+                owner_role_id: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(row.color.as_deref(), Some("#abcdef"));
+        assert_eq!(row.icon.as_deref(), Some("star"));
+        let got = get_by_id(&conn, &row.id).unwrap().unwrap();
+        assert_eq!(got.color.as_deref(), Some("#abcdef"));
+        assert_eq!(got.icon.as_deref(), Some("star"));
+    }
+
+    #[test]
+    fn update_can_set_clear_and_change_icon() {
+        let conn = fresh_db();
+        seed_space(&conn, "sp1", "abc");
+        let row = insert(&conn, &empty_draft("B", "sp1")).unwrap();
+        assert_eq!(row.icon, None);
+
+        // Set.
+        let after_set = update(
+            &conn,
+            &row.id,
+            &BoardPatch {
+                icon: Some(Some("bolt".into())),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(after_set.icon.as_deref(), Some("bolt"));
+
+        // Change.
+        let after_change = update(
+            &conn,
+            &row.id,
+            &BoardPatch {
+                icon: Some(Some("heart".into())),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(after_change.icon.as_deref(), Some("heart"));
+
+        // Clear.
+        let after_clear = update(
+            &conn,
+            &row.id,
+            &BoardPatch {
+                icon: Some(None),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(after_clear.icon, None);
+    }
+
+    #[test]
+    fn update_leaves_icon_untouched_when_patch_skips_it() {
+        let conn = fresh_db();
+        seed_space(&conn, "sp1", "abc");
+        let row = insert(
+            &conn,
+            &BoardDraft {
+                name: "B".into(),
+                space_id: "sp1".into(),
+                role_id: None,
+                position: None,
+                description: None,
+                color: None,
+                icon: Some("star".into()),
+                is_default: false,
+                owner_role_id: None,
+            },
+        )
+        .unwrap();
+        // Update only `name`. Icon must survive.
+        let updated = update(
+            &conn,
+            &row.id,
+            &BoardPatch {
+                name: Some("Renamed".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(updated.icon.as_deref(), Some("star"));
+        assert_eq!(updated.name, "Renamed");
+    }
+
+    #[test]
+    fn update_can_clear_color() {
+        let conn = fresh_db();
+        seed_space(&conn, "sp1", "abc");
+        let row = insert(
+            &conn,
+            &BoardDraft {
+                name: "B".into(),
+                space_id: "sp1".into(),
+                role_id: None,
+                position: None,
+                description: None,
+                color: Some("#112233".into()),
+                icon: None,
+                is_default: false,
+                owner_role_id: None,
+            },
+        )
+        .unwrap();
+        let cleared = update(
+            &conn,
+            &row.id,
+            &BoardPatch {
+                color: Some(None),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(cleared.color, None);
+    }
+
+    // ------------------------------------------------------------------
+    // is_default round-trip + list_by_space (migration 009).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn insert_with_is_default_round_trips() {
+        let conn = fresh_db();
+        seed_space(&conn, "sp1", "abc");
+        let row = insert(
+            &conn,
+            &BoardDraft {
+                name: "Main".into(),
+                space_id: "sp1".into(),
+                role_id: None,
+                position: Some(0.0),
+                description: None,
+                color: None,
+                icon: Some("PixelInterfaceEssentialList".into()),
+                is_default: true,
+                owner_role_id: None,
+            },
+        )
+        .unwrap();
+        assert!(row.is_default);
+        let fetched = get_by_id(&conn, &row.id).unwrap().unwrap();
+        assert!(fetched.is_default);
+    }
+
+    #[test]
+    fn insert_default_is_false_when_omitted() {
+        let conn = fresh_db();
+        seed_space(&conn, "sp1", "abc");
+        let row = insert(&conn, &empty_draft("B", "sp1")).unwrap();
+        assert!(!row.is_default);
+    }
+
+    #[test]
+    fn list_by_space_filters_by_owning_space() {
+        let conn = fresh_db();
+        seed_space(&conn, "sp1", "abc");
+        seed_space(&conn, "sp2", "def");
+        // Migration 016: B1 / B2 share `sp1` so they must point at
+        // distinct owner-role rows. B3 lives in `sp2` alone.
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) \
+             VALUES ('rl-b2','RB2','',0,0)",
+            [],
+        )
+        .unwrap();
+        let _b1 = insert(&conn, &empty_draft("B1", "sp1")).unwrap();
+        let _b2 = insert(
+            &conn,
+            &BoardDraft {
+                name: "B2".into(),
+                space_id: "sp1".into(),
+                role_id: None,
+                position: None,
+                description: None,
+                color: None,
+                icon: None,
+                is_default: false,
+                owner_role_id: Some("rl-b2".into()),
+            },
+        )
+        .unwrap();
+        let _b3 = insert(&conn, &empty_draft("B3", "sp2")).unwrap();
+        let in_sp1 = list_by_space(&conn, "sp1").unwrap();
+        let in_sp2 = list_by_space(&conn, "sp2").unwrap();
+        assert_eq!(in_sp1.len(), 2);
+        assert_eq!(in_sp2.len(), 1);
+        assert_eq!(in_sp2[0].name, "B3");
     }
 }

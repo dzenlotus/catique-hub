@@ -1,0 +1,241 @@
+/*
+ * SkillAttachmentsSection — attachments block on the Skill editor.
+ *
+ * Reuses the section padding rhythm + bordered separators from
+ * SkillEditor.module.css. Kept as a sibling module so the editor body
+ * doesn't grow CSS-heavy for an opt-in subsection.
+ */
+
+.section {
+  padding: var(--space-16) 0;
+  border-bottom: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-default);
+}
+
+/* ── Toolbar ───────────────────────────────────────────────────────── */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.hiddenFileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Empty state ───────────────────────────────────────────────────── */
+
+.emptyHint {
+  margin: 0;
+  padding: var(--space-12);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-raised);
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-sm);
+}
+
+/* ── List ──────────────────────────────────────────────────────────── */
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.listItem {
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+}
+
+.rowBody {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.primaryText {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-default);
+}
+
+.metaText {
+  flex: 0 0 auto;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.gitRef {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Kind badges ───────────────────────────────────────────────────── */
+
+.kindBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  font-family: var(--font-mono, monospace);
+  flex-shrink: 0;
+}
+
+.kindFile {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.kindGit {
+  background-color: var(--color-status-info-soft, var(--color-overlay-hover));
+  color: var(--color-status-info, var(--color-text-default));
+}
+
+/* ── Remove button ─────────────────────────────────────────────────── */
+
+.removeButton {
+  flex-shrink: 0;
+  font-size: var(--font-size-body);
+  line-height: 1;
+  /* Tighter padding for the bare `×` glyph. */
+  min-width: 28px;
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+}
+
+/* ── Git form ──────────────────────────────────────────────────────── */
+
+.gitForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+}
+
+.gitFormRow {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.gitFormInput {
+  width: 100%;
+}
+
+.gitFormInputSmall {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.gitFormActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-8);
+}
+
+.formError {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}
+
+/* ── Skeleton ──────────────────────────────────────────────────────── */
+
+.skeletonStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.skeletonRow {
+  height: 40px;
+  background-color: var(--color-overlay-hover);
+  border-radius: var(--radius-sm);
+  animation: skill-attachments-skeleton-pulse 1400ms ease-in-out infinite;
+}
+
+@keyframes skill-attachments-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* ── Error banner ──────────────────────────────────────────────────── */
+
+.errorBanner {
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  background-color: var(--color-status-danger-soft);
+  color: var(--color-status-danger);
+  border: 1px solid var(--color-status-danger);
+  font-size: var(--font-size-body);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.errorMessage {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonRow {
+    animation: none;
+  }
+}

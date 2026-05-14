@@ -1,114 +1,90 @@
 /**
- * Connected-clients IPC client (ctq-67).
+ * Connected-providers IPC client (round-21).
  *
- * Wraps the three Tauri commands exposed by
- * `crates/api/src/handlers/clients.rs`. Error handling mirrors
- * `entities/role/api/rolesApi.ts`.
+ * Provider lifecycle (replaces ctq-67/68/69 client/adapter shape):
+ *   - `list_connected_providers`  — connected providers (post-detection).
+ *   - `list_supported_providers`  — pickable catalog for the Add modal.
+ *   - `add_provider`              — connect a supported provider id.
+ *   - `remove_provider`           — disconnect + clean Catique-owned
+ *     agent files + drop the `catique-hub` MCP entry from the provider's
+ *     config.
+ *   - `get_sync_status`           — current global sync state for the
+ *     topbar indicator. Pushes via the `sync:status_changed` event.
+ *
+ * Detection runs once on first launch; afterwards the user manages
+ * providers manually via the Settings UI.
+ *
+ * Error handling mirrors `entities/role/api/rolesApi.ts`.
  */
 
-import { invoke } from "@shared/api";
-import { AppErrorInstance } from "@entities/board";
-import type { AppError } from "@bindings/AppError";
-import type { ClientInstructions } from "@bindings/ClientInstructions";
+import { invokeWithAppError } from "@shared/api";
 import type { ConnectedClient } from "@bindings/ConnectedClient";
-import type { RoleSyncReport } from "@bindings/RoleSyncReport";
-import type { SyncedRoleFile } from "@bindings/SyncedRoleFile";
 
-function isAppErrorShape(value: unknown): value is AppError {
-  if (typeof value !== "object" || value === null) return false;
-  const kind = (value as { kind?: unknown }).kind;
-  if (typeof kind !== "string") return false;
-  return (
-    kind === "validation" ||
-    kind === "transactionRolledBack" ||
-    kind === "dbBusy" ||
-    kind === "lockTimeout" ||
-    kind === "internalPanic" ||
-    kind === "notFound" ||
-    kind === "conflict" ||
-    kind === "secretAccessDenied"
-  );
+/**
+ * `list_connected_providers` — return persisted providers that the user
+ * has actively connected (post-detection or post-Add).
+ *
+ * NOTE: backend command is named `list_connected_providers` in round-21;
+ * the `ConnectedClient` binding is the existing ts-rs shape (rename will
+ * happen when the backend agent regenerates bindings).
+ */
+export async function listConnectedProviders(): Promise<ConnectedClient[]> {
+  return invokeWithAppError<ConnectedClient[]>("list_connected_providers");
 }
 
-async function invokeWithAppError<T>(
-  command: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (raw) {
-    if (isAppErrorShape(raw)) {
-      throw new AppErrorInstance(raw);
-    }
-    throw raw;
-  }
-}
-
-/** `list_connected_clients` — return the persisted client list. */
-export async function listConnectedClients(): Promise<ConnectedClient[]> {
-  return invokeWithAppError<ConnectedClient[]>("list_connected_clients");
-}
-
-/** `discover_clients` — rescan the filesystem and return the updated list. */
-export async function discoverClients(): Promise<ConnectedClient[]> {
-  return invokeWithAppError<ConnectedClient[]>("discover_clients");
-}
-
-export interface SetClientEnabledArgs {
+/**
+ * Catalog entry for {@link listSupportedProviders} / `add_provider`. Once
+ * the backend ships round-21 bindings this gets replaced by
+ * `@bindings/SupportedProvider`.
+ *
+ * TODO(round-21-backend): replace local type with
+ * `import type { SupportedProvider } from "@bindings/SupportedProvider"`.
+ */
+export interface SupportedProvider {
+  /** Stable id, e.g. `claude-code`, `cursor`. */
   id: string;
-  enabled: boolean;
+  /** Human-readable display name shown in the Add-provider modal. */
+  displayName: string;
 }
 
-/** `set_client_enabled` — toggle the `enabled` flag for a single client. */
-export async function setClientEnabled(
-  args: SetClientEnabledArgs,
+/** `list_supported_providers` — pickable catalog. */
+export async function listSupportedProviders(): Promise<SupportedProvider[]> {
+  return invokeWithAppError<SupportedProvider[]>("list_supported_providers");
+}
+
+/** `add_provider` — connect the given supported-provider id. */
+export async function addProvider(
+  providerId: string,
 ): Promise<ConnectedClient> {
-  return invokeWithAppError<ConnectedClient>("set_client_enabled", {
-    id: args.id,
-    enabled: args.enabled,
-  });
-}
-
-/** `read_client_instructions` — read the global instructions file. */
-export async function readClientInstructions(
-  clientId: string,
-): Promise<ClientInstructions> {
-  return invokeWithAppError<ClientInstructions>("read_client_instructions", {
-    clientId,
-  });
-}
-
-/** `write_client_instructions` — write (overwrite) the global instructions file. */
-export async function writeClientInstructions(
-  clientId: string,
-  content: string,
-): Promise<ClientInstructions> {
-  return invokeWithAppError<ClientInstructions>("write_client_instructions", {
-    clientId,
-    content,
-  });
+  return invokeWithAppError<ConnectedClient>("add_provider", { providerId });
 }
 
 /**
- * `list_synced_client_roles` — list agent-definition files managed by
- * Catique Hub for this client.
+ * `remove_provider` — disconnect a provider.
+ *
+ * Deletes Catique-owned agent files and drops the `catique-hub` MCP
+ * entry from the provider's config. Backend handles the side effects;
+ * the frontend only wires the IPC.
  */
-export async function listSyncedClientRoles(
-  clientId: string,
-): Promise<SyncedRoleFile[]> {
-  return invokeWithAppError<SyncedRoleFile[]>("list_synced_client_roles", {
-    clientId,
-  });
+export async function removeProvider(providerId: string): Promise<void> {
+  return invokeWithAppError<void>("remove_provider", { providerId });
 }
 
 /**
- * `sync_roles_to_client` — one-way sync of all Catique Hub roles to the
- * client's agent directory.
+ * Sync-status payload exposed through {@link getSyncStatus} and the
+ * `sync:status_changed` push event.
+ *
+ * TODO(round-21-backend): replace local type with
+ * `import type { SyncStatus } from "@bindings/SyncStatus"` once the
+ * Rust binding lands.
  */
-export async function syncRolesToClient(
-  clientId: string,
-): Promise<RoleSyncReport> {
-  return invokeWithAppError<RoleSyncReport>("sync_roles_to_client", {
-    clientId,
-  });
+export interface SyncStatus {
+  state: "idle" | "syncing" | "error";
+  /** Provider ids that failed during the latest fanout (when state === "error"). */
+  failingProviders?: string[];
+}
+
+/** `get_sync_status` — current global sync state. */
+export async function getSyncStatus(): Promise<SyncStatus> {
+  return invokeWithAppError<SyncStatus>("get_sync_status");
 }

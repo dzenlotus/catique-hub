@@ -91,16 +91,6 @@ export function MainSidebar({
           })}
         </ul>
       </Scrollable>
-
-      {/* Mascot — anchored at the bottom of the sidebar column. Sized to
-          fill the column width (proportional height). The 1fr grid row
-          above pushes this row to the bottom regardless of nav length. */}
-      <img
-        className={styles.mascot}
-        src="/assets/mascot.png"
-        alt="Catique mascot"
-        data-testid="main-sidebar-mascot"
-      />
     </nav>
   );
 }

@@ -19,12 +19,21 @@ import type { Task } from "@entities/task";
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 import { ToastProvider } from "@app/providers/ToastProvider";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-  // EventsProvider isn't mounted in the test tree, but `on` is exported
-  // from @shared/api and any incidental import resolves cleanly.
-  on: vi.fn(() => Promise.resolve(() => {})),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    // audit-#17 dedup: entity APIs call `invokeWithAppError`; mocking
+    // both to the same fn means the test driver only configures one
+    // implementation but every IPC path resolves.
+    invokeWithAppError: fn,
+    // EventsProvider isn't mounted in the test tree, but `on` is exported
+    // from @shared/api and any incidental import resolves cleanly.
+    on: vi.fn(() => Promise.resolve(() => {})),
+  };
+});
 
 import { invoke } from "@shared/api";
 import { KanbanBoard } from "./KanbanBoard";
@@ -53,6 +62,9 @@ function makeBoard(overrides: Partial<Board> = {}): Board {
     roleId: null,
     position: 1,
     description: null,
+    color: null,
+    icon: null,
+    isDefault: false,
     ownerRoleId: "maintainer-system",
     createdAt: 0n,
     updatedAt: 0n,
@@ -68,6 +80,7 @@ function makeColumn(overrides: Partial<Column> = {}): Column {
     roleId: null,
     position: 1n,
     createdAt: 0n,
+    isDefault: false,
     ...overrides,
   };
 }

@@ -91,15 +91,6 @@
   margin-top: auto;
 }
 
-.colorSwatch {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  border: 1px solid var(--color-border-default);
-}
-
 .tokenChip {
   display: inline-flex;
   align-items: center;

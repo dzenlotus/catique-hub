@@ -6,12 +6,17 @@
  *   - `onClose`    — called on Cancel, successful Save, or Esc.
  *   - `onCreated`  — optional callback with the newly-created Space.
  *
- * Required fields: name, prefix. Optional: description.
- * Optional fields are omitted from the payload when empty — never sent as
- * empty strings. Matches `CreateSpaceArgs`.
+ * Required fields: name, prefix. Optional fields are omitted from the
+ * payload when empty — never sent as empty strings. Matches
+ * `CreateSpaceArgs`.
  *
  * On success: closes the dialog, calls `onCreated`, and sets the new space
  * as the active space via `useActiveSpace()` context.
+ *
+ * Audit-#13: the `description` form field was removed. `Space.description`
+ * is never rendered anywhere in the space view, so the input was dead. The
+ * schema column stays so the field can be re-introduced if a rendering
+ * surface ever consumes it.
  */
 
 import { useState, type ReactElement } from "react";
@@ -19,7 +24,8 @@ import { useState, type ReactElement } from "react";
 import { useCreateSpaceMutation, validatePrefix } from "@entities/space";
 import type { Space } from "@entities/space";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
+import { pickFolder } from "@shared/lib";
 
 import styles from "./SpaceCreateDialog.module.css";
 
@@ -37,12 +43,36 @@ export function SpaceCreateDialog({
   onClose,
   onCreated,
 }: SpaceCreateDialogProps): ReactElement {
+  // Lifted icon/color so the dialog header picker drives the create
+  // payload (etalon: PromptCreateDialog / BoardCreateDialog). Spaces
+  // are seeded with a neutral folder glyph so the sidebar entry has
+  // a baseline icon out of the box; the user can swap or clear it.
+  const [icon, setIcon] = useState<string | null>(
+    "PixelContentFilesFolderOpen",
+  );
+  const [color, setColor] = useState<string>("");
+
   return (
     <Dialog
       title="Create space"
+      titleLeading={
+        <IconColorPicker
+          value={{ icon, color: color === "" ? null : color }}
+          onChange={(next) => {
+            setIcon(next.icon);
+            setColor(next.color ?? "");
+          }}
+          ariaLabel="Space icon and color"
+          data-testid="space-create-dialog-appearance-picker"
+        />
+      }
       isOpen={isOpen}
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) {
+          setIcon("PixelContentFilesFolderOpen");
+          setColor("");
+          onClose();
+        }
       }}
       isDismissable
       className={styles.dialogBody}
@@ -50,7 +80,13 @@ export function SpaceCreateDialog({
     >
       {() => (
         <SpaceCreateDialogContent
-          onClose={onClose}
+          icon={icon}
+          color={color}
+          onClose={() => {
+            setIcon("PixelContentFilesFolderOpen");
+            setColor("");
+            onClose();
+          }}
           {...(onCreated !== undefined ? { onCreated } : {})}
         />
       )}
@@ -61,11 +97,17 @@ export function SpaceCreateDialog({
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface SpaceCreateDialogContentProps {
+  /** Lifted icon state (driven by the dialog header picker). */
+  icon: string | null;
+  /** Lifted color state (driven by the dialog header picker). */
+  color: string;
   onClose: () => void;
   onCreated?: (space: Space) => void;
 }
 
 function SpaceCreateDialogContent({
+  icon,
+  color,
   onClose,
   onCreated,
 }: SpaceCreateDialogContentProps): ReactElement {
@@ -74,9 +116,10 @@ function SpaceCreateDialogContent({
 
   const [name, setName] = useState("");
   const [prefix, setPrefix] = useState("");
-  const [description, setDescription] = useState("");
   const [prefixError, setPrefixError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Round-21: optional project folder path. Empty string means "unset".
+  const [projectFolderPath, setProjectFolderPath] = useState("");
 
   const handlePrefixChange = (value: string): void => {
     setPrefix(value);
@@ -93,6 +136,7 @@ function SpaceCreateDialogContent({
     setSaveError(null);
     const trimmedName = name.trim();
     const trimmedPrefix = prefix.trim();
+    const trimmedProjectFolderPath = projectFolderPath.trim();
 
     if (!trimmedName) {
       setSaveError("Name cannot be empty.");
@@ -107,8 +151,11 @@ function SpaceCreateDialogContent({
 
     type MutationArgs = Parameters<typeof createMutation.mutate>[0];
     const args: MutationArgs = { name: trimmedName, prefix: trimmedPrefix };
-    const trimmedDesc = description.trim();
-    if (trimmedDesc !== "") args.description = trimmedDesc;
+    if (color !== "") args.color = color;
+    if (icon !== null) args.icon = icon;
+    if (trimmedProjectFolderPath.length > 0) {
+      args.projectFolderPath = trimmedProjectFolderPath;
+    }
 
     createMutation.mutate(args, {
       onSuccess: (space) => {
@@ -162,16 +209,39 @@ function SpaceCreateDialogContent({
         ) : null}
       </div>
 
-      {/* Description (optional) */}
+      {/* Project folder — optional. Browse opens the OS-native folder
+       * picker (Finder / Explorer / GTK) and writes the absolute path
+       * back into the input. */}
       <div className={styles.section}>
-        <Input
-          label="Description"
-          value={description}
-          onChange={setDescription}
-          placeholder="Optional description…"
-          className={styles.fullWidthInput}
-          data-testid="space-create-dialog-description-input"
-        />
+        <div className={styles.projectFolderRow}>
+          <Input
+            label="Project folder"
+            value={projectFolderPath}
+            onChange={setProjectFolderPath}
+            placeholder="/Users/you/projects/my-app"
+            description="Optional. Click Browse to pick a folder, or paste a path."
+            className={styles.projectFolderInput}
+            data-testid="space-create-dialog-project-folder-input"
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            onPress={() => {
+              void pickFolder({
+                title: "Select project folder",
+                ...(projectFolderPath.trim().length > 0
+                  ? { defaultPath: projectFolderPath.trim() }
+                  : {}),
+              }).then((picked) => {
+                if (picked !== null) setProjectFolderPath(picked);
+              });
+            }}
+            aria-label="Browse for project folder"
+            data-testid="space-create-dialog-project-folder-browse"
+          >
+            Browse…
+          </Button>
+        </div>
       </div>
 
       {/* Footer */}

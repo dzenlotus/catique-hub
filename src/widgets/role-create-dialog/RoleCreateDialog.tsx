@@ -14,7 +14,7 @@ import { useState, type ReactElement } from "react";
 
 import { useCreateRoleMutation } from "@entities/role";
 import type { Role } from "@entities/role";
-import { Dialog, Button, Input } from "@shared/ui";
+import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 
 import styles from "./RoleCreateDialog.module.css";
 
@@ -69,6 +69,7 @@ function RoleCreateDialogContent({
   const [name, setName] = useState("");
   const [content, setContent] = useState("");
   const [color, setColor] = useState("");
+  const [icon, setIcon] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const canSubmit = name.trim().length > 0;
@@ -86,6 +87,7 @@ function RoleCreateDialogContent({
     // content defaults to "" on Rust side when omitted; send only when non-empty.
     if (content !== "") args.content = content;
     if (color !== "") args.color = color;
+    if (icon !== null) args.icon = icon;
 
     createMutation.mutate(args, {
       onSuccess: (role) => {
@@ -93,7 +95,9 @@ function RoleCreateDialogContent({
         onClose();
       },
       onError: (err) => {
-        setSaveError(`Failed to create: ${err.message}`);
+        const detail =
+          err instanceof Error && err.message ? err.message : String(err);
+        setSaveError(`Failed to create: ${detail}`);
       },
     });
   };
@@ -104,48 +108,30 @@ function RoleCreateDialogContent({
 
   return (
     <>
-      {/* Name */}
-      <div className={styles.section}>
-        <Input
-          label="Name"
-          value={name}
-          onChange={setName}
-          placeholder="Role name"
-          autoFocus
-          className={styles.fullWidthInput}
-          data-testid="role-create-dialog-name-input"
+      {/* Identity row: IconColorPicker on the LEFT, Name on the right.
+          Mirrors PromptGroupCreateDialog (audit-D, commit db80282)
+          per maintainer feedback — same layout pattern for every
+          create-dialog with an IconColorPicker. */}
+      <div className={styles.identityRow}>
+        <IconColorPicker
+          value={{ icon, color: color === "" ? null : color }}
+          onChange={(next) => {
+            setIcon(next.icon);
+            setColor(next.color ?? "");
+          }}
+          ariaLabel="Role icon and color"
+          data-testid="role-create-dialog-color-input"
         />
-      </div>
-
-      {/* Color */}
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>Color</p>
-        <div className={styles.colorRow}>
-          {color !== "" && (
-            <span
-              className={styles.colorSwatch}
-              style={{ backgroundColor: color }}
-              aria-hidden="true"
-            />
-          )}
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={color === "" ? "#000000" : color}
-            onChange={(e) => setColor(e.target.value)}
-            aria-label="Role color"
-            data-testid="role-create-dialog-color-input"
+        <div className={styles.identityFields}>
+          <Input
+            label="Name"
+            value={name}
+            onChange={setName}
+            placeholder="Role name"
+            autoFocus
+            className={styles.fullWidthInput}
+            data-testid="role-create-dialog-name-input"
           />
-          {color !== "" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setColor("")}
-              data-testid="role-create-dialog-color-reset"
-            >
-              Reset
-            </Button>
-          )}
         </div>
       </div>
 

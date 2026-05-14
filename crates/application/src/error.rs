@@ -84,4 +84,28 @@ pub enum AppError {
         #[ts(rename = "secretRef")]
         secret_ref: String,
     },
+
+    /// Action targets a resource the caller is not allowed to mutate —
+    /// e.g. attempting to delete an `is_system` row seeded by a
+    /// migration. Distinct from `Validation` so the UI can render a
+    /// different affordance (lock icon vs. inline form error).
+    #[error("forbidden: {reason}")]
+    Forbidden { reason: String },
+
+    /// Request payload is structurally valid but semantically rejected
+    /// at the use-case layer — e.g. supplying a coordinator role where
+    /// only an owner role is allowed. Distinct from `Validation` (which
+    /// targets a single `field`) and `Conflict` (which is a state-level
+    /// collision, not a request-shape issue).
+    #[error("bad request: {reason}")]
+    BadRequest { reason: String },
+
+    /// An upstream MCP server (reached via the pass-through proxy —
+    /// ADR-0008) failed to fulfil a `tools/call`. `kind` is the short
+    /// structured token (`transport` / `isError` / `timeout` / …),
+    /// `message` is the human-readable detail. Distinct from
+    /// `InternalPanic` because the failure is upstream, not in our
+    /// own handler.
+    #[error("upstream `{kind}`: {message}")]
+    Upstream { kind: String, message: String },
 }

@@ -12,9 +12,15 @@ import { ToastProvider } from "@app/providers/ToastProvider";
 // error, empty, populated) can be driven from here. We avoid mocking
 // @entities/role itself to keep the test exercising the real react-query
 // store.
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { RolesList } from "./RolesList";
@@ -46,6 +52,7 @@ function makeRole(overrides: Partial<Role> = {}): Role {
     name: "Senior Engineer",
     content: "Architecture ownership.",
     color: null,
+    icon: null,
     isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,
@@ -81,7 +88,7 @@ describe("RolesList", () => {
     await waitFor(() => {
       expect(screen.getByTestId("roles-list-empty")).toBeInTheDocument();
     });
-    expect(screen.getByText(/no agent roles yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no roles yet/i)).toBeInTheDocument();
   });
 
   it("renders one RoleCard per role when populated", async () => {

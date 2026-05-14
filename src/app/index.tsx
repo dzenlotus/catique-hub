@@ -1,6 +1,19 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 
+// E2E mock IPC bridge — installed BEFORE any module that calls
+// `invoke()` does its first call. The static import keeps the bridge
+// in the bundle when `VITE_E2E === "1"` at build time; when the flag
+// is unset Vite's `define` rewrites `import.meta.env.VITE_E2E` to a
+// literal `"0"`, so the `if (false) { ... }` branch is dropped along
+// with the unused import binding. See `src/e2e/bridge/index.ts` for
+// the architectural rationale and extension guide.
+import { installMockBridge } from "@/e2e/bridge";
+
+if (import.meta.env.VITE_E2E === "1") {
+  installMockBridge();
+}
+
 import App from "./App";
 import { AppProviders } from "./providers";
 import { LocalStorageStore, stringCodec } from "@shared/storage";

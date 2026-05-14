@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026-05-01
+**Spike-validated:** 2026-05-05 — see `experiments/sidecar-spike/`. Cold-start 20–40 ms (≪ 2 s budget). Q-1 size revised to +30–35 MB (UPX dropped: incompatible with macOS codesign).
 **Author:** Catique HUB team
 **Roadmap item:** ctq-56 (ADR-0002 MCP sidecar architecture — approval + spike)
 **Unblocks:** E5 (real MCP bridge — tool surface, hub-bridge mode)

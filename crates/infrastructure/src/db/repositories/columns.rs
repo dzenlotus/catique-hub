@@ -22,6 +22,12 @@ pub struct ColumnRow {
     pub position: i64,
     pub role_id: Option<String>,
     pub created_at: i64,
+    /// `true` for the board's default column (migration
+    /// `016_default_board_naming_and_constraints.sql`). Default columns
+    /// are immutable in the delete path: the use-case layer refuses to
+    /// remove them, and cross-board task moves drop tasks here. Stored
+    /// as INTEGER 0/1 — converted on read.
+    pub is_default: bool,
 }
 
 impl ColumnRow {
@@ -33,6 +39,7 @@ impl ColumnRow {
             position: row.get("position")?,
             role_id: row.get("role_id")?,
             created_at: row.get("created_at")?,
+            is_default: row.get::<_, i64>("is_default")? != 0,
         })
     }
 }
@@ -44,6 +51,10 @@ pub struct ColumnDraft {
     pub name: String,
     pub position: i64,
     pub role_id: Option<String>,
+    /// `true` flags this column as the board's mandatory default
+    /// (migration `016_*`). Set on insert only — there is no patch
+    /// path that mutates this column, mirroring `boards.is_default`.
+    pub is_default: bool,
 }
 
 /// Partial update payload for `update`.
@@ -63,7 +74,7 @@ pub struct ColumnPatch {
 /// Surfaces rusqlite errors.
 pub fn list_all(conn: &Connection) -> Result<Vec<ColumnRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, board_id, name, position, role_id, created_at \
+        "SELECT id, board_id, name, position, role_id, created_at, is_default \
          FROM columns ORDER BY board_id, position ASC",
     )?;
     let rows = stmt.query_map([], ColumnRow::from_row)?;
@@ -81,11 +92,33 @@ pub fn list_all(conn: &Connection) -> Result<Vec<ColumnRow>, DbError> {
 /// Surfaces rusqlite errors.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<ColumnRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, board_id, name, position, role_id, created_at \
+        "SELECT id, board_id, name, position, role_id, created_at, is_default \
          FROM columns WHERE id = ?1",
     )?;
     Ok(stmt
         .query_row(params![id], ColumnRow::from_row)
+        .optional()?)
+}
+
+/// Look up the default column for a board, if any. Migration `016_*`
+/// guarantees every board owns exactly one default column, but this
+/// helper still returns `Option` because the database state may briefly
+/// drift during multi-step migrations or test fixtures.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn get_default_for_board(
+    conn: &Connection,
+    board_id: &str,
+) -> Result<Option<ColumnRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, board_id, name, position, role_id, created_at, is_default \
+         FROM columns WHERE board_id = ?1 AND is_default = 1 \
+         ORDER BY position ASC LIMIT 1",
+    )?;
+    Ok(stmt
+        .query_row(params![board_id], ColumnRow::from_row)
         .optional()?)
 }
 
@@ -110,16 +143,18 @@ pub fn board_exists(conn: &Connection, board_id: &str) -> Result<bool, DbError> 
 pub fn insert(conn: &Connection, draft: &ColumnDraft) -> Result<ColumnRow, DbError> {
     let id = new_id();
     let now = now_millis();
+    let is_default = i64::from(draft.is_default);
     conn.execute(
         "INSERT INTO columns \
-            (id, board_id, name, position, role_id, created_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            (id, board_id, name, position, role_id, is_default, created_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             id,
             draft.board_id,
             draft.name,
             draft.position,
             draft.role_id,
+            is_default,
             now
         ],
     )?;
@@ -130,6 +165,7 @@ pub fn insert(conn: &Connection, draft: &ColumnDraft) -> Result<ColumnRow, DbErr
         position: draft.position,
         role_id: draft.role_id.clone(),
         created_at: now,
+        is_default: draft.is_default,
     })
 }
 
@@ -216,6 +252,7 @@ mod tests {
                 name: "Todo".into(),
                 position: 1,
                 role_id: None,
+                is_default: false,
             },
         )
         .unwrap();
@@ -234,6 +271,7 @@ mod tests {
                 name: "C2".into(),
                 position: 2,
                 role_id: None,
+                is_default: false,
             },
         )
         .unwrap();
@@ -244,6 +282,7 @@ mod tests {
                 name: "C1".into(),
                 position: 1,
                 role_id: None,
+                is_default: false,
             },
         )
         .unwrap();
@@ -263,6 +302,7 @@ mod tests {
                 name: "Old".into(),
                 position: 1,
                 role_id: None,
+                is_default: false,
             },
         )
         .unwrap();
@@ -291,6 +331,7 @@ mod tests {
                 name: "X".into(),
                 position: 1,
                 role_id: None,
+                is_default: false,
             },
         )
         .unwrap();
@@ -308,6 +349,7 @@ mod tests {
                 name: "X".into(),
                 position: 1,
                 role_id: None,
+                is_default: false,
             },
         )
         .expect_err("FK");
@@ -330,6 +372,7 @@ mod tests {
                 name: "C".into(),
                 position: 1,
                 role_id: None,
+                is_default: false,
             },
         )
         .unwrap();

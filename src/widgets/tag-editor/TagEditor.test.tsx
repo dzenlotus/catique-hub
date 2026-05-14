@@ -7,9 +7,15 @@ import type { ReactElement } from "react";
 import type { Tag } from "@entities/tag";
 import { ToastProvider } from "@app/providers/ToastProvider";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { TagEditor } from "./TagEditor";
@@ -98,7 +104,10 @@ describe("TagEditor", () => {
 
     await screen.findByTestId("tag-editor-name-input");
     expect(screen.getByTestId("tag-editor-name-input")).toHaveValue("Тестовый тег");
-    expect((screen.getByTestId("tag-editor-color-input") as HTMLInputElement).value).toBe("#ff0000");
+    // Round-19d: the standalone color input was replaced with a
+    // combined `<IconColorPicker>`. The trigger is rendered on the
+    // form; the actual color input lives inside the popover.
+    expect(screen.getByTestId("tag-editor-color-input")).toBeInTheDocument();
   });
 
   it("name input is editable", async () => {
@@ -176,9 +185,14 @@ describe("TagEditor", () => {
 
     await screen.findByTestId("tag-editor-name-input");
 
-    // Click the "Reset" button to clear the color.
-    const resetButton = screen.getByText("Reset");
+    // Open the IconColorPicker popover and click its Reset button.
+    await user.click(screen.getByTestId("tag-editor-color-input"));
+    const resetButton = await screen.findByTestId(
+      "tag-editor-color-input-color-clear",
+    );
     await user.click(resetButton);
+    // Dismiss the popover so its overlay does not eat the Save press.
+    await user.keyboard("{Escape}");
 
     const saveButton = screen.getByTestId("tag-editor-save");
     await user.click(saveButton);

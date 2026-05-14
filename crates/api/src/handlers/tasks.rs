@@ -6,7 +6,8 @@
 //! `<prefix>-<6char>` rationale.
 
 use catique_application::{tasks::TasksUseCase, AppError};
-use catique_domain::{Prompt, Task};
+use catique_domain::{Prompt, Task, TaskBundle, TaskRating};
+use catique_infrastructure::paths::app_data_dir;
 use serde_json::json;
 use tauri::State;
 
@@ -119,18 +120,184 @@ pub async fn update_task(
     Ok(after)
 }
 
-/// IPC: delete a task.
+/// IPC: move a task to a different column (and optionally reposition).
+///
+/// Promptery-compat shape (audit F-10 / ctq-107). Promptery's MCP tool
+/// catalogue exposes `move_task(task_id, column_id, position?)` as a
+/// first-class operation; agents written against that contract land
+/// here without a wire-shape translation step. Catique HUB's own
+/// `update_task` covers the same surface and stays available — both
+/// names work.
+///
+/// **Cross-board moves:** when `column_id` belongs to a different
+/// board than the task's current row, the use-case patches
+/// `tasks.board_id` in the same connection so the row stays internally
+/// consistent. The task's `role_id` and every direct `task_prompts`
+/// row (`origin = 'direct'`) survive the move untouched.
+///
+/// Emits `task:updated` plus `task:moved` (when the column actually
+/// changed) so the realtime frontend cache invalidates the same way it
+/// does for `update_task`.
 ///
 /// # Errors
 ///
-/// Forwards every error from `TasksUseCase::delete`.
+/// * `AppError::NotFound` — `task_id` or `column_id` does not exist.
+/// * Storage-layer errors as usual.
+#[tauri::command]
+pub async fn move_task(
+    state: State<'_, AppState>,
+    task_id: String,
+    column_id: Option<String>,
+    board_id: Option<String>,
+    position: Option<f64>,
+) -> Result<Task, AppError> {
+    // Snapshot the pre-move task so the post-emit logic can decide
+    // whether to also fire `task:moved` (column actually changed) —
+    // mirrors `update_task`'s compare-and-emit shape.
+    let uc = TasksUseCase::new(&state.pool);
+    let before = uc.get(&task_id)?;
+    // D-006: kanban drop-on-board-zone resolves to the board's
+    // default column when `column_id` is omitted. Either argument
+    // form is allowed; `column_id` wins when both are supplied so
+    // explicit caller intent never gets silently overridden.
+    let resolved_column = match (column_id, board_id) {
+        (Some(c), _) => c,
+        (None, Some(target_board)) => {
+            // Defer to `route_task_to_board` so the default-column
+            // resolution and `NotFound { entity: "default_column" }`
+            // mapping stay one source of truth.
+            let after = uc.route_task_to_board(task_id.clone(), target_board)?;
+            events::emit(
+                &state,
+                events::TASK_UPDATED,
+                json!({
+                    "id": after.id,
+                    "column_id": after.column_id,
+                    "board_id": after.board_id,
+                }),
+            );
+            if before.column_id != after.column_id {
+                events::emit(
+                    &state,
+                    events::TASK_MOVED,
+                    json!({
+                        "id": after.id,
+                        "from_column_id": before.column_id,
+                        "to_column_id": after.column_id,
+                        "board_id": after.board_id,
+                    }),
+                );
+            }
+            return Ok(after);
+        }
+        (None, None) => {
+            return Err(AppError::Validation {
+                field: "column_id".into(),
+                reason: "either columnId or boardId must be supplied".into(),
+            });
+        }
+    };
+    let after = uc.move_task(task_id, resolved_column, position)?;
+    events::emit(
+        &state,
+        events::TASK_UPDATED,
+        json!({
+            "id": after.id,
+            "column_id": after.column_id,
+            "board_id": after.board_id,
+        }),
+    );
+    if before.column_id != after.column_id {
+        events::emit(
+            &state,
+            events::TASK_MOVED,
+            json!({
+                "id": after.id,
+                "from_column_id": before.column_id,
+                "to_column_id": after.column_id,
+                "board_id": after.board_id,
+            }),
+        );
+    }
+    Ok(after)
+}
+
+/// IPC: drop a task onto another board's default column.
+///
+/// D-006 (migration `016_default_board_naming_and_constraints.sql`):
+/// every board owns exactly one `is_default = 1` column, so cross-board
+/// kanban drag-drop can always land without the caller having to look
+/// up the destination column id. This handler is a thin wrapper over
+/// `TasksUseCase::route_task_to_board` — it resolves the default column
+/// and forwards to `move_task` so the cross-board `board_id` patch and
+/// the direct-prompt preservation contract stay in one path.
+///
+/// Emits `task:updated` plus `task:moved` (when the column actually
+/// changed) — same shape as `move_task`.
+///
+/// # Errors
+///
+/// * `AppError::NotFound` — `task_id` or `target_board_id` is unknown,
+///   or the target board has no default column (data-corruption signal).
+#[tauri::command]
+pub async fn route_task_to_board(
+    state: State<'_, AppState>,
+    task_id: String,
+    target_board_id: String,
+) -> Result<Task, AppError> {
+    let uc = TasksUseCase::new(&state.pool);
+    let before = uc.get(&task_id)?;
+    let after = uc.route_task_to_board(task_id, target_board_id)?;
+    events::emit(
+        &state,
+        events::TASK_UPDATED,
+        json!({
+            "id": after.id,
+            "column_id": after.column_id,
+            "board_id": after.board_id,
+        }),
+    );
+    if before.column_id != after.column_id {
+        events::emit(
+            &state,
+            events::TASK_MOVED,
+            json!({
+                "id": after.id,
+                "from_column_id": before.column_id,
+                "to_column_id": after.column_id,
+                "board_id": after.board_id,
+            }),
+        );
+    }
+    Ok(after)
+}
+
+/// IPC: delete a task.
+///
+/// Performs the FK cascade on `task_attachments` rows AND removes the
+/// per-task on-disk attachment directory under
+/// `$APPLOCALDATA/catique/attachments/<task_id>/`. Both halves are
+/// best-effort on the FS side: if the directory is missing or removal
+/// fails, the IPC call still succeeds (warn-and-continue) — see
+/// `TasksUseCase::delete_with_attachments` for the rationale.
+///
+/// # Errors
+///
+/// Forwards every error from `TasksUseCase::delete_with_attachments`.
+/// `AppError::Validation` if the platform's app-data dir cannot be
+/// resolved.
 #[tauri::command]
 pub async fn delete_task(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
     // GET first to obtain `(column_id, board_id)` for the event
     // payload. Same trade-off as `delete_column`.
     let uc = TasksUseCase::new(&state.pool);
     let task = uc.get(&id)?;
-    uc.delete(&id)?;
+    let data_root = app_data_dir().map_err(|reason| AppError::Validation {
+        field: "target_data_dir".into(),
+        reason: reason.to_owned(),
+    })?;
+    let attachments_root = data_root.join("attachments");
+    uc.delete_with_attachments(&id, &attachments_root)?;
     events::emit(
         &state,
         events::TASK_DELETED,
@@ -159,6 +326,25 @@ pub async fn list_task_prompts(
     task_id: String,
 ) -> Result<Vec<Prompt>, AppError> {
     TasksUseCase::new(&state.pool).list_task_prompts(&task_id)
+}
+
+/// IPC: resolve the full agent bundle for one task.
+///
+/// Returns the task row, its active role (task > column > board
+/// fallback), and the deduplicated, origin-tagged prompt list ready for
+/// LLM assembly. ADR-0006 decision (D-004): the resolver reads from
+/// `task_prompts` only — every materialised row is INSERTed at
+/// configuration time so the hot path stays a single index seek.
+///
+/// # Errors
+///
+/// Forwards every error from `TasksUseCase::resolve_task_bundle`.
+#[tauri::command]
+pub async fn get_task_bundle(
+    state: State<'_, AppState>,
+    task_id: String,
+) -> Result<TaskBundle, AppError> {
+    TasksUseCase::new(&state.pool).resolve_task_bundle(&task_id)
 }
 
 /// Attach a prompt directly to a task.
@@ -249,6 +435,95 @@ pub async fn clear_task_prompt_override(
             id: format!("{task_id}|{prompt_id}"),
         })
     }
+}
+
+// ---------------------------------------------------------------------
+// Cat-as-Agent Phase 1 — step log + rating IPC surface (ctq-85, ctq-86,
+// ctq-95). Handlers mirror the use-case signatures one-for-one; no event
+// emission yet — the audit (F-01/F-02) tracks `task:logged` /
+// `task:rated` as a follow-up once the realtime taxonomy is widened.
+// ---------------------------------------------------------------------
+
+/// IPC: append one step-log line to a task. Format produced by the use
+/// case is `[YYYY-MM-DDTHH:MM:SSZ] {summary}\n` — see
+/// `TasksUseCase::log_step` for the full contract.
+///
+/// # Errors
+///
+/// Forwards every error from `TasksUseCase::log_step`.
+#[tauri::command]
+pub async fn log_step(
+    state: State<'_, AppState>,
+    task_id: String,
+    summary: String,
+) -> Result<(), AppError> {
+    TasksUseCase::new(&state.pool).log_step(task_id, summary)
+}
+
+/// IPC: read the raw step-log buffer for a task. Companion to
+/// `log_step`; cheaper than `get_task` when the caller only needs the
+/// log text. Returns `""` for tasks that have never been logged-to;
+/// `AppError::NotFound` if the task id is unknown.
+///
+/// # Errors
+///
+/// `AppError::NotFound` for missing tasks; storage-layer errors.
+#[tauri::command]
+pub async fn get_step_log(state: State<'_, AppState>, task_id: String) -> Result<String, AppError> {
+    let conn = catique_infrastructure::db::pool::acquire(&state.pool).map_err(map_db)?;
+    match catique_infrastructure::db::repositories::tasks::get_step_log(&conn, &task_id)
+        .map_err(map_db)?
+    {
+        Some(text) => Ok(text),
+        None => Err(AppError::NotFound {
+            entity: "task".into(),
+            id: task_id,
+        }),
+    }
+}
+
+/// IPC: set or clear the rating for a task. `rating = None` deletes the
+/// rating value (the row stays so `rated_at` records the unrate moment);
+/// `Some(-1 | 0 | 1)` upserts. Out-of-range integers and missing tasks
+/// surface as typed `AppError`.
+///
+/// The IPC payload uses `i32` because `i8` is not a first-class JSON
+/// number on the TS side; the use case re-narrows to `i8` after the
+/// out-of-range guard.
+///
+/// # Errors
+///
+/// Forwards every error from `TasksUseCase::rate_task`.
+#[tauri::command]
+pub async fn rate_task(
+    state: State<'_, AppState>,
+    task_id: String,
+    rating: Option<i32>,
+) -> Result<(), AppError> {
+    let narrowed = match rating {
+        None => None,
+        Some(v) => Some(i8::try_from(v).map_err(|_| AppError::Validation {
+            field: "rating".into(),
+            reason: "must be one of -1, 0, +1, or null".into(),
+        })?),
+    };
+    TasksUseCase::new(&state.pool).rate_task(task_id, narrowed)
+}
+
+/// IPC: look up the rating row for a task. `Ok(None)` for tasks that
+/// have never been rated; `Ok(Some(row))` with `row.rating = None` for
+/// tasks that were rated and then explicitly un-rated (memo Q4 / AC-R2
+/// distinction).
+///
+/// # Errors
+///
+/// Forwards every error from `TasksUseCase::get_task_rating`.
+#[tauri::command]
+pub async fn get_task_rating(
+    state: State<'_, AppState>,
+    task_id: String,
+) -> Result<Option<TaskRating>, AppError> {
+    TasksUseCase::new(&state.pool).get_task_rating(&task_id)
 }
 
 fn map_db(err: catique_infrastructure::db::pool::DbError) -> AppError {

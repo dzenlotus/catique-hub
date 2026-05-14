@@ -184,6 +184,103 @@ pub fn delete(conn: &Connection, id: &str) -> Result<bool, DbError> {
     Ok(n > 0)
 }
 
+/// List every skill attached to `role_id`, joined from `skills`, ordered
+/// by `role_skills.position ASC` (matches the `add_role_skill` insertion
+/// contract in `roles.rs`).
+///
+/// ctq-117: cat (role) → skills inheritance read path. Returns the full
+/// `SkillRow` shape so the frontend can render name, description, and
+/// colour without a second query.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn list_for_role(conn: &Connection, role_id: &str) -> Result<Vec<SkillRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT s.id, s.name, s.description, s.color, s.position, s.created_at, s.updated_at \
+         FROM role_skills rs \
+         JOIN skills s ON s.id = rs.skill_id \
+         WHERE rs.role_id = ?1 \
+         ORDER BY rs.position ASC, s.name ASC",
+    )?;
+    let rows = stmt.query_map(params![role_id], SkillRow::from_row)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// List every skill attached to `task_id`, joined from `skills`, ordered
+/// by `task_skills.position ASC`. Includes both direct (origin =
+/// 'direct') and inherited rows — caller can post-filter on origin if a
+/// narrower view is desired; ctq-117 surfaces the full attached set.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn list_for_task(conn: &Connection, task_id: &str) -> Result<Vec<SkillRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT s.id, s.name, s.description, s.color, s.position, s.created_at, s.updated_at \
+         FROM task_skills ts \
+         JOIN skills s ON s.id = ts.skill_id \
+         WHERE ts.task_id = ?1 \
+         ORDER BY ts.position ASC, s.name ASC",
+    )?;
+    let rows = stmt.query_map(params![task_id], SkillRow::from_row)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// Attach a skill directly to a task (origin = 'direct'). Idempotent on
+/// `(task_id, skill_id)`: re-insert silently no-ops via INSERT OR IGNORE
+/// — re-adds do not bump position, matching prompt cascade semantics
+/// (ADR-0006).
+///
+/// ctq-127.
+///
+/// # Errors
+///
+/// FK violation on either id surfaces as [`DbError::Sqlite`].
+pub fn add_task_skill(
+    conn: &Connection,
+    task_id: &str,
+    skill_id: &str,
+    position: f64,
+) -> Result<(), DbError> {
+    conn.execute(
+        "INSERT INTO task_skills (task_id, skill_id, origin, position) \
+         VALUES (?1, ?2, 'direct', ?3) \
+         ON CONFLICT(task_id, skill_id) DO NOTHING",
+        params![task_id, skill_id, position],
+    )?;
+    Ok(())
+}
+
+/// Detach a direct skill from a task. Inherited rows (origin
+/// `role:…`, `board:…`, `column:…`) are not touched. Returns `true` if
+/// a row was removed.
+///
+/// ctq-127.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn remove_task_skill(
+    conn: &Connection,
+    task_id: &str,
+    skill_id: &str,
+) -> Result<bool, DbError> {
+    let n = conn.execute(
+        "DELETE FROM task_skills WHERE task_id = ?1 AND skill_id = ?2 AND origin = 'direct'",
+        params![task_id, skill_id],
+    )?;
+    Ok(n > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,5 +419,127 @@ mod tests {
             }
             other => panic!("got {other:?}"),
         }
+    }
+
+    /// ctq-117: list_for_role on a role with no attached skills returns
+    /// an empty Vec without an error.
+    #[test]
+    fn list_for_role_empty() {
+        let conn = fresh_db();
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) \
+             VALUES ('r1','R1','',0,0)",
+            [],
+        )
+        .unwrap();
+        let list = list_for_role(&conn, "r1").unwrap();
+        assert!(list.is_empty());
+    }
+
+    /// ctq-117: list_for_role returns attached skills ordered by
+    /// `role_skills.position ASC` regardless of insertion order.
+    #[test]
+    fn list_for_role_ordered_by_join_position() {
+        let conn = fresh_db();
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) \
+             VALUES ('r1','R1','',0,0)",
+            [],
+        )
+        .unwrap();
+        let s_a = insert(
+            &conn,
+            &SkillDraft {
+                name: "Alpha".into(),
+                description: None,
+                color: None,
+                position: 0.0,
+            },
+        )
+        .unwrap();
+        let s_b = insert(
+            &conn,
+            &SkillDraft {
+                name: "Bravo".into(),
+                description: None,
+                color: None,
+                position: 0.0,
+            },
+        )
+        .unwrap();
+        // Insert join rows out of position-order on purpose.
+        conn.execute(
+            "INSERT INTO role_skills (role_id, skill_id, position) VALUES ('r1', ?1, 2.0)",
+            params![s_a.id],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO role_skills (role_id, skill_id, position) VALUES ('r1', ?1, 1.0)",
+            params![s_b.id],
+        )
+        .unwrap();
+        let list = list_for_role(&conn, "r1").unwrap();
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[0].name, "Bravo");
+        assert_eq!(list[1].name, "Alpha");
+    }
+
+    /// ctq-127: add_task_skill is idempotent on `(task_id, skill_id)` —
+    /// re-add does not duplicate the row and does not change the
+    /// stored position (matching prompt cascade semantics).
+    #[test]
+    fn add_task_skill_idempotent_and_positioned() {
+        let conn = fresh_db();
+        conn.execute_batch(
+            "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
+                 VALUES ('sp','Space','sp',0,0,0,0); \
+             INSERT INTO boards (id, name, space_id, position, created_at, updated_at) \
+                 VALUES ('bd','B','sp',0,0,0); \
+             INSERT INTO columns (id, board_id, name, position, created_at) \
+                 VALUES ('co','bd','C',0,0); \
+             INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES ('t1','bd','co','sp-1','T',0,0,0);",
+        )
+        .unwrap();
+        let s = insert(
+            &conn,
+            &SkillDraft {
+                name: "S".into(),
+                description: None,
+                color: None,
+                position: 0.0,
+            },
+        )
+        .unwrap();
+        add_task_skill(&conn, "t1", &s.id, 1.0).unwrap();
+        // Re-add at a different position — should be a no-op.
+        add_task_skill(&conn, "t1", &s.id, 999.0).unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_skills WHERE task_id = 't1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1, "re-add must not duplicate the join row");
+        let pos: f64 = conn
+            .query_row(
+                "SELECT position FROM task_skills WHERE task_id = 't1' AND skill_id = ?1",
+                params![s.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(
+            (pos - 1.0).abs() < f64::EPSILON,
+            "re-add must not bump position"
+        );
+    }
+
+    /// ctq-127: remove_task_skill returns false when no row matches and
+    /// only deletes `origin = 'direct'` rows.
+    #[test]
+    fn remove_task_skill_false_when_missing() {
+        let conn = fresh_db();
+        assert!(!remove_task_skill(&conn, "ghost", "ghost").unwrap());
     }
 }

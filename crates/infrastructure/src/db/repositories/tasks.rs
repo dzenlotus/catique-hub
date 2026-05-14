@@ -381,6 +381,9 @@ pub fn delete(conn: &Connection, id: &str) -> Result<bool, DbError> {
 // ---------------------------------------------------------------------
 // Join-table helpers — task_prompts (direct attachment) +
 // task_prompt_overrides (per-task suppress / force-enable).
+//
+// Inherited-prompt materialisation lives below (`cascade_*`) — see
+// ADR-0006 for the write-time strategy.
 // ---------------------------------------------------------------------
 
 /// Attach a prompt directly to a task (origin = 'direct'). Idempotent.
@@ -394,11 +397,38 @@ pub fn add_task_prompt(
     prompt_id: &str,
     position: f64,
 ) -> Result<(), DbError> {
+    add_task_prompt_with_origin(conn, task_id, prompt_id, position, "direct")
+}
+
+/// Attach a prompt to a task with a specific `origin` tag. The
+/// `origin` argument is the SQL-side string form (`"direct"`,
+/// `"role:<id>"`, `"column:<id>"`, `"board:<id>"`, `"space:<id>"`) — see
+/// `domain::OriginRef` for the typed mirror.
+///
+/// Idempotent on `(task_id, prompt_id)`: if a row already exists with
+/// the **same** origin, only `position` is updated. If the existing row
+/// has a *different* origin we leave it alone — the override rule
+/// "direct beats inherited" is enforced at read time, and we never want
+/// a cascade INSERT to clobber a direct attachment that the user
+/// established explicitly.
+///
+/// # Errors
+///
+/// FK violation surfaces as [`DbError::Sqlite`].
+pub fn add_task_prompt_with_origin(
+    conn: &Connection,
+    task_id: &str,
+    prompt_id: &str,
+    position: f64,
+    origin: &str,
+) -> Result<(), DbError> {
     conn.execute(
         "INSERT INTO task_prompts (task_id, prompt_id, origin, position) \
-         VALUES (?1, ?2, 'direct', ?3) \
-         ON CONFLICT(task_id, prompt_id) DO UPDATE SET position = excluded.position",
-        params![task_id, prompt_id, position],
+         VALUES (?1, ?2, ?4, ?3) \
+         ON CONFLICT(task_id, prompt_id) DO UPDATE SET \
+            position = excluded.position \
+         WHERE task_prompts.origin = excluded.origin",
+        params![task_id, prompt_id, position, origin],
     )?;
     Ok(())
 }
@@ -482,6 +512,431 @@ pub fn list_task_prompts(
          ORDER BY tp.position ASC",
     )?;
     let rows = stmt.query_map(params![task_id], super::prompts::PromptRow::from_row_pub)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+// =====================================================================
+// Inherited-prompt materialisation (ADR-0006 — write-time strategy).
+//
+// Whenever a prompt is attached at any scope above task-direct, the
+// application layer calls one of the `cascade_prompt_attachment_*`
+// helpers below to INSERT one row into `task_prompts` for every task
+// that inherits the attachment. Detachment uses the symmetric
+// `cascade_prompt_detachment_*` helpers. The existing role-delete
+// trigger (`001_initial.sql:245-251`) already strips role-origin rows
+// when the parent role is dropped; the helpers here cover the
+// configuration-time mutations.
+//
+// The hot read path lives in [`resolve_task_bundle`] further down; it
+// is a single index-scan over `task_prompts` joined to `prompts` plus a
+// small Rust-side dedup (override rule "direct beats inherited"). See
+// ADR-0006 §"Decision" for the latency-budget rationale (P99 < 50 ms).
+// =====================================================================
+
+/// Scope at which a prompt was attached, i.e. which join-table row the
+/// caller just inserted. Mirrors the domain-side `OriginRef` minus the
+/// `Direct` variant (direct attachments don't cascade).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AttachScope {
+    /// Cascade onto every task with `task.role_id = role_id`.
+    Role(String),
+    /// Cascade onto every task whose column is `column_id`.
+    Column(String),
+    /// Cascade onto every task whose board is `board_id`.
+    Board(String),
+    /// Cascade onto every task whose board's space is `space_id`.
+    Space(String),
+}
+
+impl AttachScope {
+    /// SQL-side origin tag: `role:<id>` / `column:<id>` / `board:<id>` /
+    /// `space:<id>`. The format matches the cleanup trigger at
+    /// `001_initial.sql:245-251`.
+    fn origin_tag(&self) -> String {
+        match self {
+            Self::Role(id) => format!("role:{id}"),
+            Self::Column(id) => format!("column:{id}"),
+            Self::Board(id) => format!("board:{id}"),
+            Self::Space(id) => format!("space:{id}"),
+        }
+    }
+}
+
+/// Materialise one prompt onto every task in scope. Idempotent on
+/// `(task_id, prompt_id)` — the `INSERT OR IGNORE` form is critical so
+/// re-runs (and the backfill walker) don't bump positions on direct
+/// rows that share the same `prompt_id`.
+///
+/// `position` is copied verbatim from the source join table's position
+/// column — the resolver re-orders by precedence first, position
+/// second, so the position only matters within a single origin bucket.
+///
+/// # Errors
+///
+/// FK violation surfaces as [`DbError::Sqlite`]. The cascade SELECT is
+/// FK-safe by construction (it only enumerates existing tasks).
+pub fn cascade_prompt_attachment(
+    conn: &Connection,
+    scope: &AttachScope,
+    prompt_id: &str,
+    position: f64,
+) -> Result<usize, DbError> {
+    let origin = scope.origin_tag();
+    let n = match scope {
+        AttachScope::Role(id) => conn.execute(
+            "INSERT INTO task_prompts (task_id, prompt_id, origin, position) \
+             SELECT t.id, ?2, ?3, ?4 \
+             FROM tasks t \
+             WHERE t.role_id = ?1 \
+             ON CONFLICT(task_id, prompt_id) DO NOTHING",
+            params![id, prompt_id, origin, position],
+        )?,
+        AttachScope::Column(id) => conn.execute(
+            "INSERT INTO task_prompts (task_id, prompt_id, origin, position) \
+             SELECT t.id, ?2, ?3, ?4 \
+             FROM tasks t \
+             WHERE t.column_id = ?1 \
+             ON CONFLICT(task_id, prompt_id) DO NOTHING",
+            params![id, prompt_id, origin, position],
+        )?,
+        AttachScope::Board(id) => conn.execute(
+            "INSERT INTO task_prompts (task_id, prompt_id, origin, position) \
+             SELECT t.id, ?2, ?3, ?4 \
+             FROM tasks t \
+             WHERE t.board_id = ?1 \
+             ON CONFLICT(task_id, prompt_id) DO NOTHING",
+            params![id, prompt_id, origin, position],
+        )?,
+        AttachScope::Space(id) => conn.execute(
+            "INSERT INTO task_prompts (task_id, prompt_id, origin, position) \
+             SELECT t.id, ?2, ?3, ?4 \
+             FROM tasks t \
+             JOIN boards b ON b.id = t.board_id \
+             WHERE b.space_id = ?1 \
+             ON CONFLICT(task_id, prompt_id) DO NOTHING",
+            params![id, prompt_id, origin, position],
+        )?,
+    };
+    Ok(n)
+}
+
+/// Symmetric inverse of [`cascade_prompt_attachment`]: strip every
+/// inherited row that originated from this scope+prompt pair. Direct
+/// rows (`origin = 'direct'`) are explicitly preserved — the override
+/// rule means a user's manual attachment must survive a board-level
+/// detach of the same prompt.
+///
+/// Returns the number of rows deleted.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn cascade_prompt_detachment(
+    conn: &Connection,
+    scope: &AttachScope,
+    prompt_id: &str,
+) -> Result<usize, DbError> {
+    let origin = scope.origin_tag();
+    let n = conn.execute(
+        "DELETE FROM task_prompts WHERE prompt_id = ?1 AND origin = ?2",
+        params![prompt_id, origin],
+    )?;
+    Ok(n)
+}
+
+/// Strip every inherited row with the given scope-origin (regardless of
+/// `prompt_id`). Used by `set_*_prompts` bulk setters that need to wipe
+/// the scope's contribution before re-cascading the new ordered list.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn cascade_clear_scope(conn: &Connection, scope: &AttachScope) -> Result<usize, DbError> {
+    let origin = scope.origin_tag();
+    let n = conn.execute(
+        "DELETE FROM task_prompts WHERE origin = ?1",
+        params![origin],
+    )?;
+    Ok(n)
+}
+
+/// One row from the resolver's hot-path SELECT. Pure data — the use-case
+/// layer turns this into a `domain::PromptWithOrigin`.
+#[derive(Debug, Clone)]
+pub struct ResolvedPromptRow {
+    pub origin_raw: String,
+    pub position: f64,
+    pub prompt: super::prompts::PromptRow,
+}
+
+/// Resolve the full prompt set for one task — single index scan on
+/// `task_prompts` joined to `prompts`. The override rule "direct beats
+/// inherited" is applied in Rust after the fetch (ADR-0006 §AC-5):
+/// if two rows share `prompt_id`, the higher-precedence origin wins.
+///
+/// Returns rows sorted by `position` ASC; the use-case layer handles
+/// the precedence ordering (Direct > Role > Column > Board > Space)
+/// and the override-rule de-duplication after the fetch.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors. Empty result for unknown `task_id` —
+/// existence is the caller's concern.
+pub fn resolve_task_prompts(
+    conn: &Connection,
+    task_id: &str,
+) -> Result<Vec<ResolvedPromptRow>, DbError> {
+    // AC-1: single-table read path. The `idx_task_prompts_task` index
+    // (001_initial.sql:234) covers the WHERE; the JOIN on prompts is a
+    // primary-key seek per row. EXPLAIN QUERY PLAN confirms no UNION.
+    let mut stmt = conn.prepare(
+        "SELECT tp.origin, tp.position, \
+                p.id, p.name, p.content, p.color, p.short_description, p.icon, \
+                p.examples_json, p.token_count, p.created_at, p.updated_at \
+         FROM task_prompts tp \
+         JOIN prompts p ON p.id = tp.prompt_id \
+         WHERE tp.task_id = ?1 \
+         ORDER BY tp.position ASC",
+    )?;
+    let rows = stmt.query_map(params![task_id], |row| {
+        let origin: String = row.get("origin")?;
+        let position: f64 = row.get("position")?;
+        let prompt = super::prompts::PromptRow::from_row_pub(row)?;
+        Ok(ResolvedPromptRow {
+            origin_raw: origin,
+            position,
+            prompt,
+        })
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// One row of the resolver's hot-path skill SELECT. Pure data — the
+/// use-case layer wraps this into a `domain::SkillWithOrigin`.
+#[derive(Debug, Clone)]
+pub struct ResolvedSkillRow {
+    pub origin_raw: String,
+    pub position: f64,
+    pub skill: super::skills::SkillRow,
+}
+
+/// Resolve the full skill set for one task — single index scan on
+/// `task_skills` joined to `skills`. ctq-119 mirror of
+/// [`resolve_task_prompts`]; the precedence-based override rule
+/// ("direct beats inherited") is applied in Rust at the use-case
+/// layer after the fetch.
+///
+/// Returns rows sorted by `position` ASC.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn resolve_task_skills(
+    conn: &Connection,
+    task_id: &str,
+) -> Result<Vec<ResolvedSkillRow>, DbError> {
+    // `idx_task_skills_task` (001_initial.sql:236) covers the WHERE; the
+    // JOIN onto `skills` is a primary-key seek per row. Same shape as
+    // `resolve_task_prompts` so the two paths share their plan profile.
+    let mut stmt = conn.prepare(
+        "SELECT ts.origin, ts.position, \
+                s.id, s.name, s.description, s.color, s.position AS skill_position, \
+                s.created_at, s.updated_at \
+         FROM task_skills ts \
+         JOIN skills s ON s.id = ts.skill_id \
+         WHERE ts.task_id = ?1 \
+         ORDER BY ts.position ASC",
+    )?;
+    let rows = stmt.query_map(params![task_id], |row| {
+        let origin: String = row.get("origin")?;
+        let position: f64 = row.get("position")?;
+        // Hand-construct the `SkillRow` because the stored procedure
+        // for skills exposes `from_row` over a row that selects
+        // `position` (not `skill_position`). We column-rename here to
+        // avoid the ambiguity with `task_skills.position`.
+        let skill = super::skills::SkillRow {
+            id: row.get("id")?,
+            name: row.get("name")?,
+            description: row.get("description")?,
+            color: row.get("color")?,
+            position: row.get("skill_position")?,
+            created_at: row.get("created_at")?,
+            updated_at: row.get("updated_at")?,
+        };
+        Ok(ResolvedSkillRow {
+            origin_raw: origin,
+            position,
+            skill,
+        })
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// One row of the resolver's hot-path MCP-tool SELECT.
+#[derive(Debug, Clone)]
+pub struct ResolvedMcpToolRow {
+    pub origin_raw: String,
+    pub position: f64,
+    pub mcp_tool: super::mcp_tools::McpToolRow,
+}
+
+/// Resolve the full MCP-tool set for one task. ctq-119 mirror of
+/// [`resolve_task_prompts`].
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn resolve_task_mcp_tools(
+    conn: &Connection,
+    task_id: &str,
+) -> Result<Vec<ResolvedMcpToolRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT tm.origin, tm.position, \
+                m.id, m.name, m.description, m.schema_json, m.color, \
+                m.position AS mcp_tool_position, \
+                m.server_id, m.upstream_name, m.source, m.last_synced_at, \
+                m.created_at, m.updated_at \
+         FROM task_mcp_tools tm \
+         JOIN mcp_tools m ON m.id = tm.mcp_tool_id \
+         WHERE tm.task_id = ?1 \
+         ORDER BY tm.position ASC",
+    )?;
+    let rows = stmt.query_map(params![task_id], |row| {
+        let origin: String = row.get("origin")?;
+        let position: f64 = row.get("position")?;
+        let source_text: String = row.get("source")?;
+        let source = super::mcp_tools::McpToolSourceRow::from_str_pub(&source_text)?;
+        let mcp_tool = super::mcp_tools::McpToolRow {
+            id: row.get("id")?,
+            name: row.get("name")?,
+            description: row.get("description")?,
+            schema_json: row.get("schema_json")?,
+            color: row.get("color")?,
+            position: row.get("mcp_tool_position")?,
+            server_id: row.get("server_id")?,
+            upstream_name: row.get("upstream_name")?,
+            source,
+            last_synced_at: row.get("last_synced_at")?,
+            created_at: row.get("created_at")?,
+            updated_at: row.get("updated_at")?,
+        };
+        Ok(ResolvedMcpToolRow {
+            origin_raw: origin,
+            position,
+            mcp_tool,
+        })
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// Resolve the active role for a task: `task.role_id` if set, else
+/// `column.role_id`, else `board.role_id`. Returns `None` when none of
+/// the three carry a role assignment.
+///
+/// Two queries: one for the task's own role_id (which may dereference
+/// to a row), and a fallback that walks up the column/board chain. The
+/// fallback only runs when the direct lookup misses, so the hot path on
+/// directly-assigned tasks is one row.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn resolve_active_role(
+    conn: &Connection,
+    task_id: &str,
+) -> Result<Option<super::roles::RoleRow>, DbError> {
+    // Single SELECT with a chained COALESCE; SQLite evaluates the
+    // sub-selects lazily so columns/boards lookups only fire when the
+    // higher-precedence column is NULL.
+    let role_id: Option<String> = conn
+        .query_row(
+            "SELECT COALESCE( \
+                t.role_id, \
+                (SELECT c.role_id FROM columns c WHERE c.id = t.column_id), \
+                (SELECT b.role_id FROM boards b WHERE b.id = t.board_id) \
+             ) AS active_role_id \
+             FROM tasks t WHERE t.id = ?1",
+            params![task_id],
+            |r| r.get::<_, Option<String>>(0),
+        )
+        .optional()?
+        .flatten();
+    let Some(rid) = role_id else {
+        return Ok(None);
+    };
+    super::roles::get_by_id(conn, &rid)
+}
+
+// =====================================================================
+// FTS5 search scoped by space + cat (ctq-84).
+// =====================================================================
+
+/// Cat-as-Agent Phase 1 (ctq-84): full-text search over tasks scoped to
+/// a single space + cat (role) pair. Uses the existing `tasks_fts`
+/// virtual table joined back to `tasks` and `boards` so the
+/// `space_id` predicate filters before the FTS5 MATCH ranks. Hard cap
+/// LIMIT 20 — the IPC contract returns the top hits, not a full
+/// unbounded list (the bench seeds 10k tasks; perf-gate is P99 < 100 ms,
+/// see `benches/search_by_cat_and_space.rs`).
+///
+/// **Query sanitisation**: see `super::search::fts5_quote` — terms are
+/// double-quoted and embedded `"` doubled, neutralising every FTS5
+/// operator. An empty / whitespace-only `query` returns `Vec::new()`
+/// without hitting the DB.
+///
+/// **Snippet**: `snippet(tasks_fts, 1, …)` — col 1 is `title`, the only
+/// human-readable indexed column we want surfaced.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors as [`DbError::Sqlite`].
+pub fn search_tasks_by_cat_and_space(
+    conn: &Connection,
+    space_id: &str,
+    cat_id: &str,
+    query: &str,
+) -> Result<Vec<catique_domain::TaskMatch>, DbError> {
+    let Some(fts_query) = super::search::fts5_quote(query) else {
+        return Ok(Vec::new());
+    };
+
+    let mut stmt = conn.prepare(
+        "SELECT t.id, t.title, t.description, t.role_id, \
+                snippet(tasks_fts, 1, '<b>', '</b>', '…', 16) AS snippet \
+         FROM tasks t \
+         JOIN boards b ON t.board_id = b.id \
+         JOIN tasks_fts f ON f.task_id = t.id \
+         WHERE b.space_id = ?1 AND t.role_id = ?2 AND tasks_fts MATCH ?3 \
+         ORDER BY rank \
+         LIMIT 20",
+    )?;
+
+    let rows = stmt.query_map(params![space_id, cat_id, fts_query], |row| {
+        Ok(catique_domain::TaskMatch {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            description: row.get(2)?,
+            role_id: row.get(3)?,
+            snippet: row.get(4)?,
+        })
+    })?;
+
     let mut out = Vec::new();
     for row in rows {
         out.push(row?);
@@ -858,5 +1313,402 @@ mod tests {
         assert_eq!(enabled, 0);
         assert!(clear_task_prompt_override(&conn, &task.id, "p1").unwrap());
         assert!(!clear_task_prompt_override(&conn, &task.id, "p1").unwrap());
+    }
+
+    // -----------------------------------------------------------------
+    // ADR-0006 — write-time materialisation cascades. The unit tests
+    // here cover the repository-level helpers; the use-case-side
+    // wiring is tested in `application::tasks` against the IPC entry
+    // points.
+    // -----------------------------------------------------------------
+
+    /// Helper: insert one prompt row directly (no use-case path).
+    fn seed_prompt(conn: &Connection, id: &str) {
+        conn.execute(
+            "INSERT INTO prompts (id, name, content, created_at, updated_at) \
+             VALUES (?1, ?1, '', 0, 0)",
+            params![id],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn cascade_role_attachment_materialises_rows_for_tasks_on_role() {
+        let (conn, bd, col) = fresh_db_with_board();
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) \
+             VALUES ('rl-x', 'X', '', 0, 0)",
+            [],
+        )
+        .unwrap();
+        seed_prompt(&conn, "p1");
+
+        // Two tasks on the role, one task off it.
+        let on_role_a = insert(
+            &conn,
+            &TaskDraft {
+                role_id: Some("rl-x".into()),
+                ..draft(&bd, &col)
+            },
+        )
+        .unwrap();
+        let on_role_b = insert(
+            &conn,
+            &TaskDraft {
+                role_id: Some("rl-x".into()),
+                ..draft(&bd, &col)
+            },
+        )
+        .unwrap();
+        let off_role = insert(&conn, &draft(&bd, &col)).unwrap();
+
+        let n =
+            cascade_prompt_attachment(&conn, &AttachScope::Role("rl-x".into()), "p1", 1.0).unwrap();
+        assert_eq!(n, 2, "exactly the two role-bearing tasks materialise");
+
+        // Origin tagged correctly on both, untouched on the third.
+        let origin_a: String = conn
+            .query_row(
+                "SELECT origin FROM task_prompts WHERE task_id = ?1 AND prompt_id = 'p1'",
+                params![on_role_a.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(origin_a, "role:rl-x");
+        let origin_b: String = conn
+            .query_row(
+                "SELECT origin FROM task_prompts WHERE task_id = ?1 AND prompt_id = 'p1'",
+                params![on_role_b.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(origin_b, "role:rl-x");
+        let off: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_prompts WHERE task_id = ?1",
+                params![off_role.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(off, 0);
+    }
+
+    #[test]
+    fn cascade_detachment_strips_role_origin_only_preserves_direct() {
+        let (conn, bd, col) = fresh_db_with_board();
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) \
+             VALUES ('rl-x', 'X', '', 0, 0)",
+            [],
+        )
+        .unwrap();
+        seed_prompt(&conn, "p1");
+        let task = insert(
+            &conn,
+            &TaskDraft {
+                role_id: Some("rl-x".into()),
+                ..draft(&bd, &col)
+            },
+        )
+        .unwrap();
+        // Direct attachment first, then a role-cascade for the same prompt.
+        add_task_prompt(&conn, &task.id, "p1", 0.5).unwrap();
+        cascade_prompt_attachment(&conn, &AttachScope::Role("rl-x".into()), "p1", 1.0).unwrap();
+        // Both rows? No — `INSERT OR IGNORE ON CONFLICT` keeps the direct
+        // row in place. The cascade silently skips because direct has
+        // higher precedence (and the override rule wins at read time).
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_prompts WHERE task_id = ?1 AND prompt_id = 'p1'",
+                params![task.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+        let origin: String = conn
+            .query_row(
+                "SELECT origin FROM task_prompts WHERE task_id = ?1 AND prompt_id = 'p1'",
+                params![task.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(origin, "direct", "direct attachment must survive cascade");
+
+        // Detach the role-level attachment — direct row must remain.
+        cascade_prompt_detachment(&conn, &AttachScope::Role("rl-x".into()), "p1").unwrap();
+        let still_direct: String = conn
+            .query_row(
+                "SELECT origin FROM task_prompts WHERE task_id = ?1 AND prompt_id = 'p1'",
+                params![task.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(still_direct, "direct");
+    }
+
+    #[test]
+    fn cascade_board_attachment_hits_every_task_in_board() {
+        let (conn, bd, col) = fresh_db_with_board();
+        seed_prompt(&conn, "pp");
+        for _ in 0..3 {
+            insert(&conn, &draft(&bd, &col)).unwrap();
+        }
+        let n =
+            cascade_prompt_attachment(&conn, &AttachScope::Board(bd.clone()), "pp", 0.0).unwrap();
+        assert_eq!(n, 3);
+        // All three rows tagged board:<id>.
+        let rows: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_prompts WHERE prompt_id = 'pp' AND origin = ?1",
+                params![format!("board:{bd}")],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(rows, 3);
+    }
+
+    #[test]
+    fn cascade_column_attachment_hits_only_column_tasks() {
+        let (conn, bd, col) = fresh_db_with_board();
+        // Add a second column with a task on it.
+        conn.execute(
+            "INSERT INTO columns (id, board_id, name, position, created_at) \
+             VALUES ('c2', ?1, 'Done', 1, 0)",
+            params![bd],
+        )
+        .unwrap();
+        seed_prompt(&conn, "pc");
+        insert(&conn, &draft(&bd, &col)).unwrap();
+        insert(
+            &conn,
+            &TaskDraft {
+                column_id: "c2".into(),
+                ..draft(&bd, &col)
+            },
+        )
+        .unwrap();
+        let n =
+            cascade_prompt_attachment(&conn, &AttachScope::Column(col.clone()), "pc", 0.0).unwrap();
+        assert_eq!(n, 1);
+    }
+
+    #[test]
+    fn cascade_space_attachment_walks_boards_in_space() {
+        let (conn, bd, col) = fresh_db_with_board();
+        seed_prompt(&conn, "ps");
+        insert(&conn, &draft(&bd, &col)).unwrap();
+        // The fixture uses space `sp1`. Cascade by space.
+        let n =
+            cascade_prompt_attachment(&conn, &AttachScope::Space("sp1".into()), "ps", 0.0).unwrap();
+        assert_eq!(n, 1);
+        let origin: String = conn
+            .query_row(
+                "SELECT origin FROM task_prompts WHERE prompt_id = 'ps'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(origin, "space:sp1");
+    }
+
+    #[test]
+    fn resolve_task_prompts_returns_origin_tags() {
+        let (conn, bd, col) = fresh_db_with_board();
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) \
+             VALUES ('rl', 'R', '', 0, 0)",
+            [],
+        )
+        .unwrap();
+        seed_prompt(&conn, "p1");
+        seed_prompt(&conn, "p2");
+        seed_prompt(&conn, "p3");
+        let task = insert(
+            &conn,
+            &TaskDraft {
+                role_id: Some("rl".into()),
+                ..draft(&bd, &col)
+            },
+        )
+        .unwrap();
+
+        // Direct, role-cascade, board-cascade — three distinct prompts.
+        add_task_prompt(&conn, &task.id, "p1", 1.0).unwrap();
+        cascade_prompt_attachment(&conn, &AttachScope::Role("rl".into()), "p2", 2.0).unwrap();
+        cascade_prompt_attachment(&conn, &AttachScope::Board(bd.clone()), "p3", 3.0).unwrap();
+
+        let rows = resolve_task_prompts(&conn, &task.id).unwrap();
+        let mut origins: Vec<String> = rows.iter().map(|r| r.origin_raw.clone()).collect();
+        origins.sort();
+        assert_eq!(
+            origins,
+            vec![
+                format!("board:{bd}"),
+                "direct".to_owned(),
+                "role:rl".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn resolve_active_role_prefers_task_then_column_then_board() {
+        let (conn, bd, col) = fresh_db_with_board();
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) VALUES \
+                ('r-task','RT','',0,0), ('r-col','RC','',0,0), ('r-board','RB','',0,0)",
+            [],
+        )
+        .unwrap();
+
+        // Stamp the column and board with their own role, but no task role yet.
+        conn.execute(
+            "UPDATE columns SET role_id = 'r-col' WHERE id = ?1",
+            params![col],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE boards SET role_id = 'r-board' WHERE id = ?1",
+            params![bd],
+        )
+        .unwrap();
+
+        // Task without role → fallback to column's role.
+        let task = insert(&conn, &draft(&bd, &col)).unwrap();
+        let role = resolve_active_role(&conn, &task.id).unwrap().unwrap();
+        assert_eq!(role.id, "r-col");
+
+        // Stamp task with its own role → wins.
+        conn.execute(
+            "UPDATE tasks SET role_id = 'r-task' WHERE id = ?1",
+            params![task.id],
+        )
+        .unwrap();
+        let role = resolve_active_role(&conn, &task.id).unwrap().unwrap();
+        assert_eq!(role.id, "r-task");
+
+        // Clear column too → board fallback.
+        conn.execute(
+            "UPDATE columns SET role_id = NULL WHERE id = ?1",
+            params![col],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE tasks SET role_id = NULL WHERE id = ?1",
+            params![task.id],
+        )
+        .unwrap();
+        let role = resolve_active_role(&conn, &task.id).unwrap().unwrap();
+        assert_eq!(role.id, "r-board");
+
+        // Clear all → None.
+        conn.execute(
+            "UPDATE boards SET role_id = NULL WHERE id = ?1",
+            params![bd],
+        )
+        .unwrap();
+        assert!(resolve_active_role(&conn, &task.id).unwrap().is_none());
+    }
+
+    /// ctq-84: search returns only tasks whose `(space, role_id)` pair
+    /// matches both predicates. Tasks owned by a different cat or
+    /// living in another space must not surface.
+    #[test]
+    fn search_by_cat_and_space_respects_both_predicates() {
+        let (conn, bd, col) = fresh_db_with_board();
+        conn.execute_batch(
+            "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
+                 VALUES ('sp2','S2','sp2',0,0,0,0); \
+             INSERT INTO boards (id, name, space_id, position, created_at, updated_at) \
+                 VALUES ('bd-other','B','sp2',0,0,0); \
+             INSERT INTO columns (id, board_id, name, position, created_at) \
+                 VALUES ('c-other','bd-other','Todo',0,0); \
+             INSERT INTO roles (id, name, content, created_at, updated_at) VALUES \
+                 ('cat1','Cat1','',0,0), \
+                 ('cat2','Cat2','',0,0);",
+        )
+        .unwrap();
+        // In-scope (sp1, cat1).
+        let _t1 = insert(
+            &conn,
+            &TaskDraft {
+                board_id: bd.clone(),
+                column_id: col.clone(),
+                title: "Refactor pipeline".into(),
+                description: Some("touches the resolver".into()),
+                position: 1.0,
+                role_id: Some("cat1".into()),
+            },
+        )
+        .unwrap();
+        // Same space, different cat — must not match.
+        let _t2 = insert(
+            &conn,
+            &TaskDraft {
+                board_id: bd,
+                column_id: col,
+                title: "Refactor login".into(),
+                description: None,
+                position: 2.0,
+                role_id: Some("cat2".into()),
+            },
+        )
+        .unwrap();
+        // Different space, same cat — must not match.
+        let _t3 = insert(
+            &conn,
+            &TaskDraft {
+                board_id: "bd-other".into(),
+                column_id: "c-other".into(),
+                title: "Refactor exporter".into(),
+                description: None,
+                position: 3.0,
+                role_id: Some("cat1".into()),
+            },
+        )
+        .unwrap();
+        let hits = search_tasks_by_cat_and_space(&conn, "sp1", "cat1", "Refactor").unwrap();
+        assert_eq!(hits.len(), 1, "expected exactly the (sp1,cat1) row");
+        assert_eq!(hits[0].title, "Refactor pipeline");
+        assert_eq!(hits[0].role_id.as_deref(), Some("cat1"));
+        // Snippet must contain a highlight tag.
+        assert!(hits[0].snippet.contains("<b>"));
+    }
+
+    /// ctq-84: empty / whitespace query short-circuits to an empty Vec
+    /// without a DB hit (matches `search_tasks` contract in
+    /// `repositories::search`).
+    #[test]
+    fn search_by_cat_and_space_empty_query_returns_empty() {
+        let (conn, _bd, _col) = fresh_db_with_board();
+        let hits = search_tasks_by_cat_and_space(&conn, "sp1", "anything", "   ").unwrap();
+        assert!(hits.is_empty());
+    }
+
+    /// ctq-84: result list is hard-capped at 20 even when many tasks
+    /// match the predicates.
+    #[test]
+    fn search_by_cat_and_space_caps_at_twenty() {
+        let (conn, bd, col) = fresh_db_with_board();
+        conn.execute(
+            "INSERT INTO roles (id, name, content, created_at, updated_at) VALUES ('catX','X','',0,0)",
+            [],
+        )
+        .unwrap();
+        for i in 0..30 {
+            insert(
+                &conn,
+                &TaskDraft {
+                    board_id: bd.clone(),
+                    column_id: col.clone(),
+                    title: format!("Sweep {i}"),
+                    description: None,
+                    position: f64::from(i),
+                    role_id: Some("catX".into()),
+                },
+            )
+            .unwrap();
+        }
+        let hits = search_tasks_by_cat_and_space(&conn, "sp1", "catX", "Sweep").unwrap();
+        assert_eq!(hits.len(), 20);
     }
 }

@@ -27,3 +27,12 @@ pub(crate) fn now_millis() -> i64 {
 pub(crate) fn new_id() -> String {
     nanoid::nanoid!()
 }
+
+/// Crate-public mint of a new id. Used by the application layer when
+/// it needs the id BEFORE the INSERT — e.g. the keychain-namespace
+/// check on `mcp_servers.auth_json` (ADR-0008) needs the row id in
+/// scope to verify the `key` field.
+#[must_use]
+pub fn pre_mint_id() -> String {
+    new_id()
+}

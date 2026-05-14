@@ -1,0 +1,77 @@
+/*
+ * SyncIndicator — compact pill in the TopBar showing the global
+ * provider-sync state. Token-based; no hard-coded colours.
+ */
+
+.host {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 2px var(--space-8);
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-caption);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.host:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.hostSyncing {
+  color: var(--color-text-default);
+  background-color: var(--color-accent-soft);
+}
+
+.hostError {
+  color: var(--color-status-danger);
+  background-color: var(--color-status-danger-soft);
+  cursor: help;
+}
+
+.icon {
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.hostSyncing .icon {
+  animation: top-bar-sync-spin 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hostSyncing .icon {
+    animation: none;
+  }
+}
+
+.label {
+  line-height: 1;
+}
+
+.tooltip {
+  position: absolute;
+  top: calc(100% + var(--space-4));
+  right: 0;
+  z-index: 10;
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-default);
+  box-shadow: var(--shadow-md, 0 6px 16px rgba(0, 0, 0, 0.12));
+  max-width: 280px;
+  white-space: normal;
+  font-size: var(--font-size-caption);
+}
+
+@keyframes top-bar-sync-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

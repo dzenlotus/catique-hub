@@ -6,9 +6,15 @@ import type { ReactElement } from "react";
 
 import type { Skill } from "@entities/skill";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { SkillCreateDialog } from "./SkillCreateDialog";
@@ -59,9 +65,11 @@ describe("SkillCreateDialog", () => {
     expect(
       screen.getByTestId("skill-create-dialog-description-input"),
     ).toBeInTheDocument();
+    // Round-21: colour affordance dropped — Skill has no `icon` field,
+    // so the IconColorPicker popover read as confused UI.
     expect(
-      screen.getByTestId("skill-create-dialog-color-input"),
-    ).toBeInTheDocument();
+      screen.queryByTestId("skill-create-dialog-color-input"),
+    ).toBeNull();
   });
 
   it("Save button is disabled when name is empty", () => {
@@ -104,7 +112,35 @@ describe("SkillCreateDialog", () => {
     const createCall = invokeMock.mock.calls.find(
       ([cmd]) => cmd === "create_skill",
     );
-    expect(createCall?.[1]).toEqual({ name: "Go" });
+    // `position` is required by the Rust handler; its exact value is a
+    // `Date.now()` snapshot, so just assert the shape.
+    expect(createCall?.[1]).toMatchObject({ name: "Go" });
+    const payload = createCall?.[1] as Record<string, unknown>;
+    expect(typeof payload.position).toBe("number");
+    expect(payload.position).toBeGreaterThan(0);
+  });
+
+  it("sends `position` (number) on create_skill — Rust handler requires it (audit F-01)", async () => {
+    const newSkill = makeSkill();
+    invokeMock.mockResolvedValue(newSkill);
+
+    const { user } = renderWithClient(
+      <SkillCreateDialog isOpen onClose={() => undefined} />,
+    );
+
+    await user.type(
+      screen.getByTestId("skill-create-dialog-name-input"),
+      "Elixir",
+    );
+    await user.click(screen.getByTestId("skill-create-dialog-save"));
+
+    await waitFor(() => {
+      const createCall = invokeMock.mock.calls.find(
+        ([cmd]) => cmd === "create_skill",
+      );
+      const payload = createCall?.[1] as Record<string, unknown>;
+      expect(typeof payload.position).toBe("number");
+    });
   });
 
   it("includes description in payload when filled", async () => {

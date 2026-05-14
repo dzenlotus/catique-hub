@@ -17,16 +17,32 @@
   overflow: hidden;
 }
 
+/*
+ * Scrollable host inside `<SidebarShell>`. Owns the flex sizing only —
+ * padding moves to `.sectionsContent` (the inner wrapper rendered as
+ * the scrollable viewport's content). Applying padding directly to an
+ * OverlayScrollbars host throws off its viewport-height measurement
+ * which silently disables vertical scrolling when the rail overflows
+ * (caught in MCP rail with multiple expanded servers).
+ */
 .sectionsWrap {
   flex: 1 1 auto;
   min-height: 0;
-  display: block;
+}
+
+.sectionsContent {
   /* Top padding aligns the section label vertically with the topbar
      of the content column. */
   padding: 24px 20px 28px;
+  display: flex;
+  flex-direction: column;
 }
 
 .sectionLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
   padding: 0 var(--space-4) var(--space-12);
   font-family: var(--font-sans);
   font-size: 13px;
@@ -39,15 +55,20 @@
   flex-shrink: 0;
 }
 
+.sectionLabelText {
+  flex: 1;
+  min-width: 0;
+}
+
 /* "+ Add ..." trigger pinned at the bottom of a section. Mirrors the
  * typography of regular list rows so it reads as a peer rather than a
  * CTA pill. */
 .addRow {
   display: flex;
   align-items: center;
-  gap: var(--space-12);
+  gap: var(--space-8);
   width: 100%;
-  margin: var(--space-8) 0 0 -4px;
+  margin: var(--space-4) 0 0 -4px;
   padding: var(--space-8) var(--space-2);
   border: none;
   background: transparent;
@@ -80,6 +101,37 @@
   margin-left: 7px;
 }
 
+/* Compact "+" trigger sitting in the trailing slot of a section label.
+   Round-21 (maintainer feedback): replaces the bottom-of-section
+   "+ Add ..." row for sidebar surfaces. */
+.sectionAddTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.sectionAddTrigger:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.sectionAddTrigger:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .addRow {
     transition: none;
@@ -109,9 +161,11 @@
   align-items: center;
   gap: var(--space-8);
   width: 100%;
-  /* Match boardRow's vertical rhythm. Left padding leaves room for the
-   * inset rounded highlight (4 px from the wrapper's inner edge). */
-  padding: 10px var(--space-12) 10px 12px;
+  /* Match boardRow's vertical rhythm. Left padding must equal
+   * `.navItemRow::before` `left` (16 px) so the label sits INSIDE
+   * the hover/active background instead of bleeding 4 px past its
+   * leading edge. */
+  padding: 10px var(--space-12) 10px 16px;
   border-radius: var(--radius-md);
   border: none;
   background-color: transparent;
@@ -137,12 +191,12 @@
  *     contrast selection marker. The strip extends 4 px to the LEFT
  *     of the row (`left: -4px`) so it visually anchors to the
  *     sidebar's outer gutter, not the row's own padding.
+ *
+ * Round-19f: hover + active backgrounds moved up to `.navItemRow`
+ * (the flex row, parent of button + kebab) so the highlight covers
+ * the WHOLE row width — including the trailing kebab — instead of
+ * stopping at the inner button's right edge.
  */
-
-.navItem:hover:not(.navItemActive) {
-  background-color: var(--color-overlay-hover);
-  color: var(--color-text-default);
-}
 
 .navItem:focus-visible {
   outline: 2px solid var(--color-border-focus);
@@ -150,38 +204,27 @@
 }
 
 .navItemActive {
-  background-color: transparent;
   color: var(--color-text-default);
   font-weight: var(--font-weight-semibold);
 }
 
-.navItemActive::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 4px;
-  right: 0;
-  background-color: var(--color-accent-soft);
-  border-radius: var(--radius-sm);
-  z-index: 0;
-}
-
 /* Children sit above the inset-background pseudo. */
-.navItem > * {
+.navItemRow > * {
   position: relative;
   z-index: 1;
 }
 
 /*
- * Red active strip — etalon position. Rendered by `<SidebarNavItem>`
- * as a sibling of the inner button so it can extend 4 px to the LEFT
- * of the button's bounding box and visually anchor to the rail's
- * outer gutter.
+ * Red active strip — canonical position across every rail. Sits
+ * ENTIRELY to the left of the row (`width: 5px`, `left: -5px`) so
+ * its right edge lands exactly at the row's left edge — never
+ * overlaps the active underlay. Keep in sync with
+ * `EntityTree.module.css .rowActive::after` and
+ * `MainSidebar.module.css .navItem.active::after`.
  */
 .activeStrip {
   position: absolute;
-  left: -4px;
+  left: -5px;
   top: 4px;
   bottom: 4px;
   width: 5px;
@@ -198,24 +241,63 @@
   padding-left: var(--space-24);
 }
 
-.navItemNested.navItemActive::before {
-  left: 16px;
-}
-
 .navItemRow:has(.navItemNested) .activeStrip {
-  left: 12px;
+  left: 7px;
 }
 
-/* When a trailing slot (kebab) is rendered, reserve right-padding on
- * the inner button so the label can ellipsise without sliding under
- * the absolutely-positioned trigger. */
+/* The inner button needs to shrink so the trailing trigger can sit
+ * inline next to it without pushing the row's height. `min-width: 0`
+ * + `flex: 1` lets the label ellipsise instead of overflowing. */
 .navItemHasTrailing {
-  padding-right: 36px;
+  flex: 1;
+  min-width: 0;
 }
 
-/* Container that pairs the row button with a trailing kebab/menu trigger. */
+/* Container that pairs the row button with a trailing kebab/menu trigger.
+ * Round-19f: row owns the hover + active background so the highlight
+ * extends across the WHOLE row including the trailing kebab area. */
+.navItemRow:hover:not(.navItemRowActive)::before {
+  background-color: var(--color-overlay-hover);
+}
+
+.navItemRow:hover:not(.navItemRowActive) .navItem {
+  color: var(--color-text-default);
+}
+
+.navItemRowActive {
+  /* Round-19f: accent-soft inset background lives here (was on
+   * .navItemActive::before). Inset 4 px from the left so the red
+   * activeStrip can anchor at the row's leading gutter. */
+}
+
+.navItemRowActive::before {
+  background-color: var(--color-accent-soft);
+}
+
+
 .navItemRow {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-md);
+  transition: background-color 80ms ease-out;
+}
+
+/* Hover / active background overlay. Sits 2 px (`var(--space-2)`) to
+ * the right of the red `.activeStrip` end (which lands at row-x=0) —
+ * that gap is canonical across every rail. The label's own
+ * `padding-left: 16px` keeps the text inset from the underlay edge. */
+.navItemRow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--space-2);
+  right: 0;
+  border-radius: var(--radius-sm);
+  z-index: 0;
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

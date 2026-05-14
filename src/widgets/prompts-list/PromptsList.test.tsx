@@ -1,6 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
@@ -8,18 +7,25 @@ import type { Prompt } from "@entities/prompt";
 import type { Tag } from "@entities/tag";
 import type { PromptTagMapEntry } from "@bindings/PromptTagMapEntry";
 import { ToastProvider } from "@app/providers/ToastProvider";
-import { LocalStorageStore, stringCodec } from "@shared/storage";
+import { LocalStorageStore, jsonCodec } from "@shared/storage";
 
-const activeTagStore = new LocalStorageStore<string>({
-  key: "catique:prompts:active-tag",
-  codec: stringCodec,
+// Round-19e: storage shape switched to a list of tag ids; key follows.
+const activeTagStore = new LocalStorageStore<string[]>({
+  key: "catique:prompts:active-tag-ids",
+  codec: jsonCodec<string[]>(),
 });
 
 // Mock the Tauri invoke wrapper at the shared/api boundary so all four
 // async-UI states can be driven without a real IPC channel.
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { PromptsList } from "./PromptsList";
@@ -172,6 +178,12 @@ describe("PromptsList", () => {
   });
 
   it("filters the grid to prompts that have the selected tag", async () => {
+    // Pre-seed the persisted filter so the grid mounts with t1 active —
+    // round-19f swapped the chip-row UI for a react-aria ComboBox, so
+    // driving the filter via clicks would fight the popover lifecycle
+    // in jsdom. The persisted-state path exercises the same selector
+    // logic without coupling to the new combobox internals.
+    activeTagStore.set(["t1"]);
     mockInvoke({
       prompts: [
         makePrompt({ id: "prm-a", name: "Alpha" }),
@@ -180,32 +192,64 @@ describe("PromptsList", () => {
       tags: [{ id: "t1", name: "rust", color: null, createdAt: 0n, updatedAt: 0n }],
       tagMap: [{ promptId: "prm-a", tagIds: ["t1"] }],
     });
-    const user = userEvent.setup();
     renderWithClient(<PromptsList />);
-    await waitFor(() => {
-      expect(screen.getByTestId("prompts-list-grid")).toBeInTheDocument();
-    });
-    // Click the "rust" tag chip.
-    await user.click(screen.getByTestId("prompts-tag-filter-chip-t1"));
-    // Only Alpha (prm-a) should be visible; Beta has no t1 tag.
     await waitFor(() => {
       expect(screen.getByText("Alpha")).toBeInTheDocument();
     });
     expect(screen.queryByText("Beta")).not.toBeInTheDocument();
   });
 
+  it("audit-C: OR-mode filter — shows prompts that have ANY selected tag", async () => {
+    activeTagStore.set(["t1", "t2"]);
+    mockInvoke({
+      prompts: [
+        makePrompt({ id: "prm-a", name: "Alpha" }),
+        makePrompt({ id: "prm-b", name: "Beta" }),
+        makePrompt({ id: "prm-c", name: "Gamma" }),
+      ],
+      tags: [
+        { id: "t1", name: "rust", color: null, createdAt: 0n, updatedAt: 0n },
+        { id: "t2", name: "ts", color: null, createdAt: 0n, updatedAt: 0n },
+      ],
+      tagMap: [
+        { promptId: "prm-a", tagIds: ["t1"] }, // matches via t1
+        { promptId: "prm-b", tagIds: ["t2"] }, // matches via t2
+        { promptId: "prm-c", tagIds: [] }, // matches nothing
+      ],
+    });
+    renderWithClient(<PromptsList />);
+    await waitFor(() => {
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+    expect(screen.queryByText("Gamma")).not.toBeInTheDocument();
+  });
+
+  it("audit-C: empty selection restores the full list", async () => {
+    // No tags persisted = no filter active.
+    mockInvoke({
+      prompts: [
+        makePrompt({ id: "prm-a", name: "Alpha" }),
+        makePrompt({ id: "prm-b", name: "Beta" }),
+      ],
+      tags: [],
+      tagMap: [],
+    });
+    renderWithClient(<PromptsList />);
+    await waitFor(() => {
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+  });
+
   it('shows filter-empty state with "Clear filter" CTA when filter yields no results', async () => {
+    activeTagStore.set(["t1"]);
     mockInvoke({
       prompts: [makePrompt({ id: "prm-a", name: "Alpha" })],
       tags: [{ id: "t1", name: "rust", color: null, createdAt: 0n, updatedAt: 0n }],
       tagMap: [], // no prompt has this tag
     });
-    const user = userEvent.setup();
     renderWithClient(<PromptsList />);
-    await waitFor(() => {
-      expect(screen.getByTestId("prompts-list-grid")).toBeInTheDocument();
-    });
-    await user.click(screen.getByTestId("prompts-tag-filter-chip-t1"));
     await waitFor(() => {
       expect(
         screen.getByTestId("prompts-list-filter-empty"),

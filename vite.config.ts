@@ -22,6 +22,15 @@ import svgr from "vite-plugin-svgr";
 //
 // Reference: https://tauri.app/start/frontend/vite/
 export default defineConfig(({ command }) => ({
+  // E2E build flag — surfaced as `import.meta.env.VITE_E2E` to the app.
+  // Default is `"0"` so production / Tauri builds tree-shake the mock
+  // bridge install path completely; `npm run e2e:build` overrides this
+  // to `"1"`. Vite already picks up VITE_-prefixed env vars from
+  // `process.env`, so this `define` is belt-and-braces for the case
+  // where the env was set after Vite's own loader ran.
+  define: {
+    "import.meta.env.VITE_E2E": JSON.stringify(process.env.VITE_E2E ?? "0"),
+  },
   // CSS-Modules: in dev (`vite serve`) emit human-readable class names
   // like `TaskCard_dragHandle` so DevTools / live-edits in Inspector are
   // useful. In `vite build` keep a 5-char hash to stay short and avoid
@@ -91,6 +100,10 @@ export default defineConfig(({ command }) => ({
     environment: "jsdom",
     setupFiles: ["./src/app/test-setup.ts"],
     css: true,
+    // Frontend tests live under src/. The Node-side sidecar smoke test
+    // (`sidecar/tests/smoke.test.mjs`) uses the `node:test` runner and
+    // must not be picked up by vitest's discovery.
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

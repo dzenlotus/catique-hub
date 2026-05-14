@@ -1,9 +1,14 @@
 /*
  * MarkdownPreview — typography styles for rendered markdown content.
  *
- * All values are token-based — no hard-coded colours or sizes.
- * The root element carries no background or border; consumers are
- * responsible for providing the container.
+ * All values are token-based — no hard-coded colours or sizes. The root
+ * element carries no background or border; consumers are responsible for
+ * providing the container.
+ *
+ * Syntax highlighting note: rehype-highlight tags AST tokens with
+ * highlight.js classes (`.hljs-keyword`, `.hljs-string`, ...). Rather than
+ * pulling in a hljs theme stylesheet we map a small palette to our tokens
+ * here, so dark/light mode swap follows `[data-theme]` automatically.
  */
 
 /* ── Root ────────────────────────────────────────────────────────── */
@@ -21,7 +26,10 @@
 
 .h1,
 .h2,
-.h3 {
+.h3,
+.h4,
+.h5,
+.h6 {
   margin: 0 0 var(--space-8) 0;
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-default);
@@ -34,7 +42,7 @@
 }
 
 .h2 {
-  font-size: var(--font-size-headline-md);
+  font-size: var(--font-size-headline);
   margin-top: var(--space-12);
 }
 
@@ -43,7 +51,15 @@
   margin-top: var(--space-8);
 }
 
-/* Remove top margin from the very first element */
+.h4,
+.h5,
+.h6 {
+  font-size: var(--font-size-body-lg);
+  margin-top: var(--space-8);
+}
+
+/* Remove top margin from the very first element so the renderer hugs
+ * its container's top edge regardless of the leading block kind. */
 .root > :first-child {
   margin-top: 0;
 }
@@ -92,6 +108,22 @@
   margin-bottom: 0;
 }
 
+/* GFM task list items — remove the bullet so the checkbox is the marker. */
+.li:has(> .checkbox) {
+  list-style: none;
+  margin-left: calc(-1 * var(--space-24));
+}
+
+.checkbox {
+  margin-right: var(--space-8);
+  accent-color: var(--color-accent-bg);
+  /* The spec mandates `disabled`, but that paints the box grey; lift it
+   * back to default opacity so it stays legible inside a paragraph. */
+  opacity: 1;
+  cursor: default;
+  vertical-align: middle;
+}
+
 /* ── Inline code ─────────────────────────────────────────────────── */
 
 .inlineCode {
@@ -127,6 +159,54 @@
   white-space: pre;
 }
 
+/* ── Syntax highlighting (highlight.js token classes) ────────────── */
+
+.pre :global(.hljs-keyword),
+.pre :global(.hljs-selector-tag),
+.pre :global(.hljs-built_in),
+.pre :global(.hljs-meta) {
+  color: var(--color-accent-bg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.pre :global(.hljs-string),
+.pre :global(.hljs-attr),
+.pre :global(.hljs-template-variable) {
+  color: var(--color-accent-hover);
+}
+
+.pre :global(.hljs-number),
+.pre :global(.hljs-literal),
+.pre :global(.hljs-symbol) {
+  color: var(--color-accent-bg);
+}
+
+.pre :global(.hljs-comment),
+.pre :global(.hljs-quote) {
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+.pre :global(.hljs-title),
+.pre :global(.hljs-section),
+.pre :global(.hljs-name) {
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
+}
+
+.pre :global(.hljs-variable),
+.pre :global(.hljs-params) {
+  color: var(--color-text-default);
+}
+
+.pre :global(.hljs-deletion) {
+  color: var(--color-red-500);
+}
+
+.pre :global(.hljs-addition) {
+  color: var(--color-green-500);
+}
+
 /* ── Links ───────────────────────────────────────────────────────── */
 
 .link {
@@ -143,4 +223,86 @@
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
   border-radius: var(--radius-xs);
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+
+.image {
+  display: block;
+  max-width: 100%;
+  /* Clamp very tall images so they never break the surrounding layout. */
+  max-height: 400px;
+  height: auto;
+  margin: var(--space-12) 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* ── Blockquote ──────────────────────────────────────────────────── */
+
+.blockquote {
+  margin: 0 0 var(--space-12) 0;
+  padding: var(--space-4) var(--space-12);
+  border-left: 3px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+  background-color: var(--color-overlay-hover);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.blockquote :global(p):last-child {
+  margin-bottom: 0;
+}
+
+.blockquote:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Tables (GFM) ────────────────────────────────────────────────── */
+
+/* Wrap so wide tables can scroll horizontally inside narrow containers
+ * (preview panels, dialogs) instead of overflowing the layout. */
+.tableWrap {
+  margin: 0 0 var(--space-12) 0;
+  overflow-x: auto;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+}
+
+.tableWrap:last-child {
+  margin-bottom: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-body-sm);
+}
+
+.thead {
+  background-color: var(--color-overlay-hover);
+}
+
+.th,
+.td {
+  padding: var(--space-6) var(--space-12);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border-subtle);
+  vertical-align: top;
+}
+
+.th {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-default);
+}
+
+.tr:last-child .td {
+  border-bottom: none;
+}
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+
+.hr {
+  margin: var(--space-16) 0;
+  border: none;
+  border-top: 1px solid var(--color-border-default);
 }

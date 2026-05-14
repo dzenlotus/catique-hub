@@ -8,9 +8,15 @@ import type { Column } from "@entities/column";
 import type { Role } from "@entities/role";
 import { ToastProvider } from "@app/providers/ToastProvider";
 
-vi.mock("@shared/api", () => ({
-  invoke: vi.fn(),
-}));
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
 
 import { invoke } from "@shared/api";
 import { ColumnEditor } from "./ColumnEditor";
@@ -25,6 +31,7 @@ function makeColumn(overrides: Partial<Column> = {}): Column {
     position: 2n,
     roleId: null,
     createdAt: 0n,
+    isDefault: false,
     ...overrides,
   };
 }
@@ -35,6 +42,7 @@ function makeRole(overrides: Partial<Role> = {}): Role {
     name: "Разработчик",
     content: "",
     color: null,
+    icon: null,
     isSystem: false,
     createdAt: 0n,
     updatedAt: 0n,
@@ -119,7 +127,8 @@ describe("ColumnEditor", () => {
     // Wait for loaded state.
     await screen.findByTestId("column-editor-name-input");
     expect(screen.getByTestId("column-editor-name-input")).toHaveValue("In Progress");
-    expect(screen.getByTestId("column-editor-position-input")).toHaveValue(2);
+    // audit-#12: position field is no longer exposed in the form.
+    expect(screen.queryByTestId("column-editor-position-input")).not.toBeInTheDocument();
     // Role listbox should be present.
     expect(screen.getByTestId("column-editor-role-select")).toBeInTheDocument();
     // "(no role)" option should appear (column has no role).
