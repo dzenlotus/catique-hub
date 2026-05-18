@@ -30,6 +30,7 @@ pub mod skill_steps;
 pub mod skills;
 pub mod spaces;
 pub mod tags;
+pub mod task_links;
 pub mod task_ratings;
 pub mod tasks;
 

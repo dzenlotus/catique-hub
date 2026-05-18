@@ -187,6 +187,13 @@ pub fn run() {
                 use catique_infrastructure::db::event_log;
                 let pool_for_tail = state.pool.clone();
                 let app_for_tail = app.handle().clone();
+                // Optional verbose tracing — set `CATIQUE_EVENTLOG_DEBUG=1`
+                // when investigating cross-process UI-sync regressions
+                // (catique-3). When enabled, every successful emit is
+                // logged with seq + name; without it, only errors and
+                // the seed/health-check lines surface.
+                let event_log_debug =
+                    std::env::var("CATIQUE_EVENTLOG_DEBUG").is_ok_and(|v| v == "1");
                 tauri::async_runtime::spawn(async move {
                     use tauri::Emitter;
                     let mut last_seen: i64 = {
@@ -208,7 +215,11 @@ pub fn run() {
                             }
                         }
                     };
+                    eprintln!(
+                        "[catique-hub] event_log tail started: seed_last_seen={last_seen} debug={event_log_debug}"
+                    );
                     let mut purge_tick: u32 = 0;
+                    let mut idle_ticks: u32 = 0;
                     loop {
                         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                         let pool_clone = pool_for_tail.clone();
@@ -231,14 +242,42 @@ pub fn run() {
                                 Vec::new()
                             }
                         };
+                        if rows.is_empty() {
+                            idle_ticks = idle_ticks.wrapping_add(1);
+                        } else {
+                            idle_ticks = 0;
+                            eprintln!(
+                                "[catique-hub] event_log tail: picked up {} row(s), last_seen={}",
+                                rows.len(),
+                                last_seen
+                            );
+                        }
                         for row in rows {
-                            if let Err(e) = app_for_tail.emit(&row.name, &row.payload) {
-                                eprintln!(
-                                    "[catique-hub] event_log emit({}) failed: {e}",
-                                    row.name
-                                );
+                            match app_for_tail.emit(&row.name, &row.payload) {
+                                Ok(()) => {
+                                    if event_log_debug {
+                                        eprintln!(
+                                            "[catique-hub] event_log emit ok: seq={} name={} payload={}",
+                                            row.seq, row.name, row.payload
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!(
+                                        "[catique-hub] event_log emit({}) failed: {e}",
+                                        row.name
+                                    );
+                                }
                             }
                             last_seen = row.seq;
+                        }
+                        // Health heartbeat every ~30 s of pure idleness so a
+                        // silent listener vs. a wedged tail are easy to tell
+                        // apart in logs. 30_000 / 50 = 600 ticks.
+                        if idle_ticks > 0 && idle_ticks % 600 == 0 {
+                            eprintln!(
+                                "[catique-hub] event_log tail idle: 30s no new rows, last_seen={last_seen}"
+                            );
                         }
                         purge_tick = purge_tick.wrapping_add(1);
                         if purge_tick % 1200 == 0 {

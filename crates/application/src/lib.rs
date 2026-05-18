@@ -12,6 +12,7 @@
 
 // Lints configured via [lints.clippy] in Cargo.toml.
 
+pub mod agent_files;
 pub mod attachments;
 pub mod boards;
 pub mod clients;
@@ -37,5 +38,6 @@ pub mod skills;
 pub mod spaces;
 pub mod tags;
 pub mod tasks;
+pub mod workflow;
 
 pub use error::AppError;

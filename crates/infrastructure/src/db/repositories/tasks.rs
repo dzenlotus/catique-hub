@@ -333,6 +333,39 @@ pub fn get_step_log(conn: &Connection, task_id: &str) -> Result<Option<String>, 
         .optional()?)
 }
 
+/// Read the urgency level for a task. Returns `'none'` for newly-
+/// inserted rows (default) or `None` if the task does not exist.
+/// catique-8 — intentionally outside the `TaskRow` SELECT cluster so
+/// existing call sites do not need updating in lock-step.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn get_urgency(conn: &Connection, task_id: &str) -> Result<Option<String>, DbError> {
+    let mut stmt = conn.prepare("SELECT urgency FROM tasks WHERE id = ?1")?;
+    Ok(stmt
+        .query_row(params![task_id], |r| r.get::<_, String>(0))
+        .optional()?)
+}
+
+/// Update the urgency level for a task. Returns `false` if no row was
+/// touched (unknown id). The CHECK at SQL level rejects unknown
+/// urgency values; the caller is responsible for surfacing that as a
+/// validation error rather than a sqlite constraint failure.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors. CHECK violations come back as
+/// [`DbError::Sqlite`] with `ConstraintViolation`.
+pub fn set_urgency(conn: &Connection, task_id: &str, urgency: &str) -> Result<bool, DbError> {
+    let now = now_millis();
+    let n = conn.execute(
+        "UPDATE tasks SET urgency = ?1, updated_at = ?2 WHERE id = ?3",
+        params![urgency, now, task_id],
+    )?;
+    Ok(n > 0)
+}
+
 /// Format one step-log line as `[YYYY-MM-DDTHH:MM:SSZ] {summary}\n`.
 ///
 /// We format manually rather than pulling in `chrono` / `time` to
