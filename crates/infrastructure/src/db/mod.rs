@@ -14,6 +14,7 @@
 //! (`catique-application`) talks to repositories; nothing outside this
 //! crate touches `rusqlite::Connection` directly.
 
+pub mod event_log;
 pub mod pool;
 pub mod repositories;
 pub mod runner;

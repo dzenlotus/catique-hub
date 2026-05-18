@@ -6,6 +6,10 @@
 //! `%LOCALAPPDATA%\catique\`; on Linux to `$XDG_DATA_HOME/catique/`
 //! (typically `~/.local/share/catique/`).
 //!
+//! Debug builds (`cargo run`, `pnpm tauri dev`) substitute `catique-dev/`
+//! so a developer's working dataset stays isolated from any release
+//! bundle installed locally for smoke-testing.
+//!
 //! Layout under that root (Wave-E1 placeholder; final layout in E2):
 //!
 //! ```text
@@ -32,7 +36,19 @@ use std::path::PathBuf;
 pub fn app_data_dir() -> Result<PathBuf, &'static str> {
     let base = dirs::data_local_dir()
         .ok_or("platform data-local dir is unavailable; check $HOME / %LOCALAPPDATA%")?;
-    Ok(base.join("catique"))
+    Ok(base.join(data_dir_name()))
+}
+
+/// Root folder name under `$APPLOCALDATA`. `catique-dev` for debug
+/// builds, `catique` for release — keeps `pnpm tauri dev` data away
+/// from any installed release bundle so smoke-testing a packaged build
+/// never inherits the developer's working state.
+const fn data_dir_name() -> &'static str {
+    if cfg!(debug_assertions) {
+        "catique-dev"
+    } else {
+        "catique"
+    }
 }
 
 /// Full path to the primary SQLite store. Equivalent to

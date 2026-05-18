@@ -104,6 +104,11 @@ pub fn run() {
 
             // First-launch zero-state bootstrap. The KV flag in the
             // settings table guarantees this runs at most once.
+            // After that, refresh the catique-hub MCP entry across
+            // every connected provider so the recorded paths track
+            // the current location of the .app — users who moved the
+            // bundle between launches still get working MCP wiring
+            // without manual config surgery.
             let bootstrap_pool = state.pool.clone();
             tauri::async_runtime::spawn(async move {
                 let uc =
@@ -117,40 +122,168 @@ pub fn run() {
                         eprintln!("[catique-hub] first-launch bootstrap failed: {e}");
                     }
                 }
+                uc.refresh_catique_mcp_in_all_connected().await;
             });
 
-            // ADR-0002 spike (ctq-56) + ctq-112 / E5 round 1: spawn the
-            // Node sidecar at startup AND install the MCP bridge so
-            // `tools/call` over MCP reaches a Rust use-case directly
-            // (no Tauri IPC re-entry).
+            // W1 (catique-hub-mcp standalone binary, 2026-05-14):
             //
-            // Failure is non-fatal — the sidecar badge in Settings will
-            // reflect the Stopped / Crashed state.
+            // Release builds publish a single env var, `CATIQUE_MCP_BIN`,
+            // pointing at the bundled Rust MCP server. External MCP
+            // clients (Claude Desktop, Claude Code, Codex) spawn this
+            // binary directly via the `command` entry that
+            // `default_mcp_entry` writes into their configs. The Tauri
+            // shell's in-process `SidecarManager` is no longer used for
+            // external MCP traffic in release — Catique HUB's own
+            // internal flows talk to use cases directly, and the
+            // `mcp_bridge` is only installed in debug to keep the
+            // legacy sidecar path testable while it lingers.
             //
-            // NOTE: Use `tauri::async_runtime::spawn` (NOT `tokio::spawn`).
-            // The Tauri setup hook runs synchronously on the main thread
-            // before any tokio::Runtime exists in the calling thread's
-            // context. `tauri::async_runtime` wraps the global Tokio
-            // runtime that Tauri 2.x manages — that's the correct entry
-            // point for async work scheduled from setup.
-            let sidecar_dir = state.sidecar_dir.clone();
-            let sidecar_mgr = state.sidecar.clone();
-            let pool = state.pool.clone();
-            // Snapshot the orchestrator handle for the MCP bridge.
-            // `OnceCell` has been set above (`state.set_orchestrator`)
-            // so `get().cloned()` is always `Some` by this point; the
-            // explicit `cloned()` keeps the bridge installable from a
-            // unit test that bypasses orchestrator wiring.
-            let bridge_orchestrator = state.orchestrator.get().cloned();
-            tauri::async_runtime::spawn(async move {
-                // Install the bridge BEFORE spawning the child so the
-                // very first `ipc_call` from Node has a handler ready.
-                catique_api::mcp_bridge::install(&sidecar_mgr, pool, bridge_orchestrator).await;
-                match sidecar_mgr.start(&sidecar_dir).await {
-                    Ok(pid) => eprintln!("[catique-hub] sidecar started, pid={pid}"),
-                    Err(e) => eprintln!("[catique-hub] sidecar spawn failed: {e}"),
-                }
-            });
+            // Debug builds resolve a workspace-relative path so
+            // `pnpm tauri dev` picks up freshly-built binaries from
+            // `target/debug/`. The path is best-effort: if the binary
+            // hasn't been built yet, external clients will fail to
+            // launch the MCP server — the user is expected to run
+            // `cargo build --bin catique-hub-mcp` at least once.
+            let mcp_bin = if cfg!(debug_assertions) {
+                let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+                manifest.parent().map_or_else(
+                    || PathBuf::from("catique-hub-mcp"),
+                    |root| root.join("target").join("debug").join("catique-hub-mcp"),
+                )
+            } else {
+                // Release: Tauri's `externalBin` ships the binary
+                // alongside the .app's main executable. On macOS that
+                // is `Contents/MacOS/`, on Linux it sits next to the
+                // launcher, on Windows it's the same install dir.
+                // Resolve relative to the current binary so the
+                // catique-hub MCP entry tracks the .app wherever the
+                // user moved it.
+                std::env::current_exe()
+                    .ok()
+                    .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+                    .map_or_else(
+                        || PathBuf::from("catique-hub-mcp"),
+                        |d| d.join("catique-hub-mcp"),
+                    )
+            };
+            std::env::set_var("CATIQUE_MCP_BIN", &mcp_bin);
+            eprintln!("[catique-hub] CATIQUE_MCP_BIN = {}", mcp_bin.display());
+
+            // ctq-cross-process-bus: tail the `change_events` table
+            // and re-emit each row as the matching Tauri event. The
+            // standalone `catique-hub-mcp` binary commits to the same
+            // SQLite file from another process — without this bridge
+            // the UI would only see those mutations after a reload.
+            //
+            // Tick is 50 ms (well under the human flicker threshold);
+            // each tick does one indexed SELECT against `seq`. The
+            // tail seeds `last_seen` from the current max so a fresh
+            // shell start does not re-emit history accumulated while
+            // no listener was present.
+            //
+            // Purge runs roughly once a minute (60_000 ms / 50 ms =
+            // 1200 ticks); rows older than 60 s are GC'd.
+            {
+                use catique_infrastructure::db::event_log;
+                let pool_for_tail = state.pool.clone();
+                let app_for_tail = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    use tauri::Emitter;
+                    let mut last_seen: i64 = {
+                        let pool_clone = pool_for_tail.clone();
+                        match tokio::task::spawn_blocking(move || -> Result<i64, String> {
+                            let conn = pool_clone.get().map_err(|e| e.to_string())?;
+                            event_log::current_max_seq(&conn).map_err(|e| e.to_string())
+                        })
+                        .await
+                        {
+                            Ok(Ok(v)) => v,
+                            Ok(Err(e)) => {
+                                eprintln!("[catique-hub] event_log seed failed: {e}");
+                                0
+                            }
+                            Err(e) => {
+                                eprintln!("[catique-hub] event_log seed join failed: {e}");
+                                0
+                            }
+                        }
+                    };
+                    let mut purge_tick: u32 = 0;
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                        let pool_clone = pool_for_tail.clone();
+                        let last = last_seen;
+                        let rows = match tokio::task::spawn_blocking(
+                            move || -> Result<Vec<event_log::ChangeEvent>, String> {
+                                let conn = pool_clone.get().map_err(|e| e.to_string())?;
+                                event_log::tail(&conn, last, 200).map_err(|e| e.to_string())
+                            },
+                        )
+                        .await
+                        {
+                            Ok(Ok(v)) => v,
+                            Ok(Err(e)) => {
+                                eprintln!("[catique-hub] event_log tail failed: {e}");
+                                Vec::new()
+                            }
+                            Err(e) => {
+                                eprintln!("[catique-hub] event_log tail join failed: {e}");
+                                Vec::new()
+                            }
+                        };
+                        for row in rows {
+                            if let Err(e) = app_for_tail.emit(&row.name, &row.payload) {
+                                eprintln!(
+                                    "[catique-hub] event_log emit({}) failed: {e}",
+                                    row.name
+                                );
+                            }
+                            last_seen = row.seq;
+                        }
+                        purge_tick = purge_tick.wrapping_add(1);
+                        if purge_tick % 1200 == 0 {
+                            let pool_clone = pool_for_tail.clone();
+                            let _ = tokio::task::spawn_blocking(move || {
+                                let conn = match pool_clone.get() {
+                                    Ok(c) => c,
+                                    Err(e) => {
+                                        eprintln!(
+                                            "[catique-hub] event_log purge acquire failed: {e}"
+                                        );
+                                        return;
+                                    }
+                                };
+                                if let Err(e) = event_log::purge_older_than(&conn, 60_000) {
+                                    eprintln!("[catique-hub] event_log purge failed: {e}");
+                                }
+                            })
+                            .await;
+                        }
+                    }
+                });
+            }
+
+            // Debug-only: spin up the legacy Node sidecar so existing
+            // dev workflows that exercise the supervisor channel keep
+            // working. Release builds skip this entirely.
+            #[cfg(debug_assertions)]
+            {
+                let sidecar_dir = state.sidecar_dir.clone();
+                std::env::set_var("CATIQUE_SIDECAR_INDEX_JS", sidecar_dir.join("index.js"));
+                std::env::set_var("CATIQUE_NODE_BIN", "node");
+                let sidecar_mgr = state.sidecar.clone();
+                let pool = state.pool.clone();
+                let bridge_orchestrator = state.orchestrator.get().cloned();
+                tauri::async_runtime::spawn(async move {
+                    catique_api::mcp_bridge::install(&sidecar_mgr, pool, bridge_orchestrator).await;
+                    match sidecar_mgr.start(&sidecar_dir).await {
+                        Ok(pid) => eprintln!("[catique-hub] dev sidecar started, pid={pid}"),
+                        Err(e) => {
+                            eprintln!("[catique-hub] dev sidecar spawn failed (optional): {e}");
+                        }
+                    }
+                });
+            }
 
             Ok(())
         })

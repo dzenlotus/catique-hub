@@ -474,7 +474,13 @@ async fn do_spawn(
     g.record_restart();
 
     let index_js = sidecar_dir.join("index.js");
-    let mut child = Command::new("node")
+    // The Tauri shell publishes an absolute path to the bundled Node
+    // runtime via `CATIQUE_NODE_BIN`; release installs are fully
+    // self-contained, no system Node.js required on the user's
+    // machine. Unit tests + raw `cargo test -p catique-sidecar` keep
+    // falling back to `node` from `PATH`.
+    let node_bin = std::env::var("CATIQUE_NODE_BIN").unwrap_or_else(|_| "node".into());
+    let mut child = Command::new(&node_bin)
         .arg(&index_js)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())

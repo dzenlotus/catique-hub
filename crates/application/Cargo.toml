@@ -45,6 +45,13 @@ url.workspace = true
 # stay readable across the codebase.
 nanoid.workspace = true
 
+# W1 (catique-hub-mcp standalone binary): the MCP dispatch surface
+# accepts base64-encoded attachment blobs from agents. Same 0.22 line
+# the api crate already uses so `upload_attachment_blob` /
+# `add_skill_file_attachment` can decode at the application boundary
+# without re-entering the IPC layer.
+base64.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros", "time", "rt-multi-thread"] }

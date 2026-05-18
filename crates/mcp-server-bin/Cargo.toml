@@ -1,0 +1,59 @@
+[package]
+name = "catique-mcp-server-bin"
+description = "Standalone Rust MCP server for Catique HUB — replaces the Node sidecar. Speaks stdio JSON-RPC to external MCP clients (Claude Desktop / Claude Code / Codex) and proxies pass-through tool calls to upstream MCP servers registered in the Catique HUB DB."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "catique-hub-mcp"
+path = "src/main.rs"
+
+# Fake stdio MCP server used by the proxy round-trip integration test.
+[[bin]]
+name = "fake-mcp-echo"
+path = "tests/bin/fake_mcp_echo.rs"
+test = false
+doc = false
+bench = false
+
+[lib]
+name = "catique_hub_mcp"
+path = "src/lib.rs"
+
+[dependencies]
+# Application layer carries the dispatch surface (147 arms shared with
+# the Tauri MCP bridge). No Tauri / WebKit links into the binary —
+# `catique-application` does not depend on the Tauri shell.
+catique-application = { path = "../application" }
+catique-domain = { path = "../domain" }
+catique-infrastructure = { path = "../infrastructure" }
+
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Full tokio surface: stdin/stdout IO, child processes (upstream stdio
+# servers), HTTP/SSE requests, signal handling.
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "io-util", "io-std", "sync", "process", "time", "signal"] }
+
+# Streamable-HTTP + SSE transports for the upstream pool.
+reqwest = { workspace = true }
+futures-util.workspace = true
+
+# Direct rusqlite dep — `upstream::list_enabled_servers` borrows a
+# `&Connection` to enumerate the registered MCP servers.
+rusqlite.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "io-util", "io-std", "sync", "process", "time", "test-util"] }
+
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+module_name_repetitions = "allow"
+doc_markdown = "allow"

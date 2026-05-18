@@ -493,6 +493,7 @@ dependencies = [
 name = "catique-application"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "catique-clients",
  "catique-domain",
  "catique-infrastructure",
@@ -573,6 +574,24 @@ dependencies = [
  "tokio",
  "url",
  "wiremock",
+]
+
+[[package]]
+name = "catique-mcp-server-bin"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "catique-application",
+ "catique-domain",
+ "catique-infrastructure",
+ "futures-util",
+ "reqwest 0.12.28",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]

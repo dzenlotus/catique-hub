@@ -500,15 +500,41 @@ fn slugify(name: &str, fallback_id: &str) -> String {
     }
 }
 
-/// Default catique-hub MCP entry. We point at the embedded sidecar
-/// process — the same one that backs the existing MCP bridge. A
-/// future iteration can read this from a settings KV slot so users on
-/// non-default install paths can override.
+/// Default catique-hub MCP entry. W1 (2026-05-14): the entry now points
+/// at the bundled `catique-hub-mcp` Rust binary instead of the legacy
+/// `node sidecar/index.js` invocation. The Tauri shell publishes a
+/// single absolute path at startup:
+///
+/// * `CATIQUE_MCP_BIN` — bundled Rust MCP server under the .app's
+///   resource / external-bin directory. The binary is fully self-
+///   contained (statically links SQLite via `rusqlite/bundled` and
+///   ships its own runtime) so external MCP clients never need Node.js
+///   or any other companion installed on the user's machine.
+///
+/// Falls back to a relative `catique-hub-mcp` when the env var is
+/// missing (unit tests, raw `cargo run` against the application crate
+/// without going through `src-tauri/src/lib.rs::run`). External
+/// clients will look the binary up via `$PATH` in that case — fine for
+/// developer-local round-trips but never expected to land in a
+/// shipped .app.
 fn default_mcp_entry() -> McpEntry {
+    let mcp_bin = std::env::var("CATIQUE_MCP_BIN").unwrap_or_else(|_| "catique-hub-mcp".into());
     McpEntry {
-        command: "catique-hub-mcp".into(),
-        args: vec!["--stdio".into()],
+        command: mcp_bin,
+        args: vec![],
         env: vec![],
+    }
+}
+
+/// Bundle that carries only the catique-hub MCP entry, no roles.
+/// Used by `bootstrap_first_launch_if_needed` to register Catique HUB
+/// as an MCP server in every newly-detected provider without waiting
+/// for the user to create their first role.
+#[must_use]
+pub fn mcp_only_bundle() -> RoleBundle {
+    RoleBundle {
+        roles: Vec::new(),
+        mcp: Some(default_mcp_entry()),
     }
 }
 

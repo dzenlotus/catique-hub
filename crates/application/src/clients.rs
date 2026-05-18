@@ -222,7 +222,7 @@ impl<'a> ConnectedProvidersUseCase<'a> {
             }
             // Idempotent insert via PK collision; existing rows from a
             // previous (incomplete) bootstrap are kept as-is.
-            {
+            let freshly_inserted = {
                 let conn = acquire(self.pool).map_err(map_db_err)?;
                 if repo::get_by_id(&conn, provider.id())
                     .map_err(map_db_err)?
@@ -231,6 +231,29 @@ impl<'a> ConnectedProvidersUseCase<'a> {
                     repo::insert(&conn, provider.id(), provider.display_name(), now)
                         .map_err(map_db_err)?;
                     detected_ids.push(provider.id().to_owned());
+                    true
+                } else {
+                    false
+                }
+            };
+
+            // Round-21 follow-up: register Catique HUB as an MCP server
+            // in the provider's config straight away — independent of
+            // whether the user has any roles yet. Without this, a fresh
+            // install leaves Claude Desktop / Claude Code / Codex
+            // unaware of the sidecar until the user happens to create
+            // their first role.
+            //
+            // Per-provider failure is non-fatal: log + continue. We do
+            // NOT update `last_synced_at` here because role-driven sync
+            // owns that field's semantics.
+            if freshly_inserted {
+                let bundle = crate::connected_providers::mcp_only_bundle();
+                if let Err(e) = provider.sync(&bundle).await {
+                    eprintln!(
+                        "[catique-hub] first-launch MCP install failed for `{}`: {e}",
+                        provider.id()
+                    );
                 }
             }
         }
@@ -240,6 +263,46 @@ impl<'a> ConnectedProvidersUseCase<'a> {
         settings_repo::set_setting(&conn, FIRST_LAUNCH_KEY, "true").map_err(map_db_err)?;
 
         Ok(detected_ids)
+    }
+
+    /// Refresh the catique-hub MCP entry in every already-connected
+    /// provider's config file. Runs on every Tauri startup so the
+    /// recorded `command` + `args[0]` paths stay correct even if the
+    /// user moved the `.app` between launches (the resolved absolute
+    /// path lives in `CATIQUE_NODE_BIN` / `CATIQUE_SIDECAR_INDEX_JS`
+    /// env vars published by the shell on each boot).
+    ///
+    /// Per-provider failure is non-fatal — logs to stderr and moves on
+    /// so a single permissions hiccup doesn't break the rest of the
+    /// fleet. Does NOT touch `last_synced_at` because that field's
+    /// semantics belong to the role-driven sync round.
+    pub async fn refresh_catique_mcp_in_all_connected(&self) {
+        let rows = {
+            let Ok(conn) = acquire(self.pool) else {
+                eprintln!("[catique-hub] refresh-mcp: pool acquire failed");
+                return;
+            };
+            match repo::list_all(&conn) {
+                Ok(rows) => rows,
+                Err(e) => {
+                    eprintln!("[catique-hub] refresh-mcp: list_all failed: {e}");
+                    return;
+                }
+            }
+        };
+        let bundle = crate::connected_providers::mcp_only_bundle();
+        let providers = all_providers();
+        for row in rows {
+            let Some(provider) = providers.iter().find(|p| p.id() == row.id) else {
+                continue;
+            };
+            if let Err(e) = provider.sync(&bundle).await {
+                eprintln!(
+                    "[catique-hub] refresh-mcp: provider `{}` sync failed: {e}",
+                    row.id
+                );
+            }
+        }
     }
 
     /// Iterate every connected provider and call `provider.sync(bundle)`

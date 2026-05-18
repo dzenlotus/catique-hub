@@ -29,6 +29,7 @@ members = [
     "crates/clients",
     "crates/infrastructure",
     "crates/api",
+    "crates/mcp-server-bin",
     "crates/sidecar",
     "src-tauri",
 ]
@@ -121,7 +122,11 @@ tempfile = "3"
 criterion = "0.5"
 
 [profile.release]
-panic = "abort"
+# `panic = "abort"` removed: the standalone `catique-hub-mcp` binary
+# pulls in `reqwest` for upstream HTTP/SSE MCP transports, and reqwest's
+# transitive deps depend on unwinding. Mixing strategies across a single
+# Cargo build graph is a hard error. The cost is ~50 KB extra binary and
+# a slightly slower panic path — both irrelevant for a desktop app.
 codegen-units = 1
 lto = "thin"
 opt-level = "s"

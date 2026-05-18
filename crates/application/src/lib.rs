@@ -19,6 +19,7 @@ pub mod columns;
 pub mod connected_providers;
 pub mod error;
 mod error_map;
+pub mod mcp_dispatch;
 pub mod mcp_proxy;
 pub mod mcp_servers;
 pub mod mcp_tools;

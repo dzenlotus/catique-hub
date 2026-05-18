@@ -1,0 +1,4 @@
+# W1: staging directory for Tauri externalBin. The Rust MCP binary is
+# built by `src-tauri/build.rs` and copied here at build time —
+# checking the build artefact into git would defeat reproducibility.
+catique-hub-mcp-*
