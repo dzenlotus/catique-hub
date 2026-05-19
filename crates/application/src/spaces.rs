@@ -7,6 +7,8 @@
 //! Optional `color` is validated as `#RRGGBB`; `icon` is opaque to the
 //! backend (the frontend owns the identifier set).
 
+use std::path::PathBuf;
+
 use catique_domain::{Prompt, Space};
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
@@ -15,6 +17,7 @@ use catique_infrastructure::db::{
         columns as columns_repo,
         inheritance::{self as inh, InheritanceScope},
         prompts::PromptRow,
+        roles as roles_repo,
         spaces::{self as repo, SpaceDraft, SpacePatch, SpaceRow},
         tasks::{
             cascade_clear_scope, cascade_prompt_attachment, cascade_prompt_detachment, AttachScope,
@@ -23,8 +26,10 @@ use catique_infrastructure::db::{
 };
 
 use crate::{
+    agent_files,
     error::AppError,
     error_map::{map_db_err, map_db_err_unique, validate_non_empty, validate_optional_color},
+    workflow::{self, NodeNameLookup, WorkflowGraph},
 };
 
 /// Default name for the auto-created board landed in every newly
@@ -482,6 +487,146 @@ impl<'a> SpacesUseCase<'a> {
             })
         }
     }
+
+    /// Render the space's workflow graph into the catique-hub-managed
+    /// section of the project's `AGENTS.md` / `CLAUDE.md` file. Ties
+    /// together catique-1 (`agent_files::upsert_section`) and
+    /// catique-5 (`workflow::render_prompt`).
+    ///
+    /// Returns the absolute path of the file that was written. Useful
+    /// for surfacing in IPC responses + log lines.
+    ///
+    /// # Errors
+    ///
+    /// * `AppError::NotFound` — space id unknown.
+    /// * `AppError::Validation { field: "project_folder_path", … }` —
+    ///   the space has no project folder bound.
+    /// * `AppError::Validation { field: "workflow_graph_json", … }` —
+    ///   the stored payload is not parseable as a [`WorkflowGraph`].
+    /// * Filesystem failures bubble up as the generic
+    ///   `AppError::Unknown` (via `agent_files` → string mapping)
+    ///   so the caller can surface the underlying message.
+    pub fn sync_workflow_to_agent_file(&self, space_id: &str) -> Result<PathBuf, AppError> {
+        // 1. Resolve space + project folder + raw graph.
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let space = repo::get_by_id(&conn, space_id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "space".into(),
+                id: space_id.to_owned(),
+            })?;
+        let project_folder = space.project_folder_path.ok_or_else(|| AppError::Validation {
+            field: "project_folder_path".into(),
+            reason: "space has no project folder bound; set one before syncing".into(),
+        })?;
+        let raw_graph = space.workflow_graph_json.unwrap_or_default();
+        let graph: WorkflowGraph = if raw_graph.trim().is_empty() {
+            WorkflowGraph::default()
+        } else {
+            serde_json::from_str(&raw_graph).map_err(|e| AppError::Validation {
+                field: "workflow_graph_json".into(),
+                reason: format!("not a valid WorkflowGraph payload: {e}"),
+            })?
+        };
+
+        // 2. Build role-name lookup from the current roles table. We
+        // do not narrow to roles referenced by the graph: the lookup
+        // is small (≤ low hundreds) and missing-id paths gracefully
+        // fall back to the raw role_id string anyway.
+        let role_rows = roles_repo::list_all(&conn).map_err(map_db_err)?;
+        let lookup = RoleNameMap::from_rows(&role_rows);
+        drop(conn);
+
+        // 3. Render + write under the dedicated `workflow` section
+        // marker so the owner block (catique-1) stays untouched.
+        let body = workflow::render_prompt(&graph, &lookup);
+        let target = agent_files::resolve_agent_file(std::path::Path::new(&project_folder));
+        agent_files::upsert_keyed_section(&target, "workflow", &body).map_err(|e| {
+            AppError::Upstream {
+                kind: "filesystem".into(),
+                message: format!("agent_files upsert failed: {e}"),
+            }
+        })?;
+        Ok(target)
+    }
+
+    /// catique-1: write (or refresh) the owner role's body into the
+    /// project's agent file. Looks up the space's project folder,
+    /// resolves the owner role of the default board, and upserts its
+    /// content under the `owner` marker block.
+    ///
+    /// # Errors
+    ///
+    /// * `AppError::NotFound` — space id unknown or no default board.
+    /// * `AppError::Validation { field: "project_folder_path", … }` —
+    ///   the space has no project folder bound.
+    /// * `AppError::Upstream { kind: "filesystem", … }` — write failed.
+    pub fn sync_owner_to_agent_file(&self, space_id: &str) -> Result<PathBuf, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let space = repo::get_by_id(&conn, space_id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "space".into(),
+                id: space_id.to_owned(),
+            })?;
+        let project_folder = space.project_folder_path.ok_or_else(|| AppError::Validation {
+            field: "project_folder_path".into(),
+            reason: "space has no project folder bound; set one before syncing".into(),
+        })?;
+
+        // Owner role = the role attached to the default board of the
+        // space. `owner_role_id` is NOT NULL at schema level (see
+        // migration 004); we just need to find that one board.
+        let boards = boards_repo::list_by_space(&conn, space_id).map_err(map_db_err)?;
+        let default_board = boards
+            .into_iter()
+            .find(|b| b.is_default)
+            .ok_or_else(|| AppError::NotFound {
+                entity: "default_board".into(),
+                id: space_id.to_owned(),
+            })?;
+        let owner_role = roles_repo::get_by_id(&conn, &default_board.owner_role_id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "role".into(),
+                id: default_board.owner_role_id.clone(),
+            })?;
+        drop(conn);
+
+        let body = format!("## Owner: {}\n\n{}", owner_role.name, owner_role.content);
+        let target = agent_files::resolve_agent_file(std::path::Path::new(&project_folder));
+        agent_files::upsert_keyed_section(&target, "owner", &body).map_err(|e| {
+            AppError::Upstream {
+                kind: "filesystem".into(),
+                message: format!("agent_files upsert failed: {e}"),
+            }
+        })?;
+        Ok(target)
+    }
+}
+
+/// Cheap in-memory `role_id → display_name` index used by the
+/// workflow renderer. Built once per
+/// [`SpacesUseCase::sync_workflow_to_agent_file`] call from
+/// `roles::list_all`.
+struct RoleNameMap {
+    by_id: std::collections::HashMap<String, String>,
+}
+
+impl RoleNameMap {
+    fn from_rows(rows: &[roles_repo::RoleRow]) -> Self {
+        let by_id = rows
+            .iter()
+            .map(|r| (r.id.clone(), r.name.clone()))
+            .collect();
+        Self { by_id }
+    }
+}
+
+impl NodeNameLookup for RoleNameMap {
+    fn role_name(&self, role_id: &str) -> Option<String> {
+        self.by_id.get(role_id).cloned()
+    }
 }
 
 fn prompt_row_to_prompt(row: PromptRow) -> Prompt {
@@ -919,5 +1064,183 @@ mod tests {
         let pool = fresh_pool();
         let uc = SpacesUseCase::new(&pool);
         assert!(uc.get_workflow_graph("ghost").unwrap().is_none());
+    }
+
+    // ------------------------------------------------------------------
+    // catique-5: sync_workflow_to_agent_file
+    // ------------------------------------------------------------------
+
+    fn args_with_folder(name: &str, prefix: &str, folder: &std::path::Path) -> CreateSpaceArgs {
+        CreateSpaceArgs {
+            name: name.into(),
+            prefix: prefix.into(),
+            project_folder_path: Some(folder.to_string_lossy().into_owned()),
+            ..CreateSpaceArgs::default()
+        }
+    }
+
+    #[test]
+    fn sync_workflow_returns_not_found_for_missing_space() {
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        match uc.sync_workflow_to_agent_file("ghost").expect_err("nf") {
+            AppError::NotFound { entity, id } => {
+                assert_eq!(entity, "space");
+                assert_eq!(id, "ghost");
+            }
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn sync_workflow_requires_project_folder() {
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        let space = uc.create(args("S", "sp")).unwrap();
+        match uc
+            .sync_workflow_to_agent_file(&space.id)
+            .expect_err("validation")
+        {
+            AppError::Validation { field, .. } => assert_eq!(field, "project_folder_path"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn sync_workflow_writes_empty_section_when_graph_unset() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        let space = uc.create(args_with_folder("S", "sp", tmp.path())).unwrap();
+
+        let path = uc.sync_workflow_to_agent_file(&space.id).unwrap();
+        assert!(path.ends_with("AGENTS.md"));
+        let body = std::fs::read_to_string(&path).unwrap();
+        assert!(body.contains("catique-hub:workflow:begin"));
+        assert!(body.contains("No workflow nodes configured yet"));
+    }
+
+    #[test]
+    fn sync_workflow_renders_graph_with_role_names() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let pool = fresh_pool();
+        // Seed two roles so the workflow lookup hits.
+        {
+            let conn = pool.get().unwrap();
+            conn.execute_batch(
+                "INSERT INTO roles (id, name, content, color, icon, created_at, updated_at, is_system) \
+                 VALUES ('r-owner','WF-Owner-Test','',NULL,NULL,0,0,0), \
+                        ('r-reviewer','WF-Reviewer-Test','',NULL,NULL,0,0,0);",
+            )
+            .unwrap();
+        }
+
+        let uc = SpacesUseCase::new(&pool);
+        let space = uc.create(args_with_folder("S", "sp", tmp.path())).unwrap();
+        let graph_json = serde_json::json!({
+            "version": 1,
+            "nodes": [
+                { "id": "n1", "role_id": "r-owner",    "x": 0.0, "y": 0.0 },
+                { "id": "n2", "role_id": "r-reviewer", "x": 200.0, "y": 0.0 }
+            ],
+            "edges": [
+                { "id": "e1", "from_node": "n1", "to_node": "n2",
+                  "kind": "route-on-success" }
+            ]
+        })
+        .to_string();
+        uc.set_workflow_graph(space.id.clone(), graph_json).unwrap();
+
+        let path = uc.sync_workflow_to_agent_file(&space.id).unwrap();
+        let body = std::fs::read_to_string(&path).unwrap();
+        assert!(body.contains("**WF-Owner-Test**"));
+        assert!(body.contains("**WF-Reviewer-Test**"));
+        assert!(body.contains("on success, hands the task to"));
+
+        // Idempotency: second call leaves a single workflow marker pair.
+        uc.sync_workflow_to_agent_file(&space.id).unwrap();
+        let body2 = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(body2.matches("catique-hub:workflow:begin").count(), 1);
+    }
+
+    #[test]
+    fn sync_owner_writes_default_board_owner_role_content() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        let space = uc.create(args_with_folder("S", "sp", tmp.path())).unwrap();
+        // Plant a custom owner role + repoint the default board at it.
+        {
+            let conn = pool.get().unwrap();
+            conn.execute(
+                "INSERT INTO roles (id, name, content, color, icon, created_at, updated_at, is_system) \
+                 VALUES ('r-custom-owner','Custom-Owner','You drive the project.',NULL,NULL,0,0,0)",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "UPDATE boards SET owner_role_id = 'r-custom-owner' WHERE space_id = ?1 AND is_default = 1",
+                rusqlite::params![&space.id],
+            )
+            .unwrap();
+        }
+
+        let path = uc.sync_owner_to_agent_file(&space.id).unwrap();
+        let body = std::fs::read_to_string(&path).unwrap();
+        assert!(body.contains("catique-hub:owner:begin"));
+        assert!(body.contains("## Owner: Custom-Owner"));
+        assert!(body.contains("You drive the project."));
+    }
+
+    #[test]
+    fn sync_owner_and_workflow_share_one_file_without_clobbering() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        let space = uc.create(args_with_folder("S", "sp", tmp.path())).unwrap();
+        // Empty workflow + a custom owner role; both sections must
+        // land in the same file under separate markers.
+        {
+            let conn = pool.get().unwrap();
+            conn.execute(
+                "INSERT INTO roles (id, name, content, color, icon, created_at, updated_at, is_system) \
+                 VALUES ('r-owner2','Shared-Owner','body',NULL,NULL,0,0,0)",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "UPDATE boards SET owner_role_id = 'r-owner2' WHERE space_id = ?1 AND is_default = 1",
+                rusqlite::params![&space.id],
+            )
+            .unwrap();
+        }
+        uc.sync_owner_to_agent_file(&space.id).unwrap();
+        let path = uc.sync_workflow_to_agent_file(&space.id).unwrap();
+        let body = std::fs::read_to_string(&path).unwrap();
+        assert!(body.contains("catique-hub:owner:begin"));
+        assert!(body.contains("catique-hub:workflow:begin"));
+        assert!(body.contains("Shared-Owner"));
+        assert!(body.contains("Workflow"));
+    }
+
+    #[test]
+    fn sync_workflow_rejects_invalid_graph_payload() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let pool = fresh_pool();
+        let uc = SpacesUseCase::new(&pool);
+        let space = uc.create(args_with_folder("S", "sp", tmp.path())).unwrap();
+        // Plant a payload that is JSON but not a WorkflowGraph (top-level
+        // is an array, not an object).
+        uc.set_workflow_graph(space.id.clone(), "[1,2,3]".into())
+            .unwrap();
+        match uc
+            .sync_workflow_to_agent_file(&space.id)
+            .expect_err("validation")
+        {
+            AppError::Validation { field, .. } => {
+                assert_eq!(field, "workflow_graph_json");
+            }
+            other => panic!("got {other:?}"),
+        }
     }
 }

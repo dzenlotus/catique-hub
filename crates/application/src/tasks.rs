@@ -422,6 +422,53 @@ impl<'a> TasksUseCase<'a> {
         }
     }
 
+    /// Read the urgency level for a task. catique-8 — returned as a
+    /// plain string ('none' | 'low' | 'medium' | 'high'). Useful for
+    /// the IPC + MCP read path until urgency lands on `Task` proper.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound` if the task id is unknown.
+    pub fn get_urgency(&self, id: &str) -> Result<String, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        repo::get_urgency(&conn, id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "task".into(),
+                id: id.to_owned(),
+            })
+    }
+
+    /// Set the urgency level for a task. catique-8 — validates the
+    /// urgency string up front so the typed error path is consistent
+    /// with the rest of the surface; the SQL CHECK at the storage
+    /// layer is a defence-in-depth backstop.
+    ///
+    /// # Errors
+    ///
+    /// * `AppError::Validation` — `urgency` is not in the canonical set.
+    /// * `AppError::NotFound` — task id is unknown.
+    pub fn set_urgency(&self, id: &str, urgency: &str) -> Result<String, AppError> {
+        let canonical = match urgency {
+            "none" | "low" | "medium" | "high" => urgency,
+            _ => {
+                return Err(AppError::Validation {
+                    field: "urgency".into(),
+                    reason: "must be one of: none, low, medium, high".into(),
+                });
+            }
+        };
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let updated = repo::set_urgency(&conn, id, canonical).map_err(map_db_err)?;
+        if !updated {
+            return Err(AppError::NotFound {
+                entity: "task".into(),
+                id: id.to_owned(),
+            });
+        }
+        Ok(canonical.to_owned())
+    }
+
     /// Delete a task **and** unlink its on-disk attachment directory.
     ///
     /// `attachments_root` is `$APPLOCALDATA/catique/attachments`. The
@@ -1596,5 +1643,62 @@ mod tests {
                 &OriginRef::Board("bd1".into()),
             ]
         );
+    }
+
+    // ----- catique-8: urgency round-trip ---------------------------------
+
+    #[test]
+    fn urgency_defaults_to_none_after_create() {
+        let pool = fresh_pool();
+        let uc = TasksUseCase::new(&pool);
+        let t = uc
+            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .unwrap();
+        assert_eq!(uc.get_urgency(&t.id).unwrap(), "none");
+    }
+
+    #[test]
+    fn set_urgency_round_trip() {
+        let pool = fresh_pool();
+        let uc = TasksUseCase::new(&pool);
+        let t = uc
+            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .unwrap();
+        let r = uc.set_urgency(&t.id, "high").unwrap();
+        assert_eq!(r, "high");
+        assert_eq!(uc.get_urgency(&t.id).unwrap(), "high");
+    }
+
+    #[test]
+    fn set_urgency_invalid_value_returns_validation() {
+        let pool = fresh_pool();
+        let uc = TasksUseCase::new(&pool);
+        let t = uc
+            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .unwrap();
+        match uc.set_urgency(&t.id, "BOGUS").expect_err("validation") {
+            AppError::Validation { field, .. } => assert_eq!(field, "urgency"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn set_urgency_missing_task_returns_not_found() {
+        let pool = fresh_pool();
+        let uc = TasksUseCase::new(&pool);
+        match uc.set_urgency("ghost", "low").expect_err("not found") {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "task"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn get_urgency_missing_task_returns_not_found() {
+        let pool = fresh_pool();
+        let uc = TasksUseCase::new(&pool);
+        match uc.get_urgency("ghost").expect_err("not found") {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "task"),
+            other => panic!("got {other:?}"),
+        }
     }
 }

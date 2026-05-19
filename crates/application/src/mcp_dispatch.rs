@@ -342,6 +342,21 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
             Ok(json!({ "ok": true }))
         }
         "delete_task" => delete_task_arm(pool, &params),
+        "get_task_urgency" => {
+            let id = decode_string(&params, "id")?;
+            let urgency = TasksUseCase::new(pool)
+                .get_urgency(&id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "id": id, "urgency": urgency }))
+        }
+        "set_task_urgency" => {
+            let id = decode_string(&params, "id")?;
+            let urgency = decode_string(&params, "urgency")?;
+            let stored = TasksUseCase::new(pool)
+                .set_urgency(&id, &urgency)
+                .map_err(stringify_app)?;
+            Ok(json!({ "id": id, "urgency": stored }))
+        }
         "get_agent_report" => {
             let id = decode_string(&params, "id")?;
             let report = ReportsUseCase::new(pool).get(&id).map_err(stringify_app)?;
@@ -832,6 +847,20 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
                 .set_workflow_graph(space_id, json_payload)
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
+        }
+        "sync_owner_to_agent_file" => {
+            let space_id = decode_string(&params, "space_id")?;
+            let path = SpacesUseCase::new(pool)
+                .sync_owner_to_agent_file(&space_id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "space_id": space_id, "path": path.to_string_lossy() }))
+        }
+        "sync_workflow_to_agent_file" => {
+            let space_id = decode_string(&params, "space_id")?;
+            let path = SpacesUseCase::new(pool)
+                .sync_workflow_to_agent_file(&space_id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "space_id": space_id, "path": path.to_string_lossy() }))
         }
         // -------- updates --------
         "update_agent_report" => {
@@ -2286,6 +2315,25 @@ fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<(&'
                     json!({ "id": id, "column_id": cid, "board_id": bid }),
                 )],
                 _ => Vec::new(),
+            }
+        }
+        // catique-8: urgency mutation is a flavour of task update for
+        // the UI listener — we don't carry urgency in the payload yet
+        // because the frontend invalidator already refetches the task
+        // body on `task:updated`.
+        "set_task_urgency" => match id_from_params() {
+            Some(id) => vec![(ev::TASK_UPDATED, json!({ "id": id }))],
+            None => Vec::new(),
+        },
+        // catique-1 / catique-5: writes through to disk; from the
+        // UI's perspective the space stayed the same shape but its
+        // bound agent file changed. Emit `space:updated` so any
+        // dependent panel (project folder badge, sync-state ribbon)
+        // can re-fetch.
+        "sync_owner_to_agent_file" | "sync_workflow_to_agent_file" => {
+            match params.get("space_id").and_then(Value::as_str) {
+                Some(id) => vec![(ev::SPACE_UPDATED, json!({ "id": id }))],
+                None => Vec::new(),
             }
         }
         "update_space" => match id_from_params() {

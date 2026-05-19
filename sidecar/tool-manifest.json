@@ -1316,6 +1316,22 @@
       }
     },
     {
+      "name": "get_task_urgency",
+      "description": "Read the urgency level for a task (catique-8). Returns `{ \"urgency\": \"none\"|\"low\"|\"medium\"|\"high\" }`. Default for newly-created tasks is `none`. NotFound when the task id is unknown.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Task id.",
+            "examples": ["tsk_5kFbPzCa1"]
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "get_workflow_graph",
       "description": "Read the Phase 5 workflow-graph payload for a space (ctq-113 stub). Returns the previously-stored opaque JSON string, or `null` if no graph has been persisted. The schema of that payload is owned by the future visual-workflow editor — this surface treats it as a blob. Use `set_workflow_graph` to persist.",
       "inputSchema": {
@@ -2531,6 +2547,27 @@
       }
     },
     {
+      "name": "set_task_urgency",
+      "description": "Set the urgency level for a task (catique-8). Accepts `none` | `low` | `medium` | `high`; any other value surfaces as Validation. NotFound when the task id is unknown. Returns `{ \"id\", \"urgency\" }`.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Task id.",
+            "examples": ["tsk_5kFbPzCa1"]
+          },
+          "urgency": {
+            "type": "string",
+            "enum": ["none", "low", "medium", "high"],
+            "description": "New urgency level."
+          }
+        },
+        "required": ["id", "urgency"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "set_workflow_graph",
       "description": "Persist the Phase 5 workflow-graph payload for a space (ctq-113 stub). The payload is treated as an opaque JSON string — its schema is owned by the future visual-workflow editor and is not validated here. Existing graph is overwritten. NotFound when space id is unknown.",
       "inputSchema": {
@@ -2547,6 +2584,38 @@
           }
         },
         "required": ["space_id", "json"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sync_owner_to_agent_file",
+      "description": "catique-1: write (or refresh) the owner role's body into the catique-hub-managed `owner` section of the project's AGENTS.md / CLAUDE.md (whichever exists; AGENTS.md by default). Idempotent — rerunning leaves a single marker pair. Validation when the space has no project_folder_path bound. NotFound when space id, default board, or owner role is missing. Returns `{ space_id, path }`.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Space whose owner role to materialise into the agent file.",
+            "examples": ["spc_7HhBnGxVa"]
+          }
+        },
+        "required": ["space_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sync_workflow_to_agent_file",
+      "description": "catique-5: render the space's workflow graph (spaces.workflow_graph_json) under the catique-hub-managed `workflow` section of the agent file. Idempotent. Validation when project_folder_path is unset or the stored payload is not a WorkflowGraph. NotFound when space id is unknown. Returns `{ space_id, path }`.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Space whose workflow graph to materialise into the agent file.",
+            "examples": ["spc_7HhBnGxVa"]
+          }
+        },
+        "required": ["space_id"],
         "additionalProperties": false
       }
     },

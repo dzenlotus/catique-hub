@@ -28,11 +28,23 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// HTML-comment markers that bracket the catique-hub-managed section.
-/// Mirrors are stamped on every write — never edit by hand inside the
-/// section; edit the role in Catique HUB instead and re-sync.
+/// HTML-comment markers that bracket the catique-hub-managed `owner`
+/// section. Kept as constants for back-compat with early callers;
+/// the generic [`upsert_keyed_section`] / [`remove_keyed_section`]
+/// helpers let new callers carve out their own sections by `key`.
 pub const BEGIN_MARKER: &str = "<!-- catique-hub:owner:begin -->";
 pub const END_MARKER: &str = "<!-- catique-hub:owner:end -->";
+
+/// Build a marker pair for an arbitrary `key`. Keys are kebab-case
+/// short identifiers (`owner`, `workflow`, `notes`, …). The writer
+/// trusts the caller — invalid characters are passed through as-is.
+#[must_use]
+pub fn markers_for(key: &str) -> (String, String) {
+    (
+        format!("<!-- catique-hub:{key}:begin -->"),
+        format!("<!-- catique-hub:{key}:end -->"),
+    )
+}
 
 /// Failure cases for the writer. Kept small + concrete so the IPC
 /// layer can render a sensible message rather than passing raw IO.
@@ -56,6 +68,23 @@ pub enum AgentFileError {
 /// [`AgentFileError::EmptyPath`] when `target_path` has no parent
 /// directory (which would make the temp-file dance impossible).
 pub fn upsert_section(target_path: &Path, body: &str) -> Result<(), AgentFileError> {
+    upsert_keyed_section(target_path, "owner", body)
+}
+
+/// Generic version of [`upsert_section`] keyed by `section_key`. Same
+/// idempotency / atomicity guarantees; each `key` carves out an
+/// independent block that can be re-rendered without touching the
+/// others. Used by catique-5 (`workflow`) so the owner block + the
+/// workflow block coexist in one file.
+///
+/// # Errors
+///
+/// Same as [`upsert_section`].
+pub fn upsert_keyed_section(
+    target_path: &Path,
+    section_key: &str,
+    body: &str,
+) -> Result<(), AgentFileError> {
     let Some(parent) = target_path.parent() else {
         return Err(AgentFileError::EmptyPath);
     };
@@ -67,8 +96,9 @@ pub fn upsert_section(target_path: &Path, body: &str) -> Result<(), AgentFileErr
         Err(e) => return Err(AgentFileError::Io(e)),
     };
 
-    let new_body = render_section(body);
-    let updated = replace_section(&existing, &new_body);
+    let (begin, end) = markers_for(section_key);
+    let new_body = render_section_with(&begin, &end, body);
+    let updated = replace_section_with(&existing, &begin, &end, &new_body);
     atomic_write(target_path, &updated)
 }
 
@@ -80,12 +110,25 @@ pub fn upsert_section(target_path: &Path, body: &str) -> Result<(), AgentFileErr
 ///
 /// Filesystem failures other than NotFound surface as [`AgentFileError::Io`].
 pub fn remove_section(target_path: &Path) -> Result<(), AgentFileError> {
+    remove_keyed_section(target_path, "owner")
+}
+
+/// Generic version of [`remove_section`] keyed by `section_key`.
+///
+/// # Errors
+///
+/// Same as [`remove_section`].
+pub fn remove_keyed_section(
+    target_path: &Path,
+    section_key: &str,
+) -> Result<(), AgentFileError> {
     let existing = match fs::read_to_string(target_path) {
         Ok(s) => s,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(e) => return Err(AgentFileError::Io(e)),
     };
-    let updated = strip_section(&existing);
+    let (begin, end) = markers_for(section_key);
+    let updated = strip_section_with(&existing, &begin, &end);
     if updated == existing {
         return Ok(());
     }
@@ -113,18 +156,18 @@ pub fn resolve_agent_file(project_folder: &Path) -> PathBuf {
 // Internal helpers
 // ---------------------------------------------------------------------
 
-fn render_section(body: &str) -> String {
+fn render_section_with(begin: &str, end: &str, body: &str) -> String {
     let body_trimmed = body.trim_end_matches('\n');
-    format!("{BEGIN_MARKER}\n{body_trimmed}\n{END_MARKER}\n")
+    format!("{begin}\n{body_trimmed}\n{end}\n")
 }
 
-fn replace_section(existing: &str, new_section: &str) -> String {
-    match find_section_range(existing) {
-        Some((start, end)) => {
+fn replace_section_with(existing: &str, begin: &str, end: &str, new_section: &str) -> String {
+    match find_section_range_with(existing, begin, end) {
+        Some((start, stop)) => {
             let mut out = String::with_capacity(existing.len() + new_section.len());
             out.push_str(&existing[..start]);
             out.push_str(new_section);
-            out.push_str(&existing[end..]);
+            out.push_str(&existing[stop..]);
             out
         }
         None => {
@@ -143,33 +186,29 @@ fn replace_section(existing: &str, new_section: &str) -> String {
     }
 }
 
-fn strip_section(existing: &str) -> String {
-    match find_section_range(existing) {
-        Some((start, end)) => {
+fn strip_section_with(existing: &str, begin: &str, end: &str) -> String {
+    match find_section_range_with(existing, begin, end) {
+        Some((start, stop)) => {
             let mut out = String::with_capacity(existing.len());
             out.push_str(&existing[..start]);
-            out.push_str(&existing[end..]);
-            // Collapse the now-orphan blank line we may have left
-            // behind so removal stays clean across rounds.
+            out.push_str(&existing[stop..]);
             collapse_blank_runs(&out)
         }
         None => existing.to_owned(),
     }
 }
 
-fn find_section_range(existing: &str) -> Option<(usize, usize)> {
-    let start = existing.find(BEGIN_MARKER)?;
-    let after_begin = start + BEGIN_MARKER.len();
-    let end_rel = existing[after_begin..].find(END_MARKER)?;
-    let end = after_begin + end_rel + END_MARKER.len();
-    // Consume one trailing newline if present so re-renders don't
-    // accumulate blank lines.
-    let end = if existing.as_bytes().get(end) == Some(&b'\n') {
-        end + 1
+fn find_section_range_with(existing: &str, begin: &str, end: &str) -> Option<(usize, usize)> {
+    let start = existing.find(begin)?;
+    let after_begin = start + begin.len();
+    let end_rel = existing[after_begin..].find(end)?;
+    let stop = after_begin + end_rel + end.len();
+    let stop = if existing.as_bytes().get(stop) == Some(&b'\n') {
+        stop + 1
     } else {
-        end
+        stop
     };
-    Some((start, end))
+    Some((start, stop))
 }
 
 fn collapse_blank_runs(s: &str) -> String {
