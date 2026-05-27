@@ -1,0 +1,105 @@
+/*
+ * GroupButton — segmented toggle-button group built on RAC.
+ *
+ * The container handles layout (row / column), the items handle their
+ * pressed/hover/focus chrome. Size variants live on the root via
+ * `data-size`; items pick them up through descendant selectors so a
+ * single class controls the whole cluster.
+ */
+
+.group {
+  display: inline-flex;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background-color: var(--color-surface-raised);
+}
+
+.horizontal {
+  flex-direction: row;
+}
+
+.vertical {
+  flex-direction: column;
+}
+
+/* ----------------------------- item base ----------------------------- */
+
+.item {
+  appearance: none;
+  border: 0;
+  background-color: transparent;
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  line-height: 1.4;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  white-space: nowrap;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.item[data-hovered]:not([data-disabled]):not([data-selected]) {
+  background-color: var(--color-overlay-hover);
+}
+
+.item[data-pressed]:not([data-disabled]) {
+  background-color: var(--color-overlay-active);
+}
+
+.item[data-selected] {
+  background-color: var(--color-accent-soft);
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
+}
+
+.item[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ----------------------------- separators ----------------------------- */
+
+.horizontal .item + .item {
+  border-left: 1px solid var(--color-border-default);
+}
+
+.vertical .item + .item {
+  border-top: 1px solid var(--color-border-default);
+}
+
+/* ----------------------------- size scale ----------------------------- */
+
+.group[data-size="sm"] .item {
+  height: 28px;
+  padding: 0 var(--space-12);
+  font-size: var(--font-size-caption);
+}
+
+.group[data-size="md"] .item {
+  height: 32px;
+  padding: 0 var(--space-16);
+  font-size: var(--font-size-body);
+}
+
+.group[data-size="lg"] .item {
+  height: 40px;
+  padding: 0 var(--space-20);
+  font-size: var(--font-size-body);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item {
+    transition: none;
+  }
+}

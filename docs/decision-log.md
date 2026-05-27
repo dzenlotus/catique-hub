@@ -16,3 +16,4 @@ Format: `D-NN | YYYY-MM-DD | Title | ADR ref`
 | D-004 | 2026-05-05 | Resolver strategy: write-time materialisation | ADR-0006 |
 | D-005 | 2026-05-05 | MCP server registry-only (v1) | ADR-0007 |
 | D-006 | 2026-05-06 | Default board name "Owner" + mandatory default column + 1:1 (space, owner_role) | (no ADR) |
+| D-020 | 2026-05-27 | Role ownership invariant — no shared boards. A space holds roles; each role owns exactly one board; a task on a role-owned board IS that role's task implicitly. Frontend MUST NOT surface a role chip / badge / picker on the task surface — the board context already encodes the role. See CLAUDE.md "Role ownership invariant" for code consequences. | (no ADR) |

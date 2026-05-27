@@ -52,6 +52,17 @@ export type {
   EntityActionMenuProps,
 } from "./EntityActionMenu";
 
+export { BoardTitle } from "./BoardTitle";
+export type { BoardTitleProps, BoardTitleSize } from "./BoardTitle";
+
+export { GroupButton } from "./GroupButton";
+export type {
+  GroupButtonProps,
+  GroupButtonItemProps,
+  GroupButtonSize,
+  GroupButtonOrientation,
+} from "./GroupButton";
+
 export { Combobox } from "./Combobox";
 export type { ComboboxProps, ComboboxItem } from "./Combobox";
 

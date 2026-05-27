@@ -66,17 +66,6 @@ export interface TaskCardProps {
    * (contains "done" / "готово").
    */
   isDoneColumn?: boolean;
-  /**
-   * Resolved role name to display on the badge instead of the raw roleId.
-   * Supplied by the parent widget after a `useRoles()` lookup. Falls back
-   * to `task.roleId` when omitted (loading) or when the role isn't found.
-   */
-  roleName?: string;
-  /**
-   * Role accent colour (CSS colour string or null). When provided, the
-   * role badge background is tinted with this colour at low opacity.
-   */
-  roleColor?: string | null;
   /** Optional class merged onto the root. */
   className?: string;
   /**
@@ -118,8 +107,6 @@ export function TaskCard({
   isPending = false,
   dragOverlay = false,
   isDoneColumn = false,
-  roleName,
-  roleColor,
   className,
   style,
   ref,
@@ -142,11 +129,11 @@ export function TaskCard({
     );
   }
 
-  const resolvedRoleName = roleName ?? task.roleId ?? undefined;
-
-  const ariaLabel = task.roleId
-    ? `Task ${task.title}, role ${resolvedRoleName ?? task.roleId}`
-    : `Task ${task.title}`;
+  // Roles are no longer surfaced on task UI — a task on a role-owned
+  // board IS implicitly that role's task (see docs/decision-log.md
+  // D-020 / CLAUDE.md "role ownership invariant"). Aria-label drops
+  // the role qualifier accordingly.
+  const ariaLabel = `Task ${task.title}`;
 
   // The drag-overlay variant is rendered atop the original card during
   // a drag — it must not capture focus or fire activation events.
@@ -161,8 +148,6 @@ export function TaskCard({
           attachmentsCount={attachmentsCount}
           promptsCount={promptsCount}
           isDoneColumn={isDoneColumn}
-          resolvedRoleName={resolvedRoleName}
-          roleColor={roleColor}
         />
       </div>
     );
@@ -283,8 +268,6 @@ export function TaskCard({
           attachmentsCount={attachmentsCount}
           promptsCount={promptsCount}
           isDoneColumn={isDoneColumn}
-          resolvedRoleName={resolvedRoleName}
-          roleColor={roleColor}
         />
       </button>
     </article>
@@ -297,10 +280,6 @@ interface CardBodyProps {
   /** See `TaskCardProps.promptsCount` for suppression semantics. */
   promptsCount?: number | undefined;
   isDoneColumn: boolean;
-  /** Resolved human-readable role name. Falls back to task.roleId when absent. */
-  resolvedRoleName?: string | undefined;
-  /** Role colour token (CSS colour string or null). */
-  roleColor?: string | null | undefined;
 }
 
 function CardBody({
@@ -308,21 +287,12 @@ function CardBody({
   attachmentsCount,
   promptsCount,
   isDoneColumn,
-  resolvedRoleName,
-  roleColor,
 }: CardBodyProps): ReactElement {
   // Slug chip: format `<spacePrefix>-<n>` (e.g. `cot-1`) — use
   // task.slug directly. Slug generation lives in the Rust backend
   // (crates/infrastructure/src/db/repositories/tasks.rs::insert), the
   // frontend never composes or rewrites the value.
   const slugLabel = task.slug;
-
-  // Role badge inline style — tint the background with the role colour when
-  // present (10 % opacity overlay on top of the default accent-soft token).
-  const roleBadgeStyle: React.CSSProperties | undefined =
-    roleColor
-      ? { backgroundColor: `${roleColor}22`, color: roleColor }
-      : undefined;
 
   return (
     <>
@@ -348,21 +318,16 @@ function CardBody({
         <span className={styles.description}>{task.description}</span>
       ) : null}
 
-      {/* Bottom meta row: role badge + attachments + slug chip (right) */}
+      {/*
+       * Bottom meta row: attachments + slug chip (right).
+       *
+       * Roles are not surfaced on the card — see `docs/decision-log.md`
+       * D-020 ("role ownership invariant"). A task on a role-owned board
+       * IS implicitly that role's task; rendering a role chip would just
+       * repeat the board context one level lower.
+       */}
       <div className={styles.bottomRow}>
         <span className={styles.meta}>
-          {/* Role badge: show resolved name, tinted by role colour when present */}
-          {task.roleId ? (
-            <span
-              className={styles.roleBadge}
-              title={`Role: ${resolvedRoleName ?? task.roleId}`}
-              style={roleBadgeStyle}
-              data-testid="task-card-role-badge"
-            >
-              {resolvedRoleName ?? task.roleId}
-            </span>
-          ) : null}
-
           {/* Attachment count chip */}
           {attachmentsCount > 0 ? (
             <span

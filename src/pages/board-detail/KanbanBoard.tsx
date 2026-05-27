@@ -26,7 +26,7 @@ import {
   useMoveTaskMutation,
   useTasksByBoard,
 } from "@entities/task";
-import { Button, IconColorPicker, Scrollable } from "@shared/ui";
+import { BoardTitle, Button, Scrollable } from "@shared/ui";
 import {
   PixelInterfaceEssentialSettingCog,
   PixelInterfaceEssentialPlus,
@@ -550,32 +550,25 @@ export function KanbanBoard({
     <BoardScreen>
     <div className={styles.root}>
       <header className={styles.boardHeader}>
-        <div className={styles.boardTitle}>
-          <IconColorPicker
-            value={{
-              icon: boardQuery.data?.icon ?? null,
-              color: boardQuery.data?.color ?? null,
-            }}
-            onChange={(next) => {
-              if (boardQuery.data === undefined) return;
-              updateBoard.mutate({
-                id: boardQuery.data.id,
-                icon: next.icon,
-                color: next.color,
-              });
-            }}
-            ariaLabel="Board icon and color"
-            data-testid="kanban-board-appearance-picker"
-          />
-          <h1 className={styles.boardHeading}>
-            {boardQuery.data?.name ?? boardId}
-          </h1>
-          {boardQuery.data?.description ? (
-            <p className={styles.boardDescription}>
-              {boardQuery.data.description}
-            </p>
-          ) : null}
-        </div>
+        <BoardTitle
+          size="lg"
+          name={boardQuery.data?.name ?? boardId}
+          description={boardQuery.data?.description ?? null}
+          value={{
+            icon: boardQuery.data?.icon ?? null,
+            color: boardQuery.data?.color ?? null,
+          }}
+          onAppearanceChange={(next) => {
+            if (boardQuery.data === undefined) return;
+            updateBoard.mutate({
+              id: boardQuery.data.id,
+              icon: next.icon,
+              color: next.color,
+            });
+          }}
+          pickerAriaLabel="Board icon and color"
+          pickerTestId="kanban-board-appearance-picker"
+        />
         <button
           type="button"
           className={styles.iconButton}

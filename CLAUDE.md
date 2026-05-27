@@ -129,6 +129,7 @@ CSS is **CSS Modules only** — no Tailwind, no styled-components. In dev, class
 - **License allowlist** (NFR §6.1): MIT, Apache-2.0, BSD, ISC, MPL-2.0, Zlib, Unlicense, CC0. **AGPL and SSPL are forbidden** — the `audit` CI job greps `cargo tree` and fails on either.
 - **bindings/ stays committed** — see `bindings/README.md`. CI gate that diffs bindings is in the E2 backlog; until then, regenerate by hand when changing IPC-facing structs.
 - **Default board model** (D-006): every space has a 1:1 owner role, a board named "Owner" with a mandatory default column. Don't break that invariant in seeders or migrations.
+- **Role ownership invariant** (D-020): there are no shared boards. A space contains roles; each role owns exactly one board; a task on a role-owned board IS that role's task implicitly. **Do not** reintroduce role chips, role pickers, or "role" columns on the task surface (`TaskCard`, `TaskDialog`, task detail) — the board context already encodes the role. `task.roleId` exists on the entity for back-end resolver use, not for UI display.
 - **`tokens.generated.css`, `bindings/*.ts`, `src/shared/ui/icon/sprite.*`** are codegen artefacts. Edit the source (`tokens.json`, Rust struct, `tools/icons-build.ts`) and rerun the generator.
 
 ## ADRs & docs worth reading first

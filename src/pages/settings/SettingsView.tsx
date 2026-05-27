@@ -4,6 +4,7 @@ import {
   Button,
   EntityTree,
   type EntityTreeNode,
+  GroupButton,
   Input,
   Scrollable,
 } from "@shared/ui";
@@ -397,40 +398,26 @@ export function SettingsView(): ReactElement {
           Appearance
         </h3>
         <div className={styles.cardBody}>
-          <div
-            className={styles.themePicker}
-            role="radiogroup"
-            aria-label="Theme"
-          >
+          <div className={styles.themePicker}>
             <span className={styles.themePickerLabel}>Theme</span>
-            <div className={styles.themeButtonGroup}>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={activeTheme === "light"}
-                className={cn(
-                  styles.themeButton,
-                  activeTheme === "light" && styles.themeButtonActive,
-                )}
-                onClick={() => handleThemeChange("light")}
-                data-testid="settings-theme-button-light"
-              >
+            <GroupButton
+              selectionMode="single"
+              selectedKey={activeTheme}
+              onSelectionChange={(key) =>
+                handleThemeChange(key as Theme)
+              }
+              orientation="horizontal"
+              size="sm"
+              ariaLabel="Theme"
+              testId="settings-theme-group"
+            >
+              <GroupButton.Item id="light" testId="settings-theme-button-light">
                 Light
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={activeTheme === "dark"}
-                className={cn(
-                  styles.themeButton,
-                  activeTheme === "dark" && styles.themeButtonActive,
-                )}
-                onClick={() => handleThemeChange("dark")}
-                data-testid="settings-theme-button-dark"
-              >
+              </GroupButton.Item>
+              <GroupButton.Item id="dark" testId="settings-theme-button-dark">
                 Dark
-              </button>
-            </div>
+              </GroupButton.Item>
+            </GroupButton>
             <span
               className={styles.hint}
               data-testid="active-theme-name"

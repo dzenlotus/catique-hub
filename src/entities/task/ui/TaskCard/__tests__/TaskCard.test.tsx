@@ -41,11 +41,13 @@ describe("TaskCard", () => {
     expect(chip).toHaveTextContent("tsk-xyz99");
   });
 
-  it("renders the role badge when roleId is set, and not otherwise", () => {
+  it("does NOT render a role badge — roles are not surfaced on tasks (D-020)", () => {
+    // The board context already encodes the role under the role-ownership
+    // invariant: a task on a role-owned board IS that role's task. We
+    // explicitly assert the absence so a regression bringing the chip
+    // back is caught immediately.
     const { rerender } = render(<TaskCard task={makeTask({ roleId: "anna" })} />);
-    expect(screen.getByTestId("task-card-role-badge")).toHaveTextContent(
-      "anna",
-    );
+    expect(screen.queryByTestId("task-card-role-badge")).toBeNull();
 
     rerender(<TaskCard task={makeTask({ roleId: null })} />);
     expect(screen.queryByTestId("task-card-role-badge")).toBeNull();

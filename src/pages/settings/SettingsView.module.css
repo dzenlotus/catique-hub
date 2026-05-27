@@ -59,51 +59,6 @@
   color: var(--color-text-muted);
 }
 
-.themeButtonGroup {
-  display: inline-flex;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background-color: var(--color-surface-canvas);
-}
-
-.themeButton {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-6) var(--space-12);
-  border: none;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition:
-    background-color 80ms ease-out,
-    color 80ms ease-out;
-}
-
-.themeButton:hover:not(.themeButtonActive) {
-  background-color: var(--color-overlay-hover);
-  color: var(--color-text-default);
-}
-
-.themeButton:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: -2px;
-}
-
-.themeButton + .themeButton {
-  border-left: 1px solid var(--color-border-default);
-}
-
-.themeButtonActive {
-  background-color: var(--color-accent-soft);
-  color: var(--color-text-default);
-  font-weight: var(--font-weight-semibold);
-}
-
 .root {
   display: flex;
   flex-direction: column;

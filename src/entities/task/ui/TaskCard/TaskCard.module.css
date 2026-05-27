@@ -297,22 +297,6 @@
   min-width: 0;
 }
 
-.roleBadge {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--space-2) var(--space-6);
-  border-radius: var(--radius-xs);
-  background-color: var(--color-accent-soft);
-  color: var(--color-text-default);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-medium);
-  /* Truncate long role-ids. */
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .attachments {
   display: inline-flex;
   align-items: center;
