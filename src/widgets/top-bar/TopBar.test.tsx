@@ -11,8 +11,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Router } from "wouter";
-import { memoryLocation } from "wouter/memory-location";
+import { TestRouter } from "@shared/lib";
 import type { ReactElement } from "react";
 
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
@@ -76,7 +75,7 @@ vi.mock("./useNewTaskKeybind", () => ({
 // Mock TaskCreateDialog
 // ---------------------------------------------------------------------------
 
-vi.mock("@widgets/task-create-dialog", () => ({
+vi.mock("@features/task/create-dialog", () => ({
   TaskCreateDialog: ({
     isOpen,
     onClose,
@@ -107,16 +106,14 @@ function makeClient(): QueryClient {
 }
 
 function renderAt(path = "/"): { rerender: () => void } {
-  const { hook } = memoryLocation({ path, static: true });
-
   const ui: ReactElement = (
-    <Router hook={hook}>
+    <TestRouter path={path}>
       <QueryClientProvider client={makeClient()}>
         <ActiveSpaceProvider>
           <TopBar />
         </ActiveSpaceProvider>
       </QueryClientProvider>
-    </Router>
+    </TestRouter>
   );
 
   const result = render(ui);

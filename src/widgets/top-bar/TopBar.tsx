@@ -19,7 +19,7 @@ import { useState, useCallback, type ReactElement } from "react";
 import { PixelInterfaceEssentialSearch1 } from "@shared/ui/Icon";
 
 import { GlobalSearch, useGlobalSearchKeybind } from "@widgets/global-search";
-import { TaskCreateDialog } from "@widgets/task-create-dialog";
+import { TaskCreateDialog } from "@features/task/create-dialog";
 
 import { useNewTaskKeybind } from "./useNewTaskKeybind";
 import { SyncIndicator } from "./SyncIndicator";

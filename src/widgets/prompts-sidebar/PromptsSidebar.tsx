@@ -20,8 +20,8 @@ import {
   type PromptGroup,
   usePromptGroups,
 } from "@entities/prompt-group";
-import { PromptGroupCreateDialog } from "@widgets/prompt-group-create-dialog";
-import { PromptCreateDialog } from "@widgets/prompt-create-dialog";
+import { PromptGroupCreateDialog } from "@features/prompt-group/create-dialog";
+import { PromptCreateDialog } from "@features/prompt/create-dialog";
 
 import { PromptsSettingsButton } from "./PromptsSettingsButton";
 import { TagsFilterButton } from "./TagsFilterButton";

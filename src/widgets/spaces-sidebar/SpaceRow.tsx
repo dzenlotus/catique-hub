@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from "react";
-import { useLocation } from "wouter";
+import { useLocationCompat as useLocation } from "@shared/lib";
 
 import {
   Button,

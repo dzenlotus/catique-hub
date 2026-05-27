@@ -19,8 +19,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DragDropProvider } from "@dnd-kit/react";
 import type { ReactElement } from "react";
-import { Router } from "wouter";
-import { memoryLocation } from "wouter/memory-location";
+import { TestRouter } from "@shared/lib";
 
 import { ToastProvider } from "@app/providers/ToastProvider";
 import { PromptsSidebar } from "./PromptsSidebar";
@@ -141,9 +140,8 @@ function setup(options: SetupOptions = {}): {
   user: ReturnType<typeof userEvent.setup>;
 } {
   const user = userEvent.setup();
-  const { hook } = memoryLocation({ path: "/", static: true });
   const ui: ReactElement = (
-    <Router hook={hook}>
+    <TestRouter path="/">
       <QueryClientProvider client={makeQueryClient()}>
         <ToastProvider>
           <DragDropProvider>
@@ -161,7 +159,7 @@ function setup(options: SetupOptions = {}): {
           </DragDropProvider>
         </ToastProvider>
       </QueryClientProvider>
-    </Router>
+    </TestRouter>
   );
   render(ui);
   return { user };

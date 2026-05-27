@@ -12,8 +12,7 @@
 
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Router } from "wouter";
-import { memoryLocation } from "wouter/memory-location";
+import { TestRouter } from "@shared/lib";
 
 import { boardsKeys } from "@entities/board";
 import type { Board } from "@entities/board";
@@ -90,8 +89,7 @@ function StoryRouter({
   path?: string;
   children: React.ReactNode;
 }): React.ReactElement {
-  const { hook } = memoryLocation({ path, static: true });
-  return <Router hook={hook}>{children}</Router>;
+  return <TestRouter path={path}>{children}</TestRouter>;
 }
 
 // ── Query client helpers ──────────────────────────────────────────────────────

@@ -69,3 +69,4 @@ export type {
 // UI
 export { RoleCard } from "./ui";
 export type { RoleCardProps } from "./ui";
+export { RolesList } from "./ui";

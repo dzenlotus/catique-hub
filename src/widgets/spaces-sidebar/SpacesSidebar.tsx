@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from "react";
-import { useLocation } from "wouter";
+import { useLocationCompat as useLocation } from "@shared/lib";
 
 import {
   SidebarShell,
@@ -11,7 +11,7 @@ import { useSpaces } from "@entities/space";
 import { useBoards } from "@entities/board";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
 import { boardPath } from "@app/routes";
-import { SpaceCreateDialog } from "@widgets/space-create-dialog";
+import { SpaceCreateDialog } from "@features/space/create-dialog";
 
 import { SpaceRow } from "./SpaceRow";
 import styles from "./SpacesSidebar.module.css";

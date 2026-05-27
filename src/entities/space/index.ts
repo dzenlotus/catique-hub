@@ -31,3 +31,4 @@ export type { Space } from "./model";
 // UI
 export { SpaceCard } from "./ui";
 export type { SpaceCardProps } from "./ui";
+export { SpacesList } from "./ui";

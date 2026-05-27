@@ -3,8 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
-import { Router } from "wouter";
-import { memoryLocation } from "wouter/memory-location";
+import { TestRouter } from "@shared/lib";
 
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
 import { ToastProvider } from "@app/providers/ToastProvider";
@@ -48,15 +47,14 @@ function renderWithClient(
   initialPath = "/",
 ): { user: ReturnType<typeof userEvent.setup> } {
   const user = userEvent.setup();
-  const { hook } = memoryLocation({ path: initialPath, static: true });
   render(
-    <Router hook={hook}>
+    <TestRouter path={initialPath}>
       <QueryClientProvider client={client}>
         <ToastProvider>
           <ActiveSpaceProvider>{ui}</ActiveSpaceProvider>
         </ToastProvider>
       </QueryClientProvider>
-    </Router>,
+    </TestRouter>,
   );
   return { user };
 }

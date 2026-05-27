@@ -6,7 +6,9 @@
 
 - Фактически используются **4 слоя** из канонических шести: `app / widgets / entities / shared`. Слои `pages` и `features` отсутствуют.
 - В коде есть 4 категории явных нарушений направления импорта (детали ниже). Они мешают линтерному автоматическому контролю и будут расти, пока не зафиксируем правила.
-- Предлагается зафиксировать **5-слойную модель** (без `pages`, с возвращённым `features`) и поставить `eslint-plugin-boundaries` как gate в CI.
+- ~~Предлагается зафиксировать **5-слойную модель** (без `pages`, с возвращённым `features`) и поставить `eslint-plugin-boundaries` как gate в CI.~~
+- **Обновлено 2026-05-27 (catique-router refactor):** цель пересмотрена на **6 канонических слоёв FSD** — `app / pages / widgets / features / entities / shared`. `pages/` нужен как точка композиции маршрутов для миграции на TanStack Router (file-based-like layout без переноса виджетов в `src/routes/`). Реализация в фазах F0–F5 ветки `refactor`.
+- **F5 status:** `eslint-plugin-boundaries@^6` установлен, конфиг `eslint.config.js` написан, скрипт `pnpm lint` подключён, но **boundary-нарушения пока не репортятся**: v6 selector-API не совместим с конфигом, написанным под legacy `boundaries/element-types`. Follow-up F5b — либо мигрировать на v6 object-selectors, либо откатиться на `boundaries@5`. До тех пор список FSD-нарушений из секций ниже остаётся актуальным as-is.
 
 ## 1. Текущая структура
 

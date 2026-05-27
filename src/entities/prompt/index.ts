@@ -36,3 +36,4 @@ export type { Prompt, PromptTemplate } from "./model";
 // UI
 export { PromptCard } from "./ui";
 export type { PromptCardProps } from "./ui";
+export { PromptsList } from "./ui";

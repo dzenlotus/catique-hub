@@ -65,3 +65,4 @@ export type { ImportReport } from "@bindings/ImportReport";
 // UI
 export { SkillCard } from "./ui";
 export type { SkillCardProps } from "./ui";
+export { SkillsList } from "./ui";
