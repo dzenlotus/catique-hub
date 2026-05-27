@@ -57,7 +57,16 @@ use serde::Deserialize;
 /// Service name under which every Catique HUB secret is stored in the
 /// OS keychain. macOS Keychain calls this the "service", Windows
 /// Credential Manager the "target", Secret Service the "schema".
-pub const KEYCHAIN_SERVICE: &str = "catique-hub";
+///
+/// Debug builds use the `-dev` suffix so a developer running
+/// `pnpm tauri:dev` does not read or overwrite secrets owned by the
+/// installed production `Catique HUB.app`. The two processes get
+/// disjoint keychain buckets.
+pub const KEYCHAIN_SERVICE: &str = if cfg!(debug_assertions) {
+    "catique-hub-dev"
+} else {
+    "catique-hub"
+};
 
 /// Namespace prefix for per-MCP-server keychain keys. Must stay in
 /// lockstep with `catique_application::mcp_servers::keychain_key_for`.

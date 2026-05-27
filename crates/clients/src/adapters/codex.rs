@@ -331,11 +331,11 @@ mod tests {
         assert!(after.contains("# user comment"));
         assert!(after.contains("model = \"gpt-4\""));
         assert!(after.contains("[mcp_servers.other]"));
-        assert!(after.contains("[mcp_servers.catique-hub]"));
+        assert!(after.contains(&format!("[mcp_servers.{CATIQUE_MCP_KEY}]")));
         // Re-parse to assert the value shape.
         let doc: DocumentMut = after.parse().unwrap();
         assert_eq!(
-            doc["mcp_servers"]["catique-hub"]["command"]
+            doc["mcp_servers"][CATIQUE_MCP_KEY]["command"]
                 .as_str()
                 .unwrap(),
             "/cat"

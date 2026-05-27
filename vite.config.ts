@@ -75,6 +75,10 @@ export default defineConfig(({ command }) => ({
     },
   },
   server: {
+    // Default Vite ports for `pnpm dev` / packaged release Tauri build.
+    // The dev Tauri bundle (Catique HUB Dev) uses a sibling config
+    // — `vite.dev-tauri.config.ts` — that mergeConfig-overrides these
+    // to 1430/1431 so both can run side-by-side without a port clash.
     port: 1420,
     strictPort: true,
     host: false,

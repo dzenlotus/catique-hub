@@ -51,8 +51,16 @@ const LOG_PREFIX: &str = "[catique-hub-mcp]";
 /// MCP protocol version we advertise during `initialize`.
 const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
 
-/// Server-side identity returned during `initialize`.
-const SERVER_NAME: &str = "catique-hub";
+/// Server-side identity returned during `initialize`. Debug builds
+/// advertise the `-dev` suffix so external clients can visually
+/// distinguish a developer's `pnpm tauri:dev` build from the installed
+/// production app — both binaries can be registered simultaneously
+/// (under `catique-hub-dev` and `catique-hub` keys respectively).
+const SERVER_NAME: &str = if cfg!(debug_assertions) {
+    "catique-hub-dev"
+} else {
+    "catique-hub"
+};
 const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Single MCP tool exposed by the standalone binary. Every catique
@@ -110,6 +118,7 @@ async fn run() -> Result<(), StartupError> {
         path: path.display().to_string(),
         reason: e.to_string(),
     })?;
+    log(&format!("opened db at {}", path.display()));
 
     {
         let mut conn = pool

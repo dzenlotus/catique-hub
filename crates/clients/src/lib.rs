@@ -60,7 +60,17 @@ pub const CATIQUE_MANAGED_KEY: &str = "catique_managed";
 /// `mcpServers["catique-hub"]`; Codex →
 /// `[mcp_servers.catique-hub]`; OpenCode →
 /// `mcp.catique-hub`.
-pub const CATIQUE_MCP_KEY: &str = "catique-hub";
+///
+/// Debug builds use the `-dev` suffix so a developer running
+/// `pnpm tauri:dev` does not overwrite the production entry an
+/// installed `Catique HUB.app` writes (and vice-versa). The two
+/// processes can then coexist in the same `~/.claude.json` /
+/// `~/.codex/config.toml` without fighting each other on startup.
+pub const CATIQUE_MCP_KEY: &str = if cfg!(debug_assertions) {
+    "catique-hub-dev"
+} else {
+    "catique-hub"
+};
 
 /// Filename prefix every catique-owned managed file MUST start with.
 /// For Codex Skills the prefix lives on the *directory* name

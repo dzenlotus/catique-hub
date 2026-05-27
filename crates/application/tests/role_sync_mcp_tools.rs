@@ -25,7 +25,7 @@ use catique_application::connected_providers::build_bundle_for_test;
 use catique_clients::adapters::claude_code::ClaudeCodeProvider;
 use catique_clients::adapters::codex::CodexProvider;
 use catique_clients::adapters::opencode::OpenCodeProvider;
-use catique_clients::{ClientProvider, ResolvedRole};
+use catique_clients::{ClientProvider, ResolvedRole, CATIQUE_MCP_KEY};
 use catique_infrastructure::db::pool::{memory_pool_for_tests, Pool};
 use catique_infrastructure::db::runner::run_pending;
 use serde_json::Value;
@@ -308,8 +308,8 @@ async fn claude_code_sync_writes_agent_file_with_sorted_blocks_and_single_mcp_en
         .as_object()
         .expect("mcpServers must be an object");
     assert_eq!(servers.len(), 1, "expected single entry, got {servers:?}");
-    assert!(servers.contains_key("catique-hub"));
-    assert!(servers["catique-hub"]["command"].as_str().is_some());
+    assert!(servers.contains_key(CATIQUE_MCP_KEY));
+    assert!(servers[CATIQUE_MCP_KEY]["command"].as_str().is_some());
 }
 
 /// OpenCode mirror of the Claude Code single-entry assertion.
@@ -336,7 +336,7 @@ async fn opencode_mcp_config_writes_single_catique_hub_entry() {
         .expect("valid JSON");
     let mcp = root["mcp"].as_object().expect("`mcp` must be an object");
     assert_eq!(mcp.len(), 1, "expected single entry, got {mcp:?}");
-    assert!(mcp.contains_key("catique-hub"));
+    assert!(mcp.contains_key(CATIQUE_MCP_KEY));
 }
 
 /// Codex mirror: the catique slot is `[mcp_servers.catique-hub]` in
@@ -360,15 +360,16 @@ async fn codex_mcp_config_writes_single_catique_hub_table() {
     let raw = std::fs::read_to_string(&toml_path).unwrap();
     // Count the catique-hub key inside `[mcp_servers]`. A simple
     // substring check is enough — the file is small and known-shaped.
+    let header = format!("[mcp_servers.{CATIQUE_MCP_KEY}]");
     assert_eq!(
-        raw.matches("[mcp_servers.catique-hub]").count(),
+        raw.matches(&header).count(),
         1,
-        "expected exactly one [mcp_servers.catique-hub] table, got:\n{raw}",
+        "expected exactly one {header} table, got:\n{raw}",
     );
     // No other catique-* tables landed.
     let other_catique_tables: Vec<&str> = raw
         .lines()
-        .filter(|l| l.starts_with("[mcp_servers.") && !l.contains("catique-hub"))
+        .filter(|l| l.starts_with("[mcp_servers.") && !l.contains(CATIQUE_MCP_KEY))
         .collect();
     assert!(
         other_catique_tables.is_empty(),

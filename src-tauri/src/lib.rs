@@ -109,21 +109,34 @@ pub fn run() {
             // the current location of the .app — users who moved the
             // bundle between launches still get working MCP wiring
             // without manual config surgery.
-            let bootstrap_pool = state.pool.clone();
-            tauri::async_runtime::spawn(async move {
-                let uc =
-                    catique_application::clients::ConnectedProvidersUseCase::new(&bootstrap_pool);
-                match uc.bootstrap_first_launch_if_needed().await {
-                    Ok(ids) if !ids.is_empty() => {
-                        eprintln!("[catique-hub] first-launch detected providers: {ids:?}");
+            //
+            // Skipped entirely in debug builds: a developer running
+            // `pnpm tauri:dev` alongside an installed `Catique HUB.app`
+            // would otherwise see 150+ MCP tools twice inside every
+            // Claude Code / Codex session (once from the prod
+            // `catique-hub` server, once from the dev `catique-hub-dev`
+            // server). The dev binary keeps the UI's Connected
+            // Providers page available so the user can opt-in manually
+            // if they want to exercise the sync flow.
+            #[cfg(not(debug_assertions))]
+            {
+                let bootstrap_pool = state.pool.clone();
+                tauri::async_runtime::spawn(async move {
+                    let uc = catique_application::clients::ConnectedProvidersUseCase::new(
+                        &bootstrap_pool,
+                    );
+                    match uc.bootstrap_first_launch_if_needed().await {
+                        Ok(ids) if !ids.is_empty() => {
+                            eprintln!("[catique-hub] first-launch detected providers: {ids:?}");
+                        }
+                        Ok(_) => {}
+                        Err(e) => {
+                            eprintln!("[catique-hub] first-launch bootstrap failed: {e}");
+                        }
                     }
-                    Ok(_) => {}
-                    Err(e) => {
-                        eprintln!("[catique-hub] first-launch bootstrap failed: {e}");
-                    }
-                }
-                uc.refresh_catique_mcp_in_all_connected().await;
-            });
+                    uc.refresh_catique_mcp_in_all_connected().await;
+                });
+            }
 
             // W1 (catique-hub-mcp standalone binary, 2026-05-14):
             //

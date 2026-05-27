@@ -445,7 +445,7 @@ mod tests {
             root["mcpServers"]["other-server"]["command"],
             "/usr/bin/foo"
         );
-        assert_eq!(root["mcpServers"]["catique-hub"]["command"], "/cat/bin");
+        assert_eq!(root["mcpServers"][CATIQUE_MCP_KEY]["command"], "/cat/bin");
     }
 
     #[tokio::test]
@@ -462,7 +462,7 @@ mod tests {
         .unwrap();
         let raw = tokio::fs::read_to_string(&path).await.unwrap();
         let root: serde_json::Value = serde_json::from_str(&raw).unwrap();
-        assert_eq!(root["mcpServers"]["catique-hub"]["command"], "/cat");
+        assert_eq!(root["mcpServers"][CATIQUE_MCP_KEY]["command"], "/cat");
     }
 
     #[tokio::test]

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Catique HUB Dev",
+  "identifier": "com.dzenlotus.catique-hub.dev",
+  "build": {
+    "beforeDevCommand": "pnpm vite --config vite.dev-tauri.config.ts",
+    "devUrl": "http://localhost:1430"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Catique HUB — Dev",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true,
+        "decorations": true,
+        "fullscreen": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
+      }
+    ]
+  }
+}

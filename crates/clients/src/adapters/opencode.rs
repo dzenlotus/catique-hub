@@ -199,7 +199,7 @@ mod tests {
         assert_eq!(v["theme"], "dark");
         assert_eq!(v["model"], "gpt-4");
         assert_eq!(v["mcp"]["other"]["command"], "/bin/bar");
-        assert_eq!(v["mcp"]["catique-hub"]["command"], "/c");
+        assert_eq!(v["mcp"][CATIQUE_MCP_KEY]["command"], "/c");
     }
 
     #[tokio::test]
