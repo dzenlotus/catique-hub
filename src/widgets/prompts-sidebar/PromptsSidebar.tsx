@@ -1,14 +1,10 @@
 import { useMemo, useState, type ReactElement } from "react";
 
 import {
-  Button,
+  EntityActionMenu,
   EntityTree,
   type EntityTreeNode,
-  KebabIcon,
   MarqueeText,
-  Menu,
-  MenuItem,
-  MenuTrigger,
   RowLeading,
   SidebarNavItem,
   SidebarSectionDivider,
@@ -297,7 +293,7 @@ function GroupRowBody({
   onDelete,
 }: GroupRowBodyProps): ReactElement {
   return (
-    <>
+    <div className={styles.rowBody}>
       <button
         type="button"
         className={styles.rowButton}
@@ -308,28 +304,17 @@ function GroupRowBody({
         <RowLeading icon={group.icon} color={group.color} />
         <MarqueeText text={group.name} className={styles.label} />
       </button>
-      <MenuTrigger>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={`Actions for group ${group.name}`}
-          data-testid={`prompts-sidebar-group-kebab-${group.id}`}
-        >
-          <KebabIcon />
-        </Button>
-        <Menu
-          onAction={(key) => {
-            if (key === "rename") onRename(group.id);
-            else if (key === "settings") onSettings(group.id);
-            else if (key === "delete") onDelete(group.id);
-          }}
-        >
-          <MenuItem id="rename">Rename</MenuItem>
-          <MenuItem id="settings">Settings</MenuItem>
-          <MenuItem id="delete">Delete</MenuItem>
-        </Menu>
-      </MenuTrigger>
-    </>
+      <EntityActionMenu
+        items={[
+          { id: "rename", label: "Rename", onAction: () => onRename(group.id) },
+          { id: "settings", label: "Settings", onAction: () => onSettings(group.id) },
+          { id: "delete", label: "Delete", onAction: () => onDelete(group.id) },
+        ]}
+        triggerAriaLabel={`Actions for group ${group.name}`}
+        triggerTestId={`prompts-sidebar-group-kebab-${group.id}`}
+        triggerClassName={styles.groupKebab}
+      />
+    </div>
   );
 }
 
@@ -340,15 +325,17 @@ interface PromptRowBodyProps {
 
 function PromptRowBody({ prompt, onSelect }: PromptRowBodyProps): ReactElement {
   return (
-    <button
-      type="button"
-      className={styles.rowButton}
-      onClick={onSelect}
-      aria-label={prompt.name}
-      data-testid={`prompts-sidebar-prompts-row-${prompt.id}`}
-    >
-      <RowLeading icon={prompt.icon} color={prompt.color} />
-      <MarqueeText text={prompt.name} className={styles.label} />
-    </button>
+    <div className={styles.rowBody}>
+      <button
+        type="button"
+        className={styles.rowButton}
+        onClick={onSelect}
+        aria-label={prompt.name}
+        data-testid={`prompts-sidebar-prompts-row-${prompt.id}`}
+      >
+        <RowLeading icon={prompt.icon} color={prompt.color} />
+        <MarqueeText text={prompt.name} className={styles.label} />
+      </button>
+    </div>
   );
 }

@@ -214,6 +214,7 @@ export function McpServersPage(): ReactElement {
                     label={node.label}
                     onClick={() => handleSelectServer(server.id)}
                     testId={`mcp-servers-sidebar-row-srv:${server.id}`}
+                    hideLeading
                   />
                 );
               }
@@ -224,6 +225,7 @@ export function McpServersPage(): ReactElement {
                     label={node.label}
                     onClick={() => handleSelectTool(serverId, tool.id)}
                     testId={`mcp-servers-sidebar-row-tool:${tool.id}`}
+                    hideLeading
                   />
                 );
               }

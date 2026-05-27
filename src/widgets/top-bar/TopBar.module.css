@@ -42,6 +42,13 @@
   flex-shrink: 0;
 }
 
+/* Spacer that pins the SyncIndicator to the right of the row while the
+ * search trigger is offline. Stays draggable so the Tauri window can be
+ * moved from this strip. */
+.searchSpacer {
+  width: 100%;
+}
+
 /* ── Search trigger ───────────────────────────────────────────────────── */
 
 .searchTrigger {

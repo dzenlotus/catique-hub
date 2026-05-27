@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { TestRouter } from "@shared/lib";
 
 import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
+import { ExpandedSpacesProvider } from "@app/providers/ExpandedSpacesProvider";
 import { ToastProvider } from "@app/providers/ToastProvider";
 import { LocalStorageStore, stringCodec } from "@shared/storage";
 import { SpacesSidebar } from "../SpacesSidebar";
@@ -51,7 +52,9 @@ function renderWithClient(
     <TestRouter path={initialPath}>
       <QueryClientProvider client={client}>
         <ToastProvider>
-          <ActiveSpaceProvider>{ui}</ActiveSpaceProvider>
+          <ActiveSpaceProvider>
+            <ExpandedSpacesProvider>{ui}</ExpandedSpacesProvider>
+          </ActiveSpaceProvider>
         </ToastProvider>
       </QueryClientProvider>
     </TestRouter>,
@@ -113,11 +116,13 @@ const STUB_BOARDS = [
 
 function clearExpandedFlags(): void {
   // SpaceRow persists expand state per space under
-  // `catique:sidebar:expanded:<spaceId>`. Across tests we want a fresh
-  // state so the default-expanded heuristic kicks in again.
+  // `catique:sidebar:expanded:<spaceId>`; the lifted
+  // `ExpandedSpacesProvider` uses the single
+  // `catique:sidebar:expanded-spaces` slot. Both must be cleared across
+  // tests so the default-expanded heuristic kicks in again.
   for (let i = localStorage.length - 1; i >= 0; i -= 1) {
     const key = localStorage.key(i);
-    if (key !== null && key.startsWith("catique:sidebar:expanded:")) {
+    if (key !== null && key.startsWith("catique:sidebar:expanded")) {
       localStorage.removeItem(key);
     }
   }

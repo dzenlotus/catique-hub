@@ -5,13 +5,17 @@
  * sync with `SidebarShell.module.css .navItem` (rail family).
  */
 
+/* `RowLabelButton` lands directly inside EntityTree's `.rowContent`
+ * slot — which is layout-agnostic. This component therefore owns its
+ * own row-body styling, including the canonical left inset that aligns
+ * row contents with the section-header label across every rail. */
 .button {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--space-12);
-  padding: var(--space-2) 0;
+  padding: var(--space-2) 0 var(--space-2) var(--space-8);
   cursor: pointer;
   background: transparent;
   border: 0;

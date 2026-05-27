@@ -26,6 +26,7 @@ import { PortalProvider } from "@shared/ui";
 
 import { ActiveSpaceProvider } from "./ActiveSpaceProvider";
 import { EventsProvider } from "./EventsProvider";
+import { ExpandedSpacesProvider } from "./ExpandedSpacesProvider";
 import { QueryProvider } from "./QueryProvider";
 import { ToastProvider } from "./ToastProvider";
 
@@ -43,7 +44,9 @@ export function AppProviders({ children }: PropsWithChildren): ReactElement {
       <QueryProvider>
         <EventsProvider>
           <ActiveSpaceProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ExpandedSpacesProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </ExpandedSpacesProvider>
           </ActiveSpaceProvider>
         </EventsProvider>
       </QueryProvider>

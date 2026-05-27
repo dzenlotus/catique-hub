@@ -1,0 +1,28 @@
+/*
+ * EntityActionMenu — menu-item styles. The trigger + popover chrome
+ * comes from `Button` (ghost variant) and `Menu` respectively; this
+ * file only owns the per-item icon + label layout so an item with a
+ * leading icon stays vertically aligned with a label-only item.
+ */
+
+.itemIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: var(--space-8);
+  color: var(--color-text-muted);
+}
+
+.itemIcon > svg {
+  width: 100%;
+  height: 100%;
+}
+
+.itemLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

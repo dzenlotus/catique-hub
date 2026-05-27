@@ -7,15 +7,11 @@ import {
 import { useLocationCompat as useLocation } from "@shared/lib";
 
 import {
-  Button,
   ConfirmDialog,
+  EntityActionMenu,
   EntityTree,
   type EntityTreeNode,
-  KebabIcon,
   MarqueeText,
-  Menu,
-  MenuItem,
-  MenuTrigger,
   RowLeading,
   SidebarShell,
 } from "@shared/ui";
@@ -31,6 +27,7 @@ import {
   useDeleteBoardMutation,
 } from "@entities/board";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
+import { useExpandedSpaces } from "@app/providers/ExpandedSpacesProvider";
 import {
   boardPath,
   boardSettingsPath,
@@ -103,35 +100,36 @@ export function SpacesSidebar(): ReactElement {
   // board still reads as "the active surface".
   const activeBoardId = matchBoardSurface(location)?.boardId ?? null;
 
-  // Expand state lives here, seeded from localStorage on first read for
-  // each space id. Toggling writes through so reloads restore the same
-  // set of open spaces.
-  const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
+  // Expand state lives in the App-level `ExpandedSpacesProvider` so a
+  // navigation that re-mounts `<SpacesSidebar/>` (e.g. clicking a board
+  // → BoardHome → BoardDetailPage) keeps every previously-opened space
+  // expanded. The provider also persists to localStorage on toggle.
+  const { getExpanded, toggleExpanded: providerToggle } = useExpandedSpaces();
 
   const isExpanded = useCallback(
     (space: Space, index: number): boolean => {
-      const current = expandedMap[space.id];
-      if (current !== undefined) return current;
+      const explicit = getExpanded(space.id);
+      if (explicit !== undefined) return explicit;
       // Fallback: first space + the user-declared default space start
       // expanded so the user lands on a populated tree.
       const fallback = index === 0 || space.isDefault;
       return readPersistedExpanded(space.id, fallback);
     },
-    [expandedMap],
+    [getExpanded],
   );
 
   const toggleExpanded = useCallback(
     (space: Space, index: number): void => {
-      setExpandedMap((prev) => {
-        const current = prev[space.id];
-        const resolved =
-          current ?? readPersistedExpanded(space.id, index === 0 || space.isDefault);
-        const next = !resolved;
-        writePersistedExpanded(space.id, next);
-        return { ...prev, [space.id]: next };
-      });
+      const fallback = index === 0 || space.isDefault;
+      const current =
+        getExpanded(space.id) ?? readPersistedExpanded(space.id, fallback);
+      providerToggle(space.id, current);
+      // Keep the per-space localStorage slot in lockstep with the
+      // provider's map so older keys written before round-N migration
+      // still resolve correctly during the transition.
+      writePersistedExpanded(space.id, !current);
     },
-    [],
+    [getExpanded, providerToggle],
   );
 
   // Board delete confirmation — modal handles the destructive flow.
@@ -265,19 +263,21 @@ export function SpacesSidebar(): ReactElement {
             if (payload?.kind === "space") {
               const { space, isActiveSpace } = payload;
               return (
-                <button
-                  type="button"
-                  className={styles.spaceNameBtn}
-                  onClick={() => handleSelectSpace(space)}
-                  aria-label={`${space.name}${isActiveSpace ? " (active space)" : ""}`}
-                  data-testid={`spaces-sidebar-space-name-${space.id}`}
-                >
-                  <RowLeading icon={space.icon} color={space.color} />
-                  <MarqueeText
-                    text={space.name}
-                    className={styles.spaceNameText}
-                  />
-                </button>
+                <div className={styles.spaceRowBody}>
+                  <button
+                    type="button"
+                    className={styles.spaceNameBtn}
+                    onClick={() => handleSelectSpace(space)}
+                    aria-label={`${space.name}${isActiveSpace ? " (active space)" : ""}`}
+                    data-testid={`spaces-sidebar-space-name-${space.id}`}
+                  >
+                    <RowLeading icon={space.icon} color={space.color} />
+                    <MarqueeText
+                      text={space.name}
+                      className={styles.spaceNameText}
+                    />
+                  </button>
+                </div>
               );
             }
             if (payload?.kind === "board") {
@@ -341,8 +341,17 @@ function BoardRowBody({
   onSettings,
   onDelete,
 }: BoardRowBodyProps): ReactElement {
+  // Default boards are auto-created with their owning space and cannot
+  // be deleted via the IPC (use-case returns Validation { is_default }).
+  // Hide the affordance entirely so the user never fires a doomed delete.
+  const menuItems = [
+    { id: "settings", label: "Settings", onAction: onSettings },
+    ...(board.isDefault
+      ? []
+      : [{ id: "delete", label: "Delete", onAction: onDelete }]),
+  ];
   return (
-    <>
+    <div className={styles.boardRowBody}>
       <button
         type="button"
         className={styles.boardRowBtn}
@@ -353,31 +362,12 @@ function BoardRowBody({
         <RowLeading icon={board.icon} color={board.color} />
         <MarqueeText text={board.name} className={styles.boardRowLabel} />
       </button>
-      <MenuTrigger>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={`Actions for board ${board.name}`}
-          data-testid={`spaces-sidebar-board-kebab-${board.id}`}
-        >
-          <KebabIcon />
-        </Button>
-        <Menu
-          onAction={(key) => {
-            if (key === "settings") onSettings();
-            else if (key === "delete") onDelete();
-          }}
-        >
-          <MenuItem id="settings">Settings</MenuItem>
-          {/*
-           * Default boards are auto-created with their owning space and
-           * cannot be deleted via the IPC (use-case returns
-           * Validation { is_default }). Hide the affordance entirely so
-           * the user never fires a doomed delete.
-           */}
-          {board.isDefault ? null : <MenuItem id="delete">Delete</MenuItem>}
-        </Menu>
-      </MenuTrigger>
-    </>
+      <EntityActionMenu
+        items={menuItems}
+        triggerAriaLabel={`Actions for board ${board.name}`}
+        triggerTestId={`spaces-sidebar-board-kebab-${board.id}`}
+        triggerClassName={styles.boardKebab}
+      />
+    </div>
   );
 }

@@ -46,6 +46,12 @@ export type {
   MenuSeparatorProps,
 } from "./Menu";
 
+export { EntityActionMenu } from "./EntityActionMenu";
+export type {
+  EntityActionMenuItem,
+  EntityActionMenuProps,
+} from "./EntityActionMenu";
+
 export { Combobox } from "./Combobox";
 export type { ComboboxProps, ComboboxItem } from "./Combobox";
 

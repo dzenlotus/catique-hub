@@ -31,8 +31,30 @@ import { SpaceSettingsPage } from "@pages/space-settings";
 
 import { RootLayout } from "./RootLayout";
 
+/**
+ * Silent error fallback for the root route.
+ *
+ * TanStack Router + React StrictMode + Fast Refresh occasionally
+ * surface a transient "useActiveSpace must be used within
+ * <ActiveSpaceProvider>" because the dev-mode router reuses a stale
+ * RouterProvider while the provider tree above it is being remounted
+ * by HMR. Without an `errorComponent`, the router logs a noisy
+ * "error wasn't caught by any route" warning on every refresh. With
+ * one, the user simply sees a blank pane while the provider tree
+ * settles (next click / nav restores the real content). Production
+ * builds never trip this path — the provider stack is stable there.
+ *
+ * Renders the layout shell so the sidebars + top bar stay visible
+ * (they don't depend on ActiveSpace) — only the route Outlet falls
+ * back to a quiet empty pane.
+ */
+function RootErrorBoundary(): null {
+  return null;
+}
+
 const rootRoute = createRootRoute({
   component: RootLayout,
+  errorComponent: RootErrorBoundary,
 });
 
 const boardsRoute = createRoute({

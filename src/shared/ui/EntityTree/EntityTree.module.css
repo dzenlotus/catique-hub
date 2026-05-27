@@ -146,17 +146,20 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Row content — where the consumer's `renderContent` output lands.
+ * Row content — slot where the consumer's `renderContent` output lands.
  * `flex: 1` + `min-width: 0` lets a long label ellipsise instead of
- * overflowing.
+ * overflowing the rail. We deliberately do NOT set `display: flex` /
+ * `align-items` / `gap` here: the primitive must not dictate the
+ * consumer's internal layout. Every consumer wraps its row body in its
+ * own container with personal styles (icon column inset, left padding,
+ * trailing affordances) — see `.boardRowBody` in SpacesSidebar,
+ * `.rowBody` in PromptsSidebar / MainSidebar / pages.
  * ------------------------------------------------------------------------- */
 
 .rowContent {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
 }
 
 /* ---------------------------------------------------------------------------

@@ -28,12 +28,8 @@ import {
   useUpdatePromptGroupMutation,
 } from "@entities/prompt-group";
 import {
-  Button,
+  EntityActionMenu,
   IconColorPicker,
-  MenuTrigger,
-  Menu,
-  MenuItem,
-  KebabIcon,
   Scrollable,
 } from "@shared/ui";
 import { cn } from "@shared/lib";
@@ -185,27 +181,15 @@ export function InlineGroupView({
         />
         <h2 className={styles.title}>{group.name}</h2>
         <div className={styles.actions}>
-          <MenuTrigger>
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label="Group actions"
-              data-testid="inline-group-view-menu"
-            >
-              <KebabIcon />
-            </Button>
-            <Menu
-              onAction={(key) => {
-                if (key === "rename") onRenameGroup(group.id);
-                else if (key === "settings") onGroupSettings(group.id);
-                else if (key === "delete") onDeleteGroup(group.id);
-              }}
-            >
-              <MenuItem id="rename">Rename</MenuItem>
-              <MenuItem id="settings">Settings</MenuItem>
-              <MenuItem id="delete">Delete</MenuItem>
-            </Menu>
-          </MenuTrigger>
+          <EntityActionMenu
+            items={[
+              { id: "rename", label: "Rename", onAction: () => onRenameGroup(group.id) },
+              { id: "settings", label: "Settings", onAction: () => onGroupSettings(group.id) },
+              { id: "delete", label: "Delete", onAction: () => onDeleteGroup(group.id) },
+            ]}
+            triggerAriaLabel="Group actions"
+            triggerTestId="inline-group-view-menu"
+          />
         </div>
       </header>
 

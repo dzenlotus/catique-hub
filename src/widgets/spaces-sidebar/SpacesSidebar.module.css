@@ -98,6 +98,52 @@
   white-space: nowrap;
 }
 
+/* Consumer-owned wrappers that land inside EntityTree's `.rowContent`
+ * slot. The primitive is layout-agnostic — gap, alignment, and the
+ * canonical left inset live here per widget.
+ *
+ * The Group header (`.spaceRowBody`) sits flush left because its
+ * chevron in the leading slot already provides the visual indent. Only
+ * leaf Rows (`.boardRowBody`) carry an extra `padding-left` so the
+ * board label aligns with the space header's label baseline. */
+.spaceRowBody,
+.boardRowBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.boardRowBody {
+  padding-left: var(--space-8);
+}
+
+/* Board-row context-menu trigger. Wrapped <Button variant="ghost"> would
+ * normally paint a hover/active background overlay; in this sidebar the
+ * kebab sits flush against the row label, so an overlay would compete
+ * visually with the row selection chrome. We suppress the background
+ * entirely and reveal the kebab glyph by transitioning its opacity from
+ * subtle to solid on hover, press, and while the menu popover is open
+ * (RAC writes `aria-expanded="true"` on the trigger). */
+.boardKebab,
+.boardKebab[data-hovered]:not([data-disabled]),
+.boardKebab[data-pressed]:not([data-disabled]),
+.boardKebab[aria-expanded="true"] {
+  background-color: transparent;
+}
+
+.boardKebab svg {
+  opacity: 0.55;
+  transition: opacity 80ms ease-out;
+}
+
+.boardKebab[data-hovered]:not([data-disabled]) svg,
+.boardKebab[data-pressed]:not([data-disabled]) svg,
+.boardKebab[aria-expanded="true"] svg {
+  opacity: 1;
+}
+
 /* ============================================================
  * Spaces query state helpers (skeleton / error / empty)
  * ============================================================ */
@@ -147,6 +193,9 @@
 @media (prefers-reduced-motion: reduce) {
   .spaceSwitcherSkeleton {
     animation: none;
+  }
+  .boardKebab svg {
+    transition: none;
   }
 }
 

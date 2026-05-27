@@ -72,8 +72,47 @@
   font-size: var(--font-size-body);
 }
 
+/* Consumer-owned wrapper that lands inside EntityTree's `.rowContent`
+ * slot. The primitive is layout-agnostic — gap, alignment, and the
+ * canonical left inset live here so the rail's contents align with the
+ * section-header label. */
+.rowBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-left: var(--space-8);
+}
+
+/* Group-row context-menu trigger. Same treatment as SpacesSidebar's
+ * `.boardKebab` — no background overlay on hover / press / open; only
+ * the glyph opacity transitions from 0.55 to 1. Keeps the kebab visually
+ * quiet next to the row label without competing with the row's own
+ * hover / active chrome. */
+.groupKebab,
+.groupKebab[data-hovered]:not([data-disabled]),
+.groupKebab[data-pressed]:not([data-disabled]),
+.groupKebab[aria-expanded="true"] {
+  background-color: transparent;
+}
+
+.groupKebab svg {
+  opacity: 0.55;
+  transition: opacity 80ms ease-out;
+}
+
+.groupKebab[data-hovered]:not([data-disabled]) svg,
+.groupKebab[data-pressed]:not([data-disabled]) svg,
+.groupKebab[aria-expanded="true"] svg {
+  opacity: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rowDroppable {
+    transition: none;
+  }
+  .groupKebab svg {
     transition: none;
   }
 }

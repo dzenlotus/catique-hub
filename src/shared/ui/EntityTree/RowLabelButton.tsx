@@ -44,6 +44,14 @@ export interface RowLabelButtonProps {
   children?: ReactNode;
   /** Extra class merged onto the button. */
   className?: string;
+  /**
+   * Suppress the leading-visual slot entirely. By default `RowLeading`
+   * always renders something (icon, color swatch, or a 14×14 spacer that
+   * keeps mixed lists vertically aligned). Lists where every row is
+   * label-only (e.g. MCP servers + tools) don't need the spacer — set
+   * this to `true` so the label sits flush against the row's left inset.
+   */
+  hideLeading?: boolean;
 }
 
 export function RowLabelButton({
@@ -57,6 +65,7 @@ export function RowLabelButton({
   ariaLabel,
   children,
   className,
+  hideLeading = false,
 }: RowLabelButtonProps): ReactElement {
   return (
     <button
@@ -67,7 +76,9 @@ export function RowLabelButton({
       aria-label={ariaLabel ?? label}
       data-testid={testId}
     >
-      <RowLeading icon={icon ?? null} color={color ?? null} />
+      {hideLeading ? null : (
+        <RowLeading icon={icon ?? null} color={color ?? null} />
+      )}
       <span className={styles.labelWrap}>
         <MarqueeText
           text={label}

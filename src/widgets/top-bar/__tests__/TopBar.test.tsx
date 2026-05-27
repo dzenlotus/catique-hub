@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TestRouter } from "@shared/lib";
 import type { ReactElement } from "react";
@@ -149,17 +149,29 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("TopBar", () => {
-  it("рендерит поле поиска с иконкой и подсказкой ⌘K", () => {
+  it("does NOT render the global search trigger (search is disabled)", () => {
     renderAt();
 
-    const trigger = screen.getByTestId("top-bar-search-trigger");
-    expect(trigger).toBeInTheDocument();
+    expect(screen.queryByTestId("top-bar-search-trigger")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Search tasks, boards, agents..."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("⌘K")).not.toBeInTheDocument();
+  });
 
-    // Placeholder text (English per mockup)
-    expect(screen.getByText("Search tasks, boards, agents...")).toBeInTheDocument();
+  it("does NOT mount the global search palette (search is disabled)", () => {
+    renderAt();
 
-    // ⌘K badge
-    expect(screen.getByText("⌘K")).toBeInTheDocument();
+    expect(capturedIsOpen).toBe(false);
+    expect(screen.queryByTestId("global-search-mock")).not.toBeInTheDocument();
+  });
+
+  it("does NOT wire the ⌘K keybind (search is disabled)", () => {
+    renderAt();
+    const activate = (window as unknown as Record<string, unknown>)[
+      "__searchActivate__"
+    ];
+    expect(activate).toBeUndefined();
   });
 
   it("размечает пустые области шапки как drag-region для Tauri 2.10", () => {
@@ -169,40 +181,7 @@ describe("TopBar", () => {
     expect(topBar).toHaveAttribute("data-tauri-drag-region", "true");
     expect(
       topBar.querySelectorAll('[data-tauri-drag-region="true"]'),
-    ).toHaveLength(2);
-    expect(screen.getByTestId("top-bar-search-trigger")).not.toHaveAttribute(
-      "data-tauri-drag-region",
-    );
-  });
-
-  it("клик по полю поиска открывает GlobalSearch (isOpen=true)", () => {
-    renderAt();
-
-    expect(capturedIsOpen).toBe(false);
-    expect(screen.queryByTestId("global-search-mock")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("top-bar-search-trigger"));
-
-    expect(capturedIsOpen).toBe(true);
-    expect(screen.getByTestId("global-search-mock")).toBeInTheDocument();
-  });
-
-  it("хук ⌘K при вызове открывает GlobalSearch", () => {
-    renderAt();
-
-    expect(capturedIsOpen).toBe(false);
-
-    // Trigger the keybind activator exposed by our mock hook
-    const activate = (window as unknown as Record<string, unknown>)[
-      "__searchActivate__"
-    ] as (() => void) | undefined;
-    expect(activate).toBeDefined();
-
-    act(() => {
-      activate!();
-    });
-
-    expect(capturedIsOpen).toBe(true);
+    ).toHaveLength(3);
   });
 
   it("does NOT render a «+ New task» CTA in the top-bar (round-19c removal)", () => {

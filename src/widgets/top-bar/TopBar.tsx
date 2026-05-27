@@ -16,23 +16,25 @@
  */
 
 import { useState, useCallback, type ReactElement } from "react";
-import { PixelInterfaceEssentialSearch1 } from "@shared/ui/Icon";
 
-import { GlobalSearch, useGlobalSearchKeybind } from "@widgets/global-search";
 import { TaskCreateDialog } from "@features/task/create-dialog";
 
 import { useNewTaskKeybind } from "./useNewTaskKeybind";
 import { SyncIndicator } from "./SyncIndicator";
 import styles from "./TopBar.module.css";
 
+/*
+ * Global search is currently disabled — the backend search API + index
+ * are not yet implemented, so the trigger button, the Cmd+K keybind,
+ * and the `<GlobalSearch/>` palette mount would all promise behaviour
+ * the app can't deliver. The widget code stays in `@widgets/global-search`
+ * so we can wire it back once the backend lands; this file only owns
+ * the mount point.
+ */
+
 export function TopBar(): ReactElement {
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  const openSearch = useCallback(() => setIsSearchOpen(true), []);
-  const closeSearch = useCallback(() => setIsSearchOpen(false), []);
-
-  useGlobalSearchKeybind(openSearch);
   useNewTaskKeybind(useCallback(() => setIsCreateOpen(true), []));
 
   return (
@@ -43,26 +45,12 @@ export function TopBar(): ReactElement {
         data-tauri-drag-region="true"
       >
         <div className={styles.searchRow} data-tauri-drag-region="true">
-          <button
-            type="button"
-            className={styles.searchTrigger}
-            onClick={openSearch}
-            aria-label="Open global search"
-            data-testid="top-bar-search-trigger"
-          >
-            <PixelInterfaceEssentialSearch1
-              width={15}
-              height={15}
-              className={styles.searchIcon}
-              aria-hidden="true"
-            />
-            <span className={styles.searchPlaceholder}>
-              Search tasks, boards, agents...
-            </span>
-            <kbd className={styles.kbdHint} aria-label="Keyboard shortcut Cmd+K">
-              ⌘K
-            </kbd>
-          </button>
+          {/*
+           * Spacer keeps the SyncIndicator pinned right while the search
+           * trigger is offline. The drag-region attribute keeps the
+           * Tauri window movable from anywhere in this strip.
+           */}
+          <span className={styles.searchSpacer} data-tauri-drag-region="true" />
 
           {/*
            * Global sync indicator (round-21). Pinned to the right of the
@@ -78,8 +66,6 @@ export function TopBar(): ReactElement {
           data-tauri-drag-region="true"
         />
       </header>
-
-      <GlobalSearch isOpen={isSearchOpen} onClose={closeSearch} />
 
       <TaskCreateDialog
         isOpen={isCreateOpen}
