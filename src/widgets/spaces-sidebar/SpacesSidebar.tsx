@@ -10,7 +10,7 @@ import { PixelInterfaceEssentialAlertCircle1 } from "@shared/ui/Icon";
 import { useSpaces } from "@entities/space";
 import { useBoards } from "@entities/board";
 import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
-import { boardPath } from "@app/routes";
+import { boardPath, matchBoardSurface } from "@app/routes";
 import { SpaceCreateDialog } from "@features/space/create-dialog";
 
 import { SpaceRow } from "./SpaceRow";
@@ -39,14 +39,10 @@ export function SpacesSidebar(): ReactElement {
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
-  // Derive the currently active board id from the URL. Both
-  // `/boards/:id` and `/boards/:id/settings` keep the same row
+  // Both `/boards/:id` and `/boards/:id/settings` keep the same row
   // highlighted in the sidebar — when the user opens settings the
   // board still reads as "the active surface".
-  const activeBoardId: string | null = (() => {
-    const match = location.match(/^\/boards\/([^/]+)(?:\/.*)?$/);
-    return match ? match[1] : null;
-  })();
+  const activeBoardId = matchBoardSurface(location)?.boardId ?? null;
 
   function renderBody(): ReactElement {
     if (spacesQuery.status === "pending") {

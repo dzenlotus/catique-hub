@@ -110,6 +110,65 @@ export function mcpServerToolPath(serverId: string, toolId: string): string {
   return `/mcp-servers/${serverId}/tools/${toolId}`;
 }
 
+// ---------------------------------------------------------------------------
+// Path matchers
+// ---------------------------------------------------------------------------
+//
+// Compile each `routes.<x>` pattern (e.g. `/boards/:boardId`) into a typed
+// matcher. Matchers return the params object on a hit and `null` on a miss,
+// so callers express intent — `matchBoardSurface(path)?.boardId ?? null` —
+// without inlining regex literals. Each matcher also accepts deeper
+// sub-paths (`/boards/:id/settings` still resolves to `{ boardId }`), which
+// is what the sidebar "active board" highlight needs.
+
+type ParamsOf<P extends string> = string extends P
+  ? Record<string, string>
+  : P extends `${string}:${infer Param}/${infer Rest}`
+    ? { [K in Param | keyof ParamsOf<`/${Rest}`>]: string }
+    : P extends `${string}:${infer Param}`
+      ? { [K in Param]: string }
+      : Record<string, never>;
+
+function compileMatcher<P extends string>(
+  pattern: P,
+): (path: string) => ParamsOf<P> | null {
+  const names: string[] = [];
+  const source = pattern
+    .replace(/:([A-Za-z_][\w]*)/g, (_, name: string) => {
+      names.push(name);
+      return "([^/]+)";
+    })
+    .replace(/\//g, "\\/");
+  const re = new RegExp(`^${source}(?:\\/.*)?$`);
+
+  return (path: string): ParamsOf<P> | null => {
+    const match = re.exec(path);
+    if (match === null) return null;
+    const params: Record<string, string> = {};
+    for (let i = 0; i < names.length; i += 1) {
+      params[names[i]] = match[i + 1];
+    }
+    return params as ParamsOf<P>;
+  };
+}
+
+/** Match `/boards/:boardId` (and any deeper surface, e.g. `/settings`). */
+export const matchBoardSurface = compileMatcher(routes.board);
+/** Match `/tasks/:taskId`. */
+export const matchTaskSurface = compileMatcher(routes.task);
+/** Match `/spaces/:spaceId/settings`. */
+export const matchSpaceSettings = compileMatcher(routes.spaceSettings);
+/** Match `/boards/:boardId/settings`. */
+export const matchBoardSettings = compileMatcher(routes.boardSettings);
+/** Match `/roles/:roleId`. */
+export const matchRoleSurface = compileMatcher(routes.role);
+/** Match `/skills/:skillId`. */
+export const matchSkillSurface = compileMatcher(routes.skill);
+/** Match `/tags/:tagId`. */
+export const matchTagSurface = compileMatcher(routes.tag);
+/** Match `/mcp-servers/:serverId` (and `/mcp-servers/:serverId/tools/:toolId`). */
+export const matchMcpServerSurface = compileMatcher(routes.mcpServer);
+
 /**
  * Map a `NavView` literal to its canonical URL path.
  * Used by `Sidebar.onSelectView` to drive `setLocation`.
@@ -140,34 +199,32 @@ export function pathForView(view: NavView): string {
  * Defaults to `"boards"` for unknown paths.
  */
 export function viewForPath(path: string): NavView {
-  if (path === "/" || path === "") return "boards";
-  if (path === routes.prompts) return "prompts";
-  // Round-19c: /prompt-groups was merged into /prompts. The path is
-  // kept as a redirect so any deep-link still lands on the new page.
-  if (path === "/prompt-groups") return "prompts";
-  if (path === routes.roles || path.startsWith("/roles/")) return "agent-roles";
-  if (path === routes.skills || path.startsWith("/skills/")) return "skills";
+  if (path === routes.boards || path === "") return "boards";
+  // Round-19c: /prompt-groups was merged into /prompts — keep the legacy
+  // path resolving so any saved deep-link still lands on the new page.
+  if (path === routes.prompts || path === "/prompt-groups") return "prompts";
+  if (path === routes.roles || matchRoleSurface(path) !== null)
+    return "agent-roles";
+  if (path === routes.skills || matchSkillSurface(path) !== null)
+    return "skills";
   if (
     path === routes.mcpServers ||
     path === routes.mcpServersLegacy ||
-    path.startsWith("/mcp-servers") ||
-    path.startsWith("/mcp-tools")
-  )
+    matchMcpServerSurface(path) !== null
+  ) {
     return "mcp-servers";
-  // Round-19e: standalone /spaces page was retired — the canonical
-  // home shell already shows the sidebar with every space. Keep the
-  // path resolvable so any old deep-link redirects to the home page
-  // (boards context with the sidebar visible).
-  if (path === routes.spaces) return "boards";
-  // /spaces/:id/settings — per-space settings is reached from the SpacesSidebar
-  // and renders inside the content pane, so it belongs to the "boards"
-  // context (keeps SpacesSidebar visible alongside the settings form).
-  if (/^\/spaces\/[^/]+\/settings$/.test(path)) return "boards";
-  if (/^\/boards\/[^/]+\/settings$/.test(path)) return "boards";
+  }
   if (path === routes.settings) return "settings";
-  // Board detail: /boards/<id>
-  if (path.startsWith("/boards/")) return "boards";
-  // Task deep-link: /tasks/<id> — sidebar stays on "boards" (most common origin).
-  if (path.startsWith("/tasks/")) return "boards";
+  // Everything else that has a board / task / space / spaces-listing context
+  // keeps the sidebar on the "boards" view so the SpacesSidebar stays visible
+  // alongside the settings or detail pane (round-19e).
+  if (
+    path === routes.spaces ||
+    matchBoardSurface(path) !== null ||
+    matchTaskSurface(path) !== null ||
+    matchSpaceSettings(path) !== null
+  ) {
+    return "boards";
+  }
   return "boards";
 }

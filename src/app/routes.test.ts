@@ -8,6 +8,14 @@ import {
   viewForPath,
   mcpServerPath,
   mcpServerToolPath,
+  matchBoardSurface,
+  matchTaskSurface,
+  matchSpaceSettings,
+  matchBoardSettings,
+  matchRoleSurface,
+  matchSkillSurface,
+  matchTagSurface,
+  matchMcpServerSurface,
 } from "./routes";
 import type { NavView } from "@widgets/main-sidebar";
 
@@ -212,4 +220,108 @@ describe("viewForPath", () => {
       expect(viewForPath(path)).toBe(view);
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// Path matchers — compiled from `routes.<x>` patterns
+// ---------------------------------------------------------------------------
+
+describe("matchBoardSurface", () => {
+  it("extracts boardId from /boards/:id", () => {
+    expect(matchBoardSurface("/boards/brd-1")).toEqual({ boardId: "brd-1" });
+  });
+
+  it("extracts boardId from /boards/:id/settings (sub-path)", () => {
+    expect(matchBoardSurface("/boards/brd-1/settings")).toEqual({
+      boardId: "brd-1",
+    });
+  });
+
+  it("returns null on a miss", () => {
+    expect(matchBoardSurface("/prompts")).toBeNull();
+    expect(matchBoardSurface("/")).toBeNull();
+    expect(matchBoardSurface("")).toBeNull();
+  });
+});
+
+describe("matchTaskSurface", () => {
+  it("extracts taskId from /tasks/:id", () => {
+    expect(matchTaskSurface("/tasks/tsk-1")).toEqual({ taskId: "tsk-1" });
+  });
+
+  it("returns null on a miss", () => {
+    expect(matchTaskSurface("/boards/brd-1")).toBeNull();
+  });
+});
+
+describe("matchSpaceSettings", () => {
+  it("extracts spaceId from /spaces/:id/settings", () => {
+    expect(matchSpaceSettings("/spaces/spc-1/settings")).toEqual({
+      spaceId: "spc-1",
+    });
+  });
+
+  it("does not match /spaces (list view)", () => {
+    expect(matchSpaceSettings("/spaces")).toBeNull();
+  });
+});
+
+describe("matchBoardSettings", () => {
+  it("extracts boardId from /boards/:id/settings", () => {
+    expect(matchBoardSettings("/boards/brd-1/settings")).toEqual({
+      boardId: "brd-1",
+    });
+  });
+
+  it("does not match /boards/:id (no settings suffix)", () => {
+    expect(matchBoardSettings("/boards/brd-1")).toBeNull();
+  });
+});
+
+describe("matchRoleSurface", () => {
+  it("extracts roleId from /roles/:id", () => {
+    expect(matchRoleSurface("/roles/rol-1")).toEqual({ roleId: "rol-1" });
+  });
+
+  it("returns null for /roles list", () => {
+    expect(matchRoleSurface("/roles")).toBeNull();
+  });
+});
+
+describe("matchSkillSurface", () => {
+  it("extracts skillId from /skills/:id", () => {
+    expect(matchSkillSurface("/skills/skl-1")).toEqual({ skillId: "skl-1" });
+  });
+
+  it("returns null for /skills list", () => {
+    expect(matchSkillSurface("/skills")).toBeNull();
+  });
+});
+
+describe("matchTagSurface", () => {
+  it("extracts tagId from /tags/:id", () => {
+    expect(matchTagSurface("/tags/tag-1")).toEqual({ tagId: "tag-1" });
+  });
+
+  it("returns null for /tags list", () => {
+    expect(matchTagSurface("/tags")).toBeNull();
+  });
+});
+
+describe("matchMcpServerSurface", () => {
+  it("extracts serverId from /mcp-servers/:id", () => {
+    expect(matchMcpServerSurface("/mcp-servers/srv-1")).toEqual({
+      serverId: "srv-1",
+    });
+  });
+
+  it("extracts serverId from /mcp-servers/:id/tools/:toolId (sub-path)", () => {
+    expect(matchMcpServerSurface("/mcp-servers/srv-1/tools/tool-1")).toEqual({
+      serverId: "srv-1",
+    });
+  });
+
+  it("returns null for /mcp-servers list", () => {
+    expect(matchMcpServerSurface("/mcp-servers")).toBeNull();
+  });
 });
