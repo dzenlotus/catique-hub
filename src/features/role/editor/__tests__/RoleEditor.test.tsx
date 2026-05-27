@@ -1,0 +1,588 @@
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
+
+import type { Role } from "@entities/role";
+import { ToastProvider } from "@app/providers/ToastProvider";
+
+vi.mock("@shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
+  const fn = vi.fn();
+  return {
+    ...actual,
+    invoke: fn,
+    invokeWithAppError: fn,
+  };
+});
+
+import { invoke } from "@shared/api";
+import { RoleEditor } from "../RoleEditor";
+
+const invokeMock = vi.mocked(invoke);
+
+function makeRole(overrides: Partial<Role> = {}): Role {
+  return {
+    id: "role-1",
+    name: "Тестовая роль",
+    content: "Содержимое роли",
+    color: "#ff0000",
+    isSystem: false,
+    createdAt: 0n,
+    updatedAt: 0n,
+    icon: null,
+    ...overrides,
+  };
+}
+
+function renderWithClient(ui: ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+  const user = userEvent.setup();
+  render(
+    <QueryClientProvider client={client}>
+      <ToastProvider>{ui}</ToastProvider>
+    </QueryClientProvider>,
+  );
+  return { client, user };
+}
+
+beforeEach(() => {
+  invokeMock.mockReset();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("RoleEditor", () => {
+  it("does not render the dialog when roleId is null", () => {
+    invokeMock.mockImplementation(() => new Promise(() => {}));
+    const onClose = vi.fn();
+    renderWithClient(<RoleEditor roleId={null} onClose={onClose} />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("renders skeleton rows when query is pending", async () => {
+    // Never resolves — simulates pending state.
+    invokeMock.mockImplementation(() => new Promise(() => {}));
+    const onClose = vi.fn();
+    renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    // Save button is disabled during loading.
+    const saveButton = screen.getByTestId("role-editor-save");
+    expect(saveButton).toBeDisabled();
+  });
+
+  it("renders an error banner when the query fails", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") throw new Error("transport down");
+      if (cmd === "list_connected_clients") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-editor-fetch-error")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/transport down/i)).toBeInTheDocument();
+  });
+
+  it("renders form fields populated when loaded", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") return makeRole();
+      if (cmd === "list_connected_clients") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+    await screen.findByTestId("role-editor-name-input");
+    expect(screen.getByTestId("role-editor-name-input")).toHaveValue("Тестовая роль");
+    // Round-19c: content is rendered through MarkdownField in view mode
+    // by default — the testid points to the preview button. Assert the
+    // visible text instead of a textarea `value`.
+    expect(screen.getByTestId("role-editor-content-textarea")).toHaveTextContent("Содержимое роли");
+    // Round-19d: the standalone color input was replaced with a
+    // combined `<IconColorPicker>`. The trigger is rendered on the
+    // form; the actual color input lives inside the popover.
+    expect(screen.getByTestId("role-editor-color-input")).toBeInTheDocument();
+  });
+
+  it("name input is editable", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") return makeRole();
+      if (cmd === "list_connected_clients") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+    const nameInput = await screen.findByTestId("role-editor-name-input");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Новое название");
+
+    expect(nameInput).toHaveValue("Новое название");
+  });
+
+  it("clicking Save triggers useUpdateRoleMutation with dirty fields only", async () => {
+    const role = makeRole();
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") return role;
+      if (cmd === "update_role") return { ...role, name: "Новое название" };
+      if (cmd === "list_roles") return [role];
+      if (cmd === "list_connected_clients") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+    const nameInput = await screen.findByTestId("role-editor-name-input");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Новое название");
+
+    const saveButton = screen.getByTestId("role-editor-save");
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      const updateCall = invokeMock.mock.calls.find(([cmd]) => cmd === "update_role");
+      expect(updateCall).toBeDefined();
+      // Only the name field changed — other fields must NOT be included.
+      expect(updateCall?.[1]).toMatchObject({
+        id: "role-1",
+        name: "Новое название",
+      });
+      // content / color were not changed, so they must be absent.
+      expect(updateCall?.[1]).not.toHaveProperty("content");
+      expect(updateCall?.[1]).not.toHaveProperty("color");
+    });
+  });
+
+  it("clicking Cancel closes without triggering mutation", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") return makeRole();
+      if (cmd === "list_connected_clients") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+    await screen.findByTestId("role-editor-name-input");
+    const cancelButton = screen.getByTestId("role-editor-cancel");
+    await user.click(cancelButton);
+
+    expect(onClose).toHaveBeenCalledOnce();
+    const updateCall = invokeMock.mock.calls.find(([cmd]) => cmd === "update_role");
+    expect(updateCall).toBeUndefined();
+  });
+
+  it("empty color gets sent as null on update", async () => {
+    const role = makeRole({ color: "#ff0000" });
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") return role;
+      if (cmd === "update_role") return { ...role, color: null };
+      if (cmd === "list_roles") return [role];
+      if (cmd === "list_connected_clients") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+    await screen.findByTestId("role-editor-name-input");
+
+    // Open the IconColorPicker popover and click its Reset button.
+    await user.click(screen.getByTestId("role-editor-color-input"));
+    const resetButton = await screen.findByTestId(
+      "role-editor-color-input-color-clear",
+    );
+    await user.click(resetButton);
+    // Dismiss the popover so its overlay does not eat the Save press.
+    await user.keyboard("{Escape}");
+
+    const saveButton = screen.getByTestId("role-editor-save");
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      const updateCall = invokeMock.mock.calls.find(([cmd]) => cmd === "update_role");
+      expect(updateCall).toBeDefined();
+      expect(updateCall?.[1]).toMatchObject({
+        id: "role-1",
+        color: null,
+      });
+    });
+  });
+
+  // ── Edit / Preview toggle ────────────────────────────────────────
+
+  it("shows the mode toggle defaulting to 'edit' mode", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") return makeRole();
+      if (cmd === "list_connected_clients") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+    await screen.findByTestId("role-editor-name-input");
+
+    // Round-19c: explicit "Edit / Preview" toggle replaced by `MarkdownField`
+    // (ctq-76 #11). Default mode is the preview surface — clicking it
+    // flips into a textarea. The data-testid forwards to the active
+    // sub-element so a single id covers both modes.
+    expect(screen.queryByTestId("role-editor-content-mode-toggle")).not.toBeInTheDocument();
+    expect(screen.getByTestId("role-editor-content-textarea")).toBeInTheDocument();
+  });
+
+  it("renders markdown heading by default and flips to textarea on click", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") return makeRole({ content: "# Роль агента" });
+      if (cmd === "list_connected_clients") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+    await screen.findByTestId("role-editor-name-input");
+
+    // Default mode is "view" — heading is rendered through MarkdownPreview.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Роль агента" }),
+    ).toBeInTheDocument();
+
+    // Click the view surface to enter edit mode.
+    await user.click(screen.getByTestId("role-editor-content-textarea"));
+
+    // The same testid now points to a textarea with the role's content.
+    const textarea = screen.getByTestId("role-editor-content-textarea");
+    expect(textarea.tagName).toBe("TEXTAREA");
+    expect(textarea).toHaveValue("# Роль агента");
+  });
+
+  it("shows inline save-error message when mutation fails", async () => {
+    const role = makeRole();
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") return role;
+      if (cmd === "update_role") throw new Error("сервер недоступен");
+      if (cmd === "list_connected_clients") return [];
+      throw new Error(`unexpected: ${cmd}`);
+    });
+    const onClose = vi.fn();
+    const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
+
+    const nameInput = await screen.findByTestId("role-editor-name-input");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Другое название");
+
+    const saveButton = screen.getByTestId("role-editor-save");
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-editor-save-error")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/сервер недоступен/i)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // ── Attached prompts/skills/mcp_tools (audit-#8 MultiSelect) ────────
+
+  describe("role attachments — MultiSelect", () => {
+    type Prompt = {
+      id: string;
+      name: string;
+      content: string;
+      color: string | null;
+      shortDescription: string | null;
+      icon: string | null;
+      examples: string[];
+      tokenCount: bigint | null;
+      createdAt: bigint;
+      updatedAt: bigint;
+    };
+
+    const makePrompt = (id: string, name: string): Prompt => ({
+      id,
+      name,
+      content: "",
+      color: null,
+      shortDescription: null,
+      icon: null,
+      examples: [],
+      tokenCount: null,
+      createdAt: 0n,
+      updatedAt: 0n,
+    });
+
+    type Skill = {
+      id: string;
+      name: string;
+      description: string | null;
+      color: string | null;
+      position: number;
+      createdAt: bigint;
+      updatedAt: bigint;
+    };
+
+    const makeSkill = (id: string, name: string): Skill => ({
+      id,
+      name,
+      description: null,
+      color: null,
+      position: 0,
+      createdAt: 0n,
+      updatedAt: 0n,
+    });
+
+    type McpTool = {
+      id: string;
+      name: string;
+      description: string | null;
+      schemaJson: string;
+      color: string | null;
+      position: number;
+      createdAt: bigint;
+      updatedAt: bigint;
+    };
+
+    const makeMcp = (id: string, name: string): McpTool => ({
+      id,
+      name,
+      description: null,
+      schemaJson: "{}",
+      color: null,
+      position: 0,
+      createdAt: 0n,
+      updatedAt: 0n,
+    });
+
+    it("renders attached prompts as chips inside the prompts MultiSelect", async () => {
+      const prompts = [
+        makePrompt("prm-1", "Codestyle"),
+        makePrompt("prm-2", "Examples"),
+      ];
+      invokeMock.mockImplementation(async (cmd) => {
+        if (cmd === "get_role") return makeRole();
+        if (cmd === "list_role_prompts") return prompts;
+        if (cmd === "list_role_skills") return [];
+        if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "list_prompts") return prompts;
+        if (cmd === "list_skills") return [];
+        if (cmd === "list_mcp_tools") return [];
+        if (cmd === "list_connected_clients") return [];
+        return undefined;
+      });
+      renderWithClient(<RoleEditor roleId="role-1" onClose={vi.fn()} />);
+
+      await screen.findByTestId(
+        "role-editor-prompts-select-chip-prm-1",
+      );
+      expect(
+        screen.getByTestId("role-editor-prompts-select-chip-prm-2"),
+      ).toBeInTheDocument();
+    });
+
+    it("attaches a skill via the skills MultiSelect", async () => {
+      const skillCalls: Array<[string, unknown]> = [];
+      invokeMock.mockImplementation(async (cmd, args) => {
+        skillCalls.push([cmd, args]);
+        if (cmd === "get_role") return makeRole();
+        if (cmd === "list_role_prompts") return [];
+        if (cmd === "list_role_skills") return [];
+        if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "list_prompts") return [];
+        if (cmd === "list_skills") return [makeSkill("skl-1", "Refactoring")];
+        if (cmd === "list_mcp_tools") return [];
+        if (cmd === "add_role_skill") return undefined;
+        if (cmd === "list_connected_clients") return [];
+        return undefined;
+      });
+      const { user } = renderWithClient(
+        <RoleEditor roleId="role-1" onClose={vi.fn()} />,
+      );
+
+      const skillsField = await screen.findByTestId(
+        "role-editor-skills-select-input",
+      );
+      await user.click(skillsField);
+      const option = await screen.findByTestId(
+        "role-editor-skills-select-option-skl-1",
+      );
+      await user.click(option);
+
+      await waitFor(() => {
+        const addCall = skillCalls.find(([cmd]) => cmd === "add_role_skill");
+        expect(addCall).toBeDefined();
+        expect(addCall?.[1]).toMatchObject({
+          roleId: "role-1",
+          skillId: "skl-1",
+        });
+      });
+    });
+
+    it("attaches an MCP tool via the MCP tools MultiSelect", async () => {
+      const mcpCalls: Array<[string, unknown]> = [];
+      invokeMock.mockImplementation(async (cmd, args) => {
+        mcpCalls.push([cmd, args]);
+        if (cmd === "get_role") return makeRole();
+        if (cmd === "list_role_prompts") return [];
+        if (cmd === "list_role_skills") return [];
+        if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "list_prompts") return [];
+        if (cmd === "list_skills") return [];
+        if (cmd === "list_mcp_tools") return [makeMcp("mcp-1", "Search")];
+        if (cmd === "add_role_mcp_tool") return undefined;
+        if (cmd === "list_connected_clients") return [];
+        return undefined;
+      });
+      const { user } = renderWithClient(
+        <RoleEditor roleId="role-1" onClose={vi.fn()} />,
+      );
+
+      const mcpField = await screen.findByTestId(
+        "role-editor-mcp-tools-select-input",
+      );
+      await user.click(mcpField);
+      const option = await screen.findByTestId(
+        "role-editor-mcp-tools-select-option-mcp-1",
+      );
+      await user.click(option);
+
+      await waitFor(() => {
+        const addCall = mcpCalls.find(
+          ([cmd]) => cmd === "add_role_mcp_tool",
+        );
+        expect(addCall).toBeDefined();
+        expect(addCall?.[1]).toMatchObject({
+          roleId: "role-1",
+          mcpToolId: "mcp-1",
+        });
+      });
+    });
+
+    it("attaches a prompt via the prompts MultiSelect", async () => {
+      const prompts = [
+        makePrompt("prm-1", "Codestyle"),
+        makePrompt("prm-2", "Examples"),
+      ];
+      // Simulate a backend that actually persists: after the bulk
+      // `set_role_prompts` IPC resolves, subsequent `list_role_prompts`
+      // calls return the updated attachment list. This is what makes
+      // the optimistic write + invalidate cycle observable end-to-end.
+      const promptCalls: Array<[string, unknown]> = [];
+      let attached: Prompt[] = [];
+      invokeMock.mockImplementation(async (cmd, args) => {
+        promptCalls.push([cmd, args]);
+        if (cmd === "get_role") return makeRole();
+        if (cmd === "list_role_prompts") return attached;
+        if (cmd === "list_role_skills") return [];
+        if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "list_prompts") return prompts;
+        if (cmd === "list_skills") return [];
+        if (cmd === "list_mcp_tools") return [];
+        if (cmd === "set_role_prompts") {
+          const ids = (args as { promptIds: string[] }).promptIds;
+          attached = ids
+            .map((id) => prompts.find((p) => p.id === id))
+            .filter((p): p is Prompt => p !== undefined);
+          return undefined;
+        }
+        if (cmd === "list_connected_clients") return [];
+        return undefined;
+      });
+      const { user } = renderWithClient(
+        <RoleEditor roleId="role-1" onClose={vi.fn()} />,
+      );
+
+      const promptsField = await screen.findByTestId(
+        "role-editor-prompts-select-input",
+      );
+      await user.click(promptsField);
+      const option = await screen.findByTestId(
+        "role-editor-prompts-select-option-prm-1",
+      );
+      await user.click(option);
+
+      await waitFor(() => {
+        const setCall = promptCalls.find(
+          ([cmd]) => cmd === "set_role_prompts",
+        );
+        expect(setCall).toBeDefined();
+        expect(setCall?.[1]).toMatchObject({
+          roleId: "role-1",
+          promptIds: ["prm-1"],
+        });
+      });
+
+      expect(
+        await screen.findByTestId("role-editor-prompts-select-chip-prm-1"),
+      ).toBeInTheDocument();
+    });
+
+    it("removes a prompt chip via the X button", async () => {
+      const initial = [
+        makePrompt("prm-1", "First"),
+        makePrompt("prm-2", "Second"),
+      ];
+      const promptCalls: Array<[string, unknown]> = [];
+      invokeMock.mockImplementation(async (cmd, args) => {
+        promptCalls.push([cmd, args]);
+        if (cmd === "get_role") return makeRole();
+        if (cmd === "list_role_prompts") return initial;
+        if (cmd === "list_role_skills") return [];
+        if (cmd === "list_role_mcp_tools") return [];
+        if (cmd === "list_prompts") return initial;
+        if (cmd === "list_skills") return [];
+        if (cmd === "list_mcp_tools") return [];
+        if (cmd === "set_role_prompts") return undefined;
+        if (cmd === "list_connected_clients") return [];
+        return undefined;
+      });
+      const { user } = renderWithClient(
+        <RoleEditor roleId="role-1" onClose={vi.fn()} />,
+      );
+
+      await screen.findByTestId("role-editor-prompts-select-chip-prm-1");
+      await user.click(
+        screen.getByTestId("role-editor-prompts-select-chip-remove-prm-1"),
+      );
+
+      await waitFor(() => {
+        const setCall = promptCalls.find(([cmd]) => cmd === "set_role_prompts");
+        expect(setCall).toBeDefined();
+        expect(setCall?.[1]).toMatchObject({
+          roleId: "role-1",
+          promptIds: ["prm-2"],
+        });
+      });
+    });
+  });
+
+  // ── Sticky footer (audit-#7) ─────────────────────────────────────
+
+  it("Cancel + Save buttons are wrapped in a sticky-footer container", async () => {
+    invokeMock.mockImplementation(async (cmd) => {
+      if (cmd === "get_role") return makeRole();
+      if (cmd === "list_connected_clients") return [];
+      return undefined;
+    });
+    renderWithClient(<RoleEditor roleId="role-1" onClose={vi.fn()} />);
+
+    const save = await screen.findByTestId("role-editor-save");
+    const cancel = screen.getByTestId("role-editor-cancel");
+    // Both buttons share the same parent — the EditorShell.Footer
+    // wrapper. The wrapper carries the sticky-bottom layout class
+    // (matched by name prefix to stay resilient to CSS-modules hashes).
+    expect(save.parentElement).toBe(cancel.parentElement);
+    const footerClass = save.parentElement?.getAttribute("class") ?? "";
+    expect(footerClass).toMatch(/footer/);
+  });
+});
