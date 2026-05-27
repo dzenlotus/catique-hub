@@ -196,7 +196,7 @@ describe("SpacesSidebar — SPACES tree (inline collapsible)", () => {
     invokeMock.mockResolvedValue(STUB_SPACES);
     setup();
     await waitFor(() => {
-      expect(screen.getByTestId("spaces-sidebar-add-space")).toBeInTheDocument();
+      expect(screen.getByTestId("spaces-sidebar-add")).toBeInTheDocument();
     });
   });
 
@@ -208,10 +208,10 @@ describe("SpacesSidebar — SPACES tree (inline collapsible)", () => {
     });
     const { user } = setup();
     await waitFor(() => {
-      expect(screen.getByTestId("spaces-sidebar-add-space")).toBeInTheDocument();
+      expect(screen.getByTestId("spaces-sidebar-add")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByTestId("spaces-sidebar-add-space"));
+    await user.click(screen.getByTestId("spaces-sidebar-add"));
 
     await waitFor(() => {
       expect(screen.getByTestId("space-create-dialog")).toBeInTheDocument();

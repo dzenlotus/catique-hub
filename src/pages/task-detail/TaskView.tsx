@@ -18,6 +18,8 @@ import { useLocationCompat as useLocation, useParamsCompat as useParams } from "
 import { Button, Scrollable } from "@shared/ui";
 import { TaskDialogContent } from "@features/task/dialog";
 import { routes } from "@app/routes";
+import { SpacesSidebar } from "@widgets/spaces-sidebar";
+import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
 
 import styles from "./TaskView.module.css";
 
@@ -36,24 +38,29 @@ export function TaskView(): ReactElement {
   };
 
   return (
-    <Scrollable
-      axis="y"
-      className={styles.scrollHost}
-      data-testid="task-view-scroll"
-    >
-      <div className={styles.root} data-testid="task-view">
-        <div className={styles.backRow}>
-          <Button
-            variant="ghost"
-            size="sm"
-            onPress={handleClose}
-            data-testid="task-view-back"
-          >
-            ← Back
-          </Button>
-        </div>
-        <TaskDialogContent taskId={taskId} onClose={handleClose} />
+    <section className={shellStyles.root} data-testid="task-view-root">
+      <div className={shellStyles.sidebarSlot}>
+        <SpacesSidebar />
       </div>
-    </Scrollable>
+      <Scrollable
+        axis="y"
+        className={`${shellStyles.contentSlot} ${styles.scrollHost}`}
+        data-testid="task-view-scroll"
+      >
+        <div className={styles.root} data-testid="task-view">
+          <div className={styles.backRow}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={handleClose}
+              data-testid="task-view-back"
+            >
+              ← Back
+            </Button>
+          </div>
+          <TaskDialogContent taskId={taskId} onClose={handleClose} />
+        </div>
+      </Scrollable>
+    </section>
   );
 }

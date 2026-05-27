@@ -1,31 +1,44 @@
 /**
- * EntityTree primitives — explicit composable rows + groups.
+ * EntityTree — single data-driven sidebar list/tree component.
  *
- *   import { Row, Group, RailSection } from "@shared/ui";
+ *   import { EntityTree } from "@shared/ui";
  *
- * The consumer owns iteration: `<RailSection>` wraps the section
- * label + the `<ul>` scaffolding, and each item is mapped to a `<Row>`
- * (leaf) or `<Group>` (with nested `<Row>` / `<Group>` children) by
- * hand. Active / hover styling lives on the primitive; the consumer's
- * `renderContent` slot owns labels, kebabs, droppables, etc.
+ *   <EntityTree
+ *     testIdPrefix="roles-sidebar"
+ *     title="ROLES"
+ *     titleTrailingNode={<AddRoleButton />}
+ *     data={roles.map((r) => ({ id: r.id, label: r.name, data: r }))}
+ *     rowConfig={(n) => ({ isActive: n.id === selectedId, onClick: () => select(n.id) })}
+ *   />
+ *
+ * Without `renderRow` the tree shows a plain `<span>{label}</span>`.
+ * Supply `renderRow` for richer bodies (label-button + icon + kebab,
+ * droppable wrappers, etc.). For the common label+icon+colour body
+ * use the `<RowLabelButton/>` helper from this module.
+ *
+ * Lower-level primitives (Row / Group / RailSection / RowLeading /
+ * EntityTreeChevron) stay un-exported — `EntityTree` composes them so
+ * consumers don't reach into the internals.
  */
 
-export { Row } from "./Row";
-export type { RowProps, RowRenderContentArgs } from "./Row";
-
-export { Group } from "./Group";
-export type { GroupProps } from "./Group";
-
-export { RailSection } from "./RailSection";
-export type { RailSectionProps } from "./RailSection";
-
-export { RowLeading } from "./RowLeading";
-export type { RowLeadingProps } from "./RowLeading";
-
-export { RowLabelButton } from "./RowLabelButton";
-export type { RowLabelButtonProps } from "./RowLabelButton";
-
-export { EntityTreeChevron } from "./EntityTreeChevron";
+export { EntityTree } from "./EntityTree";
+export type {
+  EntityTreeProps,
+  EntityTreeNode,
+  EntityTreeDraggable,
+  EntityTreeDroppable,
+  EntityTreeRowConfig,
+  EntityTreeRenderRowArgs,
+} from "./EntityTree";
 
 export { useEntityTreeExpandedStorage } from "./useEntityTreeExpandedStorage";
 export type { UseEntityTreeExpandedStorageResult } from "./useEntityTreeExpandedStorage";
+
+// Helpers — exported so consumers building custom `renderRow` bodies
+// can reuse the canonical label / icon / swatch geometry without
+// re-implementing it.
+export { RowLabelButton } from "./RowLabelButton";
+export type { RowLabelButtonProps } from "./RowLabelButton";
+
+export { RowLeading } from "./RowLeading";
+export type { RowLeadingProps } from "./RowLeading";

@@ -273,6 +273,40 @@
   color: var(--color-status-danger);
 }
 
+/* ---------------------------------------------------------------------------
+ * Droppable wrapper — slot that bridges `useDroppable` to the row body.
+ * Owns its own bounding-rect (full flex line) so @dnd-kit can hit-test
+ * the drop target; mirrors `.rowContent`'s layout so wrapping a row body
+ * in the slot doesn't shift its children.
+ * ------------------------------------------------------------------------- */
+
+.dropSlot {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* ---------------------------------------------------------------------------
+ * Default row body — shown when the consumer doesn't pass `renderRow`.
+ * Plain text label, ellipsised so long names don't overflow the rail.
+ * ------------------------------------------------------------------------- */
+
+.defaultLabel {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) var(--space-12);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  color: var(--color-text-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .row {
     transition: none;

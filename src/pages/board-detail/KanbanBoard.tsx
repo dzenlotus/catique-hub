@@ -35,11 +35,26 @@ import { cn } from "@shared/lib";
 import { TaskCreateDialog } from "@features/task/create-dialog";
 import { ColumnCreateDialog } from "@features/column/create-dialog";
 import { lastBoardStore } from "@shared/storage";
+import { SpacesSidebar } from "@widgets/spaces-sidebar";
+import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
 
 import { KanbanColumn } from "./KanbanColumn";
 import { BulkActionsBar } from "./BulkActionsBar";
 import { useTaskSelection } from "./useTaskSelection";
 import styles from "./KanbanBoard.module.css";
+
+// Two-pane layout helper — pairs the kanban content with `<SpacesSidebar/>`
+// across every rendering branch (loading, error, empty, populated).
+function BoardScreen({ children }: { children: ReactElement }): ReactElement {
+  return (
+    <section className={shellStyles.root} data-testid="board-detail-shell">
+      <div className={shellStyles.sidebarSlot}>
+        <SpacesSidebar />
+      </div>
+      <div className={shellStyles.contentSlot}>{children}</div>
+    </section>
+  );
+}
 
 export interface KanbanBoardProps {
   boardId: string;
@@ -458,18 +473,20 @@ export function KanbanBoard({
 
   if (columnsQuery.status === "pending" || tasksQuery.status === "pending") {
     return (
-      <div className={styles.root}>
-        <div className={cn(styles.scroller, styles.loadingScroller)}>
-          {[0, 1, 2].map((column) => (
-            <div className={styles.skeletonColumn} key={column}>
-              <div className={styles.skeletonHeader} />
-              {[0, 1, 2, 3].map((card) => (
-                <div className={styles.skeletonCard} key={card} />
-              ))}
-            </div>
-          ))}
+      <BoardScreen>
+        <div className={styles.root}>
+          <div className={cn(styles.scroller, styles.loadingScroller)}>
+            {[0, 1, 2].map((column) => (
+              <div className={styles.skeletonColumn} key={column}>
+                <div className={styles.skeletonHeader} />
+                {[0, 1, 2, 3].map((card) => (
+                  <div className={styles.skeletonCard} key={card} />
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      </BoardScreen>
     );
   }
 
@@ -484,48 +501,53 @@ export function KanbanBoard({
         : (tasksQuery.error?.message ?? "Unknown error");
 
     return (
-      <div className={styles.root}>
-        <div className={styles.error} role="alert">
-          <p className={styles.errorMessage}>Failed to load board: {message}</p>
-          <Button
-            variant="secondary"
-            size="sm"
-            onPress={() => {
-              void columnsQuery.refetch();
-              void tasksQuery.refetch();
-            }}
-          >
-            Retry
-          </Button>
+      <BoardScreen>
+        <div className={styles.root}>
+          <div className={styles.error} role="alert">
+            <p className={styles.errorMessage}>Failed to load board: {message}</p>
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => {
+                void columnsQuery.refetch();
+                void tasksQuery.refetch();
+              }}
+            >
+              Retry
+            </Button>
+          </div>
         </div>
-      </div>
+      </BoardScreen>
     );
   }
 
   if (columns.length === 0) {
     return (
-      <div className={styles.root}>
-        <div className={styles.empty}>
-          <p className={styles.emptyTitle}>No columns yet</p>
-          <p className={styles.emptyHint}>Add a column to start organizing tasks.</p>
-          <Button variant="primary" onPress={() => setIsColumnDialogOpen(true)}>
-            Create column
-          </Button>
-        </div>
+      <BoardScreen>
+        <div className={styles.root}>
+          <div className={styles.empty}>
+            <p className={styles.emptyTitle}>No columns yet</p>
+            <p className={styles.emptyHint}>Add a column to start organizing tasks.</p>
+            <Button variant="primary" onPress={() => setIsColumnDialogOpen(true)}>
+              Create column
+            </Button>
+          </div>
 
-        {/* Modal lives in the empty-state branch too so users hitting an
-            empty board can immediately add a column. */}
-        <ColumnCreateDialog
-          isOpen={isColumnDialogOpen}
-          onClose={() => setIsColumnDialogOpen(false)}
-          boardId={boardId}
-          nextPosition={nextColumnPosition}
-        />
-      </div>
+          {/* Modal lives in the empty-state branch too so users hitting an
+              empty board can immediately add a column. */}
+          <ColumnCreateDialog
+            isOpen={isColumnDialogOpen}
+            onClose={() => setIsColumnDialogOpen(false)}
+            boardId={boardId}
+            nextPosition={nextColumnPosition}
+          />
+        </div>
+      </BoardScreen>
     );
   }
 
   return (
+    <BoardScreen>
     <div className={styles.root}>
       <header className={styles.boardHeader}>
         <div className={styles.boardTitle}>
@@ -643,5 +665,6 @@ export function KanbanBoard({
         onClear={handleBulkClear}
       />
     </div>
+    </BoardScreen>
   );
 }

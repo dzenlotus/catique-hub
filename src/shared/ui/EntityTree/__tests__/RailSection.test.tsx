@@ -1,11 +1,12 @@
 /**
- * RailSection — unit tests for the section scaffolding (label, add
- * trigger, loading / error / empty states).
+ * RailSection — unit tests for the section scaffolding (label,
+ * trailing slot, loading / error / empty states). RailSection itself
+ * never renders an add trigger — consumers thread one in through
+ * `titleTrailingNode`.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 import { RailSection } from "../RailSection";
 
@@ -28,53 +29,22 @@ describe("RailSection — chrome", () => {
     expect(screen.getByTestId("test-rail-root")).toBeInTheDocument();
   });
 
-  it("renders an add trigger when onAdd is supplied + body has loaded", () => {
+  it("renders trailing affordances supplied by the consumer", () => {
     render(
       <RailSection
         title="ROLES"
         testIdPrefix="test-rail"
-        addLabel="Add role"
-        onAdd={vi.fn()}
+        titleTrailingNode={
+          <button type="button" data-testid="test-rail-add">
+            +
+          </button>
+        }
         isEmpty
       >
         {null}
       </RailSection>,
     );
     expect(screen.getByTestId("test-rail-add")).toBeInTheDocument();
-  });
-
-  it("fires onAdd when the add trigger is clicked", async () => {
-    const onAdd = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <RailSection
-        title="ROLES"
-        testIdPrefix="test-rail"
-        addLabel="Add role"
-        onAdd={onAdd}
-        isEmpty
-      >
-        {null}
-      </RailSection>,
-    );
-    await user.click(screen.getByTestId("test-rail-add"));
-    expect(onAdd).toHaveBeenCalledTimes(1);
-  });
-
-  it("hides the add trigger while loading", () => {
-    render(
-      <RailSection
-        title="ROLES"
-        testIdPrefix="test-rail"
-        addLabel="Add role"
-        onAdd={vi.fn()}
-        isLoading
-        isEmpty
-      >
-        {null}
-      </RailSection>,
-    );
-    expect(screen.queryByTestId("test-rail-add")).not.toBeInTheDocument();
   });
 });
 

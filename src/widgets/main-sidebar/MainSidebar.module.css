@@ -73,38 +73,26 @@
 
 /* ============================================================
  * Nav list — workspace rows (Boards, Prompts, Skills, …)
+ *
+ * The row chrome (red active strip, hover overlay, active underlay)
+ * lives in `shared/ui/EntityTree/EntityTree.module.css`. This file
+ * only owns the wordmark frame, the scroll host padding, and the
+ * label-button typography rendered inside each EntityTree row.
  * ============================================================ */
 
-/*
- * `.navListShell` is the OverlayScrollbars host (round-19c migration).
- * Sits in the grid row that previously held `.navList` directly so the
- * existing grid template doesn't change. Vertical scroll lives inside
- * the Scrollable; the inner `<ul>.navList` keeps the column layout.
- */
 .navListShell {
-  /* Cap the shell to its track and let the inner viewport scroll. */
   min-height: 0;
-}
-
-.navList {
-  list-style: none;
-  margin: 0;
   padding: 0 20px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
 }
 
-.navItem {
-  position: relative;
+.navItemBody {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--space-12);
-  width: 100%;
-  padding: 10px var(--space-16) 10px 10px;
-  border-radius: var(--radius-md);
   border: none;
-  background-color: transparent;
+  background: transparent;
   color: var(--color-text-muted);
   font-family: var(--font-sans);
   font-size: var(--font-size-body);
@@ -113,79 +101,23 @@
   text-align: left;
   cursor: pointer;
   user-select: none;
-  transition:
-    background-color var(--duration-instant, 80ms) var(--easing-default, ease-out),
-    color var(--duration-instant, 80ms) var(--easing-default, ease-out);
-  min-height: 42px;
+  padding: var(--space-4) var(--space-12);
+  min-height: 32px;
 }
 
-/* Hover state — rendered as an inset `::before` overlay so the
- * surface geometry matches the active state below (and the
- * SecondarySidebar / EntityTree rails). Underlay sits 2 px to the
- * right of where the red active-strip ends (row-x=0). */
-.navItem:hover:not(.active)::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: var(--space-2);
-  right: 0;
-  background-color: var(--color-overlay-hover);
-  border-radius: var(--radius-sm);
-  z-index: 0;
-  pointer-events: none;
-}
-
-.navItem:hover:not(.active) {
+.navItemBody:hover {
   color: var(--color-text-default);
 }
 
-.navItem:focus-visible {
+.navItemBody:focus-visible {
   outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
 }
 
-/* Active workspace item — cream underlay + leading red strip, mirroring
- * the SecondarySidebar / EntityTree treatment so all rails read as one
- * family. Red strip sits ENTIRELY to the left of the row (`left: -5px`,
- * `width: 5px`); underlay starts 2 px right of the strip's end so the
- * canonical strip↔underlay gap is preserved. */
-.navItem.active {
-  background-color: transparent;
+.navItemBody[aria-current="page"] {
   color: var(--color-cta-bg);
   font-weight: var(--font-weight-semibold);
-  border-color: transparent;
-}
-
-.navItem.active::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: var(--space-2);
-  right: 0;
-  background-color: var(--color-accent-soft);
-  border-radius: var(--radius-sm);
-  z-index: 0;
-  pointer-events: none;
-}
-
-.navItem.active::after {
-  content: "";
-  position: absolute;
-  left: -5px;
-  top: 4px;
-  bottom: 4px;
-  width: 5px;
-  border-radius: var(--radius-full);
-  background-color: var(--color-cta-bg);
-  z-index: 2;
-  pointer-events: none;
-}
-
-.navItem > * {
-  position: relative;
-  z-index: 1;
 }
 
 .navLabel {
@@ -193,11 +125,5 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .navItem {
-    transition: none;
-  }
 }
 

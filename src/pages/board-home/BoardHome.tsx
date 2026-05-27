@@ -6,6 +6,8 @@ import { useBoards } from "@entities/board";
 import { boardPath, routes } from "@app/routes";
 import { PixelPetAnimalsCat } from "@shared/ui/Icon";
 import { lastBoardStore } from "@shared/storage";
+import { SpacesSidebar } from "@widgets/spaces-sidebar";
+import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
 
 import styles from "./BoardHome.module.css";
 
@@ -66,21 +68,29 @@ export function BoardHome(): ReactElement {
   ]);
 
   return (
-    <section className={styles.root} aria-labelledby="board-home-heading">
-      <div className={styles.center}>
-        <PixelPetAnimalsCat
-          width={96}
-          height={96}
-          aria-hidden="true"
-          className={styles.cat}
-        />
-        <h2 id="board-home-heading" className={styles.title}>
-          All quiet here
-        </h2>
-        <p className={styles.caption}>
-          All set up. Open a board from the sidebar to get going.
-        </p>
+    <section className={shellStyles.root} data-testid="board-home-root">
+      <div className={shellStyles.sidebarSlot}>
+        <SpacesSidebar />
       </div>
+      <section
+        className={`${shellStyles.contentSlot} ${styles.root}`}
+        aria-labelledby="board-home-heading"
+      >
+        <div className={styles.center}>
+          <PixelPetAnimalsCat
+            width={96}
+            height={96}
+            aria-hidden="true"
+            className={styles.cat}
+          />
+          <h2 id="board-home-heading" className={styles.title}>
+            All quiet here
+          </h2>
+          <p className={styles.caption}>
+            All set up. Open a board from the sidebar to get going.
+          </p>
+        </div>
+      </section>
     </section>
   );
 }

@@ -468,11 +468,11 @@ describe("PromptsSidebar — DnD wiring (DOM contract)", () => {
     setup();
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-group-droppable-grp-1"),
+        screen.getByTestId("prompts-sidebar-groups-droppable-grp-1"),
       ).toBeInTheDocument();
     });
     expect(
-      screen.getByTestId("prompts-sidebar-group-droppable-grp-2"),
+      screen.getByTestId("prompts-sidebar-groups-droppable-grp-2"),
     ).toBeInTheDocument();
   });
 });

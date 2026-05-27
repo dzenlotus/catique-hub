@@ -8,26 +8,18 @@
  * the outer page scrolling.
  */
 .shell {
-  /* Round 20c: MainSidebar spans both rows on the left; TopBar starts at
-     MainSidebar's right edge and extends to the window's right edge,
-     covering the SpacesSidebar column + content column.
-     `data-spaces-sidebar="false"` collapses the middle column. */
+  /* MainSidebar spans both rows on the left; TopBar covers the
+     remaining width above the content pane. Pages mount their own
+     secondary rails inside the content pane via EntityPageShell. */
   display: grid;
   grid-template-rows: auto 1fr;
-  grid-template-columns: 220px 220px 1fr;
-  grid-template-areas:
-    "main topbar  topbar"
-    "main spaces  content";
-  height: 100dvh;
-  overflow: hidden;
-  background-color: var(--color-bg-default);
-}
-
-.shell[data-spaces-sidebar="false"] {
   grid-template-columns: 220px 1fr;
   grid-template-areas:
     "main topbar"
     "main content";
+  height: 100dvh;
+  overflow: hidden;
+  background-color: var(--color-bg-default);
 }
 
 .topBarSlot {
@@ -40,12 +32,6 @@
 
 .mainSidebarSlot {
   grid-area: main;
-  height: 100%;
-  overflow: hidden;
-}
-
-.spacesSidebarSlot {
-  grid-area: spaces;
   height: 100%;
   overflow: hidden;
 }

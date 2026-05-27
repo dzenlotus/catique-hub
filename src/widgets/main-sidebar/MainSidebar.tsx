@@ -1,10 +1,9 @@
-import type { ReactElement } from "react";
+import { useMemo, type ReactElement } from "react";
 
-import { Scrollable } from "@shared/ui";
+import { EntityTree, type EntityTreeNode, Scrollable } from "@shared/ui";
 
 import HeartSolid from "./assets/heart-solid.svg?react";
-import { NavRow } from "./NavRow";
-import { WORKSPACE_ITEMS } from "./workspaceItems";
+import { WORKSPACE_ITEMS, type WorkspaceItem } from "./workspaceItems";
 import styles from "./MainSidebar.module.css";
 
 // ---------------------------------------------------------------------------
@@ -37,16 +36,26 @@ export interface MainSidebarProps {
 /**
  * The leftmost column of the three-column app shell.
  *
- * Structure: wordmark on top, workspace nav rows below. The "WORKSPACE"
- * section header was removed in Round 20 — the rows render directly under
- * the wordmark with no section label.
- *
- * The SPACES tree lives in a separate sibling widget (`spaces-sidebar`).
+ * Wordmark on top, workspace rail underneath driven by `<EntityTree/>`.
+ * The rail is headerless (no SECTION label) — `<EntityTree/>` renders
+ * only the `<ul>` of label rows. Per-row icons live in
+ * `workspaceItems.tsx` and ride through `renderRow` so the existing
+ * pixel icons keep their original size + alignment.
  */
 export function MainSidebar({
   activeView,
   onSelectView,
 }: MainSidebarProps): ReactElement {
+  const treeData = useMemo<EntityTreeNode<WorkspaceItem>[]>(
+    () =>
+      WORKSPACE_ITEMS.map((item) => ({
+        id: item.view,
+        label: item.label,
+        data: item,
+      })),
+    [],
+  );
+
   return (
     <nav
       className={styles.sidebar}
@@ -65,31 +74,40 @@ export function MainSidebar({
         <span className={styles.wordmarkSub}>Orchestrate. Build. Ship.</span>
       </div>
 
-      {/* Workspace nav rows — no section header. The `<Scrollable>` host
-          fills its grid row and lets the list scroll vertically when the
-          number of nav items grows past the available height. */}
+      {/* Workspace rail — headerless EntityTree wrapped in Scrollable so
+          the list scrolls when nav items exceed available height. */}
       <Scrollable
         axis="y"
         className={styles.navListShell}
         data-testid="main-sidebar-nav-scroll"
       >
-        <ul className={styles.navList} role="list">
-          {WORKSPACE_ITEMS.map(({ view, label, icon }) => {
-            const isActive = view === activeView;
-            return (
-              <li key={view}>
-                <NavRow
-                  isActive={isActive}
-                  onClick={() => onSelectView(view)}
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  {icon}
-                  <span className={styles.navLabel}>{label}</span>
-                </NavRow>
-              </li>
-            );
+        <EntityTree<WorkspaceItem>
+          testIdPrefix="main-sidebar"
+          data={treeData}
+          rowConfig={(node) => ({
+            // EntityTree's Row is non-interactive (no onClick) here — the
+            // <button> inside `renderRow` is the click surface so we don't
+            // double-fire onSelectView for a single click.
+            isActive: node.id === activeView,
           })}
-        </ul>
+          renderRow={({ node, isActive }) => {
+            const item = node.data;
+            if (!item) return null;
+            return (
+              <button
+                type="button"
+                className={styles.navItemBody}
+                onClick={() => onSelectView(node.id as NavView)}
+                aria-current={isActive ? "page" : undefined}
+                aria-label={item.label}
+                data-testid={`main-sidebar-nav-${node.id}`}
+              >
+                {item.icon}
+                <span className={styles.navLabel}>{item.label}</span>
+              </button>
+            );
+          }}
+        />
       </Scrollable>
     </nav>
   );

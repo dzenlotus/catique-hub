@@ -116,21 +116,20 @@ export type {
 } from "./SidebarShell";
 
 export {
-  Row,
-  Group,
-  RailSection,
-  RowLeading,
+  EntityTree,
   RowLabelButton,
-  EntityTreeChevron,
+  RowLeading,
   useEntityTreeExpandedStorage,
 } from "./EntityTree";
 export type {
-  RowProps,
-  RowRenderContentArgs,
-  GroupProps,
-  RailSectionProps,
-  RowLeadingProps,
+  EntityTreeProps,
+  EntityTreeNode,
+  EntityTreeDraggable,
+  EntityTreeDroppable,
+  EntityTreeRowConfig,
+  EntityTreeRenderRowArgs,
   RowLabelButtonProps,
+  RowLeadingProps,
   UseEntityTreeExpandedStorageResult,
 } from "./EntityTree";
 

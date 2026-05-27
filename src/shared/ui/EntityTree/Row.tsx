@@ -162,10 +162,11 @@ export function Row({
   return (
     // The sortable ref MUST land on the `<li>` — putting it on the
     // inner row div collapses siblings into a single line when the
-    // source row is dragged (the moved element would no longer be a
-    // flex child of `.list`).
+    // source row is dragged. The ref is only wired when `isDraggable`
+    // is true so `useSortable` doesn't stamp ARIA attributes (role,
+    // aria-roledescription, …) on disabled rows.
     <li
-      ref={liRef}
+      ref={isDraggable ? liRef : undefined}
       className={styles.item}
       data-testid={testId}
       data-draggable={isDraggable ? "true" : undefined}

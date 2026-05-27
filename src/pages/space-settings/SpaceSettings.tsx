@@ -47,8 +47,25 @@ import {
 } from "@shared/ui";
 import { useToast } from "@app/providers/ToastProvider";
 import { cn } from "@shared/lib";
+import { SpacesSidebar } from "@widgets/spaces-sidebar";
+import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
 
 import styles from "./SpaceSettings.module.css";
+
+function SpaceSettingsScreen({
+  children,
+}: {
+  children: ReactElement;
+}): ReactElement {
+  return (
+    <section className={shellStyles.root} data-testid="space-settings-root">
+      <div className={shellStyles.sidebarSlot}>
+        <SpacesSidebar />
+      </div>
+      <div className={shellStyles.contentSlot}>{children}</div>
+    </section>
+  );
+}
 
 interface SpaceSettingsParams {
   spaceId: string;
@@ -70,63 +87,69 @@ export function SpaceSettings(): ReactElement {
 
   if (spaceQuery.status === "pending") {
     return (
-      <Scrollable
-        axis="y"
-        className={styles.scrollHost}
-        data-testid="space-settings-scroll"
-      >
-        <div className={styles.root} data-testid="space-settings">
-          <div className={styles.statusPanel} role="status">
-            <p className={styles.statusMessage}>Loading space…</p>
+      <SpaceSettingsScreen>
+        <Scrollable
+          axis="y"
+          className={styles.scrollHost}
+          data-testid="space-settings-scroll"
+        >
+          <div className={styles.root} data-testid="space-settings">
+            <div className={styles.statusPanel} role="status">
+              <p className={styles.statusMessage}>Loading space…</p>
+            </div>
           </div>
-        </div>
-      </Scrollable>
+        </Scrollable>
+      </SpaceSettingsScreen>
     );
   }
 
   if (spaceQuery.status === "error") {
     return (
+      <SpaceSettingsScreen>
+        <Scrollable
+          axis="y"
+          className={styles.scrollHost}
+          data-testid="space-settings-scroll"
+        >
+          <div className={styles.root} data-testid="space-settings">
+            <div className={styles.statusPanel} role="alert">
+              <p className={styles.statusMessage}>
+                Failed to load space: {spaceQuery.error.message}
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                onPress={() => setLocation(routes.boards)}
+              >
+                Back to spaces
+              </Button>
+            </div>
+          </div>
+        </Scrollable>
+      </SpaceSettingsScreen>
+    );
+  }
+
+  return (
+    <SpaceSettingsScreen>
       <Scrollable
         axis="y"
         className={styles.scrollHost}
         data-testid="space-settings-scroll"
       >
         <div className={styles.root} data-testid="space-settings">
-          <div className={styles.statusPanel} role="alert">
-            <p className={styles.statusMessage}>
-              Failed to load space: {spaceQuery.error.message}
-            </p>
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={() => setLocation(routes.boards)}
-            >
-              Back to spaces
-            </Button>
-          </div>
+          <SpaceSettingsForm
+            key={spaceQuery.data.id}
+            spaceId={spaceQuery.data.id}
+            initialName={spaceQuery.data.name}
+            initialIcon={spaceQuery.data.icon ?? null}
+            initialColor={spaceQuery.data.color ?? ""}
+            prefix={spaceQuery.data.prefix}
+            initialProjectFolderPath={spaceQuery.data.projectFolderPath ?? ""}
+          />
         </div>
       </Scrollable>
-    );
-  }
-
-  return (
-    <Scrollable
-      axis="y"
-      className={styles.scrollHost}
-      data-testid="space-settings-scroll"
-    >
-      <div className={styles.root} data-testid="space-settings">
-        <SpaceSettingsForm
-          key={spaceQuery.data.id}
-          spaceId={spaceQuery.data.id}
-          initialName={spaceQuery.data.name}
-          initialIcon={spaceQuery.data.icon ?? null}
-          initialColor={spaceQuery.data.color ?? ""}
-          prefix={spaceQuery.data.prefix}
-          initialProjectFolderPath={spaceQuery.data.projectFolderPath ?? ""}
-        />
-      </div>
-    </Scrollable>
+    </SpaceSettingsScreen>
   );
 }
 

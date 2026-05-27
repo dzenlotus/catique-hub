@@ -28,13 +28,13 @@ import {
 } from "@entities/mcp-server";
 import type { McpTool } from "@bindings/McpTool";
 import {
-  Group,
-  RailSection,
-  Row,
+  EntityTree,
+  type EntityTreeNode,
   RowLabelButton,
   Scrollable,
   SidebarShell,
 } from "@shared/ui";
+import { SidebarSectionAddTrigger } from "@shared/ui/SidebarShell";
 import { McpServerCreateDialog } from "@features/mcp-server/create-dialog";
 import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
 import {
@@ -121,6 +121,33 @@ export function McpServersPage(): ReactElement {
     );
   };
 
+  // Tree shape — server nodes carry their tools as `children` when the
+  // server is expanded. Node ids keep the `srv:` / `tool:` prefixes so
+  // EntityTree's auto-generated testids match the legacy contract
+  // (`mcp-servers-sidebar-item-srv:<id>` / `…-tool:<id>`).
+  type ServerOrTool =
+    | { kind: "server"; server: McpServer }
+    | { kind: "tool"; tool: McpTool; serverId: string };
+
+  const treeData = useMemo<EntityTreeNode<ServerOrTool>[]>(
+    () =>
+      servers.map((server) => {
+        const isExpanded = expandedSet.has(server.id);
+        const tools = isExpanded ? toolsByServerId[server.id] ?? [] : [];
+        return {
+          id: `srv:${server.id}`,
+          label: server.name,
+          data: { kind: "server", server },
+          children: tools.map((tool) => ({
+            id: `tool:${tool.id}`,
+            label: tool.name,
+            data: { kind: "tool", tool, serverId: server.id },
+          })),
+        };
+      }),
+    [servers, expandedSet, toolsByServerId],
+  );
+
   return (
     <section
       className={shellStyles.root}
@@ -131,12 +158,19 @@ export function McpServersPage(): ReactElement {
           ariaLabel="MCP servers navigation"
           testId="mcp-servers-sidebar-root-shell"
         >
-          <RailSection
+          <EntityTree<ServerOrTool>
+            testIdPrefix="mcp-servers-sidebar"
             title="MCP"
             titleAriaLabel="MCP servers navigation"
-            testIdPrefix="mcp-servers-sidebar"
-            addLabel="Add MCP server"
-            onAdd={() => setIsCreateOpen(true)}
+            titleTrailingNode={
+              serversQuery.status === "success" ? (
+                <SidebarSectionAddTrigger
+                  ariaLabel="Add MCP server"
+                  onPress={() => setIsCreateOpen(true)}
+                  testId="mcp-servers-sidebar-add"
+                />
+              ) : null
+            }
             emptyText="No MCP servers yet."
             isLoading={serversQuery.status === "pending"}
             errorMessage={
@@ -144,53 +178,58 @@ export function McpServersPage(): ReactElement {
                 ? `Failed to load MCP servers: ${serversQuery.error.message}`
                 : null
             }
-            isEmpty={servers.length === 0}
-          >
-            {servers.map((server) => {
-              const isExpanded = expandedSet.has(server.id);
-              const isServerActive =
-                selectedServerId === server.id && selectedToolId === null;
-              const tools = isExpanded ? toolsByServerId[server.id] ?? [] : [];
-              return (
-                <Group
-                  key={server.id}
-                  testId={`mcp-servers-sidebar-item-srv:${server.id}`}
-                  isActive={isServerActive}
-                  isExpand={isExpanded}
-                  onToggleExpand={() => handleToggleServer(server.id)}
-                  chevronAriaLabel={
-                    isExpanded ? `Collapse ${server.name}` : `Expand ${server.name}`
-                  }
-                  chevronTestId={`mcp-servers-sidebar-toggle-srv:${server.id}`}
-                  childrenTestId={`mcp-servers-sidebar-children-srv:${server.id}`}
-                  onClick={() => handleSelectServer(server.id)}
-                  renderContent={() => (
-                    <RowLabelButton
-                      label={server.name}
-                      onClick={() => handleSelectServer(server.id)}
-                      testId={`mcp-servers-sidebar-row-srv:${server.id}`}
-                    />
-                  )}
-                >
-                  {tools.map((tool) => (
-                    <Row
-                      key={tool.id}
-                      testId={`mcp-servers-sidebar-item-tool:${tool.id}`}
-                      isActive={selectedToolId === tool.id}
-                      onClick={() => handleSelectTool(server.id, tool.id)}
-                      renderContent={() => (
-                        <RowLabelButton
-                          label={tool.name}
-                          onClick={() => handleSelectTool(server.id, tool.id)}
-                          testId={`mcp-servers-sidebar-row-tool:${tool.id}`}
-                        />
-                      )}
-                    />
-                  ))}
-                </Group>
-              );
-            })}
-          </RailSection>
+            data={treeData}
+            rowConfig={(node) => {
+              const payload = node.data;
+              if (payload?.kind === "server") {
+                const { server } = payload;
+                const isExpanded = expandedSet.has(server.id);
+                return {
+                  isActive:
+                    selectedServerId === server.id && selectedToolId === null,
+                  onClick: () => handleSelectServer(server.id),
+                  expandable: true,
+                  isExpanded,
+                  onToggleExpand: () => handleToggleServer(server.id),
+                  chevronAriaLabel: isExpanded
+                    ? `Collapse ${server.name}`
+                    : `Expand ${server.name}`,
+                };
+              }
+              if (payload?.kind === "tool") {
+                const { tool, serverId } = payload;
+                return {
+                  isActive: selectedToolId === tool.id,
+                  onClick: () => handleSelectTool(serverId, tool.id),
+                };
+              }
+              return {};
+            }}
+            renderRow={({ node }) => {
+              const payload = node.data;
+              if (payload?.kind === "server") {
+                const { server } = payload;
+                return (
+                  <RowLabelButton
+                    label={node.label}
+                    onClick={() => handleSelectServer(server.id)}
+                    testId={`mcp-servers-sidebar-row-srv:${server.id}`}
+                  />
+                );
+              }
+              if (payload?.kind === "tool") {
+                const { tool, serverId } = payload;
+                return (
+                  <RowLabelButton
+                    label={node.label}
+                    onClick={() => handleSelectTool(serverId, tool.id)}
+                    testId={`mcp-servers-sidebar-row-tool:${tool.id}`}
+                  />
+                );
+              }
+              return null;
+            }}
+          />
         </SidebarShell>
       </div>
 

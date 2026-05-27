@@ -137,7 +137,7 @@ export function Group({
 
   return (
     <li
-      ref={liRef}
+      ref={isDraggable ? liRef : undefined}
       className={styles.item}
       data-testid={testId}
       data-draggable={isDraggable ? "true" : undefined}

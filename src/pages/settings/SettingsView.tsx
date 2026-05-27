@@ -1,10 +1,13 @@
 import type { ReactElement } from "react";
-import { useState, useEffect, useRef } from "react";
-import { Button, Input, Row, RowLabelButton, Scrollable } from "@shared/ui";
+import { useMemo, useState, useEffect, useRef } from "react";
 import {
-  SidebarShell,
-  SidebarSectionLabel,
-} from "@shared/ui/SidebarShell";
+  Button,
+  EntityTree,
+  type EntityTreeNode,
+  Input,
+  Scrollable,
+} from "@shared/ui";
+import { SidebarShell } from "@shared/ui/SidebarShell";
 import { PixelInterfaceEssentialSettingCog } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { LocalStorageStore, stringCodec } from "@shared/storage";
@@ -337,29 +340,32 @@ export function SettingsView(): ReactElement {
     }
   }
 
+  const tocTreeData = useMemo<EntityTreeNode<{ sectionId: string }>[]>(
+    () =>
+      SETTINGS_SECTIONS.map((section) => ({
+        id: section.id,
+        label: section.label,
+        data: { sectionId: section.id },
+      })),
+    [],
+  );
+
   return (
     <div className={styles.layout}>
       <SidebarShell
         ariaLabel="Settings sections"
         testId="settings-view-sidebar"
       >
-        <SidebarSectionLabel>Sections</SidebarSectionLabel>
-        <ul className={styles.navList} role="list">
-          {SETTINGS_SECTIONS.map((section) => (
-            <Row
-              key={section.id}
-              isActive={section.id === activeSectionId}
-              onClick={() => handleNavClick(section.id)}
-              testId={`settings-view-nav-${section.id}`}
-              renderContent={() => (
-                <RowLabelButton
-                  label={section.label}
-                  onClick={() => handleNavClick(section.id)}
-                />
-              )}
-            />
-          ))}
-        </ul>
+        {/* TOC — flat label-only list, no custom row body needed. */}
+        <EntityTree<{ sectionId: string }>
+          testIdPrefix="settings-view-nav"
+          title="Sections"
+          data={tocTreeData}
+          rowConfig={(node) => ({
+            isActive: node.id === activeSectionId,
+            onClick: () => handleNavClick(node.id),
+          })}
+        />
       </SidebarShell>
 
       <Scrollable

@@ -1,20 +1,20 @@
 import { useMemo, useState, type ReactElement } from "react";
-import { useDroppable } from "@dnd-kit/react";
 
 import {
   Button,
+  EntityTree,
+  type EntityTreeNode,
   KebabIcon,
   MarqueeText,
   Menu,
   MenuItem,
   MenuTrigger,
-  RailSection,
-  Row,
   RowLeading,
   SidebarNavItem,
   SidebarSectionDivider,
   SidebarShell,
 } from "@shared/ui";
+import { SidebarSectionAddTrigger } from "@shared/ui/SidebarShell";
 import { type Prompt, usePrompts, usePromptTagsMap } from "@entities/prompt";
 import {
   type PromptGroup,
@@ -30,21 +30,18 @@ import styles from "./PromptsSidebar.module.css";
 // ---------------------------------------------------------------------------
 // PromptsSidebar — secondary rail for the merged Prompts page.
 //
-// IA (round-26, post Row/Group split): two flat sections inside ONE rail.
-//   - "All Prompts" entry sits at the top of the shell as the default
-//     landing for the right pane.
-//   - GROUPS section — flat list of `<Row>`s; each row body wraps a
-//     `useDroppable` container (`group:<id>`) so prompts can be
-//     dragged into it. The row body also hosts the kebab menu.
-//   - PROMPTS section — flat list of `<Row isDraggable>` registering
-//     each prompt as a sortable source whose id is the BARE prompt
-//     id. PromptsPage's drag-end handler routes drops against
-//     `promptToGroup.get(rawId)`.
+// Two flat `<EntityTree/>` sections inside one `<SidebarShell>`:
+//   1. GROUPS — droppable rows (`useDroppable` per row via
+//      `rowConfig.droppable`) so prompts can be dragged into them.
+//   2. PROMPTS — draggable rows (`useSortable` per row via
+//      `rowConfig.draggable`) registering with the bare prompt id; the
+//      drag-end handler in `PromptsPage` routes against the active
+//      `promptToGroup` map.
 //
-// DnD provider lives in `PromptsPage` so the sidebar's draggable rows
-// and the inline group view share one context. The primitive contributes
-// only `useSortable` (prompts, via `<Row isDraggable>`) + `useDroppable`
-// (groups, inside the row body).
+// DnD provider (`<DragDropProvider>`) lives in `PromptsPage` so the
+// sidebar's draggables and the inline group view share one context.
+// `<EntityTree/>` just declares which rows are droppable / sortable;
+// each row's body comes through `renderRow`.
 // ---------------------------------------------------------------------------
 
 export interface PromptsSidebarProps {
@@ -97,11 +94,6 @@ export function PromptsSidebar({
   );
 
   // ── Filter state ───────────────────────────────────────────────────
-  // Multi-select tag filter — when one or more tags are selected, the
-  // PROMPTS list is restricted to prompts that carry ALL selected tags
-  // (intersection). New prompts created via the sidebar's "Add prompt"
-  // button inherit the active filter tags so the user lands inside the
-  // same filter without an extra click.
   const [filterTagIds, setFilterTagIds] = useState<ReadonlyArray<string>>([]);
 
   const filteredPrompts = useMemo<ReadonlyArray<Prompt>>(() => {
@@ -129,6 +121,27 @@ export function PromptsSidebar({
   const activeGroupSelectionId =
     selectedPromptId === null ? selectedGroupId : null;
 
+  // ── Tree data ──────────────────────────────────────────────────────
+  const groupsTreeData = useMemo<EntityTreeNode<PromptGroup>[]>(
+    () =>
+      groups.map((group) => ({
+        id: group.id,
+        label: group.name,
+        data: group,
+      })),
+    [groups],
+  );
+
+  const promptsTreeData = useMemo<EntityTreeNode<Prompt>[]>(
+    () =>
+      filteredPrompts.map((prompt) => ({
+        id: prompt.id,
+        label: prompt.name,
+        data: prompt,
+      })),
+    [filteredPrompts],
+  );
+
   return (
     <>
       <SidebarShell ariaLabel="Prompts navigation" testId="prompts-sidebar-root">
@@ -144,12 +157,19 @@ export function PromptsSidebar({
 
         <SidebarSectionDivider />
 
-        <RailSection
+        <EntityTree<PromptGroup>
+          testIdPrefix="prompts-sidebar-groups"
           title="GROUPS"
           titleAriaLabel="Groups"
-          testIdPrefix="prompts-sidebar-groups"
-          addLabel="Add group"
-          onAdd={() => setIsGroupDialogOpen(true)}
+          titleTrailingNode={
+            groupsQuery.status === "success" ? (
+              <SidebarSectionAddTrigger
+                ariaLabel="Add group"
+                onPress={() => setIsGroupDialogOpen(true)}
+                testId="prompts-sidebar-groups-add"
+              />
+            ) : null
+          }
           emptyText="No groups yet."
           isLoading={groupsQuery.status === "pending"}
           errorMessage={
@@ -157,35 +177,40 @@ export function PromptsSidebar({
               ? `Failed to load groups: ${groupsQuery.error.message}`
               : null
           }
-          isEmpty={groups.length === 0}
-        >
-          {groups.map((group) => (
-            <Row
-              key={group.id}
-              testId={`prompts-sidebar-groups-item-${group.id}`}
-              isActive={activeGroupSelectionId === group.id}
-              onClick={() => onSelectGroup(group.id)}
-              renderContent={() => (
-                <GroupRowBody
-                  group={group}
-                  onSelect={() => onSelectGroup(group.id)}
-                  onRename={onRenameGroup}
-                  onSettings={onGroupSettings}
-                  onDelete={onDeleteGroup}
-                />
-              )}
-            />
-          ))}
-        </RailSection>
+          data={groupsTreeData}
+          rowConfig={(node) => ({
+            isActive: activeGroupSelectionId === node.id,
+            onClick: () => onSelectGroup(node.id),
+            // `group:<id>` is the droppable id the PromptsPage drag-end
+            // handler routes on — see `PromptsPage`'s comment for the
+            // contract.
+            droppable: {
+              id: `group:${node.id}`,
+              type: "group",
+              accept: ["prompt"],
+            },
+          })}
+          renderRow={({ node }) => {
+            const group = node.data;
+            if (!group) return null;
+            return (
+              <GroupRowBody
+                group={group}
+                onSelect={() => onSelectGroup(group.id)}
+                onRename={onRenameGroup}
+                onSettings={onGroupSettings}
+                onDelete={onDeleteGroup}
+              />
+            );
+          }}
+        />
 
         <SidebarSectionDivider />
 
-        <RailSection
+        <EntityTree<Prompt>
+          testIdPrefix="prompts-sidebar-prompts"
           title="PROMPTS"
           titleAriaLabel="Prompts"
-          testIdPrefix="prompts-sidebar-prompts"
-          addLabel="Add prompt"
-          onAdd={() => setIsPromptDialogOpen(true)}
           emptyText={
             prompts.length === 0
               ? "No prompts yet."
@@ -197,7 +222,6 @@ export function PromptsSidebar({
               ? `Failed to load prompts: ${promptsQuery.error.message}`
               : null
           }
-          isEmpty={filteredPrompts.length === 0}
           titleTrailingNode={
             <span className={styles.sectionLabelActions}>
               <TagsFilterButton
@@ -205,35 +229,36 @@ export function PromptsSidebar({
                 onChange={setFilterTagIds}
               />
               <PromptsSettingsButton onPress={onOpenSettings} />
+              {promptsQuery.status === "success" ? (
+                <SidebarSectionAddTrigger
+                  ariaLabel="Add prompt"
+                  onPress={() => setIsPromptDialogOpen(true)}
+                  testId="prompts-sidebar-prompts-add"
+                />
+              ) : null}
             </span>
           }
-        >
-          {filteredPrompts.map((prompt, index) => (
-            <Row
-              key={prompt.id}
-              testId={`prompts-sidebar-prompts-item-${prompt.id}`}
-              isActive={selectedPromptId === prompt.id}
-              isDraggable
-              // BARE prompt id — PromptsPage's drag-end handler routes
-              // drops via `promptToGroup.get(rawId)` without stripping
-              // any prefix. See `<PromptsPage>` for the contract.
-              sortableId={prompt.id}
-              sortableType="prompt"
-              sortableGroup="all"
-              sortableAccept={["prompt"]}
-              sortableIndex={index}
-              onClick={() => onSelectPrompt(prompt.id)}
-              dragHandleAriaLabel={`Drag ${prompt.name}`}
-              dragHandleTestId={`prompts-sidebar-prompts-handle-${prompt.id}`}
-              renderContent={() => (
-                <PromptRowBody
-                  prompt={prompt}
-                  onSelect={() => onSelectPrompt(prompt.id)}
-                />
-              )}
-            />
-          ))}
-        </RailSection>
+          data={promptsTreeData}
+          rowConfig={(node) => ({
+            isActive: selectedPromptId === node.id,
+            onClick: () => onSelectPrompt(node.id),
+            draggable: {
+              type: "prompt",
+              group: "all",
+              handleAriaLabel: `Drag ${node.label}`,
+            },
+          })}
+          renderRow={({ node }) => {
+            const prompt = node.data;
+            if (!prompt) return null;
+            return (
+              <PromptRowBody
+                prompt={prompt}
+                onSelect={() => onSelectPrompt(prompt.id)}
+              />
+            );
+          }}
+        />
       </SidebarShell>
 
       <PromptGroupCreateDialog
@@ -252,9 +277,8 @@ export function PromptsSidebar({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Row bodies — kept inside this module so each `renderContent` callback
-// can own its single DnD hook. `<Row>` provides the hover/active
-// background; these bodies just supply the click target + kebab.
+// Row bodies — separate components so each owns its kebab MenuTrigger
+// without forcing `<EntityTree/>` to learn about per-row actions.
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface GroupRowBodyProps {
@@ -272,22 +296,8 @@ function GroupRowBody({
   onSettings,
   onDelete,
 }: GroupRowBodyProps): ReactElement {
-  // Drop target for the cross-group "add to group" gesture. The id is
-  // `group:<id>` so PromptsPage's drag-end handler can route to the
-  // addMember / removeMember mutation pair.
-  const { ref, isDropTarget } = useDroppable({
-    id: `group:${group.id}`,
-    type: "group",
-    accept: ["prompt"],
-  });
-
   return (
-    <div
-      ref={ref}
-      className={styles.rowDroppable}
-      data-drop-target={isDropTarget ? "true" : undefined}
-      data-testid={`prompts-sidebar-group-droppable-${group.id}`}
-    >
+    <>
       <button
         type="button"
         className={styles.rowButton}
@@ -319,7 +329,7 @@ function GroupRowBody({
           <MenuItem id="delete">Delete</MenuItem>
         </Menu>
       </MenuTrigger>
-    </div>
+    </>
   );
 }
 
@@ -329,9 +339,6 @@ interface PromptRowBodyProps {
 }
 
 function PromptRowBody({ prompt, onSelect }: PromptRowBodyProps): ReactElement {
-  // `<Row>` owns the drag handle + sortable wiring. This body just
-  // renders the label-button; the primitive sandwiches it with the
-  // handle on the left when `isDraggable` is set on the row.
   return (
     <button
       type="button"

@@ -1,34 +1,27 @@
 /**
  * RolesPage — two-pane shell wrapping the existing `<RolesList>`.
  *
- * Round-26 (Row/Group split): the secondary rail composes
- * `<RailSection>` + `<Row>` explicitly instead of feeding a `nodes`
- * array into the old `<EntityTree>`. Visual parity preserved — `<Row>`
- * owns the active strip + hover overlay; this page just iterates roles
- * and supplies a label-button via `<RowLabelButton>`.
- *
- * audit-#9 (wave-3): the editor is a routed PAGE on `/roles/:roleId`
- * (previously a modal Dialog mounted in this page). Selecting a role
- * navigates the URL; the page renders `<RoleEditorPanel>` in the
- * content slot when a role id is in the URL, otherwise shows the
- * master grid.
+ * Sidebar uses the unified `<EntityTree/>` with the default row body
+ * (label + icon + colour). Selection state lives in the URL — the
+ * editor mounts on `/roles/:roleId`.
  */
 
-import { useState, type ReactElement } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import { useLocationCompat as useLocation, useRouteCompat as useRoute } from "@shared/lib";
 
 import { useRoles } from "@entities/role";
 import {
-  RailSection,
-  Row,
+  EntityTree,
+  type EntityTreeNode,
   RowLabelButton,
   Scrollable,
   SidebarShell,
 } from "@shared/ui";
+import { SidebarSectionAddTrigger } from "@shared/ui/SidebarShell";
 import { RoleCreateDialog } from "@features/role/create-dialog";
 import { RoleEditorPanel } from "@features/role/editor";
 import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
-import { RolesList } from "@entities/role";
+import { RolesList, type Role } from "@entities/role";
 import { rolePath, routes } from "@app/routes";
 
 export function RolesPage(): ReactElement {
@@ -44,6 +37,16 @@ export function RolesPage(): ReactElement {
     setLocation(id ? rolePath(id) : routes.roles);
   };
 
+  const treeData = useMemo<EntityTreeNode<Role>[]>(
+    () =>
+      roles.map((role) => ({
+        id: role.id,
+        label: role.name,
+        data: role,
+      })),
+    [roles],
+  );
+
   return (
     <section className={shellStyles.root} data-testid="roles-page-root">
       <div className={shellStyles.sidebarSlot}>
@@ -51,12 +54,19 @@ export function RolesPage(): ReactElement {
           ariaLabel="Roles navigation"
           testId="roles-sidebar-root-shell"
         >
-          <RailSection
+          <EntityTree<Role>
+            testIdPrefix="roles-sidebar"
             title="ROLES"
             titleAriaLabel="Roles navigation"
-            testIdPrefix="roles-sidebar"
-            addLabel="Add role"
-            onAdd={() => setIsCreateOpen(true)}
+            titleTrailingNode={
+              rolesQuery.status === "success" ? (
+                <SidebarSectionAddTrigger
+                  ariaLabel="Add role"
+                  onPress={() => setIsCreateOpen(true)}
+                  testId="roles-sidebar-add"
+                />
+              ) : null
+            }
             emptyText="No roles yet."
             isLoading={rolesQuery.status === "pending"}
             errorMessage={
@@ -64,26 +74,24 @@ export function RolesPage(): ReactElement {
                 ? `Failed to load roles: ${rolesQuery.error.message}`
                 : null
             }
-            isEmpty={roles.length === 0}
-          >
-            {roles.map((role) => (
-              <Row
-                key={role.id}
-                testId={`roles-sidebar-item-${role.id}`}
-                isActive={role.id === selectedId}
-                onClick={() => handleSelect(role.id)}
-                renderContent={() => (
-                  <RowLabelButton
-                    label={role.name}
-                    icon={role.icon}
-                    color={role.color}
-                    onClick={() => handleSelect(role.id)}
-                    testId={`roles-sidebar-row-${role.id}`}
-                  />
-                )}
-              />
-            ))}
-          </RailSection>
+            data={treeData}
+            rowConfig={(node) => ({
+              isActive: node.id === selectedId,
+              onClick: () => handleSelect(node.id),
+            })}
+            renderRow={({ node }) => {
+              const role = node.data;
+              return (
+                <RowLabelButton
+                  label={node.label}
+                  icon={role?.icon ?? null}
+                  color={role?.color ?? null}
+                  onClick={() => handleSelect(node.id)}
+                  testId={`roles-sidebar-row-${node.id}`}
+                />
+              );
+            }}
+          />
         </SidebarShell>
       </div>
 

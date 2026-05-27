@@ -1,24 +1,23 @@
 /**
  * SkillsPage — two-pane shell wrapping the existing `<SkillsList>`.
  *
- * Round-26 (Row/Group split): rail composes `<RailSection>` + `<Row>`
- * directly so the page owns iteration over `useSkills().data`.
- *
- * audit-#9: editor is a routed PAGE on `/skills/:skillId` rather than
- * a modal.
+ * Sidebar uses the unified `<EntityTree/>` with the default label-button
+ * body. Selection state lives in the URL — the editor mounts on
+ * `/skills/:skillId`.
  */
 
-import { useState, type ReactElement } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import { useLocationCompat as useLocation, useRouteCompat as useRoute } from "@shared/lib";
 
-import { useSkills } from "@entities/skill";
+import { useSkills, type Skill } from "@entities/skill";
 import {
-  RailSection,
-  Row,
+  EntityTree,
+  type EntityTreeNode,
   RowLabelButton,
   Scrollable,
   SidebarShell,
 } from "@shared/ui";
+import { SidebarSectionAddTrigger } from "@shared/ui/SidebarShell";
 import { SkillCreateDialog } from "@features/skill/create-dialog";
 import { SkillEditorPanel } from "@features/skill/editor";
 import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
@@ -38,6 +37,16 @@ export function SkillsPage(): ReactElement {
     setLocation(id ? skillPath(id) : routes.skills);
   };
 
+  const treeData = useMemo<EntityTreeNode<Skill>[]>(
+    () =>
+      skills.map((skill) => ({
+        id: skill.id,
+        label: skill.name,
+        data: skill,
+      })),
+    [skills],
+  );
+
   return (
     <section className={shellStyles.root} data-testid="skills-page-root">
       <div className={shellStyles.sidebarSlot}>
@@ -45,12 +54,19 @@ export function SkillsPage(): ReactElement {
           ariaLabel="Skills navigation"
           testId="skills-sidebar-root-shell"
         >
-          <RailSection
+          <EntityTree<Skill>
+            testIdPrefix="skills-sidebar"
             title="SKILLS"
             titleAriaLabel="Skills navigation"
-            testIdPrefix="skills-sidebar"
-            addLabel="Add skill"
-            onAdd={() => setIsCreateOpen(true)}
+            titleTrailingNode={
+              skillsQuery.status === "success" ? (
+                <SidebarSectionAddTrigger
+                  ariaLabel="Add skill"
+                  onPress={() => setIsCreateOpen(true)}
+                  testId="skills-sidebar-add"
+                />
+              ) : null
+            }
             emptyText="No skills yet."
             isLoading={skillsQuery.status === "pending"}
             errorMessage={
@@ -58,25 +74,23 @@ export function SkillsPage(): ReactElement {
                 ? `Failed to load skills: ${skillsQuery.error.message}`
                 : null
             }
-            isEmpty={skills.length === 0}
-          >
-            {skills.map((skill) => (
-              <Row
-                key={skill.id}
-                testId={`skills-sidebar-item-${skill.id}`}
-                isActive={skill.id === selectedId}
-                onClick={() => handleSelect(skill.id)}
-                renderContent={() => (
-                  <RowLabelButton
-                    label={skill.name}
-                    color={skill.color}
-                    onClick={() => handleSelect(skill.id)}
-                    testId={`skills-sidebar-row-${skill.id}`}
-                  />
-                )}
-              />
-            ))}
-          </RailSection>
+            data={treeData}
+            rowConfig={(node) => ({
+              isActive: node.id === selectedId,
+              onClick: () => handleSelect(node.id),
+            })}
+            renderRow={({ node }) => {
+              const skill = node.data;
+              return (
+                <RowLabelButton
+                  label={node.label}
+                  color={skill?.color ?? null}
+                  onClick={() => handleSelect(node.id)}
+                  testId={`skills-sidebar-row-${node.id}`}
+                />
+              );
+            }}
+          />
         </SidebarShell>
       </div>
 
