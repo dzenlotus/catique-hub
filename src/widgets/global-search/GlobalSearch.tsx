@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   useCallback,
@@ -179,7 +180,7 @@ export function GlobalSearch({
   }
 
   // Render the results list content
-  function renderBody(): ReactElement {
+  const body = useMemo<ReactElement>(() => {
     if (query.trim() === "") {
       return (
         <div className={styles.hint} data-testid="global-search-empty">
@@ -268,7 +269,7 @@ export function GlobalSearch({
     }
 
     return <></>;
-  }
+  }, [query, debouncedQuery, state, focusedIndex, handleSelect]);
 
   return (
     <ModalOverlay
@@ -306,7 +307,7 @@ export function GlobalSearch({
             </div>
 
             {/* ── Results body ── */}
-            <div className={styles.body}>{renderBody()}</div>
+            <div className={styles.body}>{body}</div>
           </div>
         </AriaDialog>
       </Modal>

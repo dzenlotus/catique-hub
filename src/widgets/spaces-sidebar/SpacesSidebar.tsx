@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import { useLocationCompat as useLocation } from "@shared/lib";
 
 import {
@@ -44,7 +44,7 @@ export function SpacesSidebar(): ReactElement {
   // board still reads as "the active surface".
   const activeBoardId = matchBoardSurface(location)?.boardId ?? null;
 
-  function renderBody(): ReactElement {
+  const body = useMemo<ReactElement>(() => {
     if (spacesQuery.status === "pending") {
       return (
         <div className={styles.spaceSwitcher} aria-hidden="true">
@@ -89,14 +89,23 @@ export function SpacesSidebar(): ReactElement {
             boards={boards}
             isActiveSpace={space.id === activeSpaceId}
             activeBoardId={activeBoardId}
-            onSelectSpace={(id) => setActiveSpaceId(id)}
+            onSelectSpace={setActiveSpaceId}
             onSelectBoard={(id) => setLocation(boardPath(id))}
             isDefaultExpanded={index === 0 || space.isDefault}
           />
         ))}
       </ul>
     );
-  }
+  }, [
+    spacesQuery.status,
+    spacesQuery.error,
+    spaces,
+    boards,
+    activeSpaceId,
+    activeBoardId,
+    setActiveSpaceId,
+    setLocation,
+  ]);
 
   return (
     <>
@@ -118,7 +127,7 @@ export function SpacesSidebar(): ReactElement {
         >
           SPACES
         </SidebarSectionLabel>
-        {renderBody()}
+        {body}
       </SidebarShell>
 
       <SpaceCreateDialog
