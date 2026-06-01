@@ -44,8 +44,8 @@ repository = "https://github.com/dzenlotus/catique-hub"
 
 [workspace.dependencies]
 # Exact-pinned (NFR §5.3): protocol- and storage-touching crates.
-serde = { version = "=1.0.219", features = ["derive"] }
-serde_json = "=1.0.140"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.150"
 ts-rs = { version = "=8.1.0", features = ["serde-compat", "chrono-impl"] }
 rusqlite = { version = "=0.32.1", features = ["bundled"] }
 
@@ -79,7 +79,7 @@ dirs = "5"
 keyring = { version = "3", default-features = false }
 
 # Tauri pinned to the same minor as src-tauri/ scaffold (Katya, E1.1).
-tauri = { version = "2.10", default-features = false }
+tauri = { version = "2.11", default-features = false }
 tauri-build = { version = "2.5", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
