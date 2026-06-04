@@ -11,9 +11,7 @@ export interface SettingsSection {
 export const SETTINGS_SECTIONS: ReadonlyArray<SettingsSection> = [
   { id: "settings-appearance", label: "Appearance" },
   { id: "settings-keyboard-shortcuts", label: "Keyboard shortcuts" },
-  { id: "settings-tokens", label: "Tokens" },
   { id: "settings-data", label: "Data" },
-  { id: "settings-mcp-sidecar", label: "MCP sidecar" },
   { id: "settings-about", label: "About" },
 ];
 

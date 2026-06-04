@@ -54,6 +54,11 @@ export function handleMisc(
     case "clear_task_mcp_tool_override_v2":
     case "run_task_agent":
       return null;
+    // Settings → Data export/import: no-op in the mock bridge (no real
+    // filesystem); specs only assert the buttons wire up.
+    case "export_database":
+    case "import_database":
+      return null;
 
     // -------------- skill export (Stream J / v3 Wave 4) --------------
     // Bridge serialises a deterministic payload so Playwright specs

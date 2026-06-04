@@ -10,6 +10,7 @@ pub mod attachments;
 pub mod boards;
 pub mod clients;
 pub mod columns;
+pub mod data;
 pub mod events;
 pub mod mcp_servers;
 pub mod mcp_tool_groups;

@@ -407,6 +407,9 @@ pub fn run() {
             handlers::boards::set_board_skills,
             handlers::boards::track_board_visit,
             handlers::boards::update_board,
+            // ---------------- data export / import ----------------
+            handlers::data::export_database,
+            handlers::data::import_database,
             // ---------------- columns (E2.4 + ctq-108 + ctq-120) ----------------
             handlers::columns::create_column,
             handlers::columns::delete_column,
@@ -733,6 +736,14 @@ fn resolve_node_bin() -> String {
 /// Folded into a small helper so `run()` stays linear and testable
 /// at the call-site level (via integration tests in E2.7).
 fn init_state(sidecar_dir: PathBuf) -> Result<AppState, String> {
+    // Settings → Data → Import stages a candidate DB and asks for a
+    // restart. Apply the swap here, before the pool opens the live file.
+    match catique_infrastructure::db::apply_pending_import() {
+        Ok(true) => eprintln!("[catique-hub] applied staged database import"),
+        Ok(false) => {}
+        Err(e) => eprintln!("[catique-hub] pending import skipped: {e}"),
+    }
+
     let path = db_path().map_err(|e| format!("resolve db path: {e}"))?;
     let pool =
         open_pool(&path).map_err(|e| format!("open sqlite pool at {}: {e}", path.display()))?;

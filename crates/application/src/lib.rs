@@ -18,6 +18,7 @@ pub mod boards;
 pub mod clients;
 pub mod columns;
 pub mod connected_providers;
+pub mod data;
 pub mod error;
 mod error_map;
 pub mod mcp_aggregated;

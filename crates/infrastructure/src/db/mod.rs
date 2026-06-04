@@ -15,9 +15,11 @@
 //! crate touches `rusqlite::Connection` directly.
 
 pub mod event_log;
+pub mod import;
 pub mod pool;
 pub mod repositories;
 pub mod runner;
 
+pub use import::apply_pending_import;
 pub use pool::{open as open_pool, DbError, Pool};
 pub use runner::{run_pending, MigrationApplied, MigrationError};

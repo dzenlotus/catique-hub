@@ -1,14 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import { ToastProvider } from "@shared/lib";
 
-// SettingsTokensView (rendered inside SettingsView) calls usePrompts(), which
-// issues IPC via @shared/api. Mock at that boundary so the test suite doesn't
-// require a live Tauri backend.
+// Cards inside SettingsView issue IPC via @shared/api. Mock at that
+// boundary so the test suite doesn't require a live Tauri backend.
 vi.mock("@shared/api", async () => {
   const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
   const fn = vi.fn();
@@ -45,21 +43,13 @@ function setup(): void {
   render(ui);
 }
 
-/** Default invoke mock: list_prompts never resolves; sidecar_status returns Stopped. */
-function setupDefaultInvokeMock(): void {
-  invokeMock.mockImplementation(async (command: string) => {
-    if (command === "sidecar_status") return { state: "stopped" };
-    // All other commands (list_prompts etc.) never resolve — keeps those
-    // sections in loading state without affecting sidecar tests.
-    return new Promise(() => {});
-  });
-}
-
 beforeEach(() => {
   // Reset data-theme before each test so tests are isolated.
   delete document.documentElement.dataset["theme"];
   invokeMock.mockReset();
-  setupDefaultInvokeMock();
+  // Default: every command stays pending so async sections render in
+  // their loading state without resolving against a backend.
+  invokeMock.mockImplementation(async () => new Promise(() => {}));
 });
 
 afterEach(() => {
@@ -72,13 +62,10 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("SettingsView", () => {
-  it("renders all four section headings", () => {
+  it("renders the section headings", () => {
     setup();
     expect(
       screen.getByRole("heading", { name: /^appearance$/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: /^tokens$/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: /^data$/i }),
@@ -86,11 +73,6 @@ describe("SettingsView", () => {
     expect(
       screen.getByRole("heading", { name: /^about$/i }),
     ).toBeInTheDocument();
-  });
-
-  it("Tokens section is rendered (stable testid)", () => {
-    setup();
-    expect(screen.getByTestId("settings-tokens-section")).toBeInTheDocument();
   });
 
   it("About section shows the app version string", () => {
@@ -121,23 +103,6 @@ describe("SettingsView", () => {
     expect(themeEl.textContent).toBe("Dark");
   });
 
-  it("renders at least one disabled TODO button in the Data section", () => {
-    setup();
-    const disabledButtons = screen
-      .getAllByRole("button")
-      .filter(
-        (btn) =>
-          btn.hasAttribute("disabled") ||
-          btn.getAttribute("aria-disabled") === "true",
-      );
-    expect(disabledButtons.length).toBeGreaterThanOrEqual(1);
-    // At least one of them mentions TODO.
-    const todoButton = disabledButtons.find((btn) =>
-      /TODO/i.test(btn.textContent ?? ""),
-    );
-    expect(todoButton).toBeDefined();
-  });
-
   it("Appearance section exposes Light + Dark theme buttons", () => {
     setup();
     expect(
@@ -151,73 +116,5 @@ describe("SettingsView", () => {
   it("About section mentions Elastic-2.0 license", () => {
     setup();
     expect(screen.getByText(/Elastic-2\.0/)).toBeInTheDocument();
-  });
-
-  // ── MCP Sidecar section (ADR-0002 spike ctq-56) ───────────────────────
-
-  it("MCP Sidecar section renders with heading", () => {
-    setup();
-    expect(
-      screen.getByRole("heading", { name: /mcp sidecar/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("shows Stopped pill when sidecar_status returns stopped", async () => {
-    invokeMock.mockImplementation(async (command: string) => {
-      if (command === "sidecar_status") return { state: "stopped" };
-      return new Promise(() => {});
-    });
-    setup();
-    await waitFor(() => {
-      expect(screen.getByTestId("sidecar-status-pill")).toHaveTextContent(/stopped/i);
-    });
-  });
-
-  it("shows Running pill with pid when sidecar_status returns running", async () => {
-    invokeMock.mockImplementation(async (command: string) => {
-      if (command === "sidecar_status") return { state: "running", pid: 42 };
-      return new Promise(() => {});
-    });
-    setup();
-    await waitFor(() => {
-      expect(screen.getByTestId("sidecar-status-pill")).toHaveTextContent(/running/i);
-      expect(screen.getByTestId("sidecar-status-pill")).toHaveTextContent("42");
-    });
-  });
-
-  it("shows Starting pill when sidecar_status returns starting", async () => {
-    invokeMock.mockImplementation(async (command: string) => {
-      if (command === "sidecar_status") return { state: "starting" };
-      return new Promise(() => {});
-    });
-    setup();
-    await waitFor(() => {
-      expect(screen.getByTestId("sidecar-status-pill")).toHaveTextContent(/starting/i);
-    });
-  });
-
-  it("shows Crashed pill with exit code when sidecar_status returns crashed", async () => {
-    invokeMock.mockImplementation(async (command: string) => {
-      if (command === "sidecar_status") return { state: "crashed", exitCode: 1 };
-      return new Promise(() => {});
-    });
-    setup();
-    await waitFor(() => {
-      expect(screen.getByTestId("sidecar-status-pill")).toHaveTextContent(/crashed/i);
-      expect(screen.getByTestId("sidecar-status-pill")).toHaveTextContent("1");
-    });
-  });
-
-  it("restart button calls sidecar_restart IPC", async () => {
-    const user = userEvent.setup();
-    invokeMock.mockImplementation(async (command: string) => {
-      if (command === "sidecar_status") return { state: "stopped" };
-      if (command === "sidecar_restart") return undefined;
-      return new Promise(() => {});
-    });
-    setup();
-    const btn = screen.getByTestId("sidecar-restart-button");
-    await user.click(btn);
-    expect(invokeMock).toHaveBeenCalledWith("sidecar_restart");
   });
 });

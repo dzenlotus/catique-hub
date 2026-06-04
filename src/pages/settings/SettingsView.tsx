@@ -17,8 +17,6 @@ import {
   AppearanceCard,
   DataCard,
   KeyboardShortcutsCard,
-  SidecarCard,
-  TokensCard,
 } from "./ui";
 import styles from "./SettingsView.module.css";
 
@@ -28,9 +26,9 @@ const SECTION_IDS: ReadonlyArray<string> = SETTINGS_SECTIONS.map((s) => s.id);
  * Settings — top-level settings container.
  *
  * Thin composition over a TOC sidebar + a scrollable stack of section cards
- * (Appearance, Keyboard shortcuts, Tokens, Data, MCP Sidecar, About). All
- * stateful concerns live in colocated hooks (`useSettingsScrollSpy`,
- * `useSeedPrompts`, `useSidecarStatus`); theme switching is local.
+ * (Appearance, Keyboard shortcuts, Data, About). All stateful concerns live
+ * in colocated hooks (`useSettingsScrollSpy`, `useSeedPrompts`); theme
+ * switching is local.
  */
 export function SettingsView(): ReactElement {
   // Theme state — controlled by the Appearance picker. Initial value is read
@@ -108,9 +106,7 @@ export function SettingsView(): ReactElement {
             onThemeChange={handleThemeChange}
           />
           <KeyboardShortcutsCard />
-          <TokensCard />
           <DataCard />
-          <SidecarCard />
           <AboutCard />
         </div>
       </Scrollable>

@@ -61,3 +61,25 @@ const fn data_dir_name() -> &'static str {
 pub fn db_path() -> Result<PathBuf, &'static str> {
     Ok(app_data_dir()?.join("db.sqlite"))
 }
+
+/// Staging path for an import requested from Settings → Data. The file
+/// is written here by `DataUseCase::stage_import` and swapped over
+/// [`db_path`] at the next launch by
+/// [`crate::db::apply_pending_import`].
+///
+/// # Errors
+///
+/// Propagates [`app_data_dir`]'s error.
+pub fn pending_import_path() -> Result<PathBuf, &'static str> {
+    Ok(app_data_dir()?.join("pending_import.sqlite"))
+}
+
+/// Backup written just before a pending import is applied, so the swap
+/// is reversible (rename back over [`db_path`] to restore).
+///
+/// # Errors
+///
+/// Propagates [`app_data_dir`]'s error.
+pub fn pre_import_backup_path() -> Result<PathBuf, &'static str> {
+    Ok(app_data_dir()?.join("db.pre-import-backup.sqlite"))
+}
