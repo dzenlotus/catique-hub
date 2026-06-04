@@ -30,6 +30,9 @@ import {
   useState,
   type ReactElement,
 } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   RadioGroup as AriaRadioGroup,
   Radio as AriaRadio,
@@ -43,7 +46,7 @@ import {
   type McpServerStatus,
   type Transport,
 } from "@entities/mcp-server";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 import { AppErrorInstance } from "@shared/api";
 import { Button, Dialog, DialogFooter, Input } from "@shared/ui";
 
@@ -51,6 +54,16 @@ import styles from "./McpServerCreateDialog.module.css";
 
 /** Delay before polling `get_mcp_server_status` once after create. */
 const STATUS_POLL_DELAY_MS = 1_000;
+
+// react-hook-form schema — name + address required after trim. `address`
+// is the unified text field: a stdio command or an http/sse URL depending
+// on the selected transport (transport itself is RAC-radio local state).
+const mcpServerFormSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+  address: z.string().trim().min(1, "Address is required."),
+});
+
+type McpServerFormValues = z.infer<typeof mcpServerFormSchema>;
 
 const TRANSPORT_OPTIONS: ReadonlyArray<{
   id: Transport;
@@ -114,88 +127,77 @@ function McpServerCreateDialogContent({
   const createMutation = useCreateMcpServerMutation();
   const { pushToast } = useToast();
 
-  const [name, setName] = useState("");
+  // Transport is RAC-radio local state, not a validated text field.
   const [transport, setTransport] = useState<Transport>("stdio");
-  const [url, setUrl] = useState("");
-  const [command, setCommand] = useState("");
-  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const trimmedName = name.trim();
-  const trimmedAddress = transport === "stdio" ? command.trim() : url.trim();
-  const canSubmit =
-    trimmedName.length > 0 &&
-    trimmedAddress.length > 0 &&
-    !createMutation.isPending;
+  const {
+    control,
+    handleSubmit,
+    setError,
+    formState: { errors, isValid, isSubmitting },
+  } = useForm<McpServerFormValues>({
+    resolver: zodResolver(mcpServerFormSchema),
+    defaultValues: { name: "", address: "" },
+    mode: "onChange",
+  });
 
-  const handleSave = useCallback((): void => {
-    setSaveError(null);
-    if (!trimmedName) {
-      setSaveError("Name cannot be empty.");
-      return;
-    }
-    if (!trimmedAddress) {
-      setSaveError(
-        transport === "stdio"
-          ? "Command is required for stdio transport."
-          : "URL is required for this transport.",
-      );
-      return;
-    }
-
+  const onValid = handleSubmit(async (values) => {
     // TODO(proxy-s3-r2): auth fields. PROXY-S3 round 2 wires keychain
     // entries; for now every newly-registered server is unauthenticated
     // and `authJson` ships as null.
-    createMutation.mutate(
-      {
-        name: trimmedName,
+    try {
+      const server = await createMutation.mutateAsync({
+        name: values.name,
         transport,
-        url: transport === "stdio" ? null : trimmedAddress,
-        command: transport === "stdio" ? trimmedAddress : null,
+        url: transport === "stdio" ? null : values.address,
+        command: transport === "stdio" ? values.address : null,
         authJson: null,
         enabled: true,
-      },
-      {
-        onSuccess: (server) => {
-          // One-shot status poll after a short delay so the introspect-
-          // on-create best-effort path has time to complete. The poll
-          // result decides which toast we surface.
-          window.setTimeout(() => {
-            void runPostCreatePoll(server, pushToast);
-            onCreated?.(server);
-          }, STATUS_POLL_DELAY_MS);
-          onClose();
-        },
-        onError: (err) => {
-          if (err instanceof AppErrorInstance && err.kind === "conflict") {
-            setSaveError("Name already taken.");
-          } else {
-            setSaveError(`Failed to create: ${err.message}`);
-          }
-        },
-      },
-    );
-  }, [
-    trimmedName,
-    trimmedAddress,
-    transport,
-    createMutation,
-    pushToast,
-    onCreated,
-    onClose,
-  ]);
+      });
+      // One-shot status poll after a short delay so the introspect-
+      // on-create best-effort path has time to complete. The poll
+      // result decides which toast we surface.
+      window.setTimeout(() => {
+        void runPostCreatePoll(server, pushToast);
+        onCreated?.(server);
+      }, STATUS_POLL_DELAY_MS);
+      onClose();
+    } catch (err) {
+      if (err instanceof AppErrorInstance && err.kind === "conflict") {
+        setError("root.serverError", { message: "Name already taken." });
+      } else {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        setError("root.serverError", {
+          message: `Failed to create: ${message}`,
+        });
+      }
+    }
+  });
+
+  const handleSubmitPress = useCallback((): void => {
+    void onValid();
+  }, [onValid]);
+
+  const serverError = errors.root?.serverError?.message;
 
   return (
     <>
       {/* Name */}
       <div className={styles.section}>
-        <Input
-          label="Name"
-          value={name}
-          onChange={setName}
-          placeholder="Server name"
-          autoFocus
-          className={styles.fullWidthInput}
-          data-testid="mcp-server-create-dialog-name-input"
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <Input
+              label="Name"
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Server name"
+              autoFocus
+              className={styles.fullWidthInput}
+              data-testid="mcp-server-create-dialog-name-input"
+            />
+          )}
         />
       </div>
 
@@ -228,28 +230,35 @@ function McpServerCreateDialogContent({
         </p>
       </div>
 
-      {/* Address — URL for http/sse, Command for stdio */}
+      {/* Address — URL for http/sse, Command for stdio. One form field
+          (`address`) rendered with the transport-specific label/testid. */}
       <div className={styles.section}>
-        {transport === "stdio" ? (
-          <Input
-            label="Command"
-            value={command}
-            onChange={setCommand}
-            placeholder="/usr/local/bin/my-mcp-server --flag"
-            className={styles.fullWidthInput}
-            data-testid="mcp-server-create-dialog-command-input"
-          />
-        ) : (
-          <Input
-            label="URL"
-            value={url}
-            onChange={setUrl}
-            placeholder="https://example.com/mcp"
-            type="url"
-            className={styles.fullWidthInput}
-            data-testid="mcp-server-create-dialog-url-input"
-          />
-        )}
+        <Controller
+          control={control}
+          name="address"
+          render={({ field }) =>
+            transport === "stdio" ? (
+              <Input
+                label="Command"
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="/usr/local/bin/my-mcp-server --flag"
+                className={styles.fullWidthInput}
+                data-testid="mcp-server-create-dialog-command-input"
+              />
+            ) : (
+              <Input
+                label="URL"
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="https://example.com/mcp"
+                type="url"
+                className={styles.fullWidthInput}
+                data-testid="mcp-server-create-dialog-url-input"
+              />
+            )
+          }
+        />
       </div>
 
       {/* TODO(proxy-s3-r2): auth fields — keychain reference flow
@@ -257,13 +266,13 @@ function McpServerCreateDialogContent({
           `authJson: null` and servers register unauthenticated. */}
 
       <DialogFooter>
-        {saveError ? (
+        {serverError ? (
           <p
             className={styles.saveError}
             role="alert"
             data-testid="mcp-server-create-dialog-error"
           >
-            {saveError}
+            {serverError}
           </p>
         ) : null}
         <Button
@@ -277,9 +286,9 @@ function McpServerCreateDialogContent({
         <Button
           variant="primary"
           size="md"
-          isPending={createMutation.isPending}
-          isDisabled={!canSubmit}
-          onPress={handleSave}
+          isPending={isSubmitting}
+          isDisabled={!isValid}
+          onPress={handleSubmitPress}
           data-testid="mcp-server-create-dialog-save"
         >
           Create

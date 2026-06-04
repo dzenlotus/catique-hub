@@ -30,10 +30,12 @@ use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::{
         mcp_call_log as call_log_repo,
+        mcp_server_attachments::{self as srv_attach, ServerAttachScope},
         mcp_servers::{self as repo, McpServerDraft, McpServerPatch, McpServerRow, TransportKind},
         mcp_tools as tools_repo, pre_mint_id,
     },
 };
+use rusqlite::TransactionBehavior;
 use serde::Serialize;
 use serde_json::Value;
 use ts_rs::TS;
@@ -212,6 +214,102 @@ impl<'a> McpServersUseCase<'a> {
     #[must_use]
     pub fn new(pool: &'a Pool) -> Self {
         Self { pool }
+    }
+
+    // ------------------------------------------------------------------
+    // Server-as-live-unit attachment (Phase C). Attaching a server
+    // materialises all its current tools into the scope's tasks; the
+    // reconcile hook keeps them in sync on re-introspection.
+    // ------------------------------------------------------------------
+
+    #[allow(clippy::needless_pass_by_value)]
+    fn set_servers_at(
+        &self,
+        scope: ServerAttachScope,
+        server_ids: Vec<String>,
+    ) -> Result<(), AppError> {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+        srv_attach::set_servers_at(&tx, &scope, &server_ids).map_err(map_db_err)?;
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
+        Ok(())
+    }
+
+    /// Set the MCP servers attached to a role.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces storage-layer errors.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn set_role_servers(
+        &self,
+        role_id: String,
+        server_ids: Vec<String>,
+    ) -> Result<(), AppError> {
+        self.set_servers_at(ServerAttachScope::Role(role_id), server_ids)
+    }
+
+    /// Set the MCP servers attached to a board.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces storage-layer errors.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn set_board_servers(
+        &self,
+        board_id: String,
+        server_ids: Vec<String>,
+    ) -> Result<(), AppError> {
+        self.set_servers_at(ServerAttachScope::Board(board_id), server_ids)
+    }
+
+    /// Set the MCP servers attached directly to a task.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces storage-layer errors.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn set_task_servers(
+        &self,
+        task_id: String,
+        server_ids: Vec<String>,
+    ) -> Result<(), AppError> {
+        self.set_servers_at(ServerAttachScope::Task(task_id), server_ids)
+    }
+
+    /// List the MCP servers attached at a role.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces storage-layer errors.
+    pub fn list_role_servers(&self, role_id: &str) -> Result<Vec<String>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        srv_attach::list_servers_at(&conn, &ServerAttachScope::Role(role_id.to_owned()))
+            .map_err(map_db_err)
+    }
+
+    /// List the MCP servers attached at a board.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces storage-layer errors.
+    pub fn list_board_servers(&self, board_id: &str) -> Result<Vec<String>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        srv_attach::list_servers_at(&conn, &ServerAttachScope::Board(board_id.to_owned()))
+            .map_err(map_db_err)
+    }
+
+    /// List the MCP servers attached directly to a task.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces storage-layer errors.
+    pub fn list_task_servers(&self, task_id: &str) -> Result<Vec<String>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        srv_attach::list_servers_at(&conn, &ServerAttachScope::Task(task_id.to_owned()))
+            .map_err(map_db_err)
     }
 
     /// List every registered MCP server, ordered by name.
@@ -880,6 +978,14 @@ fn reconcile_tools(
             }
         }
     }
+
+    // Live link (Phase C): re-materialise this server everywhere it is
+    // attached as a unit, so newly-introspected tools fan into dependent
+    // tasks' effective context and removed (soft-deleted) ones drop out.
+    catique_infrastructure::db::repositories::mcp_server_attachments::rematerialize_mcp_server(
+        conn, server_id,
+    )
+    .map_err(map_db_err)?;
 
     Ok(report)
 }

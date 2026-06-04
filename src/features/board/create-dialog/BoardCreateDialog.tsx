@@ -12,7 +12,10 @@
  * space" inline prompt (mirrors the existing NewBoardDialog in BoardsList).
  */
 
-import { useState, type ReactElement } from "react";
+import { useCallback, useState, type ReactElement } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { boardsKeys } from "@entities/board";
@@ -22,7 +25,7 @@ import { useSpaces } from "@entities/space";
 import { invoke } from "@shared/api";
 import { Dialog, Button, IconColorPicker, Input, Select, SelectItem } from "@shared/ui";
 import { cn } from "@shared/lib";
-import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
+import { useActiveSpace } from "@shared/lib";
 
 import styles from "./BoardCreateDialog.module.css";
 
@@ -36,6 +39,16 @@ import styles from "./BoardCreateDialog.module.css";
  * risk (`bindings/Board.ts` makes `ownerRoleId` non-null, ctq-105).
  */
 const DEFAULT_OWNER_ROLE_ID = "maintainer-system";
+
+// react-hook-form schema — name required; description optional. Owner role
+// and space are Select-driven local state (with resolution logic) that gate
+// the submit alongside `isValid`.
+const boardFormSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+  description: z.string().optional(),
+});
+
+type BoardFormValues = z.infer<typeof boardFormSchema>;
 
 /**
  * Args for the local `create_board` mutation. The shared
@@ -173,8 +186,6 @@ function BoardCreateDialogContent({
     },
   });
 
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [spaceId, setSpaceId] = useState<string | null>(null);
   // Default = Maintainer for low-friction creation. The Submit gate
   // below still enforces a non-empty value in case the user clears
@@ -182,7 +193,17 @@ function BoardCreateDialogContent({
   const [ownerRoleId, setOwnerRoleId] = useState<string>(
     DEFAULT_OWNER_ROLE_ID,
   );
-  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const {
+    control,
+    handleSubmit,
+    setError,
+    formState: { errors, isValid, isSubmitting },
+  } = useForm<BoardFormValues>({
+    resolver: zodResolver(boardFormSchema),
+    defaultValues: { name: "", description: "" },
+    mode: "onChange",
+  });
 
   /**
    * Resolve the effective spaceId for the picker.
@@ -221,76 +242,78 @@ function BoardCreateDialogContent({
       void queryClient.invalidateQueries({ queryKey: ["spaces"] });
     },
     onError: (err) => {
-      setSubmitError(err.message);
+      setError("root.serverError", { message: err.message });
     },
   });
 
   const noSpacesYet =
     spacesQuery.status === "success" && spacesQuery.data.length === 0;
 
+  // Name is RHF-validated; space + owner role come from the pickers and
+  // gate the submit button alongside `isValid`.
   const canSubmit =
-    name.trim().length > 0 &&
-    resolvedSpaceId !== null &&
-    ownerRoleId.trim().length > 0;
+    isValid && resolvedSpaceId !== null && ownerRoleId.trim().length > 0;
 
-  const handleSubmit = (): void => {
-    setSubmitError(null);
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setSubmitError("Name cannot be empty.");
-      return;
-    }
+  const onValid = handleSubmit(async (values) => {
     if (!resolvedSpaceId) {
-      setSubmitError("Select or create a space.");
+      setError("root.serverError", { message: "Select or create a space." });
       return;
     }
     if (ownerRoleId.trim().length === 0) {
-      setSubmitError("Pick an owner role.");
+      setError("root.serverError", { message: "Pick an owner role." });
       return;
     }
-    const trimmedDescription = description.trim();
+    const trimmedDescription = (values.description ?? "").trim();
     // `ownerRoleId` is sent verbatim to `create_board`. `bindings/Board.ts`
     // already requires the field non-null (migration 004); the IPC handler
     // accepts it once ctq-101 lands, and meanwhile silently ignores the
     // extra arg while the DB-level DEFAULT keeps `maintainer-system` —
     // matching what the picker pre-selects, so behaviour is consistent.
-    createBoard.mutate(
-      {
-        name: trimmedName,
+    try {
+      const board = await createBoard.mutateAsync({
+        name: values.name,
         spaceId: resolvedSpaceId,
         ownerRoleId,
         ...(trimmedDescription ? { description: trimmedDescription } : {}),
         ...(color !== "" ? { color } : {}),
         ...(icon !== null ? { icon } : {}),
-      },
-      {
-        onSuccess: (board) => {
-          onCreated?.(board);
-          onClose();
-        },
-        onError: (err) => {
-          setSubmitError(`Failed to create: ${err.message}`);
-        },
-      },
-    );
-  };
+      });
+      onCreated?.(board);
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError("root.serverError", { message: `Failed to create: ${message}` });
+    }
+  });
 
-  const handleCancel = (): void => {
+  const handleSubmitPress = useCallback((): void => {
+    void onValid();
+  }, [onValid]);
+
+  const handleCancel = useCallback((): void => {
     onClose();
-  };
+  }, [onClose]);
+
+  const serverError = errors.root?.serverError?.message;
 
   return (
     <div className={styles.body}>
       {/* Name */}
       <div className={styles.section}>
-        <Input
-          label="Name"
-          value={name}
-          onChange={setName}
-          placeholder="e.g. Roadmap"
-          autoFocus
-          className={styles.fullWidthInput}
-          data-testid="board-create-dialog-name-input"
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <Input
+              label="Name"
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="e.g. Roadmap"
+              autoFocus
+              className={styles.fullWidthInput}
+              data-testid="board-create-dialog-name-input"
+            />
+          )}
         />
       </div>
 
@@ -298,13 +321,19 @@ function BoardCreateDialogContent({
       <div className={styles.section}>
         <label className={styles.selectField}>
           <span className={styles.selectLabel}>Description</span>
-          <textarea
-            className={styles.textarea}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Optional"
-            rows={3}
-            data-testid="board-create-dialog-description-input"
+          <Controller
+            control={control}
+            name="description"
+            render={({ field }) => (
+              <textarea
+                className={styles.textarea}
+                value={field.value ?? ""}
+                onChange={(e) => field.onChange(e.target.value)}
+                placeholder="Optional"
+                rows={3}
+                data-testid="board-create-dialog-description-input"
+              />
+            )}
           />
         </label>
       </div>
@@ -372,13 +401,13 @@ function BoardCreateDialogContent({
 
       {/* Footer */}
       <div className={styles.footer}>
-        {submitError ? (
+        {serverError ? (
           <p
             className={styles.saveError}
             role="alert"
             data-testid="board-create-dialog-error"
           >
-            {submitError}
+            {serverError}
           </p>
         ) : null}
         <Button
@@ -392,9 +421,9 @@ function BoardCreateDialogContent({
         <Button
           variant="primary"
           size="md"
-          isPending={createBoard.isPending}
+          isPending={isSubmitting}
           isDisabled={!canSubmit}
-          onPress={handleSubmit}
+          onPress={handleSubmitPress}
           data-testid="board-create-dialog-save"
         >
           Create

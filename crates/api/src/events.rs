@@ -81,6 +81,24 @@ pub const TASK_MOVED: &str = "task:moved";
 /// `task:deleted` — payload `{ id, column_id, board_id }`.
 pub const TASK_DELETED: &str = "task:deleted";
 
+/// `task:run:started` — payload `{ taskId }`.
+///
+/// Stream J / v3 Wave 4. Fired by [`super::handlers::tasks::run_task_agent`]
+/// the moment the IPC accepts the request. The frontend
+/// `EventsProvider` listens and flips the local `useTaskStatus` store
+/// for `taskId` to `"running"` so the badge + `RunningTaskIndicator`
+/// pick up the change without polling. The actual agent-run executor
+/// is not yet implemented — once it lands it will own
+/// [`TASK_RUN_FINISHED`] / [`TASK_RUN_FAILED`].
+pub const TASK_RUN_STARTED: &str = "task:run:started";
+/// `task:run:finished` — payload `{ taskId }`. Flips status to
+/// `"completed"`.
+pub const TASK_RUN_FINISHED: &str = "task:run:finished";
+/// `task:run:failed` — payload `{ taskId, error }`. Flips status to
+/// `"failed"` and the frontend `EventsProvider` surfaces a toast with
+/// the `error` field.
+pub const TASK_RUN_FAILED: &str = "task:run:failed";
+
 /// `space:created` — payload `{ id }`.
 pub const SPACE_CREATED: &str = "space:created";
 /// `space:updated` — payload `{ id }`.
@@ -168,6 +186,19 @@ pub const PROMPT_GROUP_DELETED: &str = "prompt_group:deleted";
 /// group entity itself.
 pub const PROMPT_GROUP_MEMBERS_CHANGED: &str = "prompt_group:members_changed";
 
+/// `mcp_tool_group:created` — payload `{ id }`.
+pub const MCP_TOOL_GROUP_CREATED: &str = "mcp_tool_group:created";
+/// `mcp_tool_group:updated` — payload `{ id }`.
+pub const MCP_TOOL_GROUP_UPDATED: &str = "mcp_tool_group:updated";
+/// `mcp_tool_group:deleted` — payload `{ id }`.
+pub const MCP_TOOL_GROUP_DELETED: &str = "mcp_tool_group:deleted";
+/// `mcp_tool_group:members_changed` — payload `{ group_id }`.
+///
+/// Emitted after add/remove/set members; members re-materialise into
+/// `task_mcp_tools` everywhere the group is attached (live link), so the
+/// frontend invalidates the members query AND task bundles.
+pub const MCP_TOOL_GROUP_MEMBERS_CHANGED: &str = "mcp_tool_group:members_changed";
+
 /// `agent_report:created` — payload `{ id, task_id }`.
 pub const AGENT_REPORT_CREATED: &str = "agent_report:created";
 /// `agent_report:updated` — payload `{ id, task_id }`.
@@ -229,6 +260,49 @@ where
     }
 }
 
+// -----------------------------------------------------------------
+// Run-lifecycle helpers (Stream J / v3 Wave 4).
+//
+// Three thin wrappers over [`emit`] so callers don't have to spell out
+// the constant + camelCase payload shape every time. The names are
+// stable enough that a typo at the call site would survive cargo check
+// — the helpers anchor the shape in one place. All three take
+// `&AppState` (not `&AppHandle`) so they share the test-mode silent
+// no-op contract with every other `events::emit*` call site.
+// -----------------------------------------------------------------
+
+/// Emit [`TASK_RUN_STARTED`] for `task_id`.
+///
+/// Payload is `{ "taskId": "<task_id>" }` — camelCase mirrors the
+/// SKILL-S10 / role_note events; the frontend `EventsProvider` reads
+/// `taskId` straight through to `setTaskStatus(taskId, "running")`.
+pub fn emit_task_run_started(state: &AppState, task_id: &str) {
+    emit(
+        state,
+        TASK_RUN_STARTED,
+        serde_json::json!({ "taskId": task_id }),
+    );
+}
+
+/// Emit [`TASK_RUN_FINISHED`] for `task_id`.
+pub fn emit_task_run_finished(state: &AppState, task_id: &str) {
+    emit(
+        state,
+        TASK_RUN_FINISHED,
+        serde_json::json!({ "taskId": task_id }),
+    );
+}
+
+/// Emit [`TASK_RUN_FAILED`] for `task_id` with a free-form `error`
+/// payload. The frontend surfaces the `error` field as toast copy.
+pub fn emit_task_run_failed(state: &AppState, task_id: &str, error: &str) {
+    emit(
+        state,
+        TASK_RUN_FAILED,
+        serde_json::json!({ "taskId": task_id, "error": error }),
+    );
+}
+
 #[cfg(test)]
 mod tests {
     //! Test-mode contract. We can't exercise a real `AppHandle::emit`
@@ -256,6 +330,20 @@ mod tests {
         assert!(state.app_handle.get().is_none());
     }
 
+    /// Run-lifecycle helpers share the test-mode silent contract. We
+    /// exercise all three so a future refactor that accidentally
+    /// changes the payload shape (e.g. snake_case `task_id`) trips a
+    /// compile-time check on the const reference, and the silent
+    /// no-op path stays warm.
+    #[test]
+    fn run_lifecycle_helpers_are_silent_without_app_handle() {
+        let state = AppState::new(memory_pool_for_tests(), std::path::PathBuf::new());
+        emit_task_run_started(&state, "task-1");
+        emit_task_run_finished(&state, "task-1");
+        emit_task_run_failed(&state, "task-1", "boom");
+        assert!(state.app_handle.get().is_none());
+    }
+
     #[test]
     fn event_name_constants_are_colon_namespaced() {
         // Tauri 2.x permits only alphanumeric + `-/:_` in event names.
@@ -273,6 +361,9 @@ mod tests {
             TASK_UPDATED,
             TASK_MOVED,
             TASK_DELETED,
+            TASK_RUN_STARTED,
+            TASK_RUN_FINISHED,
+            TASK_RUN_FAILED,
             SPACE_CREATED,
             SPACE_UPDATED,
             SPACE_DELETED,

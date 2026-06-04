@@ -6,5 +6,8 @@ export {
   deletePrompt,
   listPromptTagsMap,
   recomputePromptTokenCount,
+  listPromptVersions,
+  getPromptVersion,
+  revertPromptToVersion,
 } from "./promptsApi";
 export type { CreatePromptArgs, UpdatePromptArgs } from "./promptsApi";

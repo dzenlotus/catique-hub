@@ -145,3 +145,18 @@ export async function updateSpace(args: UpdateSpaceArgs): Promise<Space> {
 export async function deleteSpace(id: string): Promise<void> {
   return invokeWithAppError<void>("delete_space", { id });
 }
+
+/**
+ * `list_space_prompts` — prompts attached to a space at the project
+ * scope. Surfaced in board / agent settings so the user can see what
+ * is already cascading from the space before adding board-level
+ * attachments.
+ */
+export async function listSpacePrompts(
+  spaceId: string,
+): Promise<import("@bindings/Prompt").Prompt[]> {
+  return invokeWithAppError<import("@bindings/Prompt").Prompt[]>(
+    "list_space_prompts",
+    { spaceId },
+  );
+}

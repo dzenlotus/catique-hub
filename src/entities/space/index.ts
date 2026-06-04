@@ -13,6 +13,7 @@ export {
   createSpace,
   updateSpace,
   deleteSpace,
+  listSpacePrompts,
   validatePrefix,
 } from "./api";
 export type { CreateSpaceArgs, UpdateSpaceArgs } from "./api";
@@ -22,6 +23,7 @@ export {
   spacesKeys,
   useSpaces,
   useSpace,
+  useSpacePrompts,
   useCreateSpaceMutation,
   useUpdateSpaceMutation,
   useDeleteSpaceMutation,

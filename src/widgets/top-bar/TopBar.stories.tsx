@@ -18,8 +18,8 @@ import { boardsKeys } from "@entities/board";
 import type { Board } from "@entities/board";
 import { tasksKeys } from "@entities/task";
 import type { Task } from "@entities/task";
-import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ActiveSpaceProvider } from "@app/providers";
+import { ToastProvider } from "@shared/lib";
 import { spacesKeys } from "@entities/space";
 import type { Space } from "@entities/space";
 
@@ -58,6 +58,9 @@ function stubTask(overrides?: Partial<Task>): Task {
     stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,
+    effectivePromptCount: 0n,
+    effectiveSkillCount: 0n,
+    effectiveToolCount: 0n,
     ...overrides,
   };
 }

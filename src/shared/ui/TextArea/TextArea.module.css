@@ -32,7 +32,9 @@
   line-height: 1.45;
   resize: vertical;
   outline: none;
-  transition: border-color 120ms ease-out;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
 }
 
 .textarea::placeholder {
@@ -45,6 +47,8 @@
 
 .textarea[data-focused] {
   border-color: var(--color-border-focus);
+  /* Same 3px focus glow as Input so the two read as one set. */
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
 }
 
 .textarea[data-invalid] {

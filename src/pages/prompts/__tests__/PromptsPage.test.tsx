@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type { Prompt } from "@entities/prompt";
 import type { PromptGroup } from "@entities/prompt-group";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 
 // Mock the Tauri invoke wrapper at the shared/api boundary so the page's
 // fan-out queries (prompts, groups, per-group members) all run against
@@ -117,7 +117,7 @@ afterEach(() => {
 });
 
 describe("PromptsPage", () => {
-  it("renders the two-pane shell with the prompts sidebar + grid", async () => {
+  it("renders the two-pane shell with the prompts sidebar + empty right pane", async () => {
     mockIpc({ prompts: [], groups: [] });
     renderPage();
 
@@ -125,10 +125,10 @@ describe("PromptsPage", () => {
       expect(screen.getByTestId("prompts-page-root")).toBeInTheDocument();
     });
     expect(screen.getByTestId("prompts-sidebar-root")).toBeInTheDocument();
-    // The PromptsList grid eventually settles into the empty state once
-    // the prompts query resolves.
+    // The right pane shows the empty state when nothing is selected — the
+    // sidebar is the single list (the old card grid was removed).
     await waitFor(() => {
-      expect(screen.getByTestId("prompts-list-empty")).toBeInTheDocument();
+      expect(screen.getByTestId("prompts-page-empty")).toBeInTheDocument();
     });
   });
 
@@ -275,14 +275,70 @@ describe("PromptsPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("exposes a tags filter trigger next to the PROMPTS section label", async () => {
+  it("renders the tags-filter trigger in the sidebar PROMPTS section", async () => {
     mockIpc({ prompts: [], groups: [] });
     renderPage();
 
+    // The prompts list renders (sidebar present)…
     await waitFor(() => {
       expect(
-        screen.getByTestId("prompts-sidebar-tags-filter-trigger"),
+        screen.getByTestId("prompts-sidebar-prompts-add"),
       ).toBeInTheDocument();
+    });
+    // …and the tag filter lives in the sidebar's PROMPTS header again as a
+    // popover trigger (relocated back out of the TopBar header).
+    expect(
+      screen.getByTestId("prompts-sidebar-tags-filter-trigger"),
+    ).toBeInTheDocument();
+  });
+
+  // The tab bar (Prompts / Groups / Tags) was removed — the sidebar is the
+  // single list, and the tag library lives in the settings page. The right
+  // pane just routes on the sidebar selection.
+  describe("right pane", () => {
+    it("renders the prompt editor panel when a prompt is selected", async () => {
+      mockIpc({
+        prompts: [makePrompt({ id: "prm-1", name: "Pick me" })],
+        groups: [],
+      });
+      const { user } = renderPage();
+
+      await user.click(
+        await screen.findByTestId("prompts-sidebar-prompts-row-prm-1"),
+      );
+      await waitFor(() => {
+        expect(screen.getByTestId("prompt-editor-panel")).toBeInTheDocument();
+      });
+    });
+
+    it("renders the inline group view when a group is opened", async () => {
+      mockIpc({
+        prompts: [],
+        groups: [makeGroup({ id: "grp-1", name: "Alpha" })],
+        members: { "grp-1": [] },
+      });
+      const { user } = renderPage();
+
+      await user.click(
+        await screen.findByTestId("prompts-sidebar-groups-row-grp-1"),
+      );
+      await waitFor(() => {
+        expect(screen.getByTestId("inline-group-view")).toBeInTheDocument();
+      });
+    });
+
+    it("no longer renders the Prompts/Groups/Tags tab bar", async () => {
+      mockIpc({ prompts: [], groups: [] });
+      renderPage();
+      await waitFor(() => {
+        expect(screen.getByTestId("prompts-page-root")).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByTestId("prompts-page-tab-prompts"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("tablist", { name: "Prompts page mode" }),
+      ).not.toBeInTheDocument();
     });
   });
 });

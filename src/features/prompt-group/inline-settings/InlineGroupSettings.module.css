@@ -51,6 +51,17 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  /*
+   * `overflow-y: auto` forces `overflow-x` to compute to `auto` (the spec
+   * "visible computes to clip when paired with a scroll value" rule), so a
+   * full-width `<Input>` flush against this column would have its 3px focus
+   * ring clipped on the left/right edges. Same negative-margin / matching-
+   * padding slack the shared Dialog `.body` and PromptEditorPanel
+   * `.scrollAreaInner` use: descendants paint 4px outside the natural width
+   * (focus-ring spillover) without changing layout.
+   */
+  margin: 0 calc(-1 * var(--space-4));
+  padding: 0 var(--space-4);
 }
 
 .section {

@@ -90,7 +90,7 @@ async fn one_shot(request: Value) -> Value {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn tools_list_exposes_native_manifest_plus_proxy_tool() {
+async fn tools_list_exposes_entity_tools_plus_proxy_facade() {
     let resp = one_shot(json!({
         "jsonrpc": "2.0",
         "id": 1,
@@ -102,25 +102,29 @@ async fn tools_list_exposes_native_manifest_plus_proxy_tool() {
     let tools = resp["result"]["tools"]
         .as_array()
         .expect("tools must be array");
-    // Standard MCP exposure: every native tool surfaces under its bare
-    // name, plus the single `mcp_proxy_tool` façade for upstream calls.
-    assert!(
-        tools.len() > 100,
-        "expected the embedded manifest + proxy tool, got len={}",
+    // Post-consolidation surface: 16 entity tools + 2 cross-cutting +
+    // 1 proxy façade = 19. Legacy flat names stay callable via
+    // `tools/call` but are no longer advertised.
+    assert_eq!(
+        tools.len(),
+        19,
+        "expected 19 advertised tools, got len={}",
         tools.len()
     );
     let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
-    assert!(
-        names.contains(&"list_spaces"),
-        "native `list_spaces` must be in tools/list"
-    );
-    assert!(
-        names.contains(&"create_task"),
-        "native `create_task` must be in tools/list"
-    );
+    for entity in ["task", "role", "board", "space", "prompt", "setting"] {
+        assert!(
+            names.contains(&entity),
+            "entity tool `{entity}` must be advertised in tools/list",
+        );
+    }
     assert!(
         names.contains(&"mcp_proxy_tool"),
         "mcp_proxy_tool façade must be in tools/list"
+    );
+    assert!(
+        !names.contains(&"create_task"),
+        "legacy flat name `create_task` must not be advertised — only `task` is",
     );
     let proxy = tools
         .iter()

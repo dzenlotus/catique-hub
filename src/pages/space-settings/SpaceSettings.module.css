@@ -11,6 +11,12 @@
  * Scrollable wrapper now owns the page-level vertical scroll surface
  * inside the `mainPane > *` overflow:hidden constraint set by App.
  */
+.shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .scrollHost {
   height: 100%;
   width: 100%;
@@ -66,59 +72,12 @@
   line-height: var(--line-height-normal);
 }
 
-/* ── Card shell ────────────────────────────────────────────────────── */
-
-.card {
-  background-color: var(--color-surface-raised);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.cardHeading {
-  margin: 0;
-  padding: var(--space-12) var(--space-16);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-default);
-  border-bottom: 1px solid var(--color-border-subtle);
-  background-color: var(--color-surface-canvas);
-}
-
-.cardBody {
-  padding: var(--space-16);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-12);
-}
+/* ── Form fields ───────────────────────────────────────────────────── */
 
 .fields {
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
-}
-
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: var(--space-8);
-  margin-top: var(--space-4);
-}
-
-.savedHint {
-  margin: 0;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-status-success);
-  margin-right: auto;
-}
-
-.error {
-  margin: 0;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-status-danger);
-  margin-right: auto;
 }
 
 .readOnlyRow {
@@ -153,25 +112,6 @@
 .projectFolderInput {
   flex: 1 1 auto;
   min-width: 0;
-}
-
-/* ── Empty / loading / error shells ──────────────────────────────── */
-
-.statusPanel {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-8);
-  padding: var(--space-16);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface-raised);
-}
-
-.statusMessage {
-  margin: 0;
-  font-size: var(--font-size-body);
-  color: var(--color-text-default);
 }
 
 /* ── Danger zone ─────────────────────────────────────────────────── */

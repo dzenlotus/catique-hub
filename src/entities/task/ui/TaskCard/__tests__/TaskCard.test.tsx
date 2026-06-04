@@ -18,6 +18,9 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,
+    effectivePromptCount: 0n,
+    effectiveSkillCount: 0n,
+    effectiveToolCount: 0n,
     ...overrides,
   };
 }
@@ -249,5 +252,31 @@ describe("TaskCard", () => {
     const btn = screen.getByRole("button", { name: /Task Ship kanban widget/i });
     await user.dblClick(btn);
     expect(onSelect).toHaveBeenCalledWith("tsk-dbl-sel");
+  });
+
+  // ── effectiveCount chip (refactor-v3 §"Effective context performance") ─
+
+  it("renders the effectiveCount chip when effectiveCount > 0", () => {
+    render(
+      <TaskCard task={makeTask({ id: "tsk-eff" })} effectiveCount={7} />,
+    );
+    const chip = screen.getByTestId("task-card-effective-count");
+    expect(chip).toHaveTextContent("7");
+    expect(chip).toHaveAttribute(
+      "aria-label",
+      "7 effective context items",
+    );
+  });
+
+  it("suppresses the effectiveCount chip when value is 0", () => {
+    render(
+      <TaskCard task={makeTask({ id: "tsk-eff0" })} effectiveCount={0} />,
+    );
+    expect(screen.queryByTestId("task-card-effective-count")).toBeNull();
+  });
+
+  it("legacy promptsCount still renders when effectiveCount is undefined", () => {
+    render(<TaskCard task={makeTask({ id: "tsk-leg" })} promptsCount={3} />);
+    expect(screen.getByTestId("task-card-prompts-count")).toHaveTextContent("3");
   });
 });

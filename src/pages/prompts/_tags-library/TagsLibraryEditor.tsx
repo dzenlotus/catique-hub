@@ -20,8 +20,8 @@ import {
   useUpdateTagMutation,
 } from "@entities/tag";
 import type { Tag } from "@entities/tag";
-import { ConfirmDialog } from "@shared/ui";
-import { useToast } from "@app/providers/ToastProvider";
+import { ConfirmDialog, Input } from "@shared/ui";
+import { useToast } from "@shared/lib";
 
 import styles from "./TagsLibraryEditor.module.css";
 
@@ -87,11 +87,13 @@ export function TagsLibraryEditor(): ReactElement {
         {tags.map((tag) =>
           editingId === tag.id ? (
             <li key={tag.id} className={styles.item}>
-              <input
+              <Input
                 type="text"
-                className={styles.renameInput}
+                label={`Rename tag ${tag.name}`}
+                labelHidden
+                className={styles.renameField}
                 value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
+                onChange={setDraftName}
                 onBlur={() => commitRename(tag.id)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -103,7 +105,6 @@ export function TagsLibraryEditor(): ReactElement {
                   }
                 }}
                 autoFocus
-                aria-label={`Rename tag ${tag.name}`}
                 data-testid={`tags-library-editor-rename-${tag.id}`}
               />
             </li>

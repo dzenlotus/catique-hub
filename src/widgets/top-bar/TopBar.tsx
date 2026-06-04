@@ -1,14 +1,18 @@
 /**
  * TopBar — top panel of the main pane.
  *
- * Layout (Image #30):
+ * Layout:
  *   ┌────────────────────────────────────────────────────────┐
- *   │  [Search ⌘K]                          [sync indicator] │
+ *   │  [Search ⌘K]                          [sync indicator]  │
  *   └────────────────────────────────────────────────────────┘
  *
- * Round-21 added a global sync indicator on the right side of the
- * search row (`<SyncIndicator />`). It's hidden when the global sync
- * state is `idle`, so the bar stays clean during normal use.
+ *   The prompts tag-filter used to live here; it now lives in the
+ *   prompts sidebar's PROMPTS section (`PromptsTagFilterPopover`),
+ *   still writing into the shared `usePromptTagFilter` store that
+ *   `PromptsSidebar` / `PromptsPage` read to filter the list.
+ *
+ * The centred pill opens the global `<GlobalSearch>` command palette
+ * (click or Cmd/Ctrl-K). Selecting a result navigates to the entity.
  *
  * Single row only — no divider below, no icons after the indicator.
  * The breadcrumb is rendered separately in the page content (board
@@ -18,24 +22,38 @@
 import { useState, useCallback, type ReactElement } from "react";
 
 import { TaskCreateDialog } from "@features/task/create-dialog";
+import { GlobalSearch, useGlobalSearchKeybind } from "@widgets/global-search";
+import { useLocationCompat } from "@shared/lib";
+import { taskPath } from "@app/routes";
+import type { SearchResult } from "@bindings/SearchResult";
 
 import { useNewTaskKeybind } from "./useNewTaskKeybind";
 import { SyncIndicator } from "./SyncIndicator";
 import styles from "./TopBar.module.css";
 
-/*
- * Global search is currently disabled — the backend search API + index
- * are not yet implemented, so the trigger button, the Cmd+K keybind,
- * and the `<GlobalSearch/>` palette mount would all promise behaviour
- * the app can't deliver. The widget code stays in `@widgets/global-search`
- * so we can wire it back once the backend lands; this file only owns
- * the mount point.
- */
-
 export function TopBar(): ReactElement {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [, setLocation] = useLocationCompat();
 
   useNewTaskKeybind(useCallback(() => setIsCreateOpen(true), []));
+
+  const openSearch = useCallback(() => setIsSearchOpen(true), []);
+  const closeSearch = useCallback(() => setIsSearchOpen(false), []);
+  useGlobalSearchKeybind(openSearch);
+
+  // Navigate to the entity a search result points at. Tasks open their
+  // detail surface directly; agent reports open the task they belong to.
+  const handleSelectResult = useCallback(
+    (result: SearchResult) => {
+      if (result.type === "task") {
+        setLocation(taskPath(result.id));
+      } else {
+        setLocation(taskPath(result.taskId));
+      }
+    },
+    [setLocation],
+  );
 
   return (
     <>
@@ -46,18 +64,32 @@ export function TopBar(): ReactElement {
       >
         <div className={styles.searchRow} data-tauri-drag-region="true">
           {/*
-           * Spacer keeps the SyncIndicator pinned right while the search
-           * trigger is offline. The drag-region attribute keeps the
-           * Tauri window movable from anywhere in this strip.
+           * Global search trigger — opens the Cmd+K command palette. The
+           * pill is centred in the available width; the drag-region keeps
+           * the surrounding strip movable.
            */}
-          <span className={styles.searchSpacer} data-tauri-drag-region="true" />
+          <button
+            type="button"
+            className={styles.searchTrigger}
+            onClick={openSearch}
+            aria-label="Search (⌘K)"
+            data-testid="top-bar-search-trigger"
+          >
+            <span className={styles.searchPlaceholder}>Search…</span>
+            <kbd className={styles.kbdHint} aria-hidden="true">
+              ⌘K
+            </kbd>
+          </button>
 
-          {/*
-           * Global sync indicator (round-21). Pinned to the right of the
-           * search row so it's visible from every page. Renders nothing
-           * while the backend reports `idle` — the bar stays clean.
-           */}
-          <SyncIndicator />
+          <div className={styles.searchTrailing} data-tauri-drag-region="true">
+            {/*
+             * Global sync indicator. Renders nothing while the backend
+             * reports `idle` — the bar stays clean. The prompts tag-filter
+             * moved out of the header into the prompts sidebar's PROMPTS
+             * section (see `PromptsTagFilterPopover`).
+             */}
+            <SyncIndicator />
+          </div>
         </div>
 
         <div
@@ -66,6 +98,12 @@ export function TopBar(): ReactElement {
           data-tauri-drag-region="true"
         />
       </header>
+
+      <GlobalSearch
+        isOpen={isSearchOpen}
+        onClose={closeSearch}
+        onSelectResult={handleSelectResult}
+      />
 
       <TaskCreateDialog
         isOpen={isCreateOpen}

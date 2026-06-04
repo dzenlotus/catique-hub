@@ -158,7 +158,7 @@ fn pick_tmp(tag: &str) -> PathBuf {
 }
 
 #[test]
-fn tools_list_exposes_native_manifest_plus_proxy_tool() {
+fn tools_list_exposes_entity_tools_plus_proxy_facade() {
     let tmp = pick_tmp("toolslist");
     let db_path = tmp.join("db.sqlite");
     fresh_db(&db_path);
@@ -185,28 +185,44 @@ fn tools_list_exposes_native_manifest_plus_proxy_tool() {
         .and_then(serde_json::Value::as_array)
         .cloned()
         .unwrap_or_default();
-    // Standard MCP exposure: every native tool surfaces under its bare
-    // name, plus the single `mcp_proxy_tool` façade for upstream calls.
-    assert!(
-        tools.len() > 100,
-        "expected the embedded manifest + proxy tool, got len={}",
+    // Post-consolidation: 16 entity-level tools + 2 cross-cutting
+    // top-level tools + 1 `mcp_proxy_tool` façade = 19. The 151 legacy
+    // flat method names (`create_task`, `list_spaces`, …) remain
+    // callable via `tools/call` for backward compat but are NOT
+    // advertised here.
+    assert_eq!(
+        tools.len(),
+        19,
+        "expected the 16 entity tools + 2 cross-cutting tools + proxy façade, got len={}",
         tools.len()
     );
     let names: Vec<&str> = tools
         .iter()
         .filter_map(|t| t.get("name").and_then(serde_json::Value::as_str))
         .collect();
+    for entity in ["task", "role", "board", "space", "prompt", "setting"] {
+        assert!(
+            names.contains(&entity),
+            "entity tool `{entity}` must be advertised in tools/list",
+        );
+    }
     assert!(
-        names.contains(&"list_spaces"),
-        "native `list_spaces` must be in tools/list"
-    );
-    assert!(
-        names.contains(&"create_task"),
-        "native `create_task` must be in tools/list"
+        names.contains(&"search_all"),
+        "`search_all` must remain advertised as a top-level tool",
     );
     assert!(
         names.contains(&"mcp_proxy_tool"),
-        "mcp_proxy_tool façade must be in tools/list"
+        "mcp_proxy_tool façade must be in tools/list",
+    );
+    // Legacy flat names must NOT be advertised — that's the point of
+    // the consolidation.
+    assert!(
+        !names.contains(&"create_task"),
+        "legacy flat name `create_task` must not be advertised — only `task` is",
+    );
+    assert!(
+        !names.contains(&"list_spaces"),
+        "legacy flat name `list_spaces` must not be advertised — only `space` is",
     );
 
     drop(stdin);

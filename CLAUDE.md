@@ -104,7 +104,9 @@ Every entity in `src/entities/<x>/model/store.ts` exports a `<x>Keys` object (`a
 
 ### Routing
 
-`wouter` (~2 KB). The canonical map lives in `src/app/routes.ts`; build URLs through the helpers there (`boardPath`, `taskPath`, `rolePath`, …) instead of inlining strings. `pathForView`/`viewForPath` reconcile sidebar `NavView` ↔ URL and are the only place that should match URLs with `startsWith`/regex. Sidebar-driven navigation calls `setLocation(pathForView(view))`.
+`@tanstack/react-router` (code-based route tree). The route tree lives in `src/app/router.tsx` (`createRoute`/`createRouter`); the canonical URL map + helpers live in `src/app/routes.ts` — build URLs through the helpers there (`boardPath`, `taskPath`, `rolePath`, …) instead of inlining strings. `pathForView`/`viewForPath` reconcile sidebar `NavView` ↔ URL and are the only place that should match URLs with `startsWith`/regex. Sidebar-driven navigation calls `setLocation(pathForView(view))`.
+
+The project migrated off `wouter`; `src/shared/lib/routerCompat.ts` is a thin compat shim exposing wouter-shaped hooks (`useLocationCompat`, `useParamsCompat`, `useRouteCompat`) over TanStack Router so legacy call sites kept working through the migration. New code should prefer TanStack's native typed hooks; the long-tail of `*Compat` call sites is being converted incrementally (don't add new ones).
 
 ### E2E bridge
 

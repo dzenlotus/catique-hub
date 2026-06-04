@@ -1,25 +1,32 @@
 /**
- * TaskView — task editor as a routed page (round-19e).
+ * TaskView — task editor as a routed page (Task B7 restructure).
  *
- * Mounts at `/tasks/:taskId`. Replaces the `<TaskDialog>` modal that
- * used to mount over `<BoardHome>` on the same route. UX rule for the
- * app: modals only on create flows; edit/settings opens as a routed
- * page with a `← Back` button — same treatment as `<SpaceSettings>`,
- * `<BoardSettings>`, `<PromptsSettings>`.
+ * Mounts at `/tasks/:taskId`. Modal-only-on-create rule applies: edit /
+ * settings views are routed pages with a `← Back` button.
  *
- * Reuses `<TaskDialogContent>` so the form fields, mutations, and
- * side-effects live in a single place. Only the wrapping chrome
- * differs — page shell + back row instead of a Dialog.
+ * Layout (mirrors the prompt-group inline view):
+ *   - 2-column grid. LEFT = the editable task form (`TaskDialogContent`:
+ *     title, description, prompt attach, attachments, agent reports).
+ *   - RIGHT = `TaskXmlPreview`: a read-only XML rendering of the resolved
+ *     task bundle with a reactive token chip. Prompts are inlined; skills
+ *     and integrations are rendered as references only.
+ *
+ * D-020: the form gains no role picker — the board context encodes the
+ * role. The XML preview may surface the role-origin of inherited prompts
+ * (resolved context), which is informational only.
  */
 
-import { type ReactElement } from "react";
-import { useLocationCompat as useLocation, useParamsCompat as useParams } from "@shared/lib";
+import { useCallback, type ReactElement } from "react";
+import {
+  useLocationCompat as useLocation,
+  useParamsCompat as useParams,
+} from "@shared/lib";
 
 import { Button, Scrollable } from "@shared/ui";
 import { TaskDialogContent } from "@features/task/dialog";
 import { routes } from "@app/routes";
-import { SpacesSidebar } from "@widgets/spaces-sidebar";
-import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
+import { useTaskBundle, useTaskDraft } from "@entities/task";
+import { TaskXmlPreview } from "@widgets/effective-context-panel";
 
 import styles from "./TaskView.module.css";
 
@@ -32,35 +39,81 @@ export function TaskView(): ReactElement {
   const taskId = params.taskId ?? "";
   const [, setLocation] = useLocation();
 
-  // "Close" on a routed page = navigate back to the boards home.
-  const handleClose = (): void => {
-    setLocation(routes.boards);
-  };
+  const handleClose = useCallback((): void => {
+    setLocation(routes.home);
+  }, [setLocation]);
 
   return (
-    <section className={shellStyles.root} data-testid="task-view-root">
-      <div className={shellStyles.sidebarSlot}>
-        <SpacesSidebar />
-      </div>
-      <Scrollable
-        axis="y"
-        className={`${shellStyles.contentSlot} ${styles.scrollHost}`}
-        data-testid="task-view-scroll"
-      >
-        <div className={styles.root} data-testid="task-view">
-          <div className={styles.backRow}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={handleClose}
-              data-testid="task-view-back"
-            >
-              ← Back
-            </Button>
-          </div>
-          <TaskDialogContent taskId={taskId} onClose={handleClose} />
+    <div className={styles.scrollHost} data-testid="task-view-scroll">
+      <div className={styles.root} data-testid="task-view">
+        <div className={styles.backRow}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={handleClose}
+            data-testid="task-view-back"
+          >
+            ← Back
+          </Button>
         </div>
-      </Scrollable>
-    </section>
+
+        <div className={styles.body}>
+          <Scrollable
+            axis="y"
+            className={styles.formColumn}
+            data-testid="task-view-form-column"
+          >
+            <div className={styles.formInner}>
+              <TaskDialogContent taskId={taskId} onClose={handleClose} />
+            </div>
+          </Scrollable>
+
+          <div className={styles.previewPane} data-testid="task-view-preview">
+            {taskId.length > 0 ? <TaskPreview taskId={taskId} /> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Preview pane — reads the resolved bundle and feeds the XML renderer. The
+// `tasksKeys.bundle` query re-renders reactively on invalidation (prompt /
+// role / override events) so the XML stays in sync with attached context.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface TaskPreviewProps {
+  taskId: string;
+}
+
+function TaskPreview({ taskId }: TaskPreviewProps): ReactElement {
+  const bundleQuery = useTaskBundle(taskId);
+  // Live (unsaved) form edits — typing in the title / description on the
+  // left updates the right-hand XML preview before Save. Falls back to the
+  // saved bundle values when no draft exists.
+  const draft = useTaskDraft(taskId);
+
+  if (bundleQuery.status === "pending" || bundleQuery.status === "error") {
+    return (
+      <TaskXmlPreview
+        taskTitle={draft.title}
+        taskDescription={draft.description}
+        prompts={[]}
+        skills={[]}
+        mcpTools={[]}
+      />
+    );
+  }
+
+  const bundle = bundleQuery.data;
+  return (
+    <TaskXmlPreview
+      taskTitle={draft.title ?? bundle.task.title}
+      taskDescription={draft.description ?? bundle.task.description}
+      prompts={bundle.prompts}
+      skills={bundle.skills}
+      mcpTools={bundle.mcpTools}
+    />
   );
 }

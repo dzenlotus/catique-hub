@@ -22,6 +22,9 @@
 /* ── Search row (top) ──────────────────────────────────────────────────── */
 
 .searchRow {
+  /* Positioning context for the absolutely-positioned SyncIndicator
+     (`.host`), so it floats over the row without consuming grid width. */
+  position: relative;
   display: grid;
   grid-template-columns: 1fr minmax(0, auto);
   align-items: center;
@@ -33,20 +36,24 @@
   padding: 0 var(--space-24);
 }
 
-/* ── Black divider between search row and breadcrumb row ──────────────── */
-
+/* ── Divider between search row and breadcrumb row ────────────────────── */
+/* Same 1px hairline as every other separator in the shell (sidebar
+ * sections, StatusBar) — was a heavy near-black line that stood out. */
 .divider {
   height: 1px;
-  background-color: var(--color-text-default);
+  background-color: var(--color-border-default);
   width: 100%;
   flex-shrink: 0;
 }
 
-/* Spacer that pins the SyncIndicator to the right of the row while the
- * search trigger is offline. Stays draggable so the Tauri window can be
- * moved from this strip. */
-.searchSpacer {
-  width: 100%;
+/* Right-hand cell: optional prompts tag-filter + the sync indicator.
+ * Stays draggable so the Tauri window can be moved from this strip. */
+.searchTrailing {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-12);
+  min-width: 0;
 }
 
 /* ── Search trigger ───────────────────────────────────────────────────── */

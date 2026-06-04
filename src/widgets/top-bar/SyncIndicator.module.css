@@ -4,7 +4,14 @@
  */
 
 .host {
-  position: relative;
+  /* Absolutely positioned so the indicator appearing/disappearing never
+     reflows the search row — the centred search pill stays put. Anchored
+     to the right of `.searchRow` (which sets position: relative), matching
+     the row's horizontal padding. */
+  position: absolute;
+  right: var(--space-24);
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   gap: var(--space-6);

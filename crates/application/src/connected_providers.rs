@@ -60,6 +60,27 @@ pub enum SyncTrigger {
     ProviderAdded,
 }
 
+/// Map a `change_events` row name to the [`SyncTrigger`] it should fire.
+///
+/// This is the cross-process bridge for agent-file reconciliation:
+/// mutations made by the standalone `catique-hub-mcp` binary commit to
+/// the shared SQLite `change_events` table but never touch the
+/// in-process [`OrchestratorHandle`]. The Tauri shell's event tail feeds
+/// every row's name through here so a role deleted/renamed/created via
+/// MCP still re-syncs every provider's agents dir (which prunes the
+/// `catique-<slug>` file of a role no longer in the bundle).
+///
+/// `None` for events that don't change rendered agent files. Prompt
+/// edits also affect role files, but routing `prompt:*` here is left for
+/// a follow-up so a busy prompt-editing session doesn't rewrite every
+/// agent file on each keystroke-sized mutation.
+#[must_use]
+pub fn sync_trigger_for_event(event_name: &str) -> Option<SyncTrigger> {
+    event_name
+        .starts_with("role:")
+        .then_some(SyncTrigger::RoleMutation)
+}
+
 /// Handle the application layer hands out so IPC handlers can fire
 /// [`SyncTrigger`]s without depending on the orchestrator's internals.
 #[derive(Clone)]
@@ -624,5 +645,25 @@ mod tests {
         }
         assert!(saw_syncing, "orchestrator should publish a Syncing state");
         assert!(saw_idle, "orchestrator should publish a final Idle state");
+    }
+
+    #[test]
+    fn role_events_map_to_role_mutation_trigger() {
+        // Every `role:*` mutation (incl. the deletion the agent-folder
+        // cleanup hinges on) must drive a re-sync so providers prune the
+        // orphaned `catique-<slug>` file.
+        for name in ["role:deleted", "role:created", "role:updated"] {
+            assert!(
+                matches!(sync_trigger_for_event(name), Some(SyncTrigger::RoleMutation)),
+                "{name} should fire RoleMutation",
+            );
+        }
+        // Unrelated events must NOT churn agent files.
+        for name in ["prompt:created", "task:deleted", "space:deleted", "board:created"] {
+            assert!(
+                sync_trigger_for_event(name).is_none(),
+                "{name} must not fire a sync trigger",
+            );
+        }
     }
 }

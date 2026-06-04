@@ -16,13 +16,23 @@
  *   - `onCreated`  — optional callback fired after a successful create.
  */
 
-import { useState, type ReactElement } from "react";
+import { useCallback, type ReactElement } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { useCreateColumnMutation } from "@entities/column";
 import type { Column } from "@entities/column";
 import { Dialog, Button, Input } from "@shared/ui";
 
 import styles from "./ColumnCreateDialog.module.css";
+
+// react-hook-form schema — the only required field is a non-empty name.
+const columnFormSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+});
+
+type ColumnFormValues = z.infer<typeof columnFormSchema>;
 
 export interface ColumnCreateDialogProps {
   isOpen: boolean;
@@ -84,62 +94,71 @@ function ColumnCreateDialogContent({
   onCreated,
 }: ColumnCreateDialogContentProps): ReactElement {
   const createMutation = useCreateColumnMutation();
-  const [name, setName] = useState("");
-  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const canSubmit = name.trim().length > 0;
+  const {
+    control,
+    handleSubmit,
+    setError,
+    formState: { errors, isValid, isSubmitting },
+  } = useForm<ColumnFormValues>({
+    resolver: zodResolver(columnFormSchema),
+    defaultValues: { name: "" },
+    mode: "onChange",
+  });
 
-  const handleSave = (): void => {
-    setSaveError(null);
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setSaveError("Name cannot be empty.");
-      return;
+  const onValid = handleSubmit(async (values) => {
+    try {
+      const column = await createMutation.mutateAsync({
+        boardId,
+        name: values.name,
+        position: nextPosition,
+      });
+      onCreated?.(column);
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError("root.serverError", { message: `Failed to create: ${message}` });
     }
+  });
 
-    createMutation.mutate(
-      { boardId, name: trimmed, position: nextPosition },
-      {
-        onSuccess: (column) => {
-          onCreated?.(column);
-          setName("");
-          onClose();
-        },
-        onError: (err) => {
-          setSaveError(`Failed to create: ${err.message}`);
-        },
-      },
-    );
-  };
+  const handleSubmitPress = useCallback((): void => {
+    void onValid();
+  }, [onValid]);
 
-  const handleCancel = (): void => {
-    setName("");
-    setSaveError(null);
+  const handleCancel = useCallback((): void => {
     onClose();
-  };
+  }, [onClose]);
+
+  const serverError = errors.root?.serverError?.message;
 
   return (
     <>
       <div className={styles.section}>
-        <Input
-          label="Name"
-          value={name}
-          onChange={setName}
-          placeholder="e.g. Backlog"
-          autoFocus
-          className={styles.fullWidthInput}
-          data-testid="column-create-dialog-name-input"
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <Input
+              label="Name"
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="e.g. Backlog"
+              autoFocus
+              className={styles.fullWidthInput}
+              data-testid="column-create-dialog-name-input"
+            />
+          )}
         />
       </div>
 
       <div className={styles.footer}>
-        {saveError ? (
+        {serverError ? (
           <p
             className={styles.saveError}
             role="alert"
             data-testid="column-create-dialog-error"
           >
-            {saveError}
+            {serverError}
           </p>
         ) : null}
         <Button
@@ -153,9 +172,9 @@ function ColumnCreateDialogContent({
         <Button
           variant="primary"
           size="md"
-          isPending={createMutation.status === "pending"}
-          isDisabled={!canSubmit}
-          onPress={handleSave}
+          isPending={isSubmitting}
+          isDisabled={!isValid}
+          onPress={handleSubmitPress}
           data-testid="column-create-dialog-save"
         >
           Create

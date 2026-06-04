@@ -17,7 +17,7 @@ import {
   type ConnectedClient,
   type SyncStatus,
 } from "@entities/connected-client";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 
 import { ConnectedAgentsSection } from "./ConnectedAgentsSection";
 

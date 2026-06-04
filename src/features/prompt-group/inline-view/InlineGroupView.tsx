@@ -12,7 +12,7 @@
  *     prompts dragged in from the sidebar — handled by `<PromptsPage>`.
  */
 
-import { useMemo, useState, type ReactElement } from "react";
+import { useCallback, useMemo, useState, type ReactElement } from "react";
 import { useDroppable } from "@dnd-kit/react";
 import { useSortable } from "@dnd-kit/react/sortable";
 
@@ -29,11 +29,12 @@ import {
 } from "@entities/prompt-group";
 import {
   EntityActionMenu,
-  IconColorPicker,
+  EntityTitle,
+  OriginBadge,
   Scrollable,
 } from "@shared/ui";
 import { cn } from "@shared/lib";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 
 import styles from "./InlineGroupView.module.css";
 
@@ -41,8 +42,6 @@ export interface InlineGroupViewProps {
   groupId: string;
   /** Open the prompt editor (right-pane swap) for the chosen prompt. */
   onSelectPrompt: (id: string) => void;
-  /** Open the rename modal for this group. */
-  onRenameGroup: (id: string) => void;
   /** Open the inline group-settings page for this group. */
   onGroupSettings: (id: string) => void;
   /** Trigger group deletion. */
@@ -57,7 +56,6 @@ export interface InlineGroupViewProps {
 export function InlineGroupView({
   groupId,
   onSelectPrompt,
-  onRenameGroup,
   onGroupSettings,
   onDeleteGroup,
   orderOverride = null,
@@ -115,6 +113,25 @@ export function InlineGroupView({
     );
   };
 
+  // Group-title handlers — lifted out of JSX so the EntityTitle prop
+  // tree stays declarative (no inline mutation closures).
+  const handleGroupRename = useCallback(
+    (next: string) => {
+      updateGroup.mutate({ id: groupId, name: next });
+    },
+    [updateGroup, groupId],
+  );
+  const handleGroupAppearance = useCallback(
+    (next: { icon: string | null; color: string | null }) => {
+      updateGroup.mutate({
+        id: groupId,
+        icon: next.icon,
+        color: next.color,
+      });
+    },
+    [updateGroup, groupId],
+  );
+
   if (groupQuery.status === "pending") {
     return (
       <section
@@ -167,30 +184,27 @@ export function InlineGroupView({
       data-testid="inline-group-view"
     >
       <header className={styles.header}>
-        <IconColorPicker
+        <EntityTitle
+          size="lg"
+          editable
+          name={group.name}
+          onNameChange={handleGroupRename}
+          editTestId="inline-group-view-name-inline"
           value={{ icon: group.icon ?? null, color: group.color ?? null }}
-          onChange={(next) => {
-            updateGroup.mutate({
-              id: group.id,
-              icon: next.icon,
-              color: next.color,
-            });
-          }}
-          ariaLabel="Group icon and color"
-          data-testid="inline-group-view-appearance-picker"
+          onAppearanceChange={handleGroupAppearance}
+          pickerAriaLabel="Group icon and color"
+          pickerTestId="inline-group-view-appearance-picker"
+          actions={
+            <EntityActionMenu
+              items={[
+                { id: "settings", label: "Settings", onAction: () => onGroupSettings(group.id) },
+                { id: "delete", label: "Delete", onAction: () => onDeleteGroup(group.id) },
+              ]}
+              triggerAriaLabel="Group actions"
+              triggerTestId="inline-group-view-menu"
+            />
+          }
         />
-        <h2 className={styles.title}>{group.name}</h2>
-        <div className={styles.actions}>
-          <EntityActionMenu
-            items={[
-              { id: "rename", label: "Rename", onAction: () => onRenameGroup(group.id) },
-              { id: "settings", label: "Settings", onAction: () => onGroupSettings(group.id) },
-              { id: "delete", label: "Delete", onAction: () => onDeleteGroup(group.id) },
-            ]}
-            triggerAriaLabel="Group actions"
-            triggerTestId="inline-group-view-menu"
-          />
-        </div>
       </header>
 
       <div className={styles.body}>
@@ -218,6 +232,7 @@ export function InlineGroupView({
                     prompt={prompt}
                     index={index}
                     groupSortableKey={groupSortableKey}
+                    groupId={groupId}
                     onSelect={onSelectPrompt}
                     onRemove={handleRemoveFromGroup}
                     isRemoving={removeMember.isPending}
@@ -270,6 +285,12 @@ interface SortableMemberCardProps {
   prompt: Prompt;
   index: number;
   groupSortableKey: string;
+  /** Currently-viewed group id — passed through so each row can
+   * render an `<OriginBadge kind="group" id={groupId} />` reminding
+   * the user this prompt is here via group membership (Stream R /
+   * v3 Round 4 — useful when the same prompt is reused across
+   * multiple groups). */
+  groupId: string;
   onSelect: (id: string) => void;
   onRemove: (id: string) => void;
   isRemoving: boolean;
@@ -282,6 +303,7 @@ function SortableMemberCard({
   prompt,
   index,
   groupSortableKey,
+  groupId,
   onSelect,
   onRemove,
   isRemoving,
@@ -332,6 +354,11 @@ function SortableMemberCard({
         prompt={prompt}
         onSelect={onSelect}
         className={styles.cardInner}
+      />
+      <OriginBadge
+        origin={{ kind: "group", id: groupId }}
+        className={styles.groupBadge}
+        data-testid={`inline-group-view-origin-${prompt.id}`}
       />
     </div>
   );

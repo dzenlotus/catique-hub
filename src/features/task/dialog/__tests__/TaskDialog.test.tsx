@@ -5,8 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Task } from "@entities/task";
-import { ToastProvider } from "@app/providers/ToastProvider";
-import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
+import { ToastProvider } from "@shared/lib";
+import { ActiveSpaceProvider } from "@app/providers";
 
 vi.mock("@shared/api", async () => {
   const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
@@ -42,6 +42,10 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,
+    // Refactor-v3 D-B denormalised counters.
+    effectivePromptCount: 0n,
+    effectiveSkillCount: 0n,
+    effectiveToolCount: 0n,
     ...overrides,
   };
 }
@@ -550,7 +554,7 @@ describe("TaskDialog", () => {
     expect(screen.getByText("Agent reports")).toBeInTheDocument();
   });
 
-  it("prompts section renders the inline MultiSelect (audit-#8)", async () => {
+  it("prompts section renders the inline chip-in-field SelectTag", async () => {
     invokeMock.mockImplementation(
       defaultInvokeHandler(makeTask(), { list_prompts: [] }),
     );
@@ -562,6 +566,11 @@ describe("TaskDialog", () => {
         screen.getByTestId("task-dialog-prompts-select"),
       ).toBeInTheDocument();
     });
+    // SelectTag renders chips inside the bordered field surface.
+    expect(
+      screen.getByTestId("task-dialog-prompts-select-field"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Task prompts")).toBeInTheDocument();
     // Old "Attach prompt" button is gone with the dialog migration.
     expect(
       screen.queryByTestId("task-dialog-prompts-attach"),
@@ -870,9 +879,9 @@ describe("TaskDialog", () => {
     expect(screen.getByText(/disk full/i)).toBeInTheDocument();
   });
 
-  // ── MultiSelect prompts (audit-#8) ─────────────────────────────────
+  // ── SelectTag prompts (chip-in-field) ──────────────────────────────
 
-  it("attaches a prompt by clicking an option in the MultiSelect", async () => {
+  it("attaches a prompt by clicking an option in the SelectTag", async () => {
     const task = makeTask();
     const promptCalls: Array<[string, unknown]> = [];
     invokeMock.mockImplementation(async (cmd, args) => {

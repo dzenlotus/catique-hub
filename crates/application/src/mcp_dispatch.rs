@@ -39,7 +39,10 @@ use catique_infrastructure::{
             },
             mcp_servers as servers_repo, prompts as prompts_repo, roles as roles_repo,
             tags as tags_repo,
-            tasks::{cascade_prompt_attachment, cascade_prompt_detachment, AttachScope},
+            tasks::{
+                cascade_prompt_attachment, cascade_prompt_detachment, recompute_effective_counts,
+                recompute_effective_counts_for_scope, AttachScope,
+            },
         },
     },
     paths::app_data_dir,
@@ -54,6 +57,7 @@ use crate::{
     columns::ColumnsUseCase,
     connected_providers::{build_bundle_for_test, OrchestratorHandle, SyncTrigger},
     mcp_servers::McpServersUseCase,
+    mcp_tool_groups::McpToolGroupsUseCase,
     mcp_tools::McpToolsUseCase,
     prompt_groups::PromptGroupsUseCase,
     prompts::PromptsUseCase,
@@ -530,6 +534,27 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
                 .map_err(stringify_app)?;
             json_or_err(&groups)
         }
+        "list_role_prompt_groups" => {
+            let role_id = decode_string(&params, "role_id")?;
+            let ids = PromptGroupsUseCase::new(pool)
+                .list_role_groups(&role_id)
+                .map_err(stringify_app)?;
+            json_or_err(&ids)
+        }
+        "list_board_prompt_groups" => {
+            let board_id = decode_string(&params, "board_id")?;
+            let ids = PromptGroupsUseCase::new(pool)
+                .list_board_groups(&board_id)
+                .map_err(stringify_app)?;
+            json_or_err(&ids)
+        }
+        "list_task_prompt_groups" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let ids = PromptGroupsUseCase::new(pool)
+                .list_task_groups(&task_id)
+                .map_err(stringify_app)?;
+            json_or_err(&ids)
+        }
         "list_prompt_tags_map" => {
             let entries = TagsUseCase::new(pool)
                 .list_tag_map()
@@ -799,6 +824,193 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "set_role_prompt_groups" => {
+            let role_id = decode_string(&params, "role_id")?;
+            let group_ids = decode_string_array(&params, "group_ids")?;
+            PromptGroupsUseCase::new(pool)
+                .set_role_groups(role_id, group_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "set_board_prompt_groups" => {
+            let board_id = decode_string(&params, "board_id")?;
+            let group_ids = decode_string_array(&params, "group_ids")?;
+            PromptGroupsUseCase::new(pool)
+                .set_board_groups(board_id, group_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "set_task_prompt_groups" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let group_ids = decode_string_array(&params, "group_ids")?;
+            PromptGroupsUseCase::new(pool)
+                .set_task_groups(task_id, group_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        // ---- MCP tool groups (CRUD + members + attach) ----
+        "list_mcp_tool_groups" => {
+            let groups = McpToolGroupsUseCase::new(pool)
+                .list()
+                .map_err(stringify_app)?;
+            json_or_err(&groups)
+        }
+        "get_mcp_tool_group" => {
+            let id = decode_string(&params, "id")?;
+            let group = McpToolGroupsUseCase::new(pool)
+                .get(&id)
+                .map_err(stringify_app)?;
+            json_or_err(&group)
+        }
+        "create_mcp_tool_group" => {
+            let name = decode_string(&params, "name")?;
+            let color = decode_optional_string(&params, "color");
+            let icon = decode_optional_string(&params, "icon");
+            let position = params.get("position").and_then(Value::as_i64);
+            let group = McpToolGroupsUseCase::new(pool)
+                .create(name, color, icon, position)
+                .map_err(stringify_app)?;
+            json_or_err(&group)
+        }
+        "update_mcp_tool_group" => {
+            let id = decode_string(&params, "id")?;
+            let name = decode_optional_string(&params, "name");
+            let position = params.get("position").and_then(Value::as_i64);
+            let group = McpToolGroupsUseCase::new(pool)
+                .update(id, name, None, None, position)
+                .map_err(stringify_app)?;
+            json_or_err(&group)
+        }
+        "delete_mcp_tool_group" => {
+            let id = decode_string(&params, "id")?;
+            McpToolGroupsUseCase::new(pool)
+                .delete(&id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "list_mcp_tool_group_members" => {
+            let group_id = decode_string(&params, "group_id")?;
+            let members = McpToolGroupsUseCase::new(pool)
+                .list_members(&group_id)
+                .map_err(stringify_app)?;
+            json_or_err(&members)
+        }
+        "add_mcp_tool_group_member" => {
+            let group_id = decode_string(&params, "group_id")?;
+            let mcp_tool_id = decode_string(&params, "mcp_tool_id")?;
+            let position = params.get("position").and_then(Value::as_i64).unwrap_or(0);
+            McpToolGroupsUseCase::new(pool)
+                .add_member(group_id, mcp_tool_id, position)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "remove_mcp_tool_group_member" => {
+            let group_id = decode_string(&params, "group_id")?;
+            let mcp_tool_id = decode_string(&params, "mcp_tool_id")?;
+            McpToolGroupsUseCase::new(pool)
+                .remove_member(group_id, mcp_tool_id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "set_mcp_tool_group_members" => {
+            let group_id = decode_string(&params, "group_id")?;
+            let ordered_tool_ids = decode_string_array(&params, "ordered_tool_ids")?;
+            McpToolGroupsUseCase::new(pool)
+                .set_members(group_id, ordered_tool_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "list_role_mcp_tool_groups" => {
+            let role_id = decode_string(&params, "role_id")?;
+            let ids = McpToolGroupsUseCase::new(pool)
+                .list_role_groups(&role_id)
+                .map_err(stringify_app)?;
+            json_or_err(&ids)
+        }
+        "set_role_mcp_tool_groups" => {
+            let role_id = decode_string(&params, "role_id")?;
+            let group_ids = decode_string_array(&params, "group_ids")?;
+            McpToolGroupsUseCase::new(pool)
+                .set_role_groups(role_id, group_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "list_board_mcp_tool_groups" => {
+            let board_id = decode_string(&params, "board_id")?;
+            let ids = McpToolGroupsUseCase::new(pool)
+                .list_board_groups(&board_id)
+                .map_err(stringify_app)?;
+            json_or_err(&ids)
+        }
+        "set_board_mcp_tool_groups" => {
+            let board_id = decode_string(&params, "board_id")?;
+            let group_ids = decode_string_array(&params, "group_ids")?;
+            McpToolGroupsUseCase::new(pool)
+                .set_board_groups(board_id, group_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "list_task_mcp_tool_groups" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let ids = McpToolGroupsUseCase::new(pool)
+                .list_task_groups(&task_id)
+                .map_err(stringify_app)?;
+            json_or_err(&ids)
+        }
+        "set_task_mcp_tool_groups" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let group_ids = decode_string_array(&params, "group_ids")?;
+            McpToolGroupsUseCase::new(pool)
+                .set_task_groups(task_id, group_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        // ---- MCP server-as-unit attachment (Phase C) ----
+        "list_role_mcp_servers" => {
+            let role_id = decode_string(&params, "role_id")?;
+            let ids = McpServersUseCase::new(pool)
+                .list_role_servers(&role_id)
+                .map_err(stringify_app)?;
+            json_or_err(&ids)
+        }
+        "set_role_mcp_servers" => {
+            let role_id = decode_string(&params, "role_id")?;
+            let server_ids = decode_string_array(&params, "server_ids")?;
+            McpServersUseCase::new(pool)
+                .set_role_servers(role_id, server_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "list_board_mcp_servers" => {
+            let board_id = decode_string(&params, "board_id")?;
+            let ids = McpServersUseCase::new(pool)
+                .list_board_servers(&board_id)
+                .map_err(stringify_app)?;
+            json_or_err(&ids)
+        }
+        "set_board_mcp_servers" => {
+            let board_id = decode_string(&params, "board_id")?;
+            let server_ids = decode_string_array(&params, "server_ids")?;
+            McpServersUseCase::new(pool)
+                .set_board_servers(board_id, server_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
+        "list_task_mcp_servers" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let ids = McpServersUseCase::new(pool)
+                .list_task_servers(&task_id)
+                .map_err(stringify_app)?;
+            json_or_err(&ids)
+        }
+        "set_task_mcp_servers" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let server_ids = decode_string_array(&params, "server_ids")?;
+            McpServersUseCase::new(pool)
+                .set_task_servers(task_id, server_ids)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "set_setting" => {
             let key = decode_string(&params, "key")?;
             let value = decode_string(&params, "value")?;
@@ -888,8 +1100,10 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
             let name = decode_optional_string(&params, "name");
             let position = decode_optional_i64(&params, "position");
             let role_id = decode_tri_state_string(&params, "role_id");
+            let icon = decode_tri_state_string(&params, "icon");
+            let color = decode_tri_state_string(&params, "color");
             let column = ColumnsUseCase::new(pool)
-                .update(id, name, position, role_id)
+                .update(id, name, position, role_id, icon, color)
                 .map_err(stringify_app)?;
             json_or_err(&column)
         }
@@ -1103,8 +1317,10 @@ fn add_board_prompt_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
         .map_err(|e| format!("db: {e}"))?;
     #[allow(clippy::cast_precision_loss)]
     let pos_f = position as f64;
-    cascade_prompt_attachment(&tx, &AttachScope::Board(board_id), &prompt_id, pos_f)
-        .map_err(|e| format!("db: {e}"))?;
+    let scope = AttachScope::Board(board_id);
+    cascade_prompt_attachment(&tx, &scope, &prompt_id, pos_f).map_err(|e| format!("db: {e}"))?;
+    // Refactor-v3 D-B: bump prompt counters for every task on this board.
+    recompute_effective_counts_for_scope(&tx, &scope).map_err(|e| format!("db: {e}"))?;
     tx.commit().map_err(|e| format!("db commit: {e}"))?;
     Ok(json!({ "ok": true }))
 }
@@ -1121,8 +1337,10 @@ fn add_column_prompt_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
         .map_err(|e| format!("db: {e}"))?;
     #[allow(clippy::cast_precision_loss)]
     let pos_f = position as f64;
-    cascade_prompt_attachment(&tx, &AttachScope::Column(column_id), &prompt_id, pos_f)
-        .map_err(|e| format!("db: {e}"))?;
+    let scope = AttachScope::Column(column_id);
+    cascade_prompt_attachment(&tx, &scope, &prompt_id, pos_f).map_err(|e| format!("db: {e}"))?;
+    // Refactor-v3 D-B counter sync across the column.
+    recompute_effective_counts_for_scope(&tx, &scope).map_err(|e| format!("db: {e}"))?;
     tx.commit().map_err(|e| format!("db commit: {e}"))?;
     Ok(json!({ "ok": true }))
 }
@@ -1142,8 +1360,10 @@ fn remove_board_prompt_arm(pool: &Pool, params: &Value) -> Result<Value, String>
             id: format!("{board_id}|{prompt_id}"),
         }));
     }
-    cascade_prompt_detachment(&tx, &AttachScope::Board(board_id), &prompt_id)
-        .map_err(|e| format!("db: {e}"))?;
+    let scope = AttachScope::Board(board_id);
+    cascade_prompt_detachment(&tx, &scope, &prompt_id).map_err(|e| format!("db: {e}"))?;
+    // Refactor-v3 D-B counter sync across the board.
+    recompute_effective_counts_for_scope(&tx, &scope).map_err(|e| format!("db: {e}"))?;
     tx.commit().map_err(|e| format!("db commit: {e}"))?;
     Ok(json!({ "ok": true }))
 }
@@ -1163,8 +1383,10 @@ fn remove_column_prompt_arm(pool: &Pool, params: &Value) -> Result<Value, String
             id: format!("{column_id}|{prompt_id}"),
         }));
     }
-    cascade_prompt_detachment(&tx, &AttachScope::Column(column_id), &prompt_id)
-        .map_err(|e| format!("db: {e}"))?;
+    let scope = AttachScope::Column(column_id);
+    cascade_prompt_detachment(&tx, &scope, &prompt_id).map_err(|e| format!("db: {e}"))?;
+    // Refactor-v3 D-B counter sync across the column.
+    recompute_effective_counts_for_scope(&tx, &scope).map_err(|e| format!("db: {e}"))?;
     tx.commit().map_err(|e| format!("db commit: {e}"))?;
     Ok(json!({ "ok": true }))
 }
@@ -1178,6 +1400,8 @@ fn add_task_prompt_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
         &conn, &task_id, &prompt_id, position,
     )
     .map_err(|e| format!("db: {e}"))?;
+    // Refactor-v3 D-B counter sync on the affected task.
+    recompute_effective_counts(&conn, &task_id).map_err(|e| format!("db: {e}"))?;
     Ok(json!({ "ok": true }))
 }
 
@@ -1195,6 +1419,8 @@ fn remove_task_prompt_arm(pool: &Pool, params: &Value) -> Result<Value, String> 
             id: format!("{task_id}|{prompt_id}"),
         }));
     }
+    // Refactor-v3 D-B counter sync.
+    recompute_effective_counts(&conn, &task_id).map_err(|e| format!("db: {e}"))?;
     Ok(json!({ "ok": true }))
 }
 
@@ -1673,13 +1899,10 @@ fn add_role_prompt_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
         .map_err(|e| format!("db tx: {e}"))?;
     roles_repo::add_role_prompt(&tx, &role_id, &prompt_id, position)
         .map_err(|e| format!("db: {e}"))?;
-    cascade_prompt_attachment(
-        &tx,
-        &AttachScope::Role(role_id.clone()),
-        &prompt_id,
-        position,
-    )
-    .map_err(|e| format!("db: {e}"))?;
+    let scope = AttachScope::Role(role_id);
+    cascade_prompt_attachment(&tx, &scope, &prompt_id, position).map_err(|e| format!("db: {e}"))?;
+    // Refactor-v3 D-B counter sync — every task on this role.
+    recompute_effective_counts_for_scope(&tx, &scope).map_err(|e| format!("db: {e}"))?;
     tx.commit().map_err(|e| format!("db commit: {e}"))?;
     Ok(json!({ "ok": true }))
 }
@@ -1699,8 +1922,10 @@ fn remove_role_prompt_arm(pool: &Pool, params: &Value) -> Result<Value, String> 
             id: format!("{role_id}|{prompt_id}"),
         }));
     }
-    cascade_prompt_detachment(&tx, &AttachScope::Role(role_id.clone()), &prompt_id)
-        .map_err(|e| format!("db: {e}"))?;
+    let scope = AttachScope::Role(role_id);
+    cascade_prompt_detachment(&tx, &scope, &prompt_id).map_err(|e| format!("db: {e}"))?;
+    // Refactor-v3 D-B counter sync.
+    recompute_effective_counts_for_scope(&tx, &scope).map_err(|e| format!("db: {e}"))?;
     tx.commit().map_err(|e| format!("db commit: {e}"))?;
     Ok(json!({ "ok": true }))
 }
@@ -1715,13 +1940,10 @@ fn add_role_skill_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
         .map_err(|e| format!("db tx: {e}"))?;
     roles_repo::add_role_skill(&tx, &role_id, &skill_id, position)
         .map_err(|e| format!("db: {e}"))?;
-    cascade_skill_attachment(
-        &tx,
-        &AttachScope::Role(role_id.clone()),
-        &skill_id,
-        position,
-    )
-    .map_err(|e| format!("db: {e}"))?;
+    let scope = AttachScope::Role(role_id);
+    cascade_skill_attachment(&tx, &scope, &skill_id, position).map_err(|e| format!("db: {e}"))?;
+    // Refactor-v3 D-B counter sync.
+    recompute_effective_counts_for_scope(&tx, &scope).map_err(|e| format!("db: {e}"))?;
     tx.commit().map_err(|e| format!("db commit: {e}"))?;
     Ok(json!({ "ok": true }))
 }
@@ -1741,8 +1963,10 @@ fn remove_role_skill_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
             id: format!("{role_id}|{skill_id}"),
         }));
     }
-    cascade_skill_detachment(&tx, &AttachScope::Role(role_id.clone()), &skill_id)
-        .map_err(|e| format!("db: {e}"))?;
+    let scope = AttachScope::Role(role_id);
+    cascade_skill_detachment(&tx, &scope, &skill_id).map_err(|e| format!("db: {e}"))?;
+    // Refactor-v3 D-B counter sync.
+    recompute_effective_counts_for_scope(&tx, &scope).map_err(|e| format!("db: {e}"))?;
     tx.commit().map_err(|e| format!("db commit: {e}"))?;
     Ok(json!({ "ok": true }))
 }
@@ -1757,13 +1981,11 @@ fn add_role_mcp_tool_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
         .map_err(|e| format!("db tx: {e}"))?;
     roles_repo::add_role_mcp_tool(&tx, &role_id, &mcp_tool_id, position)
         .map_err(|e| format!("db: {e}"))?;
-    cascade_mcp_tool_attachment(
-        &tx,
-        &AttachScope::Role(role_id.clone()),
-        &mcp_tool_id,
-        position,
-    )
-    .map_err(|e| format!("db: {e}"))?;
+    let scope = AttachScope::Role(role_id);
+    cascade_mcp_tool_attachment(&tx, &scope, &mcp_tool_id, position)
+        .map_err(|e| format!("db: {e}"))?;
+    // Refactor-v3 D-B counter sync.
+    recompute_effective_counts_for_scope(&tx, &scope).map_err(|e| format!("db: {e}"))?;
     tx.commit().map_err(|e| format!("db commit: {e}"))?;
     Ok(json!({ "ok": true }))
 }
@@ -1783,8 +2005,10 @@ fn remove_role_mcp_tool_arm(pool: &Pool, params: &Value) -> Result<Value, String
             id: format!("{role_id}|{mcp_tool_id}"),
         }));
     }
-    cascade_mcp_tool_detachment(&tx, &AttachScope::Role(role_id.clone()), &mcp_tool_id)
-        .map_err(|e| format!("db: {e}"))?;
+    let scope = AttachScope::Role(role_id);
+    cascade_mcp_tool_detachment(&tx, &scope, &mcp_tool_id).map_err(|e| format!("db: {e}"))?;
+    // Refactor-v3 D-B counter sync.
+    recompute_effective_counts_for_scope(&tx, &scope).map_err(|e| format!("db: {e}"))?;
     tx.commit().map_err(|e| format!("db commit: {e}"))?;
     Ok(json!({ "ok": true }))
 }
@@ -2172,6 +2396,12 @@ mod ev {
     pub const PROMPT_GROUP_DELETED: &str = "prompt_group:deleted";
     pub const PROMPT_GROUP_MEMBERS_CHANGED: &str = "prompt_group:members_changed";
 
+    // MCP tool groups
+    pub const MCP_TOOL_GROUP_CREATED: &str = "mcp_tool_group:created";
+    pub const MCP_TOOL_GROUP_UPDATED: &str = "mcp_tool_group:updated";
+    pub const MCP_TOOL_GROUP_DELETED: &str = "mcp_tool_group:deleted";
+    pub const MCP_TOOL_GROUP_MEMBERS_CHANGED: &str = "mcp_tool_group:members_changed";
+
     // Agent reports + attachments
     pub const AGENT_REPORT_CREATED: &str = "agent_report:created";
     pub const AGENT_REPORT_UPDATED: &str = "agent_report:updated";
@@ -2185,15 +2415,33 @@ mod ev {
     pub const CONNECTED_PROVIDER_REMOVED: &str = "connected_provider:removed";
 }
 
+/// One realtime event ready to publish to the durable bus.
+///
+/// `scope_kind` / `scope_id` populate the `change_events` D-D columns
+/// (migration 035). Values must be one of:
+/// `"global" | "space" | "board" | "column" | "task" | "role" |
+///  "prompt" | "skill" | "mcp_server" | "tag" | "prompt_group" |
+///  "agent_report" | "attachment" | "connected_provider"`.
+///
+/// When the payload doesn't carry enough context to derive a sharper
+/// scope, fall back to `("global", None)` — never panic on a missing
+/// id. The activity-log query handler still surfaces global-scope
+/// rows via the All-activity feed.
+pub(crate) struct MappedEvent {
+    pub name: &'static str,
+    pub payload: Value,
+    pub scope_kind: &'static str,
+    pub scope_id: Option<String>,
+}
+
 /// Map an `(method, params, result)` triple to the realtime event
 /// the matching IPC handler would have emitted — see
 /// `crates/api/src/handlers/*.rs` for the canonical (name, payload)
-/// pairs. Returns one or more `(event_name, payload)` tuples; methods
-/// that do not mutate state (reads, settings writes, etc.) return an
-/// empty slice.
+/// pairs. Returns one or more `MappedEvent`s; methods that do not
+/// mutate state (reads, settings writes, etc.) return an empty slice.
 ///
-/// We return a `Vec` (rather than `Option<(name, payload)>`) so the
-/// few paths that fan out (`add_skill_step` → both `skill_step:*` and
+/// We return a `Vec` (rather than `Option<MappedEvent>`) so the few
+/// paths that fan out (`add_skill_step` → both `skill_step:*` and
 /// `skill:updated`; `reorder_skill_steps` → one update per step) can
 /// share the helper without a second branch.
 ///
@@ -2201,119 +2449,264 @@ mod ev {
 /// helper returns an empty vec rather than panicking. The MCP dispatch
 /// caller treats an empty vec as "nothing to publish".
 #[allow(clippy::too_many_lines)]
-fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<(&'static str, Value)> {
+fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<MappedEvent> {
+    // Single-event constructor — keeps the per-arm bodies focused on
+    // the payload/scope derivation that's actually load-bearing. Lives
+    // before the closures below so Clippy's `items_after_statements`
+    // doesn't trip.
+    fn one(
+        name: &'static str,
+        payload: Value,
+        scope_kind: &'static str,
+        scope_id: Option<String>,
+    ) -> Vec<MappedEvent> {
+        vec![MappedEvent {
+            name,
+            payload,
+            scope_kind,
+            scope_id,
+        }]
+    }
+
+    // -- locals & helpers ----------------------------------------------
     let id_from_result = || result.get("id").and_then(Value::as_str).map(str::to_owned);
     let id_from_params = || params.get("id").and_then(Value::as_str).map(str::to_owned);
 
     match method {
         // -------- create_* (id comes from the returned entity) --------
         "create_board" => match id_from_result() {
-            Some(id) => vec![(ev::BOARD_CREATED, json!({ "id": id }))],
+            // Scope = board itself. Deriving the parent space_id would
+            // require a DB round-trip; per-space activity log surfaces
+            // board lifecycle through join-on-read at the UI tier.
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::BOARD_CREATED,
+                    json!({ "id": id }),
+                    "board",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "create_column" => {
-            let id = result.get("id").and_then(Value::as_str);
-            let board_id = result.get("boardId").and_then(Value::as_str);
+            let id = result.get("id").and_then(Value::as_str).map(str::to_owned);
+            let board_id = result
+                .get("boardId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             match (id, board_id) {
-                (Some(id), Some(bid)) => vec![(
+                (Some(id), Some(bid)) => one(
                     ev::COLUMN_CREATED,
                     json!({ "id": id, "board_id": bid }),
-                )],
+                    "board",
+                    Some(bid),
+                ),
                 _ => Vec::new(),
             }
         }
         "create_task" => {
-            let id = result.get("id").and_then(Value::as_str);
-            let column_id = result.get("columnId").and_then(Value::as_str);
-            let board_id = result.get("boardId").and_then(Value::as_str);
+            let id = result.get("id").and_then(Value::as_str).map(str::to_owned);
+            let column_id = result
+                .get("columnId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let board_id = result
+                .get("boardId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             match (id, column_id, board_id) {
-                (Some(id), Some(cid), Some(bid)) => vec![(
+                (Some(id), Some(cid), Some(bid)) => one(
                     ev::TASK_CREATED,
                     json!({ "id": id, "column_id": cid, "board_id": bid }),
-                )],
+                    "board",
+                    Some(bid),
+                ),
                 _ => Vec::new(),
             }
         }
         "create_space" => match id_from_result() {
-            Some(id) => vec![(ev::SPACE_CREATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::SPACE_CREATED,
+                    json!({ "id": id }),
+                    "space",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "create_prompt" => match id_from_result() {
-            Some(id) => vec![(ev::PROMPT_CREATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::PROMPT_CREATED,
+                    json!({ "id": id }),
+                    "prompt",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "create_prompt_group" => match id_from_result() {
-            Some(id) => vec![(ev::PROMPT_GROUP_CREATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::PROMPT_GROUP_CREATED,
+                    json!({ "id": id }),
+                    "prompt_group",
+                    Some(scope_id),
+                )
+            }
+            None => Vec::new(),
+        },
+        "create_mcp_tool_group" => match id_from_result() {
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::MCP_TOOL_GROUP_CREATED,
+                    json!({ "id": id }),
+                    "mcp_tool_group",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "create_role" => match id_from_result() {
-            Some(id) => vec![(ev::ROLE_CREATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::ROLE_CREATED,
+                    json!({ "id": id }),
+                    "role",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "create_skill" => match id_from_result() {
-            Some(id) => vec![(ev::SKILL_CREATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::SKILL_CREATED,
+                    json!({ "id": id }),
+                    "skill",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "create_tag" => match id_from_result() {
-            Some(id) => vec![(ev::TAG_CREATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(ev::TAG_CREATED, json!({ "id": id }), "tag", Some(scope_id))
+            }
             None => Vec::new(),
         },
         "create_mcp_server" => match id_from_result() {
-            Some(id) => vec![(ev::MCP_SERVER_CREATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::MCP_SERVER_CREATED,
+                    json!({ "id": id }),
+                    "mcp_server",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "create_mcp_tool" => match id_from_result() {
-            Some(id) => vec![(ev::MCP_TOOL_CREATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::MCP_TOOL_CREATED,
+                    json!({ "id": id }),
+                    "mcp_server",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "create_agent_report" => {
-            let id = result.get("id").and_then(Value::as_str);
-            let task_id = result.get("taskId").and_then(Value::as_str);
+            let id = result.get("id").and_then(Value::as_str).map(str::to_owned);
+            let task_id = result
+                .get("taskId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             match (id, task_id) {
-                (Some(id), Some(tid)) => vec![(
+                (Some(id), Some(tid)) => one(
                     ev::AGENT_REPORT_CREATED,
                     json!({ "id": id, "task_id": tid }),
-                )],
+                    "task",
+                    Some(tid),
+                ),
                 _ => Vec::new(),
             }
         }
         "create_attachment" | "upload_attachment" | "upload_attachment_blob" => {
-            let id = result.get("id").and_then(Value::as_str);
-            let task_id = result.get("taskId").and_then(Value::as_str);
+            let id = result.get("id").and_then(Value::as_str).map(str::to_owned);
+            let task_id = result
+                .get("taskId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             match (id, task_id) {
-                (Some(id), Some(tid)) => vec![(
+                (Some(id), Some(tid)) => one(
                     ev::ATTACHMENT_CREATED,
                     json!({ "id": id, "task_id": tid }),
-                )],
+                    "task",
+                    Some(tid),
+                ),
                 _ => Vec::new(),
             }
         }
 
         // -------- update_* (id comes from params; some entities carry extra fields) --------
         "update_board" => match id_from_params() {
-            Some(id) => vec![(ev::BOARD_UPDATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::BOARD_UPDATED,
+                    json!({ "id": id }),
+                    "board",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "update_column" => {
-            let id = result.get("id").and_then(Value::as_str);
-            let board_id = result.get("boardId").and_then(Value::as_str);
+            let id = result.get("id").and_then(Value::as_str).map(str::to_owned);
+            let board_id = result
+                .get("boardId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             match (id, board_id) {
-                (Some(id), Some(bid)) => vec![(
+                (Some(id), Some(bid)) => one(
                     ev::COLUMN_UPDATED,
                     json!({ "id": id, "board_id": bid }),
-                )],
+                    "board",
+                    Some(bid),
+                ),
                 _ => Vec::new(),
             }
         }
         "update_task" => {
-            let id = result.get("id").and_then(Value::as_str);
-            let column_id = result.get("columnId").and_then(Value::as_str);
-            let board_id = result.get("boardId").and_then(Value::as_str);
+            let id = result.get("id").and_then(Value::as_str).map(str::to_owned);
+            let column_id = result
+                .get("columnId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let board_id = result
+                .get("boardId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             match (id, column_id, board_id) {
-                (Some(id), Some(cid), Some(bid)) => vec![(
+                (Some(id), Some(cid), Some(bid)) => one(
                     ev::TASK_UPDATED,
                     json!({ "id": id, "column_id": cid, "board_id": bid }),
-                )],
+                    "board",
+                    Some(bid),
+                ),
                 _ => Vec::new(),
             }
         }
@@ -2322,7 +2715,15 @@ fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<(&'
         // because the frontend invalidator already refetches the task
         // body on `task:updated`.
         "set_task_urgency" => match id_from_params() {
-            Some(id) => vec![(ev::TASK_UPDATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::TASK_UPDATED,
+                    json!({ "id": id }),
+                    "task",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         // catique-1 / catique-5: writes through to disk; from the
@@ -2331,62 +2732,155 @@ fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<(&'
         // dependent panel (project folder badge, sync-state ribbon)
         // can re-fetch.
         "sync_owner_to_agent_file" | "sync_workflow_to_agent_file" => {
-            match params.get("space_id").and_then(Value::as_str) {
-                Some(id) => vec![(ev::SPACE_UPDATED, json!({ "id": id }))],
+            match params
+                .get("space_id")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+            {
+                Some(id) => {
+                    let scope_id = id.clone();
+                    one(
+                        ev::SPACE_UPDATED,
+                        json!({ "id": id }),
+                        "space",
+                        Some(scope_id),
+                    )
+                }
                 None => Vec::new(),
             }
         }
         "update_space" => match id_from_params() {
-            Some(id) => vec![(ev::SPACE_UPDATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::SPACE_UPDATED,
+                    json!({ "id": id }),
+                    "space",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "update_prompt" | "recompute_prompt_token_count" => match id_from_params() {
-            Some(id) => vec![(ev::PROMPT_UPDATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::PROMPT_UPDATED,
+                    json!({ "id": id }),
+                    "prompt",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "update_prompt_group" => match id_from_params() {
-            Some(id) => vec![(ev::PROMPT_GROUP_UPDATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::PROMPT_GROUP_UPDATED,
+                    json!({ "id": id }),
+                    "prompt_group",
+                    Some(scope_id),
+                )
+            }
+            None => Vec::new(),
+        },
+        "update_mcp_tool_group" => match id_from_params() {
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::MCP_TOOL_GROUP_UPDATED,
+                    json!({ "id": id }),
+                    "mcp_tool_group",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "update_role" => match id_from_params() {
-            Some(id) => vec![(ev::ROLE_UPDATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::ROLE_UPDATED,
+                    json!({ "id": id }),
+                    "role",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "update_skill" => match id_from_params() {
-            Some(id) => vec![(ev::SKILL_UPDATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::SKILL_UPDATED,
+                    json!({ "id": id }),
+                    "skill",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "update_tag" => match id_from_params() {
-            Some(id) => vec![(ev::TAG_UPDATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(ev::TAG_UPDATED, json!({ "id": id }), "tag", Some(scope_id))
+            }
             None => Vec::new(),
         },
         "update_mcp_server" => match id_from_params() {
-            Some(id) => vec![(ev::MCP_SERVER_UPDATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::MCP_SERVER_UPDATED,
+                    json!({ "id": id }),
+                    "mcp_server",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "update_mcp_tool" => match id_from_params() {
-            Some(id) => vec![(ev::MCP_TOOL_UPDATED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::MCP_TOOL_UPDATED,
+                    json!({ "id": id }),
+                    "mcp_server",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "update_agent_report" => {
-            let id = result.get("id").and_then(Value::as_str);
-            let task_id = result.get("taskId").and_then(Value::as_str);
+            let id = result.get("id").and_then(Value::as_str).map(str::to_owned);
+            let task_id = result
+                .get("taskId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             match (id, task_id) {
-                (Some(id), Some(tid)) => vec![(
+                (Some(id), Some(tid)) => one(
                     ev::AGENT_REPORT_UPDATED,
                     json!({ "id": id, "task_id": tid }),
-                )],
+                    "task",
+                    Some(tid),
+                ),
                 _ => Vec::new(),
             }
         }
         "update_attachment" => {
-            let id = result.get("id").and_then(Value::as_str);
-            let task_id = result.get("taskId").and_then(Value::as_str);
+            let id = result.get("id").and_then(Value::as_str).map(str::to_owned);
+            let task_id = result
+                .get("taskId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             match (id, task_id) {
-                (Some(id), Some(tid)) => vec![(
+                (Some(id), Some(tid)) => one(
                     ev::ATTACHMENT_UPDATED,
                     json!({ "id": id, "task_id": tid }),
-                )],
+                    "task",
+                    Some(tid),
+                ),
                 _ => Vec::new(),
             }
         }
@@ -2395,130 +2889,273 @@ fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<(&'
         // recreate it without the deleted row, so we fall back to the
         // minimum `{ id }` payload that the frontend listeners tolerate) --------
         "delete_board" => match id_from_params() {
-            Some(id) => vec![(ev::BOARD_DELETED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::BOARD_DELETED,
+                    json!({ "id": id }),
+                    "board",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "delete_column" => match id_from_params() {
-            Some(id) => vec![(ev::COLUMN_DELETED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::COLUMN_DELETED,
+                    json!({ "id": id }),
+                    "column",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "delete_task" => match id_from_params() {
-            Some(id) => vec![(ev::TASK_DELETED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::TASK_DELETED,
+                    json!({ "id": id }),
+                    "task",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "delete_space" => match id_from_params() {
-            Some(id) => vec![(ev::SPACE_DELETED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::SPACE_DELETED,
+                    json!({ "id": id }),
+                    "space",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "delete_prompt" => match id_from_params() {
-            Some(id) => vec![(ev::PROMPT_DELETED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::PROMPT_DELETED,
+                    json!({ "id": id }),
+                    "prompt",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "delete_prompt_group" => match id_from_params() {
-            Some(id) => vec![(ev::PROMPT_GROUP_DELETED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::PROMPT_GROUP_DELETED,
+                    json!({ "id": id }),
+                    "prompt_group",
+                    Some(scope_id),
+                )
+            }
+            None => Vec::new(),
+        },
+        "delete_mcp_tool_group" => match id_from_params() {
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::MCP_TOOL_GROUP_DELETED,
+                    json!({ "id": id }),
+                    "mcp_tool_group",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "delete_role" => match id_from_params() {
-            Some(id) => vec![(ev::ROLE_DELETED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::ROLE_DELETED,
+                    json!({ "id": id }),
+                    "role",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "delete_skill" => match id_from_params() {
-            Some(id) => vec![(ev::SKILL_DELETED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::SKILL_DELETED,
+                    json!({ "id": id }),
+                    "skill",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "delete_tag" => match id_from_params() {
-            Some(id) => vec![(ev::TAG_DELETED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(ev::TAG_DELETED, json!({ "id": id }), "tag", Some(scope_id))
+            }
             None => Vec::new(),
         },
         "delete_mcp_server" => match id_from_params() {
-            Some(id) => vec![(ev::MCP_SERVER_DELETED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::MCP_SERVER_DELETED,
+                    json!({ "id": id }),
+                    "mcp_server",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "delete_mcp_tool" => match id_from_params() {
-            Some(id) => vec![(ev::MCP_TOOL_DELETED, json!({ "id": id }))],
+            Some(id) => {
+                let scope_id = id.clone();
+                one(
+                    ev::MCP_TOOL_DELETED,
+                    json!({ "id": id }),
+                    "mcp_server",
+                    Some(scope_id),
+                )
+            }
             None => Vec::new(),
         },
         "delete_agent_report" => match id_from_params() {
-            Some(id) => vec![(ev::AGENT_REPORT_DELETED, json!({ "id": id }))],
+            Some(id) => one(
+                ev::AGENT_REPORT_DELETED,
+                json!({ "id": id }),
+                "global",
+                None,
+            ),
             None => Vec::new(),
         },
         "delete_attachment" => match id_from_params() {
-            Some(id) => vec![(ev::ATTACHMENT_DELETED, json!({ "id": id }))],
+            Some(id) => one(ev::ATTACHMENT_DELETED, json!({ "id": id }), "global", None),
             None => Vec::new(),
         },
 
         // -------- role notes (handler shape: `{ roleId, noteId }`) --------
         "add_role_note" => {
-            let role_id = result.get("roleId").and_then(Value::as_str);
-            let note_id = result.get("id").and_then(Value::as_str);
+            let role_id = result
+                .get("roleId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let note_id = result.get("id").and_then(Value::as_str).map(str::to_owned);
             match (role_id, note_id) {
-                (Some(rid), Some(nid)) => vec![(
-                    ev::ROLE_NOTE_CREATED,
-                    json!({ "roleId": rid, "noteId": nid }),
-                )],
+                (Some(rid), Some(nid)) => {
+                    let scope_id = rid.clone();
+                    one(
+                        ev::ROLE_NOTE_CREATED,
+                        json!({ "roleId": rid, "noteId": nid }),
+                        "role",
+                        Some(scope_id),
+                    )
+                }
                 _ => Vec::new(),
             }
         }
 
         // -------- skill attachments / steps / import --------
         "add_skill_file_attachment" | "add_skill_git_attachment" => {
-            let skill_id = result.get("skillId").and_then(Value::as_str);
-            let att_id = result.get("id").and_then(Value::as_str);
+            let skill_id = result
+                .get("skillId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let att_id = result.get("id").and_then(Value::as_str).map(str::to_owned);
             match (skill_id, att_id) {
-                (Some(sid), Some(aid)) => vec![(
-                    ev::SKILL_ATTACHMENT_ADDED,
-                    json!({ "skillId": sid, "attachmentId": aid }),
-                )],
+                (Some(sid), Some(aid)) => {
+                    let scope_id = sid.clone();
+                    one(
+                        ev::SKILL_ATTACHMENT_ADDED,
+                        json!({ "skillId": sid, "attachmentId": aid }),
+                        "skill",
+                        Some(scope_id),
+                    )
+                }
                 _ => Vec::new(),
             }
         }
         "remove_skill_attachment" => {
             // `params.attachment_id` is all we have — the use case
             // returns `{ ok: true }`. Frontend listener keys off
-            // `attachmentId` only.
+            // `attachmentId` only. We don't have the parent skill id
+            // here, so scope falls back to global.
             let att_id = params
                 .get("attachment_id")
                 .and_then(Value::as_str)
                 .map(str::to_owned);
             match att_id {
-                Some(aid) => vec![(
+                Some(aid) => one(
                     ev::SKILL_ATTACHMENT_REMOVED,
                     json!({ "attachmentId": aid }),
-                )],
+                    "global",
+                    None,
+                ),
                 None => Vec::new(),
             }
         }
         "import_skill_from_url" => {
             // `import_skill_from_url_arm` returns the full
             // `ImportReport` — same envelope the handler emits.
-            let skill_id = result.get("skillId").and_then(Value::as_str);
+            let skill_id = result
+                .get("skillId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             match skill_id {
-                Some(sid) => vec![(
-                    ev::SKILL_IMPORTED,
-                    json!({ "skillId": sid, "importReport": result.clone() }),
-                )],
+                Some(sid) => {
+                    let scope_id = sid.clone();
+                    one(
+                        ev::SKILL_IMPORTED,
+                        json!({ "skillId": sid, "importReport": result.clone() }),
+                        "skill",
+                        Some(scope_id),
+                    )
+                }
                 None => Vec::new(),
             }
         }
         "add_skill_step" => {
-            let skill = result.get("skillId").and_then(Value::as_str);
-            let step = result.get("id").and_then(Value::as_str);
+            let skill = result
+                .get("skillId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let step = result.get("id").and_then(Value::as_str).map(str::to_owned);
             match (skill, step) {
-                (Some(skill), Some(step)) => vec![(
-                    ev::SKILL_STEP_CREATED,
-                    json!({ "skillId": skill, "stepId": step }),
-                )],
+                (Some(skill), Some(step)) => {
+                    let scope_id = skill.clone();
+                    one(
+                        ev::SKILL_STEP_CREATED,
+                        json!({ "skillId": skill, "stepId": step }),
+                        "skill",
+                        Some(scope_id),
+                    )
+                }
                 _ => Vec::new(),
             }
         }
         "update_skill_step" => {
-            let skill = result.get("skillId").and_then(Value::as_str);
-            let step = result.get("id").and_then(Value::as_str);
+            let skill = result
+                .get("skillId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let step = result.get("id").and_then(Value::as_str).map(str::to_owned);
             match (skill, step) {
-                (Some(skill), Some(step)) => vec![(
-                    ev::SKILL_STEP_UPDATED,
-                    json!({ "skillId": skill, "stepId": step }),
-                )],
+                (Some(skill), Some(step)) => {
+                    let scope_id = skill.clone();
+                    one(
+                        ev::SKILL_STEP_UPDATED,
+                        json!({ "skillId": skill, "stepId": step }),
+                        "skill",
+                        Some(scope_id),
+                    )
+                }
                 _ => Vec::new(),
             }
         }
@@ -2527,13 +3164,16 @@ fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<(&'
             // `{ ok: true }`). Skill id is unrecoverable from this
             // call site — emit the bare `{ stepId }` envelope; the
             // frontend's step-list listener uses `stepId` as the
-            // invalidation key.
+            // invalidation key. Scope = global because the parent
+            // skill is unknown here.
             let step_id = id_from_params();
             match step_id {
-                Some(stid) => vec![(
+                Some(stid) => one(
                     ev::SKILL_STEP_DELETED,
                     json!({ "stepId": stid }),
-                )],
+                    "global",
+                    None,
+                ),
                 None => Vec::new(),
             }
         }
@@ -2557,11 +3197,11 @@ fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<(&'
             match skill_id {
                 Some(sid) => step_ids
                     .into_iter()
-                    .map(|stid| {
-                        (
-                            ev::SKILL_STEP_UPDATED,
-                            json!({ "skillId": sid, "stepId": stid }),
-                        )
+                    .map(|stid| MappedEvent {
+                        name: ev::SKILL_STEP_UPDATED,
+                        payload: json!({ "skillId": sid, "stepId": stid }),
+                        scope_kind: "skill",
+                        scope_id: Some(sid.clone()),
                     })
                     .collect(),
                 None => Vec::new(),
@@ -2579,54 +3219,77 @@ fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<(&'
             // `column_id` and `board_id` AND the caller supplied a
             // `column_id` param different from the result's. As a
             // floor: always fire `task:updated` so cache invalidates.
-            let id = result.get("id").and_then(Value::as_str);
-            let column_id = result.get("columnId").and_then(Value::as_str);
-            let board_id = result.get("boardId").and_then(Value::as_str);
+            let id = result.get("id").and_then(Value::as_str).map(str::to_owned);
+            let column_id = result
+                .get("columnId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let board_id = result
+                .get("boardId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             match (id, column_id, board_id) {
-                (Some(id), Some(cid), Some(bid)) => {
-                    let mut out = vec![(
-                        ev::TASK_UPDATED,
-                        json!({ "id": id, "column_id": cid, "board_id": bid }),
-                    )];
+                (Some(id), Some(cid), Some(bid)) => vec![
+                    MappedEvent {
+                        name: ev::TASK_UPDATED,
+                        payload: json!({
+                            "id": id,
+                            "column_id": cid,
+                            "board_id": bid,
+                        }),
+                        scope_kind: "board",
+                        scope_id: Some(bid.clone()),
+                    },
                     // Best-effort move event — we don't know the
-                    // "from" column without a pre-snapshot. Emit
-                    // with `from_column_id` set to the param value
-                    // when it differs from the result (caller-side
-                    // expectation); otherwise skip the move event
-                    // and let the `task:updated` carry invalidation.
-                    out.push((
-                        ev::TASK_MOVED,
-                        json!({
+                    // "from" column without a pre-snapshot.
+                    MappedEvent {
+                        name: ev::TASK_MOVED,
+                        payload: json!({
                             "id": id,
                             "from_column_id": Value::Null,
                             "to_column_id": cid,
                             "board_id": bid,
                         }),
-                    ));
-                    out
-                }
+                        scope_kind: "board",
+                        scope_id: Some(bid),
+                    },
+                ],
                 _ => Vec::new(),
             }
         }
         "route_task_to_board" => {
-            let id = result.get("id").and_then(Value::as_str);
-            let column_id = result.get("columnId").and_then(Value::as_str);
-            let board_id = result.get("boardId").and_then(Value::as_str);
+            let id = result.get("id").and_then(Value::as_str).map(str::to_owned);
+            let column_id = result
+                .get("columnId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let board_id = result
+                .get("boardId")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             match (id, column_id, board_id) {
                 (Some(id), Some(cid), Some(bid)) => vec![
-                    (
-                        ev::TASK_UPDATED,
-                        json!({ "id": id, "column_id": cid, "board_id": bid }),
-                    ),
-                    (
-                        ev::TASK_MOVED,
-                        json!({
+                    MappedEvent {
+                        name: ev::TASK_UPDATED,
+                        payload: json!({
+                            "id": id,
+                            "column_id": cid,
+                            "board_id": bid,
+                        }),
+                        scope_kind: "board",
+                        scope_id: Some(bid.clone()),
+                    },
+                    MappedEvent {
+                        name: ev::TASK_MOVED,
+                        payload: json!({
                             "id": id,
                             "from_column_id": Value::Null,
                             "to_column_id": cid,
                             "board_id": bid,
                         }),
-                    ),
+                        scope_kind: "board",
+                        scope_id: Some(bid),
+                    },
                 ],
                 _ => Vec::new(),
             }
@@ -2636,6 +3299,8 @@ fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<(&'
         // `task:updated` with the full `{ id, column_id, board_id }`
         // shape after a GET — we don't have the column/board here, so
         // emit `{ id }` only; the frontend listener tolerates it.
+        // Scope falls back to task-id; the parent board is unknown
+        // without a DB round-trip.
         "rate_task"
         | "log_step"
         | "set_task_prompt_override"
@@ -2645,59 +3310,124 @@ fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<(&'
         | "add_task_skill"
         | "remove_task_skill"
         | "add_task_mcp_tool"
-        | "remove_task_mcp_tool" => {
+        | "remove_task_mcp_tool"
+        | "set_task_prompt_groups"
+        | "set_task_mcp_tool_groups"
+        | "set_task_mcp_servers" => {
             let task_id = params
                 .get("task_id")
                 .and_then(Value::as_str)
                 .map(str::to_owned);
             match task_id {
-                Some(tid) => vec![(ev::TASK_UPDATED, json!({ "id": tid }))],
+                Some(tid) => {
+                    let scope_id = tid.clone();
+                    one(
+                        ev::TASK_UPDATED,
+                        json!({ "id": tid }),
+                        "task",
+                        Some(scope_id),
+                    )
+                }
                 None => Vec::new(),
             }
         }
 
         // -------- board / column / space / role / tag join-tables --------
-        "add_board_prompt" | "remove_board_prompt" | "set_board_prompts" | "set_board_mcp_tools"
-        | "set_board_skills" | "set_board_owner" => {
+        "add_board_prompt"
+        | "remove_board_prompt"
+        | "set_board_prompts"
+        | "set_board_mcp_tools"
+        | "set_board_skills"
+        | "set_board_prompt_groups"
+        | "set_board_mcp_tool_groups"
+        | "set_board_mcp_servers"
+        | "set_board_owner" => {
             let board_id = params
                 .get("board_id")
                 .and_then(Value::as_str)
                 .map(str::to_owned);
             match board_id {
-                Some(bid) => vec![(ev::BOARD_UPDATED, json!({ "id": bid }))],
+                Some(bid) => {
+                    let scope_id = bid.clone();
+                    one(
+                        ev::BOARD_UPDATED,
+                        json!({ "id": bid }),
+                        "board",
+                        Some(scope_id),
+                    )
+                }
                 None => Vec::new(),
             }
         }
-        "add_column_prompt" | "remove_column_prompt" | "set_column_prompts"
-        | "set_column_mcp_tools" | "set_column_skills" => {
+        "add_column_prompt"
+        | "remove_column_prompt"
+        | "set_column_prompts"
+        | "set_column_mcp_tools"
+        | "set_column_skills" => {
             let column_id = params
                 .get("column_id")
                 .and_then(Value::as_str)
                 .map(str::to_owned);
             match column_id {
-                Some(cid) => vec![(ev::COLUMN_UPDATED, json!({ "id": cid }))],
+                Some(cid) => {
+                    let scope_id = cid.clone();
+                    one(
+                        ev::COLUMN_UPDATED,
+                        json!({ "id": cid }),
+                        "column",
+                        Some(scope_id),
+                    )
+                }
                 None => Vec::new(),
             }
         }
-        "add_space_prompt" | "remove_space_prompt" | "set_space_prompts" | "set_space_mcp_tools"
-        | "set_space_skills" | "set_workflow_graph" => {
+        "add_space_prompt"
+        | "remove_space_prompt"
+        | "set_space_prompts"
+        | "set_space_mcp_tools"
+        | "set_space_skills"
+        | "set_workflow_graph" => {
             let space_id = params
                 .get("space_id")
                 .and_then(Value::as_str)
                 .map(str::to_owned);
             match space_id {
-                Some(sid) => vec![(ev::SPACE_UPDATED, json!({ "id": sid }))],
+                Some(sid) => {
+                    let scope_id = sid.clone();
+                    one(
+                        ev::SPACE_UPDATED,
+                        json!({ "id": sid }),
+                        "space",
+                        Some(scope_id),
+                    )
+                }
                 None => Vec::new(),
             }
         }
-        "add_role_prompt" | "remove_role_prompt" | "add_role_skill" | "remove_role_skill"
-        | "add_role_mcp_tool" | "remove_role_mcp_tool" | "set_role_prompts" => {
+        "add_role_prompt"
+        | "remove_role_prompt"
+        | "add_role_skill"
+        | "remove_role_skill"
+        | "add_role_mcp_tool"
+        | "remove_role_mcp_tool"
+        | "set_role_prompts"
+        | "set_role_prompt_groups"
+        | "set_role_mcp_tool_groups"
+        | "set_role_mcp_servers" => {
             let role_id = params
                 .get("role_id")
                 .and_then(Value::as_str)
                 .map(str::to_owned);
             match role_id {
-                Some(rid) => vec![(ev::ROLE_UPDATED, json!({ "id": rid }))],
+                Some(rid) => {
+                    let scope_id = rid.clone();
+                    one(
+                        ev::ROLE_UPDATED,
+                        json!({ "id": rid }),
+                        "role",
+                        Some(scope_id),
+                    )
+                }
                 None => Vec::new(),
             }
         }
@@ -2707,7 +3437,10 @@ fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<(&'
                 .and_then(Value::as_str)
                 .map(str::to_owned);
             match tag_id {
-                Some(tid) => vec![(ev::TAG_UPDATED, json!({ "id": tid }))],
+                Some(tid) => {
+                    let scope_id = tid.clone();
+                    one(ev::TAG_UPDATED, json!({ "id": tid }), "tag", Some(scope_id))
+                }
                 None => Vec::new(),
             }
         }
@@ -2719,44 +3452,80 @@ fn map_method_to_events(method: &str, params: &Value, result: &Value) -> Vec<(&'
                 .and_then(Value::as_str)
                 .map(str::to_owned);
             match group_id {
-                Some(gid) => vec![(
-                    ev::PROMPT_GROUP_MEMBERS_CHANGED,
-                    json!({ "group_id": gid }),
-                )],
+                Some(gid) => {
+                    let scope_id = gid.clone();
+                    one(
+                        ev::PROMPT_GROUP_MEMBERS_CHANGED,
+                        json!({ "group_id": gid }),
+                        "prompt_group",
+                        Some(scope_id),
+                    )
+                }
                 None => Vec::new(),
             }
         }
 
-        // -------- connected providers --------
-        "add_provider" => {
-            let id = params
-                .get("id")
+        // -------- mcp-tool-group members --------
+        "add_mcp_tool_group_member"
+        | "remove_mcp_tool_group_member"
+        | "set_mcp_tool_group_members" => {
+            let group_id = params
+                .get("group_id")
                 .and_then(Value::as_str)
                 .map(str::to_owned);
+            match group_id {
+                Some(gid) => {
+                    let scope_id = gid.clone();
+                    one(
+                        ev::MCP_TOOL_GROUP_MEMBERS_CHANGED,
+                        json!({ "group_id": gid }),
+                        "mcp_tool_group",
+                        Some(scope_id),
+                    )
+                }
+                None => Vec::new(),
+            }
+        }
+
+        // -------- connected providers (global — no per-entity surface today) --------
+        "add_provider" => {
+            let id = params.get("id").and_then(Value::as_str).map(str::to_owned);
             match id {
-                Some(id) => vec![(ev::CONNECTED_PROVIDER_ADDED, json!({ "id": id }))],
+                Some(id) => one(
+                    ev::CONNECTED_PROVIDER_ADDED,
+                    json!({ "id": id }),
+                    "global",
+                    None,
+                ),
                 None => Vec::new(),
             }
         }
         "remove_provider" => {
-            let id = params
-                .get("id")
-                .and_then(Value::as_str)
-                .map(str::to_owned);
+            let id = params.get("id").and_then(Value::as_str).map(str::to_owned);
             match id {
-                Some(id) => vec![(ev::CONNECTED_PROVIDER_REMOVED, json!({ "id": id }))],
+                Some(id) => one(
+                    ev::CONNECTED_PROVIDER_REMOVED,
+                    json!({ "id": id }),
+                    "global",
+                    None,
+                ),
                 None => Vec::new(),
             }
         }
 
         // -------- MCP server refresh --------
         "refresh_mcp_server" => {
-            let id = params
-                .get("id")
-                .and_then(Value::as_str)
-                .map(str::to_owned);
+            let id = params.get("id").and_then(Value::as_str).map(str::to_owned);
             match id {
-                Some(id) => vec![(ev::MCP_SERVER_UPDATED, json!({ "id": id }))],
+                Some(id) => {
+                    let scope_id = id.clone();
+                    one(
+                        ev::MCP_SERVER_UPDATED,
+                        json!({ "id": id }),
+                        "mcp_server",
+                        Some(scope_id),
+                    )
+                }
                 None => Vec::new(),
             }
         }
@@ -2788,8 +3557,20 @@ pub fn publish_change_for_method(pool: &Pool, method: &str, params: &Value, resu
             return;
         }
     };
-    for (name, payload) in events {
-        if let Err(e) = catique_infrastructure::db::event_log::publish(&conn, name, &payload) {
+    for event in events {
+        let MappedEvent {
+            name,
+            payload,
+            scope_kind,
+            scope_id,
+        } = event;
+        if let Err(e) = catique_infrastructure::db::event_log::publish(
+            &conn,
+            name,
+            &payload,
+            scope_kind,
+            scope_id.as_deref(),
+        ) {
             eprintln!("[catique-hub] event_log publish({name}) failed: {e}");
         }
     }

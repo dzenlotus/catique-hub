@@ -13,16 +13,22 @@
  * - `RoleNoteForm` — shared body/tags/priority/pinned form.
  */
 
-import { useState, type ReactElement } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 
-import { Button, EmptyState } from "@shared/ui";
-import { useToast } from "@app/providers/ToastProvider";
+import {
+  Button,
+  EmptyState,
+  EntityTree,
+  type EntityTreeNode,
+} from "@shared/ui";
+import { useToast } from "@shared/lib";
 
 import {
   useRoleNotes,
   useRoleNoteTags,
   useAddRoleNoteMutation,
   useUpdateRoleNoteMutation,
+  type RoleNote,
 } from "@entities/role-note";
 
 import { RoleMemoryFilterBar } from "./RoleMemoryFilterBar";
@@ -48,6 +54,21 @@ export function RoleMemorySection({
   const [addError, setAddError] = useState<string | null>(null);
 
   const filters = useRoleNoteFilters(notesQuery.data ?? []);
+
+  // Each visible note becomes a flat (non-draggable, non-selectable)
+  // EntityTree row. The row body — chips, pin, body preview, inline-edit
+  // form — lives in `RoleNoteRow` via the `renderRow` slot; EntityTree
+  // owns the `<li>` chrome + hover overlay for visual parity with the
+  // rest of the app's lists.
+  const treeData = useMemo<EntityTreeNode<RoleNote>[]>(
+    () =>
+      filters.visibleNotes.map((note) => ({
+        id: note.id,
+        label: note.body,
+        data: note,
+      })),
+    [filters.visibleNotes],
+  );
 
   const handleAddSubmit = (draft: RoleNoteDraft): void => {
     setAddError(null);
@@ -161,12 +182,16 @@ export function RoleMemorySection({
         </p>
       ) : null}
 
-      {filters.visibleNotes.length > 0 ? (
-        <ul className={styles.list} data-testid="role-memory-section-list">
-          {filters.visibleNotes.map((note) => (
-            <RoleNoteRow key={note.id} note={note} onToast={pushToast} />
-          ))}
-        </ul>
+      {treeData.length > 0 ? (
+        <EntityTree<RoleNote>
+          testIdPrefix="role-memory-section"
+          data={treeData}
+          renderRow={({ node }) =>
+            node.data ? (
+              <RoleNoteRow note={node.data} onToast={pushToast} />
+            ) : null
+          }
+        />
       ) : null}
     </div>
   );

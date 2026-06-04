@@ -2,4 +2,9 @@
 import type { McpTool } from "./McpTool";
 import type { OriginRef } from "./OriginRef";
 
-export type McpToolWithOrigin = { mcpTool: McpTool, origin: OriginRef, };
+export type McpToolWithOrigin = { mcpTool: McpTool, origin: OriginRef, overridden: boolean, 
+/**
+ * Source MCP-tool group when materialised via a group attachment;
+ * see [`PromptWithOrigin::via_group`].
+ */
+viaGroup?: string, };

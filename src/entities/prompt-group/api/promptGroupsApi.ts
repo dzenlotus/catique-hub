@@ -143,3 +143,52 @@ export async function setPromptGroupMembers(
     orderedPromptIds: args.orderedPromptIds,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Group attachment — attach a prompt group as a live unit to a scope.
+// Setters return void; the backend re-materialises members onto every task
+// in scope and emits the scope's `*_UPDATED` event. List endpoints return
+// the attached group ids in stored order (seed the combined picker).
+// ---------------------------------------------------------------------------
+
+/** `list_role_prompt_groups` — prompt-group ids attached to a role. */
+export async function listRolePromptGroups(roleId: string): Promise<string[]> {
+  return invokeWithAppError<string[]>("list_role_prompt_groups", { roleId });
+}
+
+/** `set_role_prompt_groups` — replace the role's attached prompt groups. */
+export async function setRolePromptGroups(
+  roleId: string,
+  groupIds: string[],
+): Promise<void> {
+  return invokeWithAppError<void>("set_role_prompt_groups", { roleId, groupIds });
+}
+
+/** `list_board_prompt_groups` — prompt-group ids attached to a board. */
+export async function listBoardPromptGroups(boardId: string): Promise<string[]> {
+  return invokeWithAppError<string[]>("list_board_prompt_groups", { boardId });
+}
+
+/** `set_board_prompt_groups` — replace the board's attached prompt groups. */
+export async function setBoardPromptGroups(
+  boardId: string,
+  groupIds: string[],
+): Promise<void> {
+  return invokeWithAppError<void>("set_board_prompt_groups", {
+    boardId,
+    groupIds,
+  });
+}
+
+/** `list_task_prompt_groups` — prompt-group ids attached directly to a task. */
+export async function listTaskPromptGroups(taskId: string): Promise<string[]> {
+  return invokeWithAppError<string[]>("list_task_prompt_groups", { taskId });
+}
+
+/** `set_task_prompt_groups` — replace the task's directly-attached prompt groups. */
+export async function setTaskPromptGroups(
+  taskId: string,
+  groupIds: string[],
+): Promise<void> {
+  return invokeWithAppError<void>("set_task_prompt_groups", { taskId, groupIds });
+}

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Role } from "@entities/role";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 
 // Mock the Tauri invoke wrapper at the shared/api boundary — this is
 // the single place IPC traffic crosses, so all four states (loading,

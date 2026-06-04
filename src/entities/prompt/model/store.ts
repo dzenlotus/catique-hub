@@ -22,11 +22,15 @@ import {
   listPromptTagsMap,
   updatePrompt,
   recomputePromptTokenCount,
+  listPromptVersions,
+  getPromptVersion,
+  revertPromptToVersion,
   type CreatePromptArgs,
   type UpdatePromptArgs,
 } from "../api";
 import type { Prompt } from "./types";
 import type { PromptTagMapEntry } from "@bindings/PromptTagMapEntry";
+import type { PromptContentVersionView } from "@bindings/PromptContentVersionView";
 
 /** Query-key factory. Centralised so invalidation stays consistent. */
 export const promptsKeys = {
@@ -34,6 +38,10 @@ export const promptsKeys = {
   list: () => [...promptsKeys.all] as const,
   detail: (id: string) => [...promptsKeys.all, id] as const,
   tagMap: () => [...promptsKeys.all, "tagMap"] as const,
+  versions: (promptId: string) =>
+    [...promptsKeys.all, "versions", promptId] as const,
+  version: (versionId: string) =>
+    [...promptsKeys.all, "version", versionId] as const,
 };
 
 /** `usePrompts` — list every prompt. */
@@ -178,6 +186,70 @@ export function useRecomputePromptTokenCountMutation(): UseMutationResult<
         queryKey: promptsKeys.detail(updated.id),
       });
       void queryClient.invalidateQueries({ queryKey: promptsKeys.list() });
+    },
+  });
+}
+
+// ─── Version history (D-C) ─────────────────────────────────────────────
+
+/**
+ * `usePromptVersions` — last 50 content versions of a prompt, newest first.
+ * Disabled when `promptId` is empty.
+ */
+export function usePromptVersions(
+  promptId: string,
+): UseQueryResult<PromptContentVersionView[], Error> {
+  return useQuery({
+    queryKey: promptsKeys.versions(promptId),
+    queryFn: () => listPromptVersions(promptId),
+    enabled: promptId.length > 0,
+  });
+}
+
+/**
+ * `usePromptVersion` — a single version row (for the right pane). Disabled
+ * when `versionId` is empty.
+ */
+export function usePromptVersion(
+  versionId: string,
+): UseQueryResult<PromptContentVersionView, Error> {
+  return useQuery({
+    queryKey: promptsKeys.version(versionId),
+    queryFn: () => getPromptVersion(versionId),
+    enabled: versionId.length > 0,
+  });
+}
+
+export interface RevertPromptToVersionArgs {
+  /** Version row id to revert to. */
+  versionId: string;
+  /** Owning prompt id — used for cache invalidation. */
+  promptId: string;
+}
+
+/**
+ * `useRevertPromptToVersionMutation` — revert a prompt to a stored
+ * version. Invalidates list, detail, and the versions query so the new
+ * snapshot (taken by the use case) shows up in the timeline.
+ */
+export function useRevertPromptToVersionMutation(): UseMutationResult<
+  void,
+  Error,
+  RevertPromptToVersionArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ versionId }) => {
+      await revertPromptToVersion(versionId);
+    },
+    onSuccess: (_void, vars) => {
+      void queryClient.invalidateQueries({ queryKey: promptsKeys.list() });
+      void queryClient.invalidateQueries({
+        queryKey: promptsKeys.detail(vars.promptId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: promptsKeys.versions(vars.promptId),
+      });
     },
   });
 }

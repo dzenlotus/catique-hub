@@ -10,7 +10,10 @@
  * when empty — never sent as empty strings. Matches `CreatePromptArgs`.
  */
 
-import { useState, type ReactElement } from "react";
+import { useCallback, useState, type ReactElement } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import {
   PROMPT_TEMPLATE_STORAGE_KEY,
@@ -27,6 +30,17 @@ import { PromptTagsField } from "@features/prompt-tags/field";
 import styles from "./PromptCreateDialog.module.css";
 
 const EMPTY_TEMPLATE: PromptTemplate = { shortDescription: "", content: "" };
+
+// react-hook-form schema — name + content required after trim;
+// shortDescription optional. Icon/color/tags stay outside the validated
+// form values (picker- and draft-driven), matching the etalon.
+const promptFormSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+  content: z.string().trim().min(1, "Content cannot be empty."),
+  shortDescription: z.string().optional(),
+});
+
+type PromptFormValues = z.infer<typeof promptFormSchema>;
 
 export interface PromptCreateDialogProps {
   isOpen: boolean;
@@ -134,12 +148,6 @@ function PromptCreateDialogContent({
     EMPTY_TEMPLATE,
   );
 
-  const [name, setName] = useState("");
-  const [content, setContent] = useState(() => template.content);
-  const [shortDescription, setShortDescription] = useState(
-    () => template.shortDescription,
-  );
-  const [saveError, setSaveError] = useState<string | null>(null);
   // Tags are tracked locally in draft mode — the prompt doesn't exist
   // yet, so we can't fire `add_prompt_tag` on each toggle. The set is
   // seeded with the parent's `inheritedTagIds` (sidebar filter) so the
@@ -148,75 +156,94 @@ function PromptCreateDialogContent({
     () => inheritedTagIds ?? [],
   );
 
-  const canSubmit = name.trim().length > 0 && content.trim().length > 0;
+  const {
+    control,
+    handleSubmit,
+    setError,
+    formState: { errors, isValid, isSubmitting },
+  } = useForm<PromptFormValues>({
+    resolver: zodResolver(promptFormSchema),
+    // Seed content/shortDescription from the user's saved template once.
+    defaultValues: {
+      name: "",
+      content: template.content,
+      shortDescription: template.shortDescription,
+    },
+    mode: "onChange",
+  });
 
-  const handleSave = (): void => {
-    setSaveError(null);
-    const trimmedName = name.trim();
-    const trimmedContent = content.trim();
-    if (!trimmedName) {
-      setSaveError("Name cannot be empty.");
-      return;
-    }
-    if (!trimmedContent) {
-      setSaveError("Content cannot be empty.");
-      return;
-    }
-
+  const onValid = handleSubmit(async (values) => {
     // Build payload — omit optional fields when empty.
-    type MutationArgs = Parameters<typeof createMutation.mutate>[0];
-    const args: MutationArgs = { name: trimmedName, content: trimmedContent };
-    const trimmedShortDesc = shortDescription.trim();
+    type MutationArgs = Parameters<typeof createMutation.mutateAsync>[0];
+    const args: MutationArgs = { name: values.name, content: values.content };
+    const trimmedShortDesc = (values.shortDescription ?? "").trim();
     if (trimmedShortDesc !== "") args.shortDescription = trimmedShortDesc;
     if (color !== "") args.color = color;
     if (icon !== null) args.icon = icon;
 
-    createMutation.mutate(args, {
-      onSuccess: (prompt) => {
-        // Apply the user's chosen tags (which were seeded from the
-        // sidebar filter via `inheritedTagIds`). Fire-and-forget per
-        // tag so a single attach-failure doesn't block the dialog
-        // close — failures surface through React-Query toasts.
-        for (const tagId of tagIds) {
-          addPromptTag.mutate({ promptId: prompt.id, tagId });
-        }
-        onCreated?.(prompt);
-        onClose();
-      },
-      onError: (err) => {
-        setSaveError(`Failed to create: ${err.message}`);
-      },
-    });
-  };
+    try {
+      const prompt = await createMutation.mutateAsync(args);
+      // Apply the user's chosen tags (which were seeded from the
+      // sidebar filter via `inheritedTagIds`). Fire-and-forget per
+      // tag so a single attach-failure doesn't block the dialog
+      // close — failures surface through React-Query toasts.
+      for (const tagId of tagIds) {
+        addPromptTag.mutate({ promptId: prompt.id, tagId });
+      }
+      onCreated?.(prompt);
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError("root.serverError", { message: `Failed to create: ${message}` });
+    }
+  });
 
-  const handleCancel = (): void => {
+  const handleSubmitPress = useCallback((): void => {
+    void onValid();
+  }, [onValid]);
+
+  const handleCancel = useCallback((): void => {
     onClose();
-  };
+  }, [onClose]);
+
+  const serverError = errors.root?.serverError?.message;
 
   return (
     <>
       {/* Name */}
       <div className={styles.section}>
-        <Input
-          label="Name"
-          value={name}
-          onChange={setName}
-          placeholder="Prompt name"
-          autoFocus
-          className={styles.fullWidthInput}
-          data-testid="prompt-create-dialog-name-input"
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <Input
+              label="Name"
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Prompt name"
+              autoFocus
+              className={styles.fullWidthInput}
+              data-testid="prompt-create-dialog-name-input"
+            />
+          )}
         />
       </div>
 
       {/* Short description */}
       <div className={styles.section}>
-        <Input
-          label="Short description"
-          value={shortDescription}
-          onChange={setShortDescription}
-          placeholder="Optional short description…"
-          className={styles.fullWidthInput}
-          data-testid="prompt-create-dialog-shortdesc-input"
+        <Controller
+          control={control}
+          name="shortDescription"
+          render={({ field }) => (
+            <Input
+              label="Short description"
+              value={field.value ?? ""}
+              onChange={field.onChange}
+              placeholder="Optional short description…"
+              className={styles.fullWidthInput}
+              data-testid="prompt-create-dialog-shortdesc-input"
+            />
+          )}
         />
       </div>
 
@@ -234,25 +261,31 @@ function PromptCreateDialogContent({
       {/* Content */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Content</p>
-        <textarea
-          className={styles.contentTextarea}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Prompt content (Markdown)…"
-          data-testid="prompt-create-dialog-content-textarea"
-          aria-label="Content"
+        <Controller
+          control={control}
+          name="content"
+          render={({ field }) => (
+            <textarea
+              className={styles.contentTextarea}
+              value={field.value}
+              onChange={(e) => field.onChange(e.target.value)}
+              placeholder="Prompt content (Markdown)…"
+              data-testid="prompt-create-dialog-content-textarea"
+              aria-label="Content"
+            />
+          )}
         />
       </div>
 
       {/* Footer */}
       <div className={styles.footer}>
-        {saveError ? (
+        {serverError ? (
           <p
             className={styles.saveError}
             role="alert"
             data-testid="prompt-create-dialog-error"
           >
-            {saveError}
+            {serverError}
           </p>
         ) : null}
         <Button
@@ -266,9 +299,9 @@ function PromptCreateDialogContent({
         <Button
           variant="primary"
           size="md"
-          isPending={createMutation.status === "pending"}
-          isDisabled={!canSubmit}
-          onPress={handleSave}
+          isPending={isSubmitting}
+          isDisabled={!isValid}
+          onPress={handleSubmitPress}
           data-testid="prompt-create-dialog-save"
         >
           Create

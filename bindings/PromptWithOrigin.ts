@@ -2,4 +2,12 @@
 import type { OriginRef } from "./OriginRef";
 import type { Prompt } from "./Prompt";
 
-export type PromptWithOrigin = { prompt: Prompt, origin: OriginRef, };
+export type PromptWithOrigin = { prompt: Prompt, origin: OriginRef, overridden: boolean, 
+/**
+ * Set when this row was materialised from an attached prompt group.
+ * Carries the source group's id so the UI can render a "via group"
+ * badge and hide the member from the picker's option list. `None`
+ * for individually-attached rows. `origin` still reflects the
+ * *scope* the group was attached at (its base, group suffix stripped).
+ */
+viaGroup?: string, };

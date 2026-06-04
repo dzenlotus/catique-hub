@@ -20,7 +20,8 @@ use catique_infrastructure::db::{
         roles as roles_repo,
         spaces::{self as repo, SpaceDraft, SpacePatch, SpaceRow},
         tasks::{
-            cascade_clear_scope, cascade_prompt_attachment, cascade_prompt_detachment, AttachScope,
+            cascade_clear_scope, cascade_prompt_attachment, cascade_prompt_detachment,
+            recompute_effective_counts_for_scope, AttachScope,
         },
     },
 };
@@ -206,6 +207,8 @@ impl<'a> SpacesUseCase<'a> {
                 position: 0,
                 role_id: None,
                 is_default: true,
+                icon: None,
+                color: None,
             },
         )
         .map_err(map_db_err)?;
@@ -347,13 +350,11 @@ impl<'a> SpacesUseCase<'a> {
             .map_err(|e| map_db_err(e.into()))?;
         repo::add_space_prompt(&tx, space_id, prompt_id, position).map_err(map_db_err)?;
         let pos = position.unwrap_or(0.0);
-        cascade_prompt_attachment(
-            &tx,
-            &AttachScope::Space(space_id.to_owned()),
-            prompt_id,
-            pos,
-        )
-        .map_err(map_db_err)?;
+        let scope = AttachScope::Space(space_id.to_owned());
+        cascade_prompt_attachment(&tx, &scope, prompt_id, pos).map_err(map_db_err)?;
+        // Refactor-v3 D-B: bump prompt counters on every task whose
+        // board lives in this space.
+        recompute_effective_counts_for_scope(&tx, &scope).map_err(map_db_err)?;
         tx.commit().map_err(|e| map_db_err(e.into()))?;
         Ok(())
     }
@@ -375,8 +376,10 @@ impl<'a> SpacesUseCase<'a> {
             .map_err(|e| map_db_err(e.into()))?;
         let removed = repo::remove_space_prompt(&tx, space_id, prompt_id).map_err(map_db_err)?;
         if removed {
-            cascade_prompt_detachment(&tx, &AttachScope::Space(space_id.to_owned()), prompt_id)
-                .map_err(map_db_err)?;
+            let scope = AttachScope::Space(space_id.to_owned());
+            cascade_prompt_detachment(&tx, &scope, prompt_id).map_err(map_db_err)?;
+            // Refactor-v3 D-B: decrement counters on every task in scope.
+            recompute_effective_counts_for_scope(&tx, &scope).map_err(map_db_err)?;
             tx.commit().map_err(|e| map_db_err(e.into()))?;
             Ok(())
         } else {
@@ -420,6 +423,8 @@ impl<'a> SpacesUseCase<'a> {
             let pos = (idx + 1) as f64;
             cascade_prompt_attachment(&tx, &scope, pid, pos).map_err(map_db_err)?;
         }
+        // Refactor-v3 D-B counter sync across the space.
+        recompute_effective_counts_for_scope(&tx, &scope).map_err(map_db_err)?;
         tx.commit().map_err(|e| map_db_err(e.into()))?;
         Ok(())
     }
@@ -431,7 +436,12 @@ impl<'a> SpacesUseCase<'a> {
     /// Forwards storage-layer errors.
     pub fn set_skills(&self, space_id: &str, skill_ids: &[String]) -> Result<(), AppError> {
         let mut conn = acquire(self.pool).map_err(map_db_err)?;
-        inh::set_skills(&mut conn, InheritanceScope::Space, space_id, skill_ids).map_err(map_db_err)
+        inh::set_skills(&mut conn, InheritanceScope::Space, space_id, skill_ids)
+            .map_err(map_db_err)?;
+        // Refactor-v3 D-B counter sync across the space.
+        recompute_effective_counts_for_scope(&conn, &AttachScope::Space(space_id.to_owned()))
+            .map_err(map_db_err)?;
+        Ok(())
     }
 
     /// Replace the space's MCP-tool list. ctq-120.
@@ -442,7 +452,11 @@ impl<'a> SpacesUseCase<'a> {
     pub fn set_mcp_tools(&self, space_id: &str, mcp_tool_ids: &[String]) -> Result<(), AppError> {
         let mut conn = acquire(self.pool).map_err(map_db_err)?;
         inh::set_mcp_tools(&mut conn, InheritanceScope::Space, space_id, mcp_tool_ids)
-            .map_err(map_db_err)
+            .map_err(map_db_err)?;
+        // Refactor-v3 D-B counter sync across the space.
+        recompute_effective_counts_for_scope(&conn, &AttachScope::Space(space_id.to_owned()))
+            .map_err(map_db_err)?;
+        Ok(())
     }
 
     /// Read the Phase 5 workflow-graph payload for `space_id`. ctq-113.
@@ -515,10 +529,12 @@ impl<'a> SpacesUseCase<'a> {
                 entity: "space".into(),
                 id: space_id.to_owned(),
             })?;
-        let project_folder = space.project_folder_path.ok_or_else(|| AppError::Validation {
-            field: "project_folder_path".into(),
-            reason: "space has no project folder bound; set one before syncing".into(),
-        })?;
+        let project_folder = space
+            .project_folder_path
+            .ok_or_else(|| AppError::Validation {
+                field: "project_folder_path".into(),
+                reason: "space has no project folder bound; set one before syncing".into(),
+            })?;
         let raw_graph = space.workflow_graph_json.unwrap_or_default();
         let graph: WorkflowGraph = if raw_graph.trim().is_empty() {
             WorkflowGraph::default()
@@ -569,22 +585,25 @@ impl<'a> SpacesUseCase<'a> {
                 entity: "space".into(),
                 id: space_id.to_owned(),
             })?;
-        let project_folder = space.project_folder_path.ok_or_else(|| AppError::Validation {
-            field: "project_folder_path".into(),
-            reason: "space has no project folder bound; set one before syncing".into(),
-        })?;
+        let project_folder = space
+            .project_folder_path
+            .ok_or_else(|| AppError::Validation {
+                field: "project_folder_path".into(),
+                reason: "space has no project folder bound; set one before syncing".into(),
+            })?;
 
         // Owner role = the role attached to the default board of the
         // space. `owner_role_id` is NOT NULL at schema level (see
         // migration 004); we just need to find that one board.
         let boards = boards_repo::list_by_space(&conn, space_id).map_err(map_db_err)?;
-        let default_board = boards
-            .into_iter()
-            .find(|b| b.is_default)
-            .ok_or_else(|| AppError::NotFound {
-                entity: "default_board".into(),
-                id: space_id.to_owned(),
-            })?;
+        let default_board =
+            boards
+                .into_iter()
+                .find(|b| b.is_default)
+                .ok_or_else(|| AppError::NotFound {
+                    entity: "default_board".into(),
+                    id: space_id.to_owned(),
+                })?;
         let owner_role = roles_repo::get_by_id(&conn, &default_board.owner_role_id)
             .map_err(map_db_err)?
             .ok_or_else(|| AppError::NotFound {

@@ -237,3 +237,96 @@ pub const MCP_SERVER_CREATED: &str = "mcp_server:created";
 pub const MCP_SERVER_UPDATED: &str = "mcp_server:updated";
 /// `mcp_server:deleted` — payload `{ id }`.
 pub const MCP_SERVER_DELETED: &str = "mcp_server:deleted";
+
+// ---------------------------------------------------------------------
+// Server-as-live-unit attachment (Phase C). Attaching a server pulls all
+// its tools into the scope; emits the scope's `*_UPDATED` event so task
+// bundles re-resolve.
+// ---------------------------------------------------------------------
+
+/// IPC: set the MCP servers attached to a role (each pulls all its tools).
+///
+/// # Errors
+///
+/// Forwards every error from `McpServersUseCase::set_role_servers`.
+#[tauri::command]
+pub async fn set_role_mcp_servers(
+    state: State<'_, AppState>,
+    role_id: String,
+    server_ids: Vec<String>,
+) -> Result<(), AppError> {
+    McpServersUseCase::new(&state.pool).set_role_servers(role_id.clone(), server_ids)?;
+    crate::events::emit(&state, crate::events::ROLE_UPDATED, json!({ "id": role_id }));
+    Ok(())
+}
+
+/// IPC: list the MCP servers attached to a role.
+///
+/// # Errors
+///
+/// Forwards every error from `McpServersUseCase::list_role_servers`.
+#[tauri::command]
+pub async fn list_role_mcp_servers(
+    state: State<'_, AppState>,
+    role_id: String,
+) -> Result<Vec<String>, AppError> {
+    McpServersUseCase::new(&state.pool).list_role_servers(&role_id)
+}
+
+/// IPC: set the MCP servers attached to a board.
+///
+/// # Errors
+///
+/// Forwards every error from `McpServersUseCase::set_board_servers`.
+#[tauri::command]
+pub async fn set_board_mcp_servers(
+    state: State<'_, AppState>,
+    board_id: String,
+    server_ids: Vec<String>,
+) -> Result<(), AppError> {
+    McpServersUseCase::new(&state.pool).set_board_servers(board_id.clone(), server_ids)?;
+    crate::events::emit(&state, crate::events::BOARD_UPDATED, json!({ "id": board_id }));
+    Ok(())
+}
+
+/// IPC: list the MCP servers attached to a board.
+///
+/// # Errors
+///
+/// Forwards every error from `McpServersUseCase::list_board_servers`.
+#[tauri::command]
+pub async fn list_board_mcp_servers(
+    state: State<'_, AppState>,
+    board_id: String,
+) -> Result<Vec<String>, AppError> {
+    McpServersUseCase::new(&state.pool).list_board_servers(&board_id)
+}
+
+/// IPC: set the MCP servers attached directly to a task.
+///
+/// # Errors
+///
+/// Forwards every error from `McpServersUseCase::set_task_servers`.
+#[tauri::command]
+pub async fn set_task_mcp_servers(
+    state: State<'_, AppState>,
+    task_id: String,
+    server_ids: Vec<String>,
+) -> Result<(), AppError> {
+    McpServersUseCase::new(&state.pool).set_task_servers(task_id.clone(), server_ids)?;
+    crate::events::emit(&state, crate::events::TASK_UPDATED, json!({ "id": task_id }));
+    Ok(())
+}
+
+/// IPC: list the MCP servers attached directly to a task.
+///
+/// # Errors
+///
+/// Forwards every error from `McpServersUseCase::list_task_servers`.
+#[tauri::command]
+pub async fn list_task_mcp_servers(
+    state: State<'_, AppState>,
+    task_id: String,
+) -> Result<Vec<String>, AppError> {
+    McpServersUseCase::new(&state.pool).list_task_servers(&task_id)
+}

@@ -5,9 +5,10 @@ import { invokeBridge, readBridge, spaNavigate } from "../helpers/bridge";
 import { sel } from "../helpers/selectors";
 
 async function gotoMcp(page: Page): Promise<void> {
+  // v3: "MCP servers" nav label renamed to "Integrations".
   await page
     .getByTestId(sel.mainSidebar)
-    .getByRole("button", { name: "MCP servers" })
+    .getByRole("button", { name: "Integrations" })
     .click();
   await expect(page.getByTestId(sel.mcpServersPage)).toBeVisible();
 }

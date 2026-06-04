@@ -23,6 +23,8 @@ interface UpdateColumnArgs {
   name?: string;
   position?: number;
   roleId?: string | null;
+  icon?: string | null;
+  color?: string | null;
 }
 
 export function handleColumns(
@@ -54,6 +56,8 @@ export function handleColumns(
         roleId: null,
         createdAt: nowBig(),
         isDefault: false,
+        icon: null,
+        color: null,
       };
       store.columns.set(id, column);
       emitEvent("column:created", { id, board_id: a.boardId });
@@ -68,6 +72,8 @@ export function handleColumns(
         ...(a.name !== undefined ? { name: a.name } : {}),
         ...(a.position !== undefined ? { position: BigInt(a.position) } : {}),
         ...(a.roleId !== undefined ? { roleId: a.roleId } : {}),
+        ...(a.icon !== undefined ? { icon: a.icon } : {}),
+        ...(a.color !== undefined ? { color: a.color } : {}),
       };
       store.columns.set(a.id, next);
       emitEvent("column:updated", { id: a.id, board_id: next.boardId });

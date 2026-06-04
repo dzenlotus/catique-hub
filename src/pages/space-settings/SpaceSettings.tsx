@@ -17,12 +17,23 @@
  * Audit-#13: the `description` form field was removed. `Space.description`
  * is never rendered anywhere in the space view, so the input was dead.
  * Schema column kept; field can return when a rendering surface needs it.
+ *
+ * Form-migration: dirty-tracking + partial-payload + save-status are now
+ * driven by react-hook-form (`useForm` + `zodResolver`). `formState.isDirty`
+ * gates Save; only changed fields are forwarded to `update_space`; the
+ * status / Save row stays in `<SaveBar>` (server error via
+ * `errors.root.serverError`, the transient "Saved" hint via local state);
+ * the General card stays in `<SettingsCard>`. The loading / error guards
+ * use `SettingsCard.StatePanel`.
  */
 
-import { useEffect, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useParamsCompat as useParams, useLocationCompat as useLocation } from "@shared/lib";
 
-import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
+import { useActiveSpace } from "@shared/lib";
 import { boardPath, routes } from "@app/routes";
 import { invoke } from "@shared/api";
 import { pickFolder } from "@shared/lib";
@@ -41,14 +52,14 @@ import type { Role } from "@entities/role";
 import {
   Button,
   ConfirmDialog,
-  IconColorPicker,
+  EntityTitle,
   Input,
+  SaveBar,
   Scrollable,
+  SettingsCard,
 } from "@shared/ui";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 import { cn } from "@shared/lib";
-import { SpacesSidebar } from "@widgets/spaces-sidebar";
-import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
 
 import styles from "./SpaceSettings.module.css";
 
@@ -58,11 +69,16 @@ function SpaceSettingsScreen({
   children: ReactElement;
 }): ReactElement {
   return (
-    <section className={shellStyles.root} data-testid="space-settings-root">
-      <div className={shellStyles.sidebarSlot}>
-        <SpacesSidebar />
-      </div>
-      <div className={shellStyles.contentSlot}>{children}</div>
+    <section className={styles.shell} data-testid="space-settings-root">
+      <Scrollable
+        axis="y"
+        className={styles.scrollHost}
+        data-testid="space-settings-scroll"
+      >
+        <div className={styles.root} data-testid="space-settings">
+          {children}
+        </div>
+      </Scrollable>
     </section>
   );
 }
@@ -88,17 +104,7 @@ export function SpaceSettings(): ReactElement {
   if (spaceQuery.status === "pending") {
     return (
       <SpaceSettingsScreen>
-        <Scrollable
-          axis="y"
-          className={styles.scrollHost}
-          data-testid="space-settings-scroll"
-        >
-          <div className={styles.root} data-testid="space-settings">
-            <div className={styles.statusPanel} role="status">
-              <p className={styles.statusMessage}>Loading space…</p>
-            </div>
-          </div>
-        </Scrollable>
+        <SettingsCard.StatePanel role="status" message="Loading space…" />
       </SpaceSettingsScreen>
     );
   }
@@ -106,49 +112,34 @@ export function SpaceSettings(): ReactElement {
   if (spaceQuery.status === "error") {
     return (
       <SpaceSettingsScreen>
-        <Scrollable
-          axis="y"
-          className={styles.scrollHost}
-          data-testid="space-settings-scroll"
-        >
-          <div className={styles.root} data-testid="space-settings">
-            <div className={styles.statusPanel} role="alert">
-              <p className={styles.statusMessage}>
-                Failed to load space: {spaceQuery.error.message}
-              </p>
-              <Button
-                variant="secondary"
-                size="sm"
-                onPress={() => setLocation(routes.boards)}
-              >
-                Back to spaces
-              </Button>
-            </div>
-          </div>
-        </Scrollable>
+        <SettingsCard.StatePanel
+          role="alert"
+          message={`Failed to load space: ${spaceQuery.error.message}`}
+          action={
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => setLocation(routes.boards)}
+            >
+              Back to spaces
+            </Button>
+          }
+        />
       </SpaceSettingsScreen>
     );
   }
 
   return (
     <SpaceSettingsScreen>
-      <Scrollable
-        axis="y"
-        className={styles.scrollHost}
-        data-testid="space-settings-scroll"
-      >
-        <div className={styles.root} data-testid="space-settings">
-          <SpaceSettingsForm
-            key={spaceQuery.data.id}
-            spaceId={spaceQuery.data.id}
-            initialName={spaceQuery.data.name}
-            initialIcon={spaceQuery.data.icon ?? null}
-            initialColor={spaceQuery.data.color ?? ""}
-            prefix={spaceQuery.data.prefix}
-            initialProjectFolderPath={spaceQuery.data.projectFolderPath ?? ""}
-          />
-        </div>
-      </Scrollable>
+      <SpaceSettingsForm
+        key={spaceQuery.data.id}
+        spaceId={spaceQuery.data.id}
+        initialName={spaceQuery.data.name}
+        initialIcon={spaceQuery.data.icon ?? null}
+        initialColor={spaceQuery.data.color ?? ""}
+        prefix={spaceQuery.data.prefix}
+        initialProjectFolderPath={spaceQuery.data.projectFolderPath ?? ""}
+      />
     </SpaceSettingsScreen>
   );
 }
@@ -170,6 +161,37 @@ interface SpaceSettingsFormProps {
   initialProjectFolderPath: string;
 }
 
+// Form schema. `name` is required (trimmed, non-empty); appearance
+// fields are nullable; the project folder is an optional free-text path.
+// Normalisation happens at submit time when assembling the partial payload.
+const spaceSettingsSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+  icon: z.string().nullable(),
+  color: z.string(),
+  projectFolderPath: z.string(),
+});
+
+type SpaceSettingsFormValues = z.infer<typeof spaceSettingsSchema>;
+
+function entityToValues(
+  props: Pick<
+    SpaceSettingsFormProps,
+    "initialName" | "initialIcon" | "initialColor" | "initialProjectFolderPath"
+  >,
+): SpaceSettingsFormValues {
+  return {
+    name: props.initialName,
+    icon: props.initialIcon,
+    color: props.initialColor,
+    projectFolderPath: props.initialProjectFolderPath,
+  };
+}
+
+const trimNullable = (value: string): string | null => {
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
+};
+
 function SpaceSettingsForm({
   spaceId,
   initialName,
@@ -179,46 +201,89 @@ function SpaceSettingsForm({
   initialProjectFolderPath,
 }: SpaceSettingsFormProps): ReactElement {
   const updateMutation = useUpdateSpaceMutation();
-
-  const [name, setName] = useState(initialName);
-  const [icon, setIcon] = useState<string | null>(initialIcon);
-  const [color, setColor] = useState<string>(initialColor);
-  const [projectFolderPath, setProjectFolderPath] = useState<string>(
-    initialProjectFolderPath,
-  );
+  // Transient "Saved" hint, auto-cleared so it doesn't linger. The form's
+  // dirty/valid state and the server error come from react-hook-form.
   const [savedAt, setSavedAt] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  const trimmedName = name.trim();
-  const resolvedColor = color === "" ? null : color;
-  const initialResolvedColor = initialColor === "" ? null : initialColor;
-  const trimmedProjectFolderPath = projectFolderPath.trim();
-  const resolvedProjectFolderPath: string | null =
-    trimmedProjectFolderPath.length === 0 ? null : trimmedProjectFolderPath;
-  const initialResolvedProjectFolderPath: string | null =
-    initialProjectFolderPath.trim().length === 0
-      ? null
-      : initialProjectFolderPath.trim();
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    setError,
+    clearErrors,
+    getValues,
+    watch,
+    formState: { errors, isDirty, isValid },
+  } = useForm<SpaceSettingsFormValues>({
+    resolver: zodResolver(spaceSettingsSchema),
+    defaultValues: entityToValues({
+      initialName,
+      initialIcon,
+      initialColor,
+      initialProjectFolderPath,
+    }),
+    mode: "onChange",
+  });
 
-  const isDirty =
-    trimmedName !== initialName.trim() ||
-    icon !== initialIcon ||
-    resolvedColor !== initialResolvedColor ||
-    resolvedProjectFolderPath !== initialResolvedProjectFolderPath;
+  // Repopulate when the loaded space changes (the page also remounts via
+  // `key`, but this keeps the form aligned on background refetch).
+  useEffect(() => {
+    reset(
+      entityToValues({
+        initialName,
+        initialIcon,
+        initialColor,
+        initialProjectFolderPath,
+      }),
+    );
+    setSavedAt(null);
+  }, [reset, initialName, initialIcon, initialColor, initialProjectFolderPath]);
 
-  const canSubmit = trimmedName.length > 0 && isDirty;
+  // Auto-clear the "Saved" hint so it doesn't linger.
+  useEffect(() => {
+    if (savedAt === null) return;
+    const t = window.setTimeout(() => setSavedAt(null), 2200);
+    return () => window.clearTimeout(t);
+  }, [savedAt]);
 
-  const handleBrowseProjectFolder = async (): Promise<void> => {
+  const watchedIcon = watch("icon");
+  const watchedColor = watch("color");
+  const watchedName = watch("name");
+  const trimmedName = watchedName.trim();
+  const resolvedColor = watchedColor === "" ? null : watchedColor;
+
+  const setName = useCallback(
+    (next: string) => setValue("name", next, { shouldDirty: true, shouldValidate: true }),
+    [setValue],
+  );
+
+  const handleAppearanceChange = useCallback(
+    (next: { icon: string | null; color: string | null }) => {
+      setValue("icon", next.icon, { shouldDirty: true });
+      setValue("color", next.color ?? "", { shouldDirty: true });
+    },
+    [setValue],
+  );
+
+  const handleBrowseProjectFolder = useCallback(async (): Promise<void> => {
+    const current = trimNullable(getValues("projectFolderPath") ?? "");
     const picked = await pickFolder({
       title: "Select project folder",
-      ...(resolvedProjectFolderPath !== null
-        ? { defaultPath: resolvedProjectFolderPath }
-        : {}),
+      ...(current !== null ? { defaultPath: current } : {}),
     });
-    if (picked !== null) setProjectFolderPath(picked);
-  };
+    if (picked !== null) {
+      setValue("projectFolderPath", picked, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+  }, [getValues, setValue]);
 
-  const handleRevealProjectFolder = (): void => {
+  const handleRevealProjectFolder = useCallback((): void => {
+    const resolvedProjectFolderPath = trimNullable(
+      getValues("projectFolderPath") ?? "",
+    );
     if (resolvedProjectFolderPath === null) return;
     // TODO(round-21-backend): expose `reveal_path_in_default_app` (or
     // similar) IPC. The frontend forwards the path; the Rust side opens
@@ -231,74 +296,77 @@ function SpaceSettingsForm({
     }).catch(() => {
       // Silent: backend handler may not be installed yet.
     });
-  };
+  }, [getValues]);
 
-  const handleSave = (): void => {
-    setError(null);
+  // Partial-payload save: only fields whose normalised value differs from
+  // the loaded space are forwarded to `update_space`. `handleSubmit` runs
+  // the zod resolver first, so an empty name short-circuits before mutate.
+  const onValid = handleSubmit((values) => {
+    clearErrors("root.serverError");
     setSavedAt(null);
 
-    if (trimmedName.length === 0) {
-      setError("Name cannot be empty.");
-      return;
-    }
+    const nextName = values.name.trim();
+    const nextColor = values.color === "" ? null : values.color;
+    const nextFolder = trimNullable(values.projectFolderPath);
+    const initialFolder =
+      initialProjectFolderPath === "" ? null : initialProjectFolderPath;
 
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
     const args: MutationArgs = { id: spaceId };
-    if (trimmedName !== initialName) args.name = trimmedName;
-    if (icon !== initialIcon) args.icon = icon;
-    if (resolvedColor !== initialResolvedColor) args.color = resolvedColor;
-    if (resolvedProjectFolderPath !== initialResolvedProjectFolderPath) {
-      args.projectFolderPath = resolvedProjectFolderPath;
+    if (nextName !== initialName) args.name = nextName;
+    if (values.icon !== initialIcon) args.icon = values.icon;
+    if (nextColor !== (initialColor === "" ? null : initialColor)) {
+      args.color = nextColor;
     }
+    if (nextFolder !== initialFolder) args.projectFolderPath = nextFolder;
 
     updateMutation.mutate(args, {
-      onSuccess: () => {
-        setSavedAt(Date.now());
-      },
-      onError: (err) => {
-        setError(`Failed to save: ${err.message}`);
-      },
+      onSuccess: () => setSavedAt(Date.now()),
+      onError: (err) =>
+        setError("root.serverError", {
+          message: `Failed to save: ${err.message}`,
+        }),
     });
-  };
+  });
+
+  const handleSave = useCallback((): void => {
+    void onValid();
+  }, [onValid]);
+
+  const serverError = errors.root?.serverError?.message ?? null;
+  const folderIsEmpty = trimNullable(watch("projectFolderPath")) === null;
 
   return (
     <>
-      <header
-        className={styles.pageHeader}
-        aria-labelledby="space-settings-heading"
-      >
-        <IconColorPicker
-          value={{ icon, color: resolvedColor }}
-          onChange={(next) => {
-            setIcon(next.icon);
-            setColor(next.color ?? "");
-          }}
-          ariaLabel="Space icon and color"
-          data-testid="space-settings-appearance-picker"
+      <header className={styles.pageHeader}>
+        <EntityTitle
+          size="lg"
+          editable
+          name={trimmedName.length > 0 ? trimmedName : initialName}
+          onNameChange={setName}
+          description="Space settings. The prefix is set at creation and cannot be changed."
+          value={{ icon: watchedIcon, color: resolvedColor }}
+          onAppearanceChange={handleAppearanceChange}
+          pickerAriaLabel="Space icon and color"
+          pickerTestId="space-settings-appearance-picker"
+          editTestId="space-settings-name-inline"
         />
-        <div className={styles.pageHeaderText}>
-          <h2 id="space-settings-heading" className={styles.pageTitle}>
-            {trimmedName.length > 0 ? trimmedName : initialName}
-          </h2>
-          <p className={styles.pageDescription}>
-            Space settings. The prefix is set at creation and cannot be
-            changed.
-          </p>
-        </div>
       </header>
 
-      <section className={styles.card} aria-labelledby="space-settings-form">
-        <h3 id="space-settings-form" className={styles.cardHeading}>
-          General
-        </h3>
-      <div className={styles.cardBody}>
+      <SettingsCard heading="General" headingId="space-settings-form">
         <div className={styles.fields}>
-          <Input
-            label="Name"
-            value={name}
-            onChange={setName}
-            placeholder="Space name"
-            data-testid="space-settings-name-input"
+          <Controller
+            control={control}
+            name="name"
+            render={({ field }) => (
+              <Input
+                label="Name"
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Space name"
+                data-testid="space-settings-name-input"
+              />
+            )}
           />
 
           <div className={styles.readOnlyRow}>
@@ -315,14 +383,20 @@ function SpaceSettingsForm({
            * folder picker (Finder on macOS, Explorer on Windows, GTK /
            * KDE on Linux); the picked path lands in the input below. */}
           <div className={styles.projectFolderRow}>
-            <Input
-              label="Project folder"
-              value={projectFolderPath}
-              onChange={setProjectFolderPath}
-              placeholder="/Users/you/projects/my-app"
-              description="Optional. Click Browse to pick a folder, or paste a path."
-              className={styles.projectFolderInput}
-              data-testid="space-settings-project-folder-input"
+            <Controller
+              control={control}
+              name="projectFolderPath"
+              render={({ field }) => (
+                <Input
+                  label="Project folder"
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="/Users/you/projects/my-app"
+                  description="Optional. Click Browse to pick a folder, or paste a path."
+                  className={styles.projectFolderInput}
+                  data-testid="space-settings-project-folder-input"
+                />
+              )}
             />
             <Button
               variant="secondary"
@@ -337,7 +411,7 @@ function SpaceSettingsForm({
               variant="ghost"
               size="sm"
               onPress={handleRevealProjectFolder}
-              isDisabled={resolvedProjectFolderPath === null}
+              isDisabled={folderIsEmpty}
               aria-label="Reveal project folder in Finder"
               data-testid="space-settings-project-folder-reveal"
             >
@@ -346,38 +420,15 @@ function SpaceSettingsForm({
           </div>
         </div>
 
-        <div className={styles.actions}>
-          {error !== null ? (
-            <p
-              className={styles.error}
-              role="alert"
-              data-testid="space-settings-error"
-            >
-              {error}
-            </p>
-          ) : null}
-          {error === null && savedAt !== null ? (
-            <p
-              className={styles.savedHint}
-              role="status"
-              data-testid="space-settings-saved"
-            >
-              Saved
-            </p>
-          ) : null}
-          <Button
-            variant="primary"
-            size="md"
-            isPending={updateMutation.status === "pending"}
-            isDisabled={!canSubmit}
-            onPress={handleSave}
-            data-testid="space-settings-save"
-          >
-            Save
-          </Button>
-        </div>
-      </div>
-      </section>
+        <SaveBar
+          error={serverError}
+          saved={savedAt !== null}
+          isDisabled={!isDirty || !isValid}
+          isPending={updateMutation.status === "pending"}
+          onSave={handleSave}
+          testIdPrefix="space-settings"
+        />
+      </SettingsCard>
 
       <RolesSection spaceId={spaceId} spaceName={initialName} />
 
@@ -424,46 +475,46 @@ function RolesSection({ spaceId, spaceName }: RolesSectionProps): ReactElement {
     (r) => !r.isSystem && !roleToBoard.has(r.id),
   );
 
-  const handleAttach = (role: Role): void => {
-    createBoard.mutate(
-      {
-        name: role.name,
-        spaceId,
-        ownerRoleId: role.id,
-        ...(role.color !== null ? { color: role.color } : {}),
-      },
-      {
-        onSuccess: (board) => {
-          pushToast("success", `${role.name} attached`);
-          setLocation(boardPath(board.id));
+  const handleAttach = useCallback(
+    (role: Role): void => {
+      createBoard.mutate(
+        {
+          name: role.name,
+          spaceId,
+          ownerRoleId: role.id,
+          ...(role.color !== null ? { color: role.color } : {}),
         },
-        onError: (err) => {
-          // UNIQUE(space_id, owner_role_id) collision → role already
-          // attached (likely cache lag). Show a friendly message
-          // instead of a SQL string.
-          const raw = err instanceof Error ? err.message : String(err);
-          const isDuplicate =
-            raw.toLowerCase().includes("unique constraint") ||
-            raw.toLowerCase().includes("conflict");
-          pushToast(
-            "error",
-            isDuplicate
-              ? `${role.name} is already attached to this space.`
-              : `Failed to attach: ${raw}`,
-          );
+        {
+          onSuccess: (board) => {
+            pushToast("success", `${role.name} attached`);
+            setLocation(boardPath(board.id));
+          },
+          onError: (err) => {
+            // UNIQUE(space_id, owner_role_id) collision → role already
+            // attached (likely cache lag). Show a friendly message
+            // instead of a SQL string.
+            const raw = err instanceof Error ? err.message : String(err);
+            const isDuplicate =
+              raw.toLowerCase().includes("unique constraint") ||
+              raw.toLowerCase().includes("conflict");
+            pushToast(
+              "error",
+              isDuplicate
+                ? `${role.name} is already attached to this space.`
+                : `Failed to attach: ${raw}`,
+            );
+          },
         },
-      },
-    );
-  };
+      );
+    },
+    [createBoard, spaceId, pushToast, setLocation],
+  );
 
-  const handleRemoveConfirmed = (): void => {
+  const handleRemoveConfirmed = useCallback((): void => {
     if (pendingRemoval === null) return;
     deleteBoard.mutate(pendingRemoval.boardId, {
       onSuccess: () => {
-        pushToast(
-          "success",
-          `Role detached from ${spaceName}`,
-        );
+        pushToast("success", `Role detached from ${spaceName}`);
         setPendingRemoval(null);
       },
       onError: (err) => {
@@ -471,19 +522,15 @@ function RolesSection({ spaceId, spaceName }: RolesSectionProps): ReactElement {
         setPendingRemoval(null);
       },
     });
-  };
+  }, [pendingRemoval, deleteBoard, pushToast, spaceName]);
 
   return (
     <>
-      <section
-        className={styles.card}
-        aria-labelledby="space-settings-roles"
-        data-testid="space-settings-roles-section"
+      <SettingsCard
+        heading="Roles"
+        headingId="space-settings-roles"
+        testId="space-settings-roles-section"
       >
-        <h3 id="space-settings-roles" className={styles.cardHeading}>
-          Roles
-        </h3>
-
         {attachedRoles.length > 0 && (
           <ul className={styles.roleList} role="list">
             {attachedRoles.map((r) => {
@@ -551,7 +598,7 @@ function RolesSection({ spaceId, spaceName }: RolesSectionProps): ReactElement {
             ))}
           </ul>
         )}
-      </section>
+      </SettingsCard>
 
       <ConfirmDialog
         isOpen={pendingRemoval !== null}
@@ -587,7 +634,7 @@ function DangerZone({ spaceId, spaceName }: DangerZoneProps): ReactElement {
   const { pushToast } = useToast();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const handleDelete = (): void => {
+  const handleDelete = useCallback((): void => {
     deleteMutation.mutate(spaceId, {
       onSuccess: () => {
         setConfirmOpen(false);
@@ -602,7 +649,7 @@ function DangerZone({ spaceId, spaceName }: DangerZoneProps): ReactElement {
         setConfirmOpen(false);
       },
     });
-  };
+  }, [deleteMutation, spaceId, pushToast, spaceName, setLocation]);
 
   return (
     <>

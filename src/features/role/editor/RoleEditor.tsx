@@ -6,26 +6,54 @@
  *   - `onClose`  — called on Cancel, successful Save, or Esc (via RAC).
  */
 
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, type ReactElement } from "react";
+import { useForm, Controller, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
 import {
   useRole,
   useUpdateRoleMutation,
   useDeleteRoleMutation,
 } from "@entities/role";
+import type { Role } from "@entities/role";
 import {
   Dialog,
   EditorShell,
   Button,
-  IconColorPicker,
-  Input,
+  EntityTitle,
   MarkdownField,
 } from "@shared/ui";
 import { cn } from "@shared/lib";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
+import { HistoryViewerButton } from "@features/version-history";
 
 import { RoleAttachmentsSections } from "./RoleAttachmentsSections";
 import { RoleMemorySection } from "./RoleMemorySection";
+import { RoleSpacesSection } from "./RoleSpacesSection";
 import styles from "./RoleEditor.module.css";
+
+// Name is required (trimmed); content is always-present markdown (empty
+// string is valid — sent as "" when cleared). Icon/color are nullable
+// appearance fields driven by the EntityTitle picker.
+const roleFormSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+  content: z.string(),
+  color: z.string(),
+  icon: z.string().nullable(),
+});
+
+type RoleFormValues = z.infer<typeof roleFormSchema>;
+
+/** Map a loaded role into the editor's form values. */
+function roleToFormValues(role: Role): RoleFormValues {
+  return {
+    name: role.name,
+    content: role.content,
+    color: role.color ?? "",
+    icon: (role as { icon?: string | null }).icon ?? null,
+  };
+}
 
 export interface RoleEditorProps {
   /** null = closed, string = open for this role id */
@@ -100,23 +128,34 @@ export function RoleEditorContent({
   const deleteMutation = useDeleteRoleMutation();
   const { pushToast } = useToast();
 
-  // Local edit state — initialised from the loaded role.
-  const [localName, setLocalName] = useState("");
-  const [localColor, setLocalColor] = useState("");
-  const [localIcon, setLocalIcon] = useState<string | null>(null);
-  const [localContent, setLocalContent] = useState("");
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    setError,
+    clearErrors,
+    formState: { errors },
+  } = useForm<RoleFormValues>({
+    resolver: zodResolver(roleFormSchema),
+    defaultValues: { name: "", content: "", color: "", icon: null },
+    mode: "onChange",
+  });
 
-  // Sync local state when role data loads or roleId changes.
+  // The EntityTitle appearance picker drives icon + color together;
+  // `useWatch` reads them back for the picker `value` prop without an
+  // extra Controller wrapper around the combined name + picker element.
+  const watchedColor = useWatch({ control, name: "color" });
+  const watchedIcon = useWatch({ control, name: "icon" });
+
+  // Repopulate when role data loads or roleId changes.
+  const role = query.data;
   useEffect(() => {
-    if (query.data) {
-      setLocalName(query.data.name);
-      setLocalColor(query.data.color ?? "");
-      setLocalIcon((query.data as { icon?: string | null }).icon ?? null);
-      setLocalContent(query.data.content);
-      setSaveError(null);
+    if (role) {
+      reset(roleToFormValues(role));
+      clearErrors("root.serverError");
     }
-  }, [query.data, roleId]);
+  }, [role, reset, clearErrors]);
 
   // ── Pending ────────────────────────────────────────────────────────
 
@@ -218,38 +257,34 @@ export function RoleEditorContent({
 
   // ── Loaded ─────────────────────────────────────────────────────────
 
-  const role = query.data;
+  // Narrowed non-null after the !query.data guard above.
+  const loadedRole = query.data;
 
-  const handleSave = (): void => {
-    setSaveError(null);
-    const trimmedName = localName.trim();
-    if (!trimmedName) {
-      setSaveError("Name cannot be empty.");
-      return;
-    }
+  const onValid = handleSubmit((values) => {
+    const trimmedName = values.name.trim();
 
     // Empty string → clear to null; non-empty → use value as-is.
-    const resolvedColor = localColor === "" ? null : localColor;
+    const resolvedColor = values.color === "" ? null : values.color;
     const storedIcon =
-      (role as { icon?: string | null }).icon ?? null;
+      (loadedRole as { icon?: string | null }).icon ?? null;
 
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
-    const mutationArgs: MutationArgs = { id: role.id };
+    const mutationArgs: MutationArgs = { id: loadedRole.id };
 
-    if (trimmedName !== role.name) {
+    if (trimmedName !== loadedRole.name) {
       mutationArgs.name = trimmedName;
     }
     // content is always non-null per the Role binding; send empty string when cleared.
-    if (localContent !== role.content) {
-      mutationArgs.content = localContent;
+    if (values.content !== loadedRole.content) {
+      mutationArgs.content = values.content;
     }
     // For nullable color: only include when the resolved value differs from stored.
-    if (resolvedColor !== role.color) {
+    if (resolvedColor !== loadedRole.color) {
       mutationArgs.color = resolvedColor;
     }
     // For nullable icon: same skip-on-equal pattern.
-    if (localIcon !== storedIcon) {
-      (mutationArgs as { icon?: string | null }).icon = localIcon;
+    if (values.icon !== storedIcon) {
+      (mutationArgs as { icon?: string | null }).icon = values.icon;
     }
 
     updateMutation.mutate(mutationArgs, {
@@ -259,27 +294,32 @@ export function RoleEditorContent({
       },
       onError: (err) => {
         pushToast("error", `Failed to save role: ${err.message}`);
-        setSaveError(`Failed to save: ${err.message}`);
+        setError("root.serverError", {
+          message: `Failed to save: ${err.message}`,
+        });
       },
     });
+  });
+
+  const handleSavePress = (): void => {
+    void onValid();
   };
 
   const handleCancel = (): void => {
-    // Reset local state back to role values before closing.
-    setLocalName(role.name);
-    setLocalColor(role.color ?? "");
-    setLocalIcon((role as { icon?: string | null }).icon ?? null);
-    setLocalContent(role.content);
-    setSaveError(null);
+    // Reset form back to role values before closing.
+    reset(roleToFormValues(loadedRole));
+    clearErrors("root.serverError");
     onClose();
   };
 
+  const saveError = errors.root?.serverError?.message;
+
   const handleDelete = (): void => {
     const ok = window.confirm(
-      `Delete role "${role.name}"? This will also remove the role from any connected agents that have it synced.`,
+      `Delete role "${loadedRole.name}"? This will also remove the role from any connected agents that have it synced.`,
     );
     if (!ok) return;
-    deleteMutation.mutate(role.id, {
+    deleteMutation.mutate(loadedRole.id, {
       onSuccess: () => {
         pushToast("success", "Role deleted");
         onClose();
@@ -292,47 +332,73 @@ export function RoleEditorContent({
 
   return (
     <>
-      {/* Name */}
+      {/* Title — inline-editable name + icon-color picker, replaces the
+       * old split layout (name input + standalone color picker). */}
       <div className={styles.section}>
-        <Input
-          label="Name"
-          value={localName}
-          onChange={setLocalName}
-          placeholder="Role name"
-          className={styles.fullWidthInput}
-          data-testid="role-editor-name-input"
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <EntityTitle
+              size="lg"
+              editable
+              name={field.value}
+              onNameChange={field.onChange}
+              editPlaceholder="Role name"
+              editTestId="role-editor-name-input"
+              value={{
+                icon: watchedIcon,
+                color: watchedColor === "" ? null : watchedColor,
+              }}
+              onAppearanceChange={(next) => {
+                setValue("icon", next.icon, { shouldDirty: true });
+                setValue("color", next.color ?? "", { shouldDirty: true });
+              }}
+              pickerAriaLabel="Role icon and color"
+              pickerTestId="role-editor-color-input"
+              actions={
+                <HistoryViewerButton
+                  title="Role content history"
+                  kind="role"
+                  sourceId={loadedRole.id}
+                  currentContent={loadedRole.content}
+                  data-testid="role-editor-history"
+                />
+              }
+            />
+          )}
         />
       </div>
 
-      {/* Identity row (icon + color). */}
-      <div className={styles.section}>
-        <IconColorPicker
-          value={{ icon: localIcon, color: localColor === "" ? null : localColor }}
-          onChange={(next) => {
-            setLocalIcon(next.icon);
-            setLocalColor(next.color ?? "");
-          }}
-          ariaLabel="Role color"
-          data-testid="role-editor-color-input"
-        />
-      </div>
+      {/* Refactor v3 §"Agent detail" — toolkit goes on top so the most
+          frequently edited surface is visible without scrolling.
+          Instructions land below, with version-history/diff controls
+          arriving once D-C ships. */}
+      <RoleAttachmentsSections roleId={loadedRole.id} />
 
       {/* Content — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}
       <div className={styles.section}>
-        <MarkdownField
-          value={localContent}
-          onChange={setLocalContent}
-          placeholder="Role content (Markdown)…"
-          ariaLabel="Content"
-          data-testid="role-editor-content-textarea"
+        <Controller
+          control={control}
+          name="content"
+          render={({ field }) => (
+            <MarkdownField
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Role content (Markdown)…"
+              ariaLabel="Content"
+              data-testid="role-editor-content-textarea"
+            />
+          )}
         />
       </div>
 
-      {/* Attached prompts / skills / MCP tools (ctq-103, ctq-116). */}
-      <RoleAttachmentsSections roleId={role.id} />
-
       {/* Memory — ctq-137 retrospective curation (MEM-S2). */}
-      <RoleMemorySection roleId={role.id} />
+      <RoleMemorySection roleId={loadedRole.id} />
+
+      {/* Working in spaces — boards owned by this agent across the install.
+          Phase 4 stub; the "Add to space" CTA lands with Phase 4 polish. */}
+      <RoleSpacesSection roleId={loadedRole.id} />
 
       {/* Footer */}
       <EditorShell.Footer className={styles.footer}>
@@ -348,7 +414,7 @@ export function RoleEditorContent({
             Delete
           </Button>
         </span>
-        {saveError ? (
+        {saveError !== undefined ? (
           <p
             className={styles.saveError}
             role="alert"
@@ -371,7 +437,7 @@ export function RoleEditorContent({
           size="md"
           isPending={updateMutation.status === "pending"}
           isDisabled={deleteMutation.status === "pending"}
-          onPress={handleSave}
+          onPress={handleSavePress}
           data-testid="role-editor-save"
         >
           Save

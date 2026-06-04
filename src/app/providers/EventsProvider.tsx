@@ -18,9 +18,17 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 
 import { boardsKeys } from "@entities/board";
 import { columnsKeys } from "@entities/column";
-import { tasksKeys } from "@entities/task";
+import { setTaskStatus, tasksKeys } from "@entities/task";
 import { connectedClientsKeys } from "@entities/connected-client";
 import { mcpServersKeys } from "@entities/mcp-server";
+import { spacesKeys } from "@entities/space";
+import { promptsKeys } from "@entities/prompt";
+import { rolesKeys } from "@entities/role";
+import { tagsKeys } from "@entities/tag";
+import { agentReportsKeys } from "@entities/agent-report";
+import { attachmentsKeys } from "@entities/attachment";
+import { promptGroupsKeys } from "@entities/prompt-group";
+import { mcpToolGroupsKeys } from "@entities/mcp-tool-group";
 import { roleNotesKeys, roleNoteTagsKeys } from "@entities/role-note";
 import {
   skillAttachmentsKeys,
@@ -28,12 +36,14 @@ import {
   skillsKeys,
 } from "@entities/skill";
 import { on } from "@shared/api";
+import { useToast } from "@shared/lib";
 
 /** Top-level provider — wire listeners and tear them down on unmount. */
 export function EventsProvider({
   children,
 }: PropsWithChildren): ReactElement {
   const qc = useQueryClient();
+  const { pushToast } = useToast();
 
   useEffect(() => {
     const resolved: UnlistenFn[] = [];
@@ -114,6 +124,9 @@ export function EventsProvider({
         });
         void qc.invalidateQueries({ queryKey: tasksKeys.detail(id) });
         void qc.invalidateQueries({ queryKey: tasksKeys.prompts(id) });
+        // Bundle drives the effective-context XML preview; refresh it too
+        // (e.g. set_task_prompt_groups emits task:updated).
+        void qc.invalidateQueries({ queryKey: tasksKeys.bundle(id) });
       }),
     );
     sub(
@@ -142,25 +155,52 @@ export function EventsProvider({
       }),
     );
 
+    // ---------------- task run lifecycle (Stream J / v3 Wave 4) ----------------
+    // Each event flips the local `useTaskStatus(taskId)` store via the
+    // exported `setTaskStatus` mutator. The store is a lightweight
+    // ref-counted Map (see `@entities/task/model/useTaskStatus.ts`) —
+    // we never pump statuses through react-query because they don't
+    // have a server-canonical representation, only a live signal.
+    sub(
+      on("task:run:started", ({ taskId }) => {
+        setTaskStatus(taskId, "running");
+      }),
+    );
+    sub(
+      on("task:run:finished", ({ taskId }) => {
+        setTaskStatus(taskId, "completed");
+      }),
+    );
+    sub(
+      on("task:run:failed", ({ taskId, error }) => {
+        setTaskStatus(taskId, "failed");
+        // The error toast is the user-visible signal that the agent
+        // run did not just stop quietly. The status badge alone is
+        // easy to miss when the user has navigated away from the
+        // task detail page.
+        pushToast("error", `Agent run failed: ${error}`);
+      }),
+    );
+
     // ---------------- spaces / prompts / roles / tags ----------------
     sub(
       on("space:created", () => {
-        void qc.invalidateQueries({ queryKey: ["spaces"] });
+        void qc.invalidateQueries({ queryKey: spacesKeys.all });
       }),
     );
     sub(
       on("space:updated", () => {
-        void qc.invalidateQueries({ queryKey: ["spaces"] });
+        void qc.invalidateQueries({ queryKey: spacesKeys.all });
       }),
     );
     sub(
       on("space:deleted", () => {
-        void qc.invalidateQueries({ queryKey: ["spaces"] });
+        void qc.invalidateQueries({ queryKey: spacesKeys.all });
       }),
     );
     sub(
       on("prompt:created", () => {
-        void qc.invalidateQueries({ queryKey: ["prompts"] });
+        void qc.invalidateQueries({ queryKey: promptsKeys.all });
         // Any task could potentially now display a new prompt — broad
         // invalidation is simple and correct for v1 (N is small on desktop).
         void qc.invalidateQueries({ queryKey: tasksKeys.all });
@@ -168,29 +208,36 @@ export function EventsProvider({
     );
     sub(
       on("prompt:updated", () => {
-        void qc.invalidateQueries({ queryKey: ["prompts"] });
+        void qc.invalidateQueries({ queryKey: promptsKeys.all });
         void qc.invalidateQueries({ queryKey: tasksKeys.all });
       }),
     );
     sub(
       on("prompt:deleted", () => {
-        void qc.invalidateQueries({ queryKey: ["prompts"] });
+        void qc.invalidateQueries({ queryKey: promptsKeys.all });
         void qc.invalidateQueries({ queryKey: tasksKeys.all });
       }),
     );
     sub(
       on("role:created", () => {
-        void qc.invalidateQueries({ queryKey: ["roles"] });
+        void qc.invalidateQueries({ queryKey: rolesKeys.all });
       }),
     );
     sub(
       on("role:updated", () => {
-        void qc.invalidateQueries({ queryKey: ["roles"] });
+        void qc.invalidateQueries({ queryKey: rolesKeys.all });
+        // A role owns a board; its prompts/skills/mcp-tools flow into the
+        // resolved agent bundle of every task on that board (ADR-0006).
+        // Editing the role must refresh those bundles, else
+        // EffectiveContextPanel shows stale inherited context. Broad
+        // invalidation mirrors the prompt:* handlers (N is small on desktop).
+        void qc.invalidateQueries({ queryKey: tasksKeys.all });
       }),
     );
     sub(
       on("role:deleted", () => {
-        void qc.invalidateQueries({ queryKey: ["roles"] });
+        void qc.invalidateQueries({ queryKey: rolesKeys.all });
+        void qc.invalidateQueries({ queryKey: tasksKeys.all });
       }),
     );
 
@@ -230,17 +277,17 @@ export function EventsProvider({
     );
     sub(
       on("tag:created", () => {
-        void qc.invalidateQueries({ queryKey: ["tags"] });
+        void qc.invalidateQueries({ queryKey: tagsKeys.all });
       }),
     );
     sub(
       on("tag:updated", () => {
-        void qc.invalidateQueries({ queryKey: ["tags"] });
+        void qc.invalidateQueries({ queryKey: tagsKeys.all });
       }),
     );
     sub(
       on("tag:deleted", () => {
-        void qc.invalidateQueries({ queryKey: ["tags"] });
+        void qc.invalidateQueries({ queryKey: tagsKeys.all });
       }),
     );
 
@@ -366,46 +413,46 @@ export function EventsProvider({
     sub(
       on("agent_report:created", ({ task_id }) => {
         void qc.invalidateQueries({
-          queryKey: ["agent_reports", "byTask", task_id],
+          queryKey: agentReportsKeys.byTask(task_id),
         });
-        void qc.invalidateQueries({ queryKey: ["agent_reports"] });
+        void qc.invalidateQueries({ queryKey: agentReportsKeys.all });
       }),
     );
     sub(
       on("agent_report:updated", ({ id, task_id }) => {
         void qc.invalidateQueries({
-          queryKey: ["agent_reports", "byTask", task_id],
+          queryKey: agentReportsKeys.byTask(task_id),
         });
         void qc.invalidateQueries({
-          queryKey: ["agent_reports", "detail", id],
+          queryKey: agentReportsKeys.detail(id),
         });
       }),
     );
     sub(
       on("agent_report:deleted", ({ task_id }) => {
         void qc.invalidateQueries({
-          queryKey: ["agent_reports", "byTask", task_id],
+          queryKey: agentReportsKeys.byTask(task_id),
         });
       }),
     );
     sub(
       on("attachment:created", ({ task_id }) => {
         void qc.invalidateQueries({
-          queryKey: ["attachments", "byTask", task_id],
+          queryKey: attachmentsKeys.byTask(task_id),
         });
       }),
     );
     sub(
       on("attachment:updated", ({ task_id }) => {
         void qc.invalidateQueries({
-          queryKey: ["attachments", "byTask", task_id],
+          queryKey: attachmentsKeys.byTask(task_id),
         });
       }),
     );
     sub(
       on("attachment:deleted", ({ task_id }) => {
         void qc.invalidateQueries({
-          queryKey: ["attachments", "byTask", task_id],
+          queryKey: attachmentsKeys.byTask(task_id),
         });
       }),
     );
@@ -413,48 +460,71 @@ export function EventsProvider({
     // ---------------- prompt groups ----------------
     sub(
       on("prompt_group:created", () => {
-        void qc.invalidateQueries({ queryKey: ["prompt_groups"] });
+        void qc.invalidateQueries({ queryKey: promptGroupsKeys.all });
       }),
     );
     sub(
       on("prompt_group:updated", () => {
-        void qc.invalidateQueries({ queryKey: ["prompt_groups"] });
+        void qc.invalidateQueries({ queryKey: promptGroupsKeys.all });
       }),
     );
     sub(
       on("prompt_group:deleted", () => {
-        void qc.invalidateQueries({ queryKey: ["prompt_groups"] });
+        void qc.invalidateQueries({ queryKey: promptGroupsKeys.all });
       }),
     );
     sub(
       on("prompt_group:members_changed", ({ group_id }) => {
         void qc.invalidateQueries({
-          queryKey: ["prompt_groups", "members", group_id],
+          queryKey: promptGroupsKeys.members(group_id),
         });
+        // A group is a live unit: changing its members re-materialises
+        // task_prompts everywhere it's attached, so every task bundle /
+        // effective-context preview must re-resolve (ADR-0006).
+        void qc.invalidateQueries({ queryKey: tasksKeys.all });
+      }),
+    );
+
+    // ---------------- mcp tool groups (mirror prompt groups) ----------
+    sub(
+      on("mcp_tool_group:created", () => {
+        void qc.invalidateQueries({ queryKey: mcpToolGroupsKeys.all });
+      }),
+    );
+    sub(
+      on("mcp_tool_group:updated", () => {
+        void qc.invalidateQueries({ queryKey: mcpToolGroupsKeys.all });
+      }),
+    );
+    sub(
+      on("mcp_tool_group:deleted", () => {
+        void qc.invalidateQueries({ queryKey: mcpToolGroupsKeys.all });
+        void qc.invalidateQueries({ queryKey: tasksKeys.all });
+      }),
+    );
+    sub(
+      on("mcp_tool_group:members_changed", ({ group_id }) => {
+        void qc.invalidateQueries({
+          queryKey: mcpToolGroupsKeys.members(group_id),
+        });
+        void qc.invalidateQueries({ queryKey: tasksKeys.all });
       }),
     );
 
     // ---------------- connected providers (round-21) ----------------
-    // Provider lifecycle events still mirror the connected list query
-    // key. The `client:` namespace is preserved on the wire; only the
-    // semantics changed (no more discovery / instructions / per-card
-    // sync).
+    // Wire names are `connected_provider:added` / `connected_provider:removed`
+    // (crates/api/src/events.rs). These previously listened on a `client:*`
+    // namespace that the backend no longer emits, so the connected-providers
+    // list silently went stale; keep these in sync with the Rust constants.
     sub(
-      on("client:discovered", () => {
+      on("connected_provider:added", () => {
         void qc.invalidateQueries({
           queryKey: connectedClientsKeys.list(),
         });
       }),
     );
     sub(
-      on("client:updated", () => {
-        void qc.invalidateQueries({
-          queryKey: connectedClientsKeys.list(),
-        });
-      }),
-    );
-    sub(
-      on("client:removed", () => {
+      on("connected_provider:removed", () => {
         void qc.invalidateQueries({
           queryKey: connectedClientsKeys.list(),
         });
@@ -495,7 +565,7 @@ export function EventsProvider({
         });
       }
     };
-  }, [qc]);
+  }, [qc, pushToast]);
 
   return <>{children}</>;
 }

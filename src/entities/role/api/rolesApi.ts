@@ -21,6 +21,7 @@ import type { Role } from "@bindings/Role";
 import type { Prompt } from "@bindings/Prompt";
 import type { Skill } from "@bindings/Skill";
 import type { McpTool } from "@bindings/McpTool";
+import type { RoleContentVersionView } from "@bindings/RoleContentVersionView";
 
 /** `list_roles` — return every role. */
 export async function listRoles(): Promise<Role[]> {
@@ -280,4 +281,37 @@ export async function setRoleMcpTools(
     await addRoleMcpTool({ roleId, mcpToolId, position });
     position += 1;
   }
+}
+
+// ─── Version history (D-C) ─────────────────────────────────────────────
+
+/**
+ * `list_role_versions` — last 50 versions of `role.content`, newest first.
+ * The current content is NOT included in the list — diff against it via
+ * the loaded `Role`.
+ */
+export async function listRoleVersions(
+  roleId: string,
+): Promise<RoleContentVersionView[]> {
+  return invokeWithAppError<RoleContentVersionView[]>("list_role_versions", {
+    roleId,
+  });
+}
+
+/** `get_role_version` — full content of a single version row. */
+export async function getRoleVersion(
+  versionId: string,
+): Promise<RoleContentVersionView> {
+  return invokeWithAppError<RoleContentVersionView>("get_role_version", {
+    versionId,
+  });
+}
+
+/**
+ * `revert_role_to_version` — set `role.content` to the version's content.
+ * The pre-revert state is snapshotted by the use case (subject to debounce
+ * inside `RolesUseCase::update`). Returns the updated `Role`.
+ */
+export async function revertRoleToVersion(versionId: string): Promise<Role> {
+  return invokeWithAppError<Role>("revert_role_to_version", { versionId });
 }

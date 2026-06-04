@@ -1,0 +1,61 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--color-info-default, #3b82f6);
+  flex-shrink: 0;
+}
+
+.stripe {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 2px;
+  background-color: var(--color-info-default, #3b82f6);
+  border-radius: 1px;
+  opacity: 0.6;
+}
+
+.root[data-status="queued"] .dot,
+.root[data-status="queued"] .stripe {
+  background-color: var(--color-warning-default, #eab308);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .root[data-status="running"] .dot {
+    animation: spin 1s linear infinite;
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.6);
+  }
+  .root[data-status="running"] .stripe {
+    animation: slide 1.6s linear infinite;
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes slide {
+  0% {
+    transform: translateX(-60%);
+  }
+  100% {
+    transform: translateX(60%);
+  }
+}

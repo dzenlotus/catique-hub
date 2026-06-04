@@ -15,6 +15,9 @@ export {
   deletePrompt,
   listPromptTagsMap,
   recomputePromptTokenCount,
+  listPromptVersions,
+  getPromptVersion,
+  revertPromptToVersion,
 } from "./api";
 export type { CreatePromptArgs, UpdatePromptArgs } from "./api";
 
@@ -28,12 +31,18 @@ export {
   useUpdatePromptMutation,
   useDeletePromptMutation,
   useRecomputePromptTokenCountMutation,
+  usePromptVersions,
+  usePromptVersion,
+  useRevertPromptToVersionMutation,
   PROMPT_TEMPLATE_STORAGE_KEY,
   promptTemplateCodec,
 } from "./model";
-export type { Prompt, PromptTemplate } from "./model";
+export type {
+  Prompt,
+  PromptTemplate,
+  RevertPromptToVersionArgs,
+} from "./model";
 
 // UI
 export { PromptCard } from "./ui";
 export type { PromptCardProps } from "./ui";
-export { PromptsList } from "./ui";

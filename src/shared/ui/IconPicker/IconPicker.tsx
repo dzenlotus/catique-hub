@@ -30,6 +30,8 @@ import {
 import { cn } from "@shared/lib";
 import * as IconSet from "@shared/ui/Icon";
 
+import { Input } from "../Input";
+
 import styles from "./IconPicker.module.css";
 
 const MAX_VISIBLE = 200;
@@ -148,16 +150,18 @@ export function IconPicker({
       </AriaButton>
       <Popover className={styles.popover} placement="bottom start">
         <AriaDialog className={styles.dialog} aria-label="Icon picker">
-          <input
-            type="text"
-            className={styles.searchInput}
+          <Input
+            type="search"
+            label="Search icons"
+            labelHidden
+            className={styles.searchField}
             placeholder="Search icons…"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
             autoFocus
-            data-testid={
-              testId !== undefined ? `${testId}-search` : undefined
-            }
+            {...(testId !== undefined
+              ? { "data-testid": `${testId}-search` }
+              : {})}
           />
           <div className={styles.toolbar}>
             <span>

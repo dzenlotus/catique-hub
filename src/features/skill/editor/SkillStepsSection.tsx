@@ -16,7 +16,7 @@
  * prompts-page providers when those mount in adjacent routes.
  */
 
-import { useCallback, useState, type ReactElement } from "react";
+import { useCallback, useMemo, useState, type ReactElement } from "react";
 import { DragDropProvider } from "@dnd-kit/react";
 
 import {
@@ -27,8 +27,8 @@ import {
   useUpdateSkillStepMutation,
 } from "@entities/skill";
 import type { SkillStep } from "@entities/skill";
-import { Button } from "@shared/ui";
-import { useToast } from "@app/providers/ToastProvider";
+import { Button, EntityTree, type EntityTreeNode } from "@shared/ui";
+import { useToast } from "@shared/lib";
 
 import { SkillStepCard } from "./SkillStepCard";
 import { SkillStepForm, type SkillStepFormValue } from "./SkillStepForm";
@@ -112,6 +112,23 @@ function SkillStepsBody({
     onPersist: handleReorderPersist,
   });
 
+  // EntityTree row per step. `node.id` is the bare step id so it matches
+  // the reorder hook's sortable identities; the rich card body (index,
+  // title, chevron, inline edit / delete, expandable body) is rendered
+  // through `renderRow`. The display ordinal is baked into the payload
+  // so `renderRow` doesn't have to look the node up by position.
+  const treeData = useMemo<
+    EntityTreeNode<{ step: SkillStep; ordinal: number }>[]
+  >(
+    () =>
+      orderedSteps.map((step, ordinal) => ({
+        id: step.id,
+        label: step.title,
+        data: { step, ordinal },
+      })),
+    [orderedSteps],
+  );
+
   const handleAdd = (value: SkillStepFormValue): void => {
     addMutation.mutate(
       {
@@ -193,13 +210,24 @@ function SkillStepsBody({
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <ul className={styles.list} data-testid="skill-steps-list">
-            {orderedSteps.map((step, index) => (
-              <li key={step.id} className={styles.listItem}>
+          <EntityTree<{ step: SkillStep; ordinal: number }>
+            testIdPrefix="skill-steps"
+            data={treeData}
+            rowConfig={(node) => ({
+              draggable: {
+                type: "skill-step",
+                group: sortableGroupKey,
+                handleAriaLabel: `Drag step ${node.label}`,
+              },
+            })}
+            renderRow={({ node }) => {
+              const payload = node.data;
+              if (!payload) return null;
+              const { step, ordinal } = payload;
+              return (
                 <SkillStepCard
                   step={step}
-                  index={index}
-                  sortableGroupKey={sortableGroupKey}
+                  index={ordinal}
                   isUpdating={
                     updateMutation.status === "pending" &&
                     updateMutation.variables?.id === step.id
@@ -211,9 +239,9 @@ function SkillStepsBody({
                   onSave={(value) => handleSave(step.id, value)}
                   onDelete={() => handleDelete(step.id)}
                 />
-              </li>
-            ))}
-          </ul>
+              );
+            }}
+          />
         </DragDropProvider>
       )}
     </>

@@ -1,0 +1,102 @@
+/*
+ * PromptsTagFilterPopover — sidebar section-header filter trigger + popover.
+ *
+ * The trigger mirrors `SidebarShell`'s `.sectionAddTrigger` so it reads as a
+ * peer to the "Add prompt" "+" button beside it. The popover reuses the
+ * Menu surface treatment (overlay bg + border + soft shadow).
+ */
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.trigger[data-hovered] {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.trigger[data-focus-visible] {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* Active state — at least one tag selected. */
+.triggerActive {
+  color: var(--color-text-default);
+  background-color: var(--color-accent-soft);
+}
+
+.count {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}
+
+/* ── Popover surface ────────────────────────────────────────────── */
+
+.popover {
+  outline: none;
+  animation: prompts-tag-filter-fade-in 120ms ease-out;
+}
+
+.popover[data-exiting] {
+  animation: prompts-tag-filter-fade-out 100ms ease-in;
+}
+
+.dialog {
+  width: 280px;
+  max-width: calc(100vw - var(--space-32));
+  padding: var(--space-12);
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-med);
+  outline: none;
+}
+
+@keyframes prompts-tag-filter-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes prompts-tag-filter-fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger {
+    transition: none;
+  }
+  .popover,
+  .popover[data-exiting] {
+    animation: none;
+  }
+}

@@ -1,7 +1,7 @@
 /**
  * PromptTagsField — react-aria multi-select tag input for prompts.
  *
- * Round-19f: rebuilt on top of the shared `<MultiTagInput>` primitive
+ * Round-19f: rebuilt on top of the shared `<SelectTag>` primitive
  * (which uses react-aria's `<TagGroup>` + `<ComboBox>` underneath).
  * Two operating modes:
  *
@@ -24,8 +24,8 @@ import {
   useTags,
 } from "@entities/tag";
 import { usePromptTagsMap } from "@entities/prompt";
-import { MultiTagInput, type MultiTagInputItem } from "@shared/ui";
-import { useToast } from "@app/providers/ToastProvider";
+import { SelectTag, type SelectTagOption } from "@shared/ui";
+import { useToast } from "@shared/lib";
 
 interface PromptTagsFieldPersistentProps {
   mode?: "persistent";
@@ -61,7 +61,7 @@ function PersistentField({ promptId }: { promptId: string }): ReactElement {
   const createMutation = useCreateTagMutation();
   const { pushToast } = useToast();
 
-  const items = useMemo<MultiTagInputItem[]>(
+  const options = useMemo<SelectTagOption[]>(
     () =>
       (tagsQuery.data ?? []).map((t) => ({
         id: t.id,
@@ -105,10 +105,10 @@ function PersistentField({ promptId }: { promptId: string }): ReactElement {
   };
 
   return (
-    <MultiTagInput
+    <SelectTag
       label="Tags"
-      items={items}
-      selectedIds={attachedIds}
+      options={options}
+      values={attachedIds}
       onChange={handleChange}
       onCreate={handleCreate}
       placeholder="Search or create a tag…"
@@ -132,7 +132,7 @@ function DraftField({
   const createMutation = useCreateTagMutation();
   const { pushToast } = useToast();
 
-  const items = useMemo<MultiTagInputItem[]>(
+  const options = useMemo<SelectTagOption[]>(
     () =>
       (tagsQuery.data ?? []).map((t) => ({
         id: t.id,
@@ -157,10 +157,10 @@ function DraftField({
   };
 
   return (
-    <MultiTagInput
+    <SelectTag
       label="Tags"
-      items={items}
-      selectedIds={value}
+      options={options}
+      values={value}
       onChange={onChange}
       onCreate={handleCreate}
       placeholder="Search or create a tag…"

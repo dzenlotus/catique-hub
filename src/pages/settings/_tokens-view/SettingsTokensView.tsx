@@ -12,7 +12,7 @@ import { usePrompts, useRecomputePromptTokenCountMutation } from "@entities/prom
 import type { Prompt } from "@entities/prompt";
 import { Button } from "@shared/ui";
 import { cn } from "@shared/lib";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 
 import styles from "./SettingsTokensView.module.css";
 

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 
 // SettingsTokensView (rendered inside SettingsView) calls usePrompts(), which
 // issues IPC via @shared/api. Mock at that boundary so the test suite doesn't
@@ -151,28 +151,6 @@ describe("SettingsView", () => {
   it("About section mentions Elastic-2.0 license", () => {
     setup();
     expect(screen.getByText(/Elastic-2\.0/)).toBeInTheDocument();
-  });
-
-  // ── Profile section ────────────────────────────────────────────────
-
-  it("Profile section renders with the heading 'Profile'", () => {
-    setup();
-    expect(
-      screen.getByRole("heading", { name: /^profile$/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("Profile avatar shows the initial 'M'", () => {
-    setup();
-    const avatar = screen.getByTestId("settings-view-profile-avatar");
-    expect(avatar.textContent).toBe("M");
-  });
-
-  it("Profile name input has the value 'Maintainer' and is disabled", () => {
-    setup();
-    const nameInput = screen.getByTestId("settings-view-profile-name-input");
-    expect(nameInput).toHaveValue("Maintainer");
-    expect(nameInput).toBeDisabled();
   });
 
   // ── MCP Sidecar section (ADR-0002 spike ctq-56) ───────────────────────

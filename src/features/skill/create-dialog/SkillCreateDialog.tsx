@@ -13,13 +13,24 @@
  * was inert and the colour-only path read as confused UI.
  */
 
-import { useState, type ReactElement } from "react";
+import { useCallback, type ReactElement } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { useCreateSkillMutation } from "@entities/skill";
 import type { Skill } from "@entities/skill";
 import { Dialog, Button, Input } from "@shared/ui";
 
 import styles from "./SkillCreateDialog.module.css";
+
+// react-hook-form schema — name required; description optional.
+const skillFormSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+  description: z.string().optional(),
+});
+
+type SkillFormValues = z.infer<typeof skillFormSchema>;
 
 export interface SkillCreateDialogProps {
   isOpen: boolean;
@@ -69,67 +80,83 @@ function SkillCreateDialogContent({
 }: SkillCreateDialogContentProps): ReactElement {
   const createMutation = useCreateSkillMutation();
 
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const {
+    control,
+    handleSubmit,
+    setError,
+    formState: { errors, isValid, isSubmitting },
+  } = useForm<SkillFormValues>({
+    resolver: zodResolver(skillFormSchema),
+    defaultValues: { name: "", description: "" },
+    mode: "onChange",
+  });
 
-  const canSubmit = name.trim().length > 0;
-
-  const handleSave = (): void => {
-    setSaveError(null);
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setSaveError("Name cannot be empty.");
-      return;
-    }
-
+  const onValid = handleSubmit(async (values) => {
     // `position` is required by the Rust handler (non-optional `f64`).
     // Use `Date.now()` so each new skill lands at the end of the list —
     // monotonically increasing, no list dependency, matches the
     // server-side `(position, name)` ordering.
-    type MutationArgs = Parameters<typeof createMutation.mutate>[0];
-    const args: MutationArgs = { name: trimmedName, position: Date.now() };
+    type MutationArgs = Parameters<typeof createMutation.mutateAsync>[0];
+    const args: MutationArgs = { name: values.name, position: Date.now() };
+    const description = values.description ?? "";
     if (description !== "") args.description = description;
 
-    createMutation.mutate(args, {
-      onSuccess: (skill) => {
-        onCreated?.(skill);
-        onClose();
-      },
-      onError: (err) => {
-        setSaveError(`Failed to create: ${err.message}`);
-      },
-    });
-  };
+    try {
+      const skill = await createMutation.mutateAsync(args);
+      onCreated?.(skill);
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError("root.serverError", { message: `Failed to create: ${message}` });
+    }
+  });
 
-  const handleCancel = (): void => {
+  const handleSubmitPress = useCallback((): void => {
+    void onValid();
+  }, [onValid]);
+
+  const handleCancel = useCallback((): void => {
     onClose();
-  };
+  }, [onClose]);
+
+  const serverError = errors.root?.serverError?.message;
 
   return (
     <>
       {/* Name */}
       <div className={styles.section}>
-        <Input
-          label="Name"
-          value={name}
-          onChange={setName}
-          placeholder="Skill name"
-          autoFocus
-          className={styles.fullWidthInput}
-          data-testid="skill-create-dialog-name-input"
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <Input
+              label="Name"
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Skill name"
+              autoFocus
+              className={styles.fullWidthInput}
+              data-testid="skill-create-dialog-name-input"
+            />
+          )}
         />
       </div>
 
       {/* Description */}
       <div className={styles.section}>
-        <Input
-          label="Description"
-          value={description}
-          onChange={setDescription}
-          placeholder="Short description of the skill"
-          className={styles.fullWidthInput}
-          data-testid="skill-create-dialog-description-input"
+        <Controller
+          control={control}
+          name="description"
+          render={({ field }) => (
+            <Input
+              label="Description"
+              value={field.value ?? ""}
+              onChange={field.onChange}
+              placeholder="Short description of the skill"
+              className={styles.fullWidthInput}
+              data-testid="skill-create-dialog-description-input"
+            />
+          )}
         />
       </div>
 
@@ -148,13 +175,13 @@ function SkillCreateDialogContent({
 
       {/* Footer */}
       <div className={styles.footer}>
-        {saveError ? (
+        {serverError ? (
           <p
             className={styles.saveError}
             role="alert"
             data-testid="skill-create-dialog-error"
           >
-            {saveError}
+            {serverError}
           </p>
         ) : null}
         <Button
@@ -168,9 +195,9 @@ function SkillCreateDialogContent({
         <Button
           variant="primary"
           size="md"
-          isPending={createMutation.status === "pending"}
-          isDisabled={!canSubmit}
-          onPress={handleSave}
+          isPending={isSubmitting}
+          isDisabled={!isValid}
+          onPress={handleSubmitPress}
           data-testid="skill-create-dialog-save"
         >
           Create

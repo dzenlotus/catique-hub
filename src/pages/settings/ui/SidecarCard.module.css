@@ -1,0 +1,5 @@
+.drawerHint {
+  margin-top: var(--space-12);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}

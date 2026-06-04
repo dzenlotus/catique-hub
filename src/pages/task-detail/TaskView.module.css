@@ -1,6 +1,7 @@
 /*
- * TaskView — page-shell layout matching SidebarShell.sectionsWrap so
- * this page reads as a peer to other settings pages.
+ * TaskView — 2-column task detail layout (Task B7), mirroring the
+ * prompt-group inline view: editable form on the left, read-only XML
+ * preview on the right.
  */
 
 .scrollHost {
@@ -13,14 +14,44 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
-  padding: 24px 20px 28px;
+  padding: var(--space-24);
   box-sizing: border-box;
-  max-width: 760px;
+  height: 100%;
   width: 100%;
 }
 
 .backRow {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
+  gap: var(--space-12);
   padding-bottom: var(--space-4);
+}
+
+/* ── 2-column body ────────────────────────────────────────────────── */
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-16);
+}
+
+.formColumn {
+  min-width: 0;
+  min-height: 0;
+}
+
+.formInner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding-right: var(--space-4);
+}
+
+.previewPane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
 }

@@ -48,10 +48,11 @@ test.describe("prompts", () => {
       content: "Delete dead branches.",
     });
 
-    await page
-      .getByTestId(sel.mainSidebar)
-      .getByRole("button", { name: "Boards" })
-      .click();
+    // v3: no "Boards" nav button — SPA-navigate to "/" (board home) instead.
+    await page.evaluate(() => {
+      window.history.pushState({}, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
     await expect(page.getByRole("heading", { name: "All quiet here" })).toBeVisible();
 
     await gotoPrompts(page);
@@ -125,26 +126,6 @@ test.describe("prompts", () => {
     const state = await readBridge(page);
     const prompts = state["prompts"] as Array<[string, { content: string }]>;
     expect(prompts.find(([pid]) => pid === id)?.[1].content).toBe("v2 body");
-  });
-
-  test("All Prompts entry resets the group selection", async ({ page }) => {
-    await gotoPrompts(page);
-
-    // Seed a group via the bridge so we have something to navigate away
-    // from; landing on a group flips selection state inside the page.
-    const group = await invokeBridge<{ id: string }>(
-      page,
-      "create_prompt_group",
-      { name: "Setup" },
-    );
-
-    // Pick the group from the sidebar.
-    await page.getByTestId(sel.groupRow(group.id)).click({ force: true });
-    await expect(page.getByTestId(sel.inlineGroupView.root)).toBeVisible();
-
-    // Click "All Prompts" to drop back to the grid view.
-    await page.getByTestId(sel.promptsAllPrompts).click();
-    await expect(page.getByTestId(sel.inlineGroupView.root)).toHaveCount(0);
   });
 
   test("opening then closing the editor via Cancel routes back to the grid", async ({

@@ -163,12 +163,41 @@ test.describe("prompt groups", () => {
     await page.getByTestId(sel.inlineGroupView.menu).click();
     await page.getByRole("menuitem", { name: "Settings" }).click();
 
-    // Group settings page should render with the group's name in the
-    // controlled name input.
+    // Group settings is now appearance + delete only (rename is inline).
     await expect(page.getByTestId(sel.inlineGroupSettings.root)).toBeVisible();
     await expect(
-      page.getByTestId(sel.inlineGroupSettings.nameInput),
-    ).toHaveValue("Settings target");
+      page.getByTestId(sel.inlineGroupSettings.appearance),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId(sel.inlineGroupSettings.delete),
+    ).toBeVisible();
+  });
+
+  test("renaming a group inline from the sidebar kebab persists the new name", async ({
+    page,
+  }) => {
+    await gotoPrompts(page);
+    const groupId = await createGroupViaUi(page, "Old name");
+
+    // Open the group's kebab and pick Rename — the row label becomes an
+    // inline input (no modal).
+    await page.getByTestId(sel.groupKebab(groupId)).click();
+    await page.getByRole("menuitem", { name: "Rename" }).click();
+
+    const input = page.getByTestId(sel.groupRenameInput(groupId));
+    await expect(input).toBeVisible();
+    await input.fill("New name");
+    await input.press("Enter");
+
+    // Input closes back into the label row and the store reflects the
+    // new name.
+    await expect(input).toHaveCount(0);
+    await expect(page.getByTestId(sel.groupRow(groupId))).toBeVisible();
+
+    const state = await readBridge(page);
+    const groups = state["promptGroups"] as Array<[string, { name: string }]>;
+    const row = groups.find(([id]) => id === groupId);
+    expect(row?.[1].name).toBe("New name");
   });
 
   test("adding a second prompt to a group via the bridge persists in members", async ({

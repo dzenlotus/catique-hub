@@ -46,7 +46,21 @@ export function handleMisc(
     case "remove_task_prompt":
     case "set_task_prompt_override":
     case "clear_task_prompt_override":
+    case "set_task_prompt_override_v2":
+    case "clear_task_prompt_override_v2":
+    case "set_task_skill_override_v2":
+    case "clear_task_skill_override_v2":
+    case "set_task_mcp_tool_override_v2":
+    case "clear_task_mcp_tool_override_v2":
+    case "run_task_agent":
       return null;
+
+    // -------------- skill export (Stream J / v3 Wave 4) --------------
+    // Bridge serialises a deterministic payload so Playwright specs
+    // that exercise <SkillExportButton/> see a stable markdown body
+    // without spinning up the Rust pipeline.
+    case "export_skill_as_markdown":
+      return "# Mock skill\n\nSerialised by the bridge.";
 
     // -------------- agent reports --------------
     case "list_agent_reports":
@@ -107,7 +121,25 @@ export function handleMisc(
     case "sidecar_status":
       return { state: "stopped" };
     case "sidecar_ping":
+    case "sidecar_start":
+    case "sidecar_stop":
     case "sidecar_restart":
+      return null;
+
+    // -------------- activity log (refactor v3 / Wave 5 + D-D) --------------
+    case "list_recent_events":
+    case "list_recent_events_by_scope":
+      return [];
+
+    // -------------- version history (refactor v3 / Round 2 D-C) --------------
+    case "list_role_versions":
+    case "list_prompt_versions":
+      return [];
+    case "get_role_version":
+    case "get_prompt_version":
+      return null;
+    case "revert_role_to_version":
+    case "revert_prompt_to_version":
       return null;
 
     // -------------- connected clients --------------

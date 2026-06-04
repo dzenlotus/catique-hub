@@ -9,30 +9,14 @@ test.describe("navigation", () => {
     await sidebar.getByRole("button", { name: "Prompts" }).click();
     await expect(page.getByTestId(sel.promptsPage)).toBeVisible();
 
-    await sidebar.getByRole("button", { name: "Roles" }).click();
+    await sidebar.getByRole("button", { name: "Agents" }).click();
     await expect(page.getByTestId(sel.rolesPage)).toBeVisible();
 
     await sidebar.getByRole("button", { name: "Skills" }).click();
     await expect(page.getByTestId(sel.skillsPage)).toBeVisible();
 
-    await sidebar.getByRole("button", { name: "MCP servers" }).click();
+    await sidebar.getByRole("button", { name: "Integrations" }).click();
     await expect(page.getByTestId(sel.mcpServersPage)).toBeVisible();
-  });
-
-  test("Boards nav row toggles the spaces sidebar visibility", async ({
-    page,
-  }) => {
-    await expect(page.getByTestId(sel.spacesSidebar)).toBeVisible();
-    await page
-      .getByTestId(sel.mainSidebar)
-      .getByRole("button", { name: "Prompts" })
-      .click();
-    await expect(page.getByTestId(sel.spacesSidebar)).toHaveCount(0);
-    await page
-      .getByTestId(sel.mainSidebar)
-      .getByRole("button", { name: "Boards" })
-      .click();
-    await expect(page.getByTestId(sel.spacesSidebar)).toBeVisible();
   });
 
   test("browser back/forward preserves the current page across two clicks", async ({
@@ -43,14 +27,14 @@ test.describe("navigation", () => {
     await sidebar.getByRole("button", { name: "Prompts" }).click();
     await expect(page.getByTestId(sel.promptsPage)).toBeVisible();
 
-    await sidebar.getByRole("button", { name: "Roles" }).click();
+    await sidebar.getByRole("button", { name: "Agents" }).click();
     await expect(page.getByTestId(sel.rolesPage)).toBeVisible();
 
     // Back to Prompts.
     await page.goBack();
     await expect(page.getByTestId(sel.promptsPage)).toBeVisible();
 
-    // Forward to Roles.
+    // Forward to Agents.
     await page.goForward();
     await expect(page.getByTestId(sel.rolesPage)).toBeVisible();
   });

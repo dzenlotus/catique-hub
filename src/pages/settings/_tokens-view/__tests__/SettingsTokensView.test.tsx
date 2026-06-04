@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Prompt } from "@entities/prompt";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 
 // Mock Tauri invoke at the shared/api boundary.
 vi.mock("@shared/api", async () => {

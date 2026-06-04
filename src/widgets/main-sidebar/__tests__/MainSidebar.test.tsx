@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { TestRouter } from "@shared/lib";
 
-import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
+import { ActiveSpaceProvider } from "@app/providers";
 import { LocalStorageStore, stringCodec } from "@shared/storage";
 import { MainSidebar } from "../MainSidebar";
 import type { NavView } from "../MainSidebar";

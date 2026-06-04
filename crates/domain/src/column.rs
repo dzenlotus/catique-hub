@@ -22,4 +22,12 @@ pub struct Column {
     /// IPC; the only way to drop a default column is to delete the
     /// owning board.
     pub is_default: bool,
+    /// Optional icon registry name (e.g. `PixelDesignLayer`). `None`
+    /// falls back to the column's name-heuristic glyph in the UI.
+    /// Migration `031_columns_icon_color.sql`.
+    pub icon: Option<String>,
+    /// Optional CSS color string applied to the column's icon /
+    /// accent. `None` inherits `--color-text-default`. Migration
+    /// `031_columns_icon_color.sql`.
+    pub color: Option<String>,
 }

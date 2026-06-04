@@ -7,6 +7,10 @@
  */
 
 import { useEffect, useState, type ReactElement } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
 import { usePrompt, useUpdatePromptMutation } from "@entities/prompt";
 import {
   Dialog,
@@ -17,10 +21,21 @@ import {
   IconColorPicker,
 } from "@shared/ui";
 import { cn } from "@shared/lib";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 import { PromptTagsField } from "@features/prompt-tags/field";
 
 import styles from "./PromptEditor.module.css";
+
+// Name + content are required (trimmed); short description is optional
+// ("" → null on update). Icon/color live outside the form (driven by
+// the dialog-header picker), matching the SpaceCreateDialog split.
+const promptFormSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+  shortDescription: z.string(),
+  content: z.string().trim().min(1, "Content cannot be empty."),
+});
+
+type PromptFormValues = z.infer<typeof promptFormSchema>;
 
 export interface PromptEditorProps {
   /** null = closed, string = open for this prompt id */
@@ -114,28 +129,38 @@ function PromptEditorContent({
   const updateMutation = useUpdatePromptMutation();
   const { pushToast } = useToast();
 
-  // Local edit state — initialised from the loaded prompt. Icon and
-  // color are owned by the parent so the dialog header picker can drive
-  // them; everything else stays local.
-  const [localName, setLocalName] = useState("");
-  const [localShortDescription, setLocalShortDescription] = useState("");
-  const [localContent, setLocalContent] = useState("");
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // Name / short description / content live in react-hook-form. Icon and
+  // color are owned by the parent so the dialog-header picker can drive
+  // them (they sit outside `DialogContent`); the reset effect below
+  // re-seeds both surfaces when the loaded prompt changes.
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setError,
+    clearErrors,
+    formState: { errors },
+  } = useForm<PromptFormValues>({
+    resolver: zodResolver(promptFormSchema),
+    defaultValues: { name: "", shortDescription: "", content: "" },
+    mode: "onChange",
+  });
 
-  // Sync local state when prompt data loads or promptId changes.
+  // Repopulate when prompt data loads or promptId changes. `reset`
+  // re-seeds the form; the lifted icon/color follow the same source.
+  const prompt = query.data;
   useEffect(() => {
-    if (query.data) {
-      setLocalName(query.data.name);
-      setLocalShortDescription(query.data.shortDescription ?? "");
-      setLocalColor(query.data.color ?? "");
-      setLocalIcon(query.data.icon ?? null);
-      setLocalContent(query.data.content);
-      setSaveError(null);
+    if (prompt) {
+      reset({
+        name: prompt.name,
+        shortDescription: prompt.shortDescription ?? "",
+        content: prompt.content,
+      });
+      setLocalColor(prompt.color ?? "");
+      setLocalIcon(prompt.icon ?? null);
+      clearErrors("root.serverError");
     }
-    // setLocalColor / setLocalIcon are stable identities passed from the
-    // parent — including them in deps is correct but doesn't re-fire.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query.data, promptId]);
+  }, [prompt, reset, clearErrors, setLocalColor, setLocalIcon]);
 
   // ── Pending ────────────────────────────────────────────────────────
 
@@ -237,44 +262,38 @@ function PromptEditorContent({
 
   // ── Loaded ─────────────────────────────────────────────────────────
 
-  const prompt = query.data;
+  // Narrowed non-null after the !query.data guard above.
+  const loadedPrompt = query.data;
 
-  const handleSave = (): void => {
-    setSaveError(null);
-    const trimmedName = localName.trim();
-    if (!trimmedName) {
-      setSaveError("Name cannot be empty.");
-      return;
-    }
-    const trimmedContent = localContent.trim();
-    if (!trimmedContent) {
-      setSaveError("Content cannot be empty.");
-      return;
-    }
+  const onValid = handleSubmit((values) => {
+    const trimmedName = values.name.trim();
+    const trimmedContent = values.content.trim();
     // Empty string → clear to null; non-empty → use trimmed value.
     const resolvedShortDescription =
-      localShortDescription.trim() === "" ? null : localShortDescription.trim();
+      values.shortDescription.trim() === ""
+        ? null
+        : values.shortDescription.trim();
     // Empty string → clear to null; non-empty → use value as-is.
     const resolvedColor = localColor === "" ? null : localColor;
 
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
-    const mutationArgs: MutationArgs = { id: prompt.id };
+    const mutationArgs: MutationArgs = { id: loadedPrompt.id };
 
-    if (trimmedName !== prompt.name) {
+    if (trimmedName !== loadedPrompt.name) {
       mutationArgs.name = trimmedName;
     }
-    if (trimmedContent !== prompt.content) {
+    if (trimmedContent !== loadedPrompt.content) {
       mutationArgs.content = trimmedContent;
     }
     // For nullable fields: only include when the resolved value differs from stored.
-    if (resolvedShortDescription !== prompt.shortDescription) {
+    if (resolvedShortDescription !== loadedPrompt.shortDescription) {
       mutationArgs.shortDescription = resolvedShortDescription;
     }
-    if (resolvedColor !== prompt.color) {
+    if (resolvedColor !== loadedPrompt.color) {
       mutationArgs.color = resolvedColor;
     }
     // Icon: null clears, string sets, omitted when unchanged.
-    if (localIcon !== (prompt.icon ?? null)) {
+    if (localIcon !== (loadedPrompt.icon ?? null)) {
       mutationArgs.icon = localIcon;
     }
 
@@ -286,45 +305,67 @@ function PromptEditorContent({
       },
       onError: (err) => {
         pushToast("error", `Failed to save prompt: ${err.message}`);
-        setSaveError(`Failed to save: ${err.message}`);
+        setError("root.serverError", {
+          message: `Failed to save: ${err.message}`,
+        });
       },
     });
+  });
+
+  const handleSavePress = (): void => {
+    void onValid();
   };
 
   const handleCancel = (): void => {
-    // Reset local state back to prompt values before closing.
-    setLocalName(prompt.name);
-    setLocalShortDescription(prompt.shortDescription ?? "");
-    setLocalColor(prompt.color ?? "");
-    setLocalIcon(prompt.icon ?? null);
-    setLocalContent(prompt.content);
-    setSaveError(null);
+    // Reset form + lifted picker state back to prompt values before closing.
+    reset({
+      name: loadedPrompt.name,
+      shortDescription: loadedPrompt.shortDescription ?? "",
+      content: loadedPrompt.content,
+    });
+    setLocalColor(loadedPrompt.color ?? "");
+    setLocalIcon(loadedPrompt.icon ?? null);
+    clearErrors("root.serverError");
     onClose();
   };
+
+  const saveError = errors.root?.serverError?.message;
 
   return (
     <>
       {/* Name */}
       <div className={styles.section}>
-        <Input
-          label="Name"
-          value={localName}
-          onChange={setLocalName}
-          placeholder="Prompt name"
-          className={styles.fullWidthInput}
-          data-testid="prompt-editor-name-input"
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <Input
+              label="Name"
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Prompt name"
+              className={styles.fullWidthInput}
+              data-testid="prompt-editor-name-input"
+            />
+          )}
         />
       </div>
 
       {/* Short description */}
       <div className={styles.section}>
-        <Input
-          label="Short description"
-          value={localShortDescription}
-          onChange={setLocalShortDescription}
-          placeholder="Optional short description…"
-          className={styles.fullWidthInput}
-          data-testid="prompt-editor-shortdesc-input"
+        <Controller
+          control={control}
+          name="shortDescription"
+          render={({ field }) => (
+            <Input
+              label="Short description"
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Optional short description…"
+              className={styles.fullWidthInput}
+              data-testid="prompt-editor-shortdesc-input"
+            />
+          )}
         />
       </div>
 
@@ -334,33 +375,39 @@ function PromptEditorContent({
       {/* Tags — live mutations against the existing prompt. */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Tags</p>
-        <PromptTagsField promptId={prompt.id} />
+        <PromptTagsField promptId={loadedPrompt.id} />
       </div>
 
       {/* Content — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Content</p>
-        <MarkdownField
-          value={localContent}
-          onChange={setLocalContent}
-          placeholder="Prompt content (Markdown)…"
-          ariaLabel="Content"
-          data-testid="prompt-editor-content-textarea"
+        <Controller
+          control={control}
+          name="content"
+          render={({ field }) => (
+            <MarkdownField
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Prompt content (Markdown)…"
+              ariaLabel="Content"
+              data-testid="prompt-editor-content-textarea"
+            />
+          )}
         />
       </div>
 
       {/* Token count — auto-recomputed on save (round-19d). */}
       <div className={styles.tokenRow} data-testid="prompt-editor-token-row">
         <span className={styles.tokenLabel}>
-          {prompt.tokenCount !== null && prompt.tokenCount > 0n
-            ? `Current count: ≈${prompt.tokenCount.toString()} tokens`
+          {loadedPrompt.tokenCount !== null && loadedPrompt.tokenCount > 0n
+            ? `Current count: ≈${loadedPrompt.tokenCount.toString()} tokens`
             : "Current count: not computed"}
         </span>
       </div>
 
       {/* Footer */}
       <EditorShell.Footer className={styles.footer}>
-        {saveError ? (
+        {saveError !== undefined ? (
           <p
             className={styles.saveError}
             role="alert"
@@ -381,7 +428,7 @@ function PromptEditorContent({
           variant="primary"
           size="md"
           isPending={updateMutation.status === "pending"}
-          onPress={handleSave}
+          onPress={handleSavePress}
           data-testid="prompt-editor-save"
         >
           Save

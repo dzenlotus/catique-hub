@@ -16,7 +16,13 @@
  * Footer: trash-icon delete button (left) + Cancel + Save (right).
  */
 
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+} from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   useTask,
@@ -24,8 +30,14 @@ import {
   useUpdateTaskMutation,
   useDeleteTaskMutation,
   useSetTaskPromptsMutation,
+  setTaskDraft,
+  clearTaskDraft,
 } from "@entities/task";
-import { usePrompts } from "@entities/prompt";
+import {
+  useTaskPromptGroups,
+  useSetTaskPromptGroupsMutation,
+  useGroupedPromptSelect,
+} from "@entities/prompt-group";
 import {
   useAttachmentsByTask,
   useDeleteAttachmentMutation,
@@ -38,12 +50,12 @@ import {
   Button,
   Input,
   MarkdownField,
-  MultiSelect,
+  SelectTag,
   Scrollable,
 } from "@shared/ui";
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 
 import styles from "./TaskDialog.module.css";
 
@@ -88,24 +100,54 @@ interface PromptsSectionProps {
 
 function PromptsSection({ taskId }: PromptsSectionProps): ReactElement {
   const attachedQuery = useTaskPrompts(taskId);
-  const allQuery = usePrompts();
+  const groupsQuery = useTaskPromptGroups(taskId);
   const setMutation = useSetTaskPromptsMutation();
+  const setGroupsMutation = useSetTaskPromptGroupsMutation();
   const { pushToast } = useToast();
 
   const attachedIds = useMemo(
     () => (attachedQuery.data ?? []).map((p) => p.id),
     [attachedQuery.data],
   );
-
-  const options = useMemo(
-    () =>
-      (allQuery.data ?? []).map((p) =>
-        p.shortDescription != null && p.shortDescription.length > 0
-          ? { id: p.id, name: p.name, description: p.shortDescription }
-          : { id: p.id, name: p.name },
-      ),
-    [allQuery.data],
+  const attachedGroupIds = useMemo(
+    () => groupsQuery.data ?? [],
+    [groupsQuery.data],
   );
+
+  const handleChangePrompts = useCallback(
+    (next: string[]): void => {
+      setMutation.mutate(
+        { taskId, previous: attachedIds, next },
+        {
+          onError: (err) => {
+            pushToast("error", `Failed to update prompts: ${err.message}`);
+          },
+        },
+      );
+    },
+    [setMutation, taskId, attachedIds, pushToast],
+  );
+
+  const handleChangeGroups = useCallback(
+    (next: string[]): void => {
+      setGroupsMutation.mutate(
+        { id: taskId, groupIds: next },
+        {
+          onError: (err) => {
+            pushToast("error", `Failed to update prompt groups: ${err.message}`);
+          },
+        },
+      );
+    },
+    [setGroupsMutation, taskId, pushToast],
+  );
+
+  const { options, values, onChange } = useGroupedPromptSelect({
+    attachedPromptIds: attachedIds,
+    attachedGroupIds,
+    onChangePrompts: handleChangePrompts,
+    onChangeGroups: handleChangeGroups,
+  });
 
   if (attachedQuery.status === "pending") {
     return (
@@ -132,26 +174,14 @@ function PromptsSection({ taskId }: PromptsSectionProps): ReactElement {
     );
   }
 
-  const handleChange = (next: string[]): void => {
-    setMutation.mutate(
-      { taskId, previous: attachedIds, next },
-      {
-        onError: (err) => {
-          pushToast("error", `Failed to update prompts: ${err.message}`);
-        },
-      },
-    );
-  };
-
   return (
-    <MultiSelect<string>
+    <SelectTag
       label="Task prompts"
-      values={attachedIds}
+      values={values}
       options={options}
-      onChange={handleChange}
-      placeholder="Search prompts…"
-      emptyText="No prompts available"
-      testId="task-dialog-prompts-select"
+      onChange={onChange}
+      placeholder="Search prompts or groups…"
+      data-testid="task-dialog-prompts-select"
     />
   );
 }
@@ -331,15 +361,46 @@ export function TaskDialogContent({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Sync local state when task data loads or taskId changes.
+  // Sync local state when task data loads or taskId changes. The draft is
+  // reset to the saved values so the right-hand XML preview re-aligns with
+  // the bundle after a server refresh.
   useEffect(() => {
     if (query.data) {
       setLocalTitle(query.data.title);
       setLocalDescription(query.data.description ?? "");
       setSaveError(null);
       setConfirmDelete(false);
+      clearTaskDraft(taskId);
     }
   }, [query.data, taskId]);
+
+  // Drop the live draft when the editor unmounts (or the task changes) so a
+  // stale draft never leaks into the next mount's preview.
+  useEffect(() => {
+    return () => {
+      clearTaskDraft(taskId);
+    };
+  }, [taskId]);
+
+  // Title / description edits mirror into the per-task draft store so the
+  // routed `TaskView` XML preview reflects unsaved text live (the bundle is
+  // only refreshed on Save). Local state stays the controlled source of
+  // truth for the form itself.
+  const handleTitleChange = useCallback(
+    (next: string): void => {
+      setLocalTitle(next);
+      setTaskDraft(taskId, { title: next });
+    },
+    [taskId],
+  );
+
+  const handleDescriptionChange = useCallback(
+    (next: string): void => {
+      setLocalDescription(next);
+      setTaskDraft(taskId, { description: next });
+    },
+    [taskId],
+  );
 
   // ── Pending ────────────────────────────────────────────────────────
 
@@ -475,6 +536,7 @@ export function TaskDialogContent({
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
+        clearTaskDraft(task.id);
         pushToast("success", "Task saved");
         onClose();
       },
@@ -490,6 +552,7 @@ export function TaskDialogContent({
     setLocalDescription(task.description ?? "");
     setSaveError(null);
     setConfirmDelete(false);
+    clearTaskDraft(task.id);
     onClose();
   };
 
@@ -530,7 +593,7 @@ export function TaskDialogContent({
         <Input
           label="Title"
           value={localTitle}
-          onChange={setLocalTitle}
+          onChange={handleTitleChange}
           placeholder="Task title"
           className={styles.titleInput}
           data-testid="task-dialog-title-input"
@@ -542,7 +605,7 @@ export function TaskDialogContent({
         <p className={styles.sectionLabel}>Description</p>
         <MarkdownField
           value={localDescription}
-          onChange={setLocalDescription}
+          onChange={handleDescriptionChange}
           placeholder="Add a description…"
           ariaLabel="Description"
           data-testid="task-dialog-description-textarea"

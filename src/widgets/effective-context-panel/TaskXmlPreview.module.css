@@ -1,0 +1,92 @@
+/*
+ * TaskXmlPreview — right-pane XML preview column for the task detail
+ * page. Visual contract mirrors InlineGroupView's `.previewColumn`:
+ * a bordered canvas card with an uppercase header label + token chip,
+ * and a monospace `<pre>` body.
+ */
+
+.previewColumn {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-surface-canvas);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.previewHeader {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-8) var(--space-12);
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background-color: var(--color-surface-raised);
+}
+
+.tokenChip {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-default);
+}
+
+.previewBody {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.previewBodyInner {
+  padding: var(--space-16);
+}
+
+.previewXml {
+  margin: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-body-sm);
+  line-height: 1.55;
+  color: var(--color-text-default);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.previewEmpty {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ── Syntax highlighting (highlight.js token classes) ──────────────────
+ * Mirrors the palette in `MarkdownPreview.module.css` so XML in the
+ * preview pane reads with the same colours as fenced code blocks, and
+ * the theme follows `[data-theme]` automatically. `highlightXml` only
+ * emits the classes mapped below. */
+
+.previewXml :global(.hljs-tag) {
+  color: var(--color-text-subtle);
+}
+
+.previewXml :global(.hljs-name),
+.previewXml :global(.hljs-section) {
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
+}
+
+.previewXml :global(.hljs-attr) {
+  color: var(--color-accent-hover);
+}
+
+.previewXml :global(.hljs-string) {
+  color: var(--color-accent-bg);
+}

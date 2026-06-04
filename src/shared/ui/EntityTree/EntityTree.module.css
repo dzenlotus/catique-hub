@@ -27,7 +27,7 @@
 .children {
   list-style: none;
   margin: var(--space-2) 0 0;
-  padding: 0 0 0 24px;
+  padding: 0 0 0 18px;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
@@ -82,7 +82,10 @@
   display: flex;
   align-items: center;
   border-radius: var(--radius-sm);
-  min-height: 40px;
+  /* Compact rail rows (28px) — denser lists, more items per screen.
+   * The active strip ::after top/bottom inset below is tuned to this
+   * height; keep them in step if the row height changes. */
+  min-height: 28px;
   transition:
     background-color 120ms ease,
     opacity 120ms ease;
@@ -112,8 +115,8 @@
   content: "";
   position: absolute;
   left: -5px;
-  top: 4px;
-  bottom: 4px;
+  top: 3px;
+  bottom: 3px;
   width: 5px;
   border-radius: var(--radius-full);
   background-color: var(--color-cta-bg);

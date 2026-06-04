@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { spacesKeys } from "@entities/space";
 import type { Space } from "@entities/space";
-import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
+import { ActiveSpaceProvider } from "@app/providers";
 
 import { SpacesList } from "./SpacesList";
 

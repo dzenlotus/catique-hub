@@ -1,0 +1,27 @@
+/*
+ * SaveBar — status + Save action row. Token-driven; the leading status
+ * message claims the free space (`margin-right: auto`) so the Save
+ * button stays trailing-aligned regardless of message length.
+ */
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  margin-top: var(--space-4);
+}
+
+.savedHint {
+  margin: 0;
+  margin-right: auto;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-success);
+}
+
+.error {
+  margin: 0;
+  margin-right: auto;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-status-danger);
+}

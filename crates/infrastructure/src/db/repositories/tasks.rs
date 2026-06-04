@@ -38,6 +38,14 @@ pub struct TaskRow {
     /// Append-only log of timestamped step summaries. Default `""`.
     /// See [`append_step_log`] for the line format.
     pub step_log: String,
+    /// Denormalised effective-context counters (refactor-v3 D-B,
+    /// migration `033_task_effective_counts.sql`). Updated by
+    /// [`recompute_effective_counts`] from every application-layer
+    /// mutation that touches `task_prompts` / `task_skills` /
+    /// `task_mcp_tools` / `task_*_overrides_v2`.
+    pub effective_prompt_count: i64,
+    pub effective_skill_count: i64,
+    pub effective_tool_count: i64,
 }
 
 impl TaskRow {
@@ -54,6 +62,9 @@ impl TaskRow {
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
             step_log: row.get("step_log")?,
+            effective_prompt_count: row.get("effective_prompt_count")?,
+            effective_skill_count: row.get("effective_skill_count")?,
+            effective_tool_count: row.get("effective_tool_count")?,
         })
     }
 }
@@ -86,7 +97,8 @@ pub struct TaskPatch {
 /// Surfaces rusqlite errors.
 pub fn list_all(conn: &Connection) -> Result<Vec<TaskRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, board_id, column_id, slug, title, description, position, role_id, created_at, updated_at, step_log \
+        "SELECT id, board_id, column_id, slug, title, description, position, role_id, created_at, updated_at, step_log, \
+                effective_prompt_count, effective_skill_count, effective_tool_count \
          FROM tasks ORDER BY board_id, column_id, position ASC",
     )?;
     let rows = stmt.query_map([], TaskRow::from_row)?;
@@ -104,7 +116,8 @@ pub fn list_all(conn: &Connection) -> Result<Vec<TaskRow>, DbError> {
 /// Surfaces rusqlite errors.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<TaskRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, board_id, column_id, slug, title, description, position, role_id, created_at, updated_at, step_log \
+        "SELECT id, board_id, column_id, slug, title, description, position, role_id, created_at, updated_at, step_log, \
+                effective_prompt_count, effective_skill_count, effective_tool_count \
          FROM tasks WHERE id = ?1",
     )?;
     Ok(stmt.query_row(params![id], TaskRow::from_row).optional()?)
@@ -229,6 +242,12 @@ pub fn insert(conn: &Connection, draft: &TaskDraft) -> Result<TaskRow, DbError> 
         // Newly inserted tasks have an empty log; appends happen via
         // `append_step_log` after creation.
         step_log: String::new(),
+        // Refactor-v3 D-B: fresh tasks have no attached context.
+        // Application-layer cascade hooks bump these as the row
+        // accumulates inherited prompts/skills/tools.
+        effective_prompt_count: 0,
+        effective_skill_count: 0,
+        effective_tool_count: 0,
     })
 }
 
@@ -409,6 +428,164 @@ fn format_step_log_line(summary: &str, when_unix_ms: i64) -> String {
 pub fn delete(conn: &Connection, id: &str) -> Result<bool, DbError> {
     let n = conn.execute("DELETE FROM tasks WHERE id = ?1", params![id])?;
     Ok(n > 0)
+}
+
+// =====================================================================
+// Refactor-v3 D-B — denormalised effective-context counters.
+//
+// `tasks.effective_prompt_count` / `_skill_count` / `_tool_count` are
+// kept in sync by application-layer hooks at every use case that mutates
+// `task_prompts` / `task_skills` / `task_mcp_tools` or any
+// `task_*_overrides_v2` row. Formula per kind:
+//
+//   COUNT(task_<kind>)  −  COUNT(suppress-only overrides for <kind>)
+//
+// Suppress-only override = replacement_*_id IS NULL. A *replace*
+// override preserves cardinality (one row in, one row out), so it does
+// not enter the formula. See migration 033 and the D-B decision memo.
+// =====================================================================
+
+/// One row of effective counters returned by [`recompute_effective_counts`].
+/// All counts are clamped to a non-negative integer; the formula
+/// `count(join) − count(suppress)` cannot go negative under correct
+/// invariants because an override only suppresses a row that exists in
+/// the matching join table, but we clamp defensively so a transient
+/// inconsistency (e.g. between a cascade and a backfill) never surfaces
+/// as a negative UI counter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EffectiveCounts {
+    pub prompts: i64,
+    pub skills: i64,
+    pub tools: i64,
+}
+
+/// Recompute the three effective-context counters for `task_id` and
+/// write them back to the `tasks` row in one UPDATE. Returns the new
+/// counts so the caller can log / emit events without re-reading.
+///
+/// Hot path: three small COUNT(*) subselects on indexed predicates plus
+/// one UPDATE. Designed to be called inside the same transaction as the
+/// underlying mutation (the helper takes a `&Connection` so it works
+/// against either `Connection` or `Transaction` via deref).
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors. Calling against an unknown `task_id` is
+/// not an error — the UPDATE matches zero rows and the returned counts
+/// are all zero. The application-layer hook sites all run after a use
+/// case has just touched a join table for that `task_id`, so the row
+/// is guaranteed to exist in practice.
+pub fn recompute_effective_counts(
+    conn: &Connection,
+    task_id: &str,
+) -> Result<EffectiveCounts, DbError> {
+    // Each pair below is `(materialised join count, suppress-only
+    // override count)`. Replace-overrides keep cardinality and so are
+    // excluded from both queries.
+    let prompts_attached: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM task_prompts WHERE task_id = ?1",
+        params![task_id],
+        |r| r.get(0),
+    )?;
+    let prompts_suppressed: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM task_prompt_overrides_v2 \
+         WHERE task_id = ?1 AND replacement_prompt_id IS NULL",
+        params![task_id],
+        |r| r.get(0),
+    )?;
+    let skills_attached: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM task_skills WHERE task_id = ?1",
+        params![task_id],
+        |r| r.get(0),
+    )?;
+    let skills_suppressed: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM task_skill_overrides_v2 \
+         WHERE task_id = ?1 AND replacement_skill_id IS NULL",
+        params![task_id],
+        |r| r.get(0),
+    )?;
+    let tools_attached: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM task_mcp_tools WHERE task_id = ?1",
+        params![task_id],
+        |r| r.get(0),
+    )?;
+    let tools_suppressed: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM task_mcp_tool_overrides_v2 \
+         WHERE task_id = ?1 AND replacement_tool_id IS NULL",
+        params![task_id],
+        |r| r.get(0),
+    )?;
+
+    let counts = EffectiveCounts {
+        prompts: (prompts_attached - prompts_suppressed).max(0),
+        skills: (skills_attached - skills_suppressed).max(0),
+        tools: (tools_attached - tools_suppressed).max(0),
+    };
+
+    conn.execute(
+        "UPDATE tasks SET \
+            effective_prompt_count = ?1, \
+            effective_skill_count  = ?2, \
+            effective_tool_count   = ?3 \
+         WHERE id = ?4",
+        params![counts.prompts, counts.skills, counts.tools, task_id],
+    )?;
+
+    Ok(counts)
+}
+
+/// Recompute effective counters for every task that lives under
+/// `scope` — used by cascade-driven mutations (board/column/role/space
+/// scope add or remove a prompt/skill/tool, which touches N tasks at
+/// once). Returns the list of task_ids that were updated so the caller
+/// can emit per-task events if needed.
+///
+/// One round-trip per task. The cascade helpers already enumerated the
+/// affected task set via `INSERT INTO task_*` SELECT ... `WHERE
+/// <scope-predicate>`; we re-run the same predicate here in a single
+/// SELECT, then loop through the ids calling [`recompute_effective_counts`].
+/// This keeps the recompute logic in one place rather than fanning out
+/// kind-specific maths.
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn recompute_effective_counts_for_scope(
+    conn: &Connection,
+    scope: &AttachScope,
+) -> Result<Vec<String>, DbError> {
+    let ids = enumerate_tasks_in_scope(conn, scope)?;
+    for id in &ids {
+        recompute_effective_counts(conn, id)?;
+    }
+    Ok(ids)
+}
+
+/// Enumerate the task ids that live under a cascade scope. Matches the
+/// `WHERE` predicate that the matching `cascade_*_attachment` helpers
+/// use to materialise rows — keep in sync with
+/// [`cascade_prompt_attachment`] and the equivalent skill/tool helpers
+/// in `inheritance.rs`.
+fn enumerate_tasks_in_scope(
+    conn: &Connection,
+    scope: &AttachScope,
+) -> Result<Vec<String>, DbError> {
+    let (sql, param): (&str, &str) = match scope {
+        AttachScope::Role(id) => ("SELECT id FROM tasks WHERE role_id = ?1", id.as_str()),
+        AttachScope::Column(id) => ("SELECT id FROM tasks WHERE column_id = ?1", id.as_str()),
+        AttachScope::Board(id) => ("SELECT id FROM tasks WHERE board_id = ?1", id.as_str()),
+        AttachScope::Space(id) => (
+            "SELECT t.id FROM tasks t JOIN boards b ON b.id = t.board_id WHERE b.space_id = ?1",
+            id.as_str(),
+        ),
+    };
+    let mut stmt = conn.prepare(sql)?;
+    let rows = stmt.query_map(params![param], |r| r.get::<_, String>(0))?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
 }
 
 // ---------------------------------------------------------------------

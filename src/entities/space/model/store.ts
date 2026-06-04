@@ -25,10 +25,12 @@ import {
   deleteSpace,
   getSpace,
   listSpaces,
+  listSpacePrompts,
   updateSpace,
   type CreateSpaceArgs,
   type UpdateSpaceArgs,
 } from "../api";
+import type { Prompt } from "@bindings/Prompt";
 import type { Space } from "./types";
 
 /** Query-key factory. Centralised so invalidation stays consistent. */
@@ -36,7 +38,19 @@ export const spacesKeys = {
   all: ["spaces"] as const,
   list: () => [...spacesKeys.all] as const,
   detail: (id: string) => [...spacesKeys.all, id] as const,
+  prompts: (id: string) => [...spacesKeys.all, id, "prompts"] as const,
 };
+
+/** `useSpacePrompts` — prompts attached at the space scope. */
+export function useSpacePrompts(
+  spaceId: string,
+): UseQueryResult<Prompt[], Error> {
+  return useQuery({
+    queryKey: spacesKeys.prompts(spaceId),
+    queryFn: () => listSpacePrompts(spaceId),
+    enabled: spaceId.length > 0,
+  });
+}
 
 /**
  * `useSpaces` — list every space.

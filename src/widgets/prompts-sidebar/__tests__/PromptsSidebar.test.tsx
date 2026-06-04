@@ -3,7 +3,6 @@
  *
  * Covers:
  *   - Two flat EntityTree sections (GROUPS + PROMPTS) inside one shell.
- *   - "All Prompts" header entry above both sections.
  *   - Selection / kebab actions / header affordances.
  *   - DnD DOM contract (drag handles + drop targets emit the canonical
  *     testids `PromptsPage`'s drag-end handler routes to).
@@ -21,7 +20,7 @@ import { DragDropProvider } from "@dnd-kit/react";
 import type { ReactElement } from "react";
 import { TestRouter } from "@shared/lib";
 
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider, setPromptTagFilter, clearPromptTagFilter } from "@shared/lib";
 import { PromptsSidebar } from "../PromptsSidebar";
 
 // ---------------------------------------------------------------------------
@@ -130,7 +129,6 @@ interface SetupOptions {
   selectedGroupId?: string | null;
   onSelectGroup?: (id: string | null) => void;
   onSelectPrompt?: (id: string) => void;
-  onRenameGroup?: (id: string) => void;
   onGroupSettings?: (id: string) => void;
   onDeleteGroup?: (id: string) => void;
   onOpenSettings?: () => void;
@@ -150,7 +148,6 @@ function setup(options: SetupOptions = {}): {
               selectedGroupId={options.selectedGroupId ?? null}
               onSelectGroup={options.onSelectGroup ?? vi.fn()}
               onSelectPrompt={options.onSelectPrompt ?? vi.fn()}
-              onRenameGroup={options.onRenameGroup ?? vi.fn()}
               onGroupSettings={options.onGroupSettings ?? vi.fn()}
               onDeleteGroup={options.onDeleteGroup ?? vi.fn()}
               onOpenSettings={options.onOpenSettings ?? vi.fn()}
@@ -166,21 +163,28 @@ function setup(options: SetupOptions = {}): {
 }
 
 function mockHappyPath(): void {
-  invokeMock.mockImplementation((cmd: unknown) => {
+  invokeMock.mockImplementation((cmd: unknown, args?: unknown) => {
     if (cmd === "list_prompts") return Promise.resolve(STUB_PROMPTS);
     if (cmd === "list_prompt_groups") return Promise.resolve(STUB_GROUPS);
     if (cmd === "list_prompt_tags_map") return Promise.resolve([]);
     if (cmd === "list_tags") return Promise.resolve([]);
+    if (cmd === "update_prompt_group") {
+      const payload = (args ?? {}) as { id: string; name?: string };
+      const base = STUB_GROUPS.find((g) => g.id === payload.id) ?? STUB_GROUPS[0];
+      return Promise.resolve({ ...base, ...payload });
+    }
     return Promise.resolve([]);
   });
 }
 
 beforeEach(() => {
   invokeMock.mockReset();
+  clearPromptTagFilter();
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
+  clearPromptTagFilter();
 });
 
 // ---------------------------------------------------------------------------
@@ -195,16 +199,6 @@ describe("PromptsSidebar — composition", () => {
       expect(screen.getByText(/^GROUPS$/)).toBeInTheDocument();
     });
     expect(screen.getByText(/^PROMPTS$/)).toBeInTheDocument();
-  });
-
-  it("renders the All Prompts header entry above both sections", async () => {
-    mockHappyPath();
-    setup();
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("prompts-sidebar-all-prompts"),
-      ).toBeInTheDocument();
-    });
   });
 
   it("renders one row per group in the GROUPS section", async () => {
@@ -291,21 +285,6 @@ describe("PromptsSidebar — selection", () => {
 
     expect(onSelectGroup).toHaveBeenCalledWith("grp-1");
   });
-
-  it("clicking All Prompts fires onSelectGroup with null", async () => {
-    mockHappyPath();
-    const onSelectGroup = vi.fn();
-    const { user } = setup({ onSelectGroup });
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("prompts-sidebar-all-prompts"),
-      ).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByTestId("prompts-sidebar-all-prompts"));
-
-    expect(onSelectGroup).toHaveBeenCalledWith(null);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -313,10 +292,9 @@ describe("PromptsSidebar — selection", () => {
 // ---------------------------------------------------------------------------
 
 describe("PromptsSidebar — group kebab actions", () => {
-  it("fires onRenameGroup when the Rename menu item is picked", async () => {
+  it("Rename swaps the group row label into an inline input", async () => {
     mockHappyPath();
-    const onRenameGroup = vi.fn();
-    const { user } = setup({ onRenameGroup });
+    const { user } = setup();
     await waitFor(() => {
       expect(
         screen.getByTestId("prompts-sidebar-group-kebab-grp-1"),
@@ -327,7 +305,81 @@ describe("PromptsSidebar — group kebab actions", () => {
     const renameItem = await screen.findByRole("menuitem", { name: /rename/i });
     await user.click(renameItem);
 
-    expect(onRenameGroup).toHaveBeenCalledWith("grp-1");
+    // The label button is replaced by the inline rename field (autofocused).
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompts-sidebar-group-rename-input-grp-1"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("prompts-sidebar-groups-row-grp-1"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("commits the new group name via update_prompt_group on Enter", async () => {
+    mockHappyPath();
+    const { user } = setup();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompts-sidebar-group-kebab-grp-1"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("prompts-sidebar-group-kebab-grp-1"));
+    await user.click(
+      await screen.findByRole("menuitem", { name: /rename/i }),
+    );
+
+    const input = await screen.findByTestId(
+      "prompts-sidebar-group-rename-input-grp-1",
+    );
+    await user.clear(input);
+    await user.type(input, "Renamed{Enter}");
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith(
+        "update_prompt_group",
+        expect.objectContaining({ id: "grp-1", name: "Renamed" }),
+      );
+    });
+
+    // Field closes back into the label row after a successful commit.
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("prompts-sidebar-group-rename-input-grp-1"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("Escape cancels the inline rename without an IPC call", async () => {
+    mockHappyPath();
+    const { user } = setup();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompts-sidebar-group-kebab-grp-1"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("prompts-sidebar-group-kebab-grp-1"));
+    await user.click(
+      await screen.findByRole("menuitem", { name: /rename/i }),
+    );
+
+    const input = await screen.findByTestId(
+      "prompts-sidebar-group-rename-input-grp-1",
+    );
+    await user.clear(input);
+    await user.type(input, "Discarded{Escape}");
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompts-sidebar-groups-row-grp-1"),
+      ).toBeInTheDocument();
+    });
+    expect(invokeMock).not.toHaveBeenCalledWith(
+      "update_prompt_group",
+      expect.anything(),
+    );
   });
 
   it("fires onDeleteGroup when the Delete menu item is picked", async () => {
@@ -353,7 +405,7 @@ describe("PromptsSidebar — group kebab actions", () => {
 // ---------------------------------------------------------------------------
 
 describe("PromptsSidebar — header affordances", () => {
-  it("renders the tag-filter trigger in the PROMPTS title trailing slot", async () => {
+  it("renders the tag-filter trigger in the PROMPTS section header", async () => {
     mockHappyPath();
     setup();
     await waitFor(() => {
@@ -361,6 +413,71 @@ describe("PromptsSidebar — header affordances", () => {
         screen.getByTestId("prompts-sidebar-tags-filter-trigger"),
       ).toBeInTheDocument();
     });
+  });
+
+  it("opens the tag-filter popover when the trigger is pressed", async () => {
+    mockHappyPath();
+    const { user } = setup();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompts-sidebar-tags-filter-trigger"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(
+      screen.getByTestId("prompts-sidebar-tags-filter-trigger"),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompts-sidebar-tags-filter-popover"),
+      ).toBeInTheDocument();
+    });
+    // The popover hosts the canonical PromptsTagFilter MultiSelect.
+    expect(screen.getByTestId("prompts-tag-filter")).toBeInTheDocument();
+  });
+
+  it("marks the tag-filter trigger active when tags are selected", async () => {
+    mockHappyPath();
+    setPromptTagFilter(["t1"]);
+    setup();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompts-sidebar-tags-filter-trigger"),
+      ).toHaveAttribute("data-active", "true");
+    });
+  });
+
+  it("filters the PROMPTS list from the shared tag-filter store", async () => {
+    invokeMock.mockImplementation((cmd: unknown) => {
+      if (cmd === "list_prompts") return Promise.resolve(STUB_PROMPTS);
+      if (cmd === "list_prompt_groups") return Promise.resolve(STUB_GROUPS);
+      if (cmd === "list_prompt_tags_map")
+        return Promise.resolve([{ promptId: "prm-2", tagIds: ["t1"] }]);
+      if (cmd === "list_tags")
+        return Promise.resolve([
+          { id: "t1", name: "Alpha", color: null, createdAt: 0n, updatedAt: 0n },
+        ]);
+      return Promise.resolve([]);
+    });
+
+    // Pre-seed the shared filter so the sidebar mounts with t1 active —
+    // the header control writes the same store in the running app.
+    setPromptTagFilter(["t1"]);
+    setup();
+
+    // Only prm-2 carries t1 — the other prompts are filtered out.
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("prompts-sidebar-prompts-row-prm-2"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("prompts-sidebar-prompts-row-prm-1"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("prompts-sidebar-prompts-row-prm-3"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the settings cog in the PROMPTS title trailing slot", async () => {
@@ -477,34 +594,3 @@ describe("PromptsSidebar — DnD wiring (DOM contract)", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Active-row mapping
-// ---------------------------------------------------------------------------
-
-describe("PromptsSidebar — selected highlight mapping", () => {
-  it("marks All Prompts as active when nothing is selected", async () => {
-    mockHappyPath();
-    setup();
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("prompts-sidebar-all-prompts"),
-      ).toBeInTheDocument();
-    });
-    expect(
-      screen.getByTestId("prompts-sidebar-all-prompts"),
-    ).toHaveAttribute("aria-current", "page");
-  });
-
-  it("does NOT mark All Prompts as active when a group is selected", async () => {
-    mockHappyPath();
-    setup({ selectedGroupId: "grp-1" });
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("prompts-sidebar-all-prompts"),
-      ).toBeInTheDocument();
-    });
-    expect(
-      screen.getByTestId("prompts-sidebar-all-prompts").getAttribute("aria-current"),
-    ).not.toBe("page");
-  });
-});

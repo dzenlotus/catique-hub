@@ -99,16 +99,47 @@ export default defineConfig(({ command }) => ({
     target: ["es2022", "chrome120", "safari16"],
     minify: !process.env.TAURI_DEBUG ? "oxc" : false,
     sourcemap: !!process.env.TAURI_DEBUG,
+    rollupOptions: {
+      output: {
+        // Vite 8 bundles with rolldown — chunk grouping uses
+        // `advancedChunks.groups` (not rollup's `manualChunks`). Split the
+        // heaviest, change-rarely vendors into their own long-cacheable
+        // chunks so the main app chunk stays lean and a markdown/highlight.js
+        // update doesn't invalidate the whole bundle. (Per-route React.lazy —
+        // to keep these off the initial boot path entirely — is the follow-up;
+        // this only improves chunk caching, not initial payload.)
+        advancedChunks: {
+          groups: [
+            {
+              name: "markdown",
+              test: /[\\/]node_modules[\\/](react-markdown|rehype.*|remark.*|highlight\.js|lowlight|hast.*|mdast.*|micromark.*|unist.*|property-information|character-entities.*|space-separated-tokens|comma-separated-tokens)[\\/]/,
+            },
+            {
+              name: "tanstack",
+              test: /[\\/]node_modules[\\/]@tanstack[\\/]/,
+            },
+            {
+              name: "react-aria",
+              test: /[\\/]node_modules[\\/](react-aria-components|@react-aria|@react-stately|@react-types)[\\/]/,
+            },
+          ],
+        },
+      },
+    },
   },
   test: {
     globals: true,
     environment: "jsdom",
     setupFiles: ["./src/app/test-setup.ts"],
     css: true,
-    // Frontend tests live under src/. The Node-side sidecar smoke test
-    // (`sidecar/tests/smoke.test.mjs`) uses the `node:test` runner and
-    // must not be picked up by vitest's discovery.
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // Frontend tests live under src/ and are colocated inside `__tests__/`
+    // folders (the canonical location after the 615a603 colocation commit).
+    // Scoping discovery to `__tests__/` prevents stray sibling copies — e.g.
+    // pre-colocation duplicates left in a worktree — from being picked up and
+    // diverging silently from the tracked versions. The Node-side sidecar
+    // smoke test (`sidecar/tests/smoke.test.mjs`) uses the `node:test`
+    // runner and is excluded by living outside src/.
+    include: ["src/**/__tests__/**/*.{test,spec}.{ts,tsx}"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

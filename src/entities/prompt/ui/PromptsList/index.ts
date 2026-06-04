@@ -1,1 +1,0 @@
-export { PromptsList } from "./PromptsList";

@@ -1,0 +1,66 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-full);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--color-border-default);
+  background-color: var(--color-bg-subtle, rgba(127, 127, 127, 0.08));
+  color: var(--color-text-muted);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.root[data-origin="direct"] {
+  color: var(--color-text-default);
+  background-color: var(--color-bg-default);
+}
+
+.root[data-origin="role"] {
+  color: var(--color-accent-default, var(--color-text-default));
+}
+
+/*
+ * `group` is a UI-only origin (Stream R / v3 Round 4) — the chip
+ * signals "this prompt is here because it's in a group", distinct
+ * from the five inheritance origins. Uses the secondary accent token
+ * with a soft background so it reads as informational, not as a
+ * scope on the inheritance chain. Falls back to the neutral muted
+ * palette when the secondary accent isn't defined.
+ */
+.root[data-origin="group"] {
+  color: var(--color-accent-secondary, var(--color-text-muted));
+  background-color: var(--color-accent-soft, var(--color-bg-subtle, rgba(127, 127, 127, 0.08)));
+  border-color: var(--color-accent-secondary, var(--color-border-default));
+}
+
+.root[data-overridden="true"] {
+  border-color: var(--color-warning-default, #eab308);
+  color: var(--color-warning-strong, var(--color-text-default));
+}
+
+.root[data-suppressed="true"] {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+.label {
+  /* Reserved for future fine-typography tweaks. */
+}
+
+/*
+ * Leading folder glyph for the `group` variant. Kept compact (10px)
+ * so the chip height stays unchanged relative to the icon-less
+ * inheritance variants. Inherits `currentColor` so dark/light themes
+ * stay consistent with the surrounding label.
+ */
+.icon {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  color: currentColor;
+}

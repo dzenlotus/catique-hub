@@ -15,12 +15,19 @@ import styles from "./Input.module.css";
 export interface InputProps
   extends Omit<TextFieldProps, "className" | "children"> {
   /**
-   * Visible label. Required for a11y — RAC `<Label>` wires `htmlFor`/`id`
-   * automatically against the inner `<input>`. Visually-hidden labels are
-   * NOT supported on this primitive — every form field needs a visible
-   * label per WCAG 3.3.2.
+   * Accessible label. Required for a11y — RAC `<Label>` wires `htmlFor`/`id`
+   * automatically against the inner `<input>` (WCAG 3.3.2). By default the
+   * label is painted above the field; pass `labelHidden` to keep it in the
+   * accessibility tree while removing it visually (search palettes, inline
+   * rename affordances, icon search — contexts that already have a visible
+   * affordance and no room for a printed label).
    */
   label: string;
+  /**
+   * Visually hides the `<Label>` (clip/sr-only) while keeping it in the
+   * accessibility tree. The label text stays REQUIRED. Defaults to `false`.
+   */
+  labelHidden?: boolean;
   /** Optional helper text rendered below the input (and above any error). */
   description?: string;
   /**
@@ -58,6 +65,7 @@ export interface InputProps
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   {
     label,
+    labelHidden = false,
     description,
     errorMessage,
     className,
@@ -78,7 +86,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       isInvalid={isInvalid}
       className={cn(styles.field, className)}
     >
-      <Label className={styles.label}>{label}</Label>
+      <Label className={cn(styles.label, labelHidden && styles.labelHidden)}>
+        {label}
+      </Label>
       <AriaInput
         ref={ref}
         type={type}

@@ -9,7 +9,10 @@ use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::columns::{self as repo, ColumnDraft, ColumnPatch, ColumnRow},
     repositories::inheritance::{self as inh, InheritanceScope},
-    repositories::tasks::{cascade_clear_scope, cascade_prompt_attachment, AttachScope},
+    repositories::tasks::{
+        cascade_clear_scope, cascade_prompt_attachment, recompute_effective_counts_for_scope,
+        AttachScope,
+    },
 };
 
 use crate::{
@@ -90,6 +93,8 @@ impl<'a> ColumnsUseCase<'a> {
                 // the IPC to mint extra defaults would break the
                 // single-default invariant the resolver relies on.
                 is_default: false,
+                icon: None,
+                color: None,
             },
         )
         .map_err(map_db_err)?;
@@ -108,6 +113,8 @@ impl<'a> ColumnsUseCase<'a> {
         name: Option<String>,
         position: Option<i64>,
         role_id: Option<Option<String>>,
+        icon: Option<Option<String>>,
+        color: Option<Option<String>>,
     ) -> Result<Column, AppError> {
         if let Some(n) = name.as_deref() {
             validate_non_empty("name", n)?;
@@ -117,6 +124,8 @@ impl<'a> ColumnsUseCase<'a> {
             name: name.map(|n| n.trim().to_owned()),
             position,
             role_id,
+            icon,
+            color,
         };
         match repo::update(&conn, &id, &patch).map_err(map_db_err)? {
             Some(row) => Ok(row_to_column(row)),
@@ -212,6 +221,9 @@ impl<'a> ColumnsUseCase<'a> {
             let position_f = position_i as f64;
             cascade_prompt_attachment(&tx, &scope, prompt_id, position_f).map_err(map_db_err)?;
         }
+        // Refactor-v3 D-B counter sync — recompute every task in this
+        // column's scope.
+        recompute_effective_counts_for_scope(&tx, &scope).map_err(map_db_err)?;
 
         tx.commit().map_err(|e| map_db_err(e.into()))?;
         Ok(())
@@ -249,6 +261,8 @@ fn row_to_column(row: ColumnRow) -> Column {
         role_id: row.role_id,
         created_at: row.created_at,
         is_default: row.is_default,
+        icon: row.icon,
+        color: row.color,
     }
 }
 
@@ -324,6 +338,8 @@ mod tests {
                     position: 0,
                     role_id: None,
                     is_default: true,
+                    icon: None,
+                    color: None,
                 },
             )
             .unwrap();
@@ -358,7 +374,7 @@ mod tests {
         let pool = fresh_pool_with_board();
         let uc = ColumnsUseCase::new(&pool);
         let err = uc
-            .update("ghost".into(), Some("X".into()), None, None)
+            .update("ghost".into(), Some("X".into()), None, None, None, None)
             .expect_err("nf");
         match err {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "column"),

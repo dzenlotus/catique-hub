@@ -3,20 +3,28 @@
  * ----------------------------------------------------------------------- */
 
 /**
- * Full-viewport flex row: sidebar on the left, main pane on the right.
- * Height is set to 100dvh so both columns fill the window without
- * the outer page scrolling.
+ * Three-row grid: top bar / content / status bar; two-column split with
+ * the main sidebar on the left spanning all rows.
+ *
+ * - `main`: MainSidebar
+ * - `topbar`: TopBar above the content
+ * - `content`: route `<Outlet/>`
+ * - `statusbar`: StatusBar (always visible, runtime indicators)
+ *
+ * Pages mount their own secondary rails inside the content pane via
+ * EntityPageShell.
  */
 .shell {
-  /* MainSidebar spans both rows on the left; TopBar covers the
-     remaining width above the content pane. Pages mount their own
-     secondary rails inside the content pane via EntityPageShell. */
   display: grid;
-  grid-template-rows: auto 1fr;
-  grid-template-columns: 220px 1fr;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 260px 1fr;
+  /* StatusBar spans the FULL width so its top border is one continuous
+   * hairline across the whole shell bottom — the sidebar footer (Settings)
+   * and the MCP-status footer then read as one level, not two. */
   grid-template-areas:
     "main topbar"
-    "main content";
+    "main content"
+    "statusbar statusbar";
   height: 100dvh;
   overflow: hidden;
   background-color: var(--color-bg-default);
@@ -24,10 +32,7 @@
 
 .topBarSlot {
   grid-area: topbar;
-  /* Match the surface of the sidebars so the TopBar reads as part of the
-     chrome rather than the content background. */
   background-color: var(--color-surface-sidebar);
-  border-bottom: 1px solid var(--color-border-default);
 }
 
 .mainSidebarSlot {
@@ -46,11 +51,14 @@
   background-color: var(--color-bg-default);
 }
 
-/* Scrollable content area inside the content pane. */
 .mainPane > * {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.statusBarSlot {
+  grid-area: statusbar;
 }
 
 /* -----------------------------------------------------------------------

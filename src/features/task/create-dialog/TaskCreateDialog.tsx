@@ -13,15 +13,28 @@
  *   - Role (optional)
  */
 
-import { useEffect, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { useColumns } from "@entities/column";
 import type { Column } from "@entities/column";
 import { useCreateTaskMutation } from "@entities/task";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 import { Dialog, Button, Input, MarkdownField, Scrollable } from "@shared/ui";
 
 import styles from "./TaskCreateDialog.module.css";
+
+// react-hook-form schema — title required; description optional. Board and
+// column are resolved from props / the first-column effect (not validated
+// text fields), and gate the submit button alongside `isValid`.
+const taskFormSchema = z.object({
+  title: z.string().trim().min(1, "Title cannot be empty."),
+  description: z.string().optional(),
+});
+
+type TaskFormValues = z.infer<typeof taskFormSchema>;
 
 export interface TaskCreateDialogProps {
   isOpen: boolean;
@@ -83,12 +96,9 @@ function TaskCreateDialogContent({
   const { pushToast } = useToast();
   const createTask = useCreateTaskMutation();
 
-  // ── Form state ──────────────────────────────────────────────────────────
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  // ── Board / column (props + first-column effect, not form fields) ─────────
   const [selectedBoardId] = useState<string | null>(defaultBoardId);
   const [selectedColumnId, setSelectedColumnId] = useState<string | null>(defaultColumnId);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
   // ── Data queries ────────────────────────────────────────────────────────
   const columnsQuery = useColumns(selectedBoardId ?? "");
@@ -105,25 +115,24 @@ function TaskCreateDialogContent({
     }
   }, [columns, selectedColumnId]);
 
-  // ── Derived ──────────────────────────────────────────────────────────────
-  const canSubmit =
-    title.trim().length > 0 &&
-    selectedBoardId !== null &&
-    selectedColumnId !== null;
+  const {
+    control,
+    handleSubmit,
+    setError,
+    formState: { errors, isValid, isSubmitting },
+  } = useForm<TaskFormValues>({
+    resolver: zodResolver(taskFormSchema),
+    defaultValues: { title: "", description: "" },
+    mode: "onChange",
+  });
 
-  const handleSave = (): void => {
-    setSaveError(null);
-    const trimmedTitle = title.trim();
-    if (!trimmedTitle) {
-      setSaveError("Title cannot be empty.");
-      return;
-    }
+  const onValid = handleSubmit(async (values) => {
     if (!selectedBoardId) {
-      setSaveError("Select a board.");
+      setError("root.serverError", { message: "Select a board." });
       return;
     }
     if (!selectedColumnId) {
-      setSaveError("Select a status.");
+      setError("root.serverError", { message: "Select a status." });
       return;
     }
 
@@ -133,35 +142,44 @@ function TaskCreateDialogContent({
     // subsequent reorders will normalise.
     const position = colTasks ? Number(colTasks.position) * 1000 + 1 : 1;
 
-    const mutationArgs: Parameters<typeof createTask.mutate>[0] = {
+    const description = (values.description ?? "").trim();
+    const mutationArgs: Parameters<typeof createTask.mutateAsync>[0] = {
       boardId: selectedBoardId,
       columnId: selectedColumnId,
-      title: trimmedTitle,
-      description: description.trim() !== "" ? description.trim() : null,
+      title: values.title,
+      description: description !== "" ? description : null,
       position,
     };
     // audit-2026-05-06: roleId resolved server-side from the
     // board's owner_role_id (1:1 board↔role rule). Frontend no
     // longer sends a role on create_task.
 
-    createTask.mutate(
-      mutationArgs,
-      {
-        onSuccess: () => {
-          pushToast("success", "Task created");
-          onClose();
-        },
-        onError: (err) => {
-          pushToast("error", "Failed to create task");
-          setSaveError(`Failed to create: ${err.message}`);
-        },
-      },
-    );
-  };
+    try {
+      await createTask.mutateAsync(mutationArgs);
+      pushToast("success", "Task created");
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      pushToast("error", "Failed to create task");
+      setError("root.serverError", { message: `Failed to create: ${message}` });
+    }
+  });
 
-  const handleCancel = (): void => {
+  const handleSubmitPress = useCallback((): void => {
+    void onValid();
+  }, [onValid]);
+
+  const handleCancel = useCallback((): void => {
     onClose();
-  };
+  }, [onClose]);
+
+  // ── Derived ──────────────────────────────────────────────────────────────
+  // Title is RHF-validated; board/column come from props/effect and gate
+  // the submit button alongside `isValid`.
+  const canSubmit =
+    isValid && selectedBoardId !== null && selectedColumnId !== null;
+
+  const serverError = errors.root?.serverError?.message;
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -169,26 +187,38 @@ function TaskCreateDialogContent({
     <Scrollable axis="y" className={styles.body}>
       {/* Title */}
       <div className={styles.section}>
-        <Input
-          label="Title"
-          value={title}
-          onChange={setTitle}
-          placeholder="Task title"
-          autoFocus
-          className={styles.fullWidthInput}
-          data-testid="task-create-dialog-title-input"
+        <Controller
+          control={control}
+          name="title"
+          render={({ field }) => (
+            <Input
+              label="Title"
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Task title"
+              autoFocus
+              className={styles.fullWidthInput}
+              data-testid="task-create-dialog-title-input"
+            />
+          )}
         />
       </div>
 
       {/* Description — canonical MarkdownField (in-place edit ⇄ preview). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Description</p>
-        <MarkdownField
-          value={description}
-          onChange={setDescription}
-          placeholder="Optional. Markdown is supported."
-          ariaLabel="Description"
-          data-testid="task-create-dialog-description-textarea"
+        <Controller
+          control={control}
+          name="description"
+          render={({ field }) => (
+            <MarkdownField
+              value={field.value ?? ""}
+              onChange={field.onChange}
+              placeholder="Optional. Markdown is supported."
+              ariaLabel="Description"
+              data-testid="task-create-dialog-description-textarea"
+            />
+          )}
         />
       </div>
 
@@ -200,13 +230,13 @@ function TaskCreateDialogContent({
 
       {/* Footer */}
       <div className={styles.footer}>
-        {saveError ? (
+        {serverError ? (
           <p
             className={styles.saveError}
             role="alert"
             data-testid="task-create-dialog-error"
           >
-            {saveError}
+            {serverError}
           </p>
         ) : null}
         <Button
@@ -220,9 +250,9 @@ function TaskCreateDialogContent({
         <Button
           variant="primary"
           size="md"
-          isPending={createTask.status === "pending"}
+          isPending={isSubmitting}
           isDisabled={!canSubmit}
-          onPress={handleSave}
+          onPress={handleSubmitPress}
           data-testid="task-create-dialog-save"
         >
           Create

@@ -71,45 +71,9 @@
   border-radius: var(--radius-xs);
 }
 
-/* ---------- Inline remove (×) ---------- */
-
-.removeBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  padding: 0;
-  margin-left: var(--space-2);
-  border: none;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--color-text-subtle);
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
-  transition: background-color 80ms ease-out, color 80ms ease-out;
-}
-
-.removeBtn:hover {
-  background-color: var(--color-overlay-hover);
-  color: var(--color-status-danger);
-}
-
-.removeBtn:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-/* ---------- Colour swatch ---------- */
-
-.swatch {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
+/* Inline remove (×) and colour swatch now come from the shared
+ * `Chip` primitive (`shared/ui/Chip`). Only the `.name` tweak below
+ * stays local. */
 
 /* ---------- Name ---------- */
 

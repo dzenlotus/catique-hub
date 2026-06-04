@@ -33,7 +33,7 @@
   justify-content: space-between;
   gap: var(--space-8);
   width: 100%;
-  height: 32px;
+  height: var(--control-height-md);
   /* `box-sizing: border-box` so the 1 px border counts inside the height
    * — this keeps the trigger flush with sibling Inputs (also 32 px). */
   box-sizing: border-box;
@@ -124,7 +124,7 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-med);
   outline: none;
-  max-height: 280px;
+  max-height: var(--size-popover-md);
   overflow-y: auto;
   /* When the popover should match the trigger width, pin the listbox to
    * that width. RAC's `--trigger-width` is set on the `.popover`. */

@@ -8,26 +8,28 @@ import {
   type KeyboardEvent,
 } from "react";
 import { PixelInterfaceEssentialSearch1 } from "@shared/ui/Icon";
+import { Input } from "@shared/ui";
 import {
   Dialog as AriaDialog,
   Modal,
   ModalOverlay,
 } from "react-aria-components";
 import type { SearchResult } from "@bindings/SearchResult";
+
 import { invoke } from "@shared/api";
-import { cn } from "@shared/lib";
+import { cn, useLocationCompat } from "@shared/lib";
+import { matchTaskSurface } from "@app/routes";
+
+import { useOptionalToast } from "./useOptionalToast";
+import { useOptionalSpaces } from "./useOptionalSpaces";
+import { useOptionalPrompts } from "./useOptionalPrompts";
+import { useGlobalSearchQuery, type PromptResult } from "./useGlobalSearchQuery";
+import { useListKeyboardNav } from "./useListKeyboardNav";
+import { SearchResultsList } from "./SearchResultsList";
+import { ActionsList } from "./ActionsList";
+import { buildActions, filterActions, type QuickAction } from "./actions";
 
 import styles from "./GlobalSearch.module.css";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type SearchState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "ok"; results: SearchResult[] }
-  | { status: "error"; message: string };
 
 export interface GlobalSearchProps {
   isOpen: boolean;
@@ -35,47 +37,19 @@ export interface GlobalSearchProps {
   onSelectResult?: (result: SearchResult) => void;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Minimal inline debounce — avoids adding a dependency. */
-function useDebounce<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState<T>(value);
-  useEffect(() => {
-    const id = window.setTimeout(() => setDebounced(value), delayMs);
-    return () => window.clearTimeout(id);
-  }, [value, delayMs]);
-  return debounced;
-}
-
-/** Group SearchResults by `type`, preserving insertion order within groups. */
-function groupResults(results: SearchResult[]): {
-  tasks: SearchResult[];
-  agentReports: SearchResult[];
-} {
-  const tasks: SearchResult[] = [];
-  const agentReports: SearchResult[] = [];
-  for (const r of results) {
-    if (r.type === "task") {
-      tasks.push(r);
-    } else {
-      agentReports.push(r);
-    }
-  }
-  return { tasks, agentReports };
-}
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 /**
  * `GlobalSearch` — Cmd+K palette.
  *
- * Opens as a modal overlay with a search input that fires `search_all` IPC
- * after a 200ms debounce. Results are grouped by type (tasks / agent reports)
- * with full keyboard navigation (Arrow Up/Down, Enter, Esc).
+ * Opens as a modal overlay with a search input that fires `search_all`
+ * IPC after a 200 ms debounce. Results are grouped by type (prompts /
+ * tasks / agent reports) with full keyboard navigation (Arrow Up/Down,
+ * Enter, Esc). A `>` prefix flips the palette into command mode, where
+ * results become filtered `QuickAction`s.
+ *
+ * The search state machine lives in `useGlobalSearchQuery`; the
+ * arrow/enter handling in `useListKeyboardNav`; the rendered lists in
+ * `SearchResultsList` / `ActionsList`. This component owns the input,
+ * the modal shell, and the activation routing between those pieces.
  */
 export function GlobalSearch({
   isOpen,
@@ -83,76 +57,55 @@ export function GlobalSearch({
   onSelectResult,
 }: GlobalSearchProps): ReactElement {
   const [query, setQuery] = useState("");
-  const [state, setState] = useState<SearchState>({ status: "idle" });
-  const [focusedIndex, setFocusedIndex] = useState(-1);
-
   const inputRef = useRef<HTMLInputElement>(null);
+  const [location, setLocation] = useLocationCompat();
+  const pushToast = useOptionalToast();
+  const spaces = useOptionalSpaces();
+  const prompts = useOptionalPrompts();
 
-  const debouncedQuery = useDebounce(query.trim(), 200);
+  // Route-derived context for action surfacing — flips on /tasks/:id.
+  const currentTaskId = matchTaskSurface(location)?.taskId ?? undefined;
 
-  // Auto-focus the input when the palette opens; reset state on close.
-  useEffect(() => {
-    if (isOpen) {
-      setQuery("");
-      setState({ status: "idle" });
-      setFocusedIndex(-1);
-      // RAF to let RAC finish mounting the modal before focusing
-      const id = requestAnimationFrame(() => {
-        inputRef.current?.focus();
-      });
-      return () => cancelAnimationFrame(id);
-    }
-  }, [isOpen]);
+  // ── Command mode (`>` prefix) ──────────────────────────────────────
+  const isCommandMode = query.trimStart().startsWith(">");
+  const commandQuery = isCommandMode
+    ? query.trimStart().slice(1).trimStart()
+    : "";
 
-  // Fire IPC when debounced query changes.
-  useEffect(() => {
-    if (!isOpen) return;
-    if (debouncedQuery === "") {
-      setState({ status: "idle" });
-      setFocusedIndex(-1);
-      return;
-    }
+  const allActions = useMemo<QuickAction[]>(
+    () =>
+      buildActions({
+        spaces: spaces.map((s) => ({ id: s.id, name: s.name })),
+        ...(currentTaskId !== undefined ? { currentTaskId } : {}),
+        prompts: prompts.map((p) => ({ id: p.id, name: p.name })),
+      }),
+    [spaces, prompts, currentTaskId],
+  );
 
-    let cancelled = false;
-    setState({ status: "loading" });
+  const visibleActions = useMemo<QuickAction[]>(
+    () => (isCommandMode ? filterActions(allActions, commandQuery) : []),
+    [isCommandMode, commandQuery, allActions],
+  );
 
-    invoke<SearchResult[]>("search_all", {
-      query: debouncedQuery,
-      limitPerKind: 50,
-    })
-      .then((results) => {
-        if (!cancelled) {
-          setState({ status: "ok", results });
-          setFocusedIndex(-1);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          const message =
-            err instanceof Error
-              ? err.message
-              : typeof err === "object" && err !== null && "message" in err
-                ? String((err as { message: unknown }).message)
-                : "Unknown error";
-          setState({ status: "error", message });
-        }
-      });
+  // ── Search state machine ───────────────────────────────────────────
+  const { state, debouncedQuery, matchingPrompts, flatResults } =
+    useGlobalSearchQuery({ query, isOpen, isCommandMode, prompts });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedQuery, isOpen]);
+  // ── Activation handlers ────────────────────────────────────────────
+  const runAction = useCallback(
+    (action: QuickAction) => {
+      void Promise.resolve(
+        action.run({
+          navigate: (to) => setLocation(to),
+          toast: (level, message) => pushToast(level, message),
+        }),
+      );
+      onClose();
+    },
+    [setLocation, pushToast, onClose],
+  );
 
-  // Flat ordered list of results (tasks first, then reports) for keyboard nav.
-  const flatResults: SearchResult[] =
-    state.status === "ok"
-      ? (() => {
-          const { tasks, agentReports } = groupResults(state.results);
-          return [...tasks, ...agentReports];
-        })()
-      : [];
-
-  const handleSelect = useCallback(
+  const handleSelectResult = useCallback(
     (result: SearchResult) => {
       onSelectResult?.(result);
       onClose();
@@ -160,31 +113,136 @@ export function GlobalSearch({
     [onSelectResult, onClose],
   );
 
-  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setFocusedIndex((prev) =>
-        flatResults.length === 0 ? -1 : Math.min(prev + 1, flatResults.length - 1),
-      );
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setFocusedIndex((prev) => Math.max(prev - 1, 0));
-    } else if (e.key === "Enter") {
-      if (focusedIndex >= 0 && focusedIndex < flatResults.length) {
-        e.preventDefault();
-        const result = flatResults[focusedIndex];
-        if (result !== undefined) handleSelect(result);
+  /**
+   * Attach a prompt to the currently-open task. The palette stays open so
+   * the user can chain attachments — the Round-4 "Find prompt X →
+   * Cmd+Enter → attach" verb.
+   */
+  const attachPromptToCurrentTask = useCallback(
+    async (promptId: string, promptName: string): Promise<void> => {
+      if (currentTaskId === undefined) return;
+      try {
+        await invoke<void>("add_task_prompt", {
+          taskId: currentTaskId,
+          promptId,
+          position: 0,
+        });
+        pushToast("success", `Prompt "${promptName}" attached`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        pushToast("error", `Failed to attach prompt: ${message}`);
       }
-    }
-    // Esc is handled by RAC ModalOverlay (isDismissable)
-  }
+    },
+    [currentTaskId, pushToast],
+  );
 
-  // Render the results list content
-  const body = useMemo<ReactElement>(() => {
+  const navigateToPrompt = useCallback(
+    (promptId: string): void => {
+      setLocation(`/prompts/${promptId}`);
+      onClose();
+    },
+    [setLocation, onClose],
+  );
+
+  // Plain click on a prompt row: attach when a task is open, else open it.
+  const handleSelectPrompt = useCallback(
+    (result: PromptResult) => {
+      if (currentTaskId !== undefined) {
+        void attachPromptToCurrentTask(result.id, result.name);
+      } else {
+        navigateToPrompt(result.id);
+      }
+    },
+    [currentTaskId, attachPromptToCurrentTask, navigateToPrompt],
+  );
+
+  // ── Keyboard navigation ────────────────────────────────────────────
+  const itemCount = isCommandMode ? visibleActions.length : flatResults.length;
+
+  const handleActivate = useCallback(
+    (index: number, e: KeyboardEvent<HTMLElement>): void => {
+      if (isCommandMode) {
+        const action = visibleActions[index];
+        if (action !== undefined) {
+          e.preventDefault();
+          runAction(action);
+        }
+        return;
+      }
+      const result = flatResults[index];
+      if (result === undefined) return;
+      e.preventDefault();
+      if (result.localKind === "prompt") {
+        // Cmd+Enter on a prompt while a task is open → attach in place,
+        // keep palette open. Otherwise → navigate to the prompt editor.
+        const isCmdEnter = e.metaKey || e.ctrlKey;
+        if (isCmdEnter && currentTaskId !== undefined) {
+          void attachPromptToCurrentTask(result.id, result.name);
+          return;
+        }
+        navigateToPrompt(result.id);
+        return;
+      }
+      // task / agentReport: Cmd+Enter == Enter (no special semantics).
+      handleSelectResult(result.data);
+    },
+    [
+      isCommandMode,
+      visibleActions,
+      flatResults,
+      currentTaskId,
+      runAction,
+      attachPromptToCurrentTask,
+      navigateToPrompt,
+      handleSelectResult,
+    ],
+  );
+
+  const { focusedIndex, setFocusedIndex, reset, handleKeyDown } =
+    useListKeyboardNav(itemCount, handleActivate);
+
+  // Auto-focus the input when the palette opens; reset state on close.
+  useEffect(() => {
+    if (!isOpen) return;
+    setQuery("");
+    reset();
+    const id = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [isOpen, reset]);
+
+  // Reset focus whenever the user's intent changes — a new query or a
+  // mode flip. We intentionally do NOT reset on async `state.status`
+  // transitions: results landing after the user has already arrow-keyed
+  // into the list must not wipe their focus (the keyboard handler's
+  // bounds check keeps a stale index harmless).
+  useEffect(() => {
+    reset();
+  }, [debouncedQuery, isCommandMode, reset]);
+
+  // ── Render body ────────────────────────────────────────────────────
+  function renderBody(): ReactElement {
+    if (isCommandMode) {
+      if (visibleActions.length === 0) {
+        return (
+          <div className={styles.empty} data-testid="global-search-no-actions">
+            No matching action.
+          </div>
+        );
+      }
+      return (
+        <ActionsList
+          actions={visibleActions}
+          focusedIndex={focusedIndex}
+          onFocusIndex={setFocusedIndex}
+          onSelect={runAction}
+        />
+      );
+    }
+
     if (query.trim() === "") {
       return (
         <div className={styles.hint} data-testid="global-search-empty">
-          Start typing to find tasks or reports
+          Start typing to find tasks or reports — or press &ldquo;&gt;&rdquo; for actions
         </div>
       );
     }
@@ -199,17 +257,16 @@ export function GlobalSearch({
 
     if (state.status === "error") {
       return (
-        <div
-          className={styles.error}
-          role="alert"
-          data-testid="global-search-error"
-        >
+        <div className={styles.error} role="alert" data-testid="global-search-error">
           Search error: {state.message}
         </div>
       );
     }
 
-    if (state.status === "ok" && state.results.length === 0) {
+    const hasSearchResults = state.status === "ok" && state.results.length > 0;
+    const hasPromptResults = matchingPrompts.length > 0;
+
+    if (state.status === "ok" && !hasSearchResults && !hasPromptResults) {
       return (
         <div className={styles.empty} data-testid="global-search-empty">
           No results for &ldquo;{debouncedQuery}&rdquo;
@@ -217,59 +274,20 @@ export function GlobalSearch({
       );
     }
 
-    if (state.status === "ok") {
-      const { tasks, agentReports } = groupResults(state.results);
-      // Build a flat index offset for aria-selected mapping
-      let globalIndex = 0;
-
+    if (flatResults.length > 0) {
       return (
-        <div role="listbox" aria-label="Search results">
-          {tasks.length > 0 ? (
-            <div>
-              <div className={styles.groupHeader} aria-hidden="true">
-                Tasks
-              </div>
-              {tasks.map((result) => {
-                const idx = globalIndex++;
-                return (
-                  <ResultRow
-                    key={result.id}
-                    result={result}
-                    index={idx}
-                    isFocused={focusedIndex === idx}
-                    onSelect={handleSelect}
-                    onHover={() => setFocusedIndex(idx)}
-                  />
-                );
-              })}
-            </div>
-          ) : null}
-          {agentReports.length > 0 ? (
-            <div>
-              <div className={styles.groupHeader} aria-hidden="true">
-                Agent reports
-              </div>
-              {agentReports.map((result) => {
-                const idx = globalIndex++;
-                return (
-                  <ResultRow
-                    key={result.id}
-                    result={result}
-                    index={idx}
-                    isFocused={focusedIndex === idx}
-                    onSelect={handleSelect}
-                    onHover={() => setFocusedIndex(idx)}
-                  />
-                );
-              })}
-            </div>
-          ) : null}
-        </div>
+        <SearchResultsList
+          flatResults={flatResults}
+          focusedIndex={focusedIndex}
+          onFocusIndex={setFocusedIndex}
+          onSelectPrompt={handleSelectPrompt}
+          onSelectResult={handleSelectResult}
+        />
       );
     }
 
     return <></>;
-  }, [query, debouncedQuery, state, focusedIndex, handleSelect]);
+  }
 
   return (
     <ModalOverlay
@@ -286,78 +304,70 @@ export function GlobalSearch({
           aria-label="Global search"
           data-testid="global-search"
         >
-          {/* Keyboard nav wrapper — arrow keys / enter move between results */}
+          {/* Keyboard nav wrapper — arrow keys / enter move between rows */}
           {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
           <div onKeyDown={handleKeyDown}>
             {/* ── Search input ── */}
             <div className={styles.inputWrap}>
-              <PixelInterfaceEssentialSearch1 width={16} height={16} className={styles.searchIcon} aria-hidden="true" />
-              <input
+              <PixelInterfaceEssentialSearch1
+                width={16}
+                height={16}
+                className={styles.searchIcon}
+                aria-hidden="true"
+              />
+              <Input
                 ref={inputRef}
                 type="search"
-                role="searchbox"
-                aria-label="Search tasks and reports"
-                placeholder="Search tasks, reports…"
+                label="Search tasks and reports"
+                labelHidden
+                placeholder="Search tasks, reports… (type > for actions)"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className={styles.input}
+                onChange={setQuery}
+                className={styles.searchField}
                 data-testid="global-search-input"
                 autoComplete="off"
               />
             </div>
 
             {/* ── Results body ── */}
-            <div className={styles.body}>{body}</div>
+            <div className={styles.body}>{renderBody()}</div>
+
+            {/* ── Footer cheatsheet ──
+                Keyboard hint strip pinned to the bottom of the palette.
+                The ⌘+Enter affordance only appears on a task surface —
+                otherwise it would be misleading (no task to attach to). */}
+            <div
+              className={styles.footerHint}
+              data-testid="global-search-cheatsheet"
+              aria-hidden="true"
+            >
+              <span className={styles.cheatItem}>
+                <kbd className={styles.kbd}>Enter</kbd>
+                <span>open</span>
+              </span>
+              {currentTaskId !== undefined ? (
+                <>
+                  <span className={styles.cheatSep} aria-hidden="true">
+                    ·
+                  </span>
+                  <span className={styles.cheatItem}>
+                    <kbd className={styles.kbd}>⌘</kbd>
+                    <kbd className={styles.kbd}>Enter</kbd>
+                    <span>attach prompt to this task</span>
+                  </span>
+                </>
+              ) : null}
+              <span className={styles.cheatSep} aria-hidden="true">
+                ·
+              </span>
+              <span className={styles.cheatItem}>
+                <kbd className={styles.kbd}>Esc</kbd>
+                <span>close</span>
+              </span>
+            </div>
           </div>
         </AriaDialog>
       </Modal>
     </ModalOverlay>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// ResultRow sub-component
-// ---------------------------------------------------------------------------
-
-interface ResultRowProps {
-  result: SearchResult;
-  index: number;
-  isFocused: boolean;
-  onSelect: (result: SearchResult) => void;
-  onHover: () => void;
-}
-
-function ResultRow({
-  result,
-  index,
-  isFocused,
-  onSelect,
-  onHover,
-}: ResultRowProps): ReactElement {
-  const rowRef = useRef<HTMLButtonElement>(null);
-
-  // Scroll the focused row into view when focus moves via keyboard.
-  // scrollIntoView may be absent in test environments (jsdom) — guard defensively.
-  useEffect(() => {
-    if (isFocused && rowRef.current) {
-      rowRef.current.scrollIntoView?.({ block: "nearest" });
-    }
-  }, [isFocused]);
-
-  return (
-    <button
-      ref={rowRef}
-      type="button"
-      role="option"
-      aria-selected={isFocused}
-      className={styles.resultItem}
-      data-testid={`global-search-result-${index}`}
-      data-focused={isFocused ? "true" : "false"}
-      onClick={() => onSelect(result)}
-      onMouseEnter={onHover}
-    >
-      <span className={styles.resultTitle}>{result.title}</span>
-      <span className={styles.resultSnippet}>{result.snippet}</span>
-    </button>
   );
 }

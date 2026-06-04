@@ -1,18 +1,14 @@
 /**
  * Route map for Catique HUB.
  *
- * All top-level nav views have a canonical URL path. The board-detail route
- * embeds the boardId as a path segment so it is directly deep-linkable.
+ * All top-level nav views have a canonical URL path. Board-detail and
+ * task-detail routes embed the entity id as a path segment so they are
+ * directly deep-linkable.
  *
- * E4.x (router): introduced with wouter migration. Previously navigation was
- * purely in-memory via `useState<NavView>` in App.tsx.
- * Round 4: NavView "roles" → "agent-roles", "mcp-tools" → "mcp-servers".
- *          URL paths are unchanged (backward compat). "tags" and "reports"
- *          are no longer sidebar nav items but routes remain for deep-links.
- * PROXY-S6 (ADR-0008): canonical path renamed `/mcp-tools` → `/mcp-servers`
- *          to reflect the per-server group view. `/mcp-tools` is preserved
- *          as a one-release redirect alias (until v1) so any deep links
- *          still resolve.
+ * Refactor v3 introduced space-scoped board URLs and renamed `/roles →
+ * /agents`, `/mcp-servers → /integrations`. Legacy paths stay routable
+ * for one release and rewrite into the canonical form via the
+ * `legacy-redirect` resolver (see `docs/refactor-v3/decisions/D-E-*`).
  */
 
 import type { NavView } from "@widgets/main-sidebar";
@@ -22,15 +18,23 @@ import type { NavView } from "@widgets/main-sidebar";
 // ---------------------------------------------------------------------------
 
 export const routes = {
+  /** v3 Home — redirects to `last_active_space` or shows space picker. */
+  home: "/",
+  /** Legacy boards root — kept as a navigable alias for one release. */
   boards: "/",
+  /** Legacy board detail — redirects to `spaceBoard` via lookup. */
   board: "/boards/:boardId",
-  /** Round-19e: per-board settings page (replaces BoardEditor modal). */
+  /** Legacy per-board settings — redirects to `spaceBoardSettings`. */
   boardSettings: "/boards/:boardId/settings",
   task: "/tasks/:taskId",
   prompts: "/prompts",
-  /** /roles — maps to "agent-roles" NavView */
+  /** v3: agents library (canonical). */
+  agents: "/agents",
+  /** v3: selected agent detail (canonical). */
+  agent: "/agents/:agentId",
+  /** Legacy `/roles` — redirects to `/agents`. */
   roles: "/roles",
-  /** /roles/:roleId — selected-role editor in content (audit-#9, wave-3). */
+  /** Legacy `/roles/:roleId` — redirects to `/agents/:agentId`. */
   role: "/roles/:roleId",
   /** /tags — no longer a sidebar nav item but route still valid */
   tags: "/tags",
@@ -41,23 +45,29 @@ export const routes = {
   skills: "/skills",
   /** /skills/:skillId — selected-skill editor in content (audit-#9). */
   skill: "/skills/:skillId",
-  /**
-   * Canonical MCP servers list path. PROXY-S6 / ADR-0008 — renamed from
-   * the legacy `/mcp-tools` so URLs match the per-server group view.
-   */
+  /** v3: integrations library (canonical). */
+  integrations: "/integrations",
+  /** v3: selected integration server detail (canonical). */
+  integration: "/integrations/:serverId",
+  /** v3: selected integration tool detail (canonical). */
+  integrationTool: "/integrations/:serverId/tools/:toolId",
+  /** Legacy MCP servers root — redirects to `/integrations`. */
   mcpServers: "/mcp-servers",
-  /** Selected MCP server — server detail in the content pane. */
+  /** Legacy MCP server detail — redirects to `/integrations/:serverId`. */
   mcpServer: "/mcp-servers/:serverId",
-  /** Selected MCP tool — tool detail in the content pane. */
+  /** Legacy MCP tool detail — redirects to the integrations variant. */
   mcpServerTool: "/mcp-servers/:serverId/tools/:toolId",
-  /**
-   * Legacy MCP path. Kept for one release as a redirect alias so old
-   * deep-links resolve; remove with v1.
-   */
+  /** Pre-PROXY-S6 MCP path. Same redirect target as `/mcp-servers`. */
   mcpServersLegacy: "/mcp-tools",
   spaces: "/spaces",
+  /** v3 Space-detail "day-screen". */
+  space: "/spaces/:spaceId",
   /** Per-space settings page — editable name/description form. */
   spaceSettings: "/spaces/:spaceId/settings",
+  /** v3: space-scoped board detail (canonical). */
+  spaceBoard: "/spaces/:spaceId/boards/:boardId",
+  /** v3: space-scoped per-board settings (canonical). */
+  spaceBoardSettings: "/spaces/:spaceId/boards/:boardId/settings",
   settings: "/settings",
 } as const;
 
@@ -65,7 +75,28 @@ export const routes = {
 // Path helpers
 // ---------------------------------------------------------------------------
 
-/** Build the concrete URL path for a specific board detail page. */
+/** Build the canonical (v3, space-scoped) URL path for a board detail page. */
+export function spaceBoardPath(spaceId: string, boardId: string): string {
+  return `/spaces/${spaceId}/boards/${boardId}`;
+}
+
+/** Build the canonical (v3, space-scoped) URL path for board settings. */
+export function spaceBoardSettingsPath(
+  spaceId: string,
+  boardId: string,
+): string {
+  return `/spaces/${spaceId}/boards/${boardId}/settings`;
+}
+
+/** Build the v3 space-detail page URL. */
+export function spacePath(id: string): string {
+  return `/spaces/${id}`;
+}
+
+/**
+ * Legacy board-detail URL builder. Kept so existing callers don't break
+ * during the rollout; new code should prefer `spaceBoardPath`.
+ */
 export function boardPath(id: string): string {
   return `/boards/${id}`;
 }
@@ -80,12 +111,17 @@ export function spaceSettingsPath(id: string): string {
   return `/spaces/${id}/settings`;
 }
 
-/** Build the concrete URL path for the per-board settings page. */
+/** Legacy board-settings URL builder. Prefer `spaceBoardSettingsPath`. */
 export function boardSettingsPath(id: string): string {
   return `/boards/${id}/settings`;
 }
 
-/** Build the concrete URL path for a specific role editor page. */
+/** v3 canonical agent-editor URL. */
+export function agentPath(id: string): string {
+  return `/agents/${id}`;
+}
+
+/** Legacy role-editor URL. Prefer `agentPath`. */
 export function rolePath(id: string): string {
   return `/roles/${id}`;
 }
@@ -100,12 +136,22 @@ export function tagPath(id: string): string {
   return `/tags/${id}`;
 }
 
-/** Build the concrete URL path for a selected MCP server. */
+/** v3 canonical integration-server URL. */
+export function integrationPath(serverId: string): string {
+  return `/integrations/${serverId}`;
+}
+
+/** v3 canonical integration-tool URL. */
+export function integrationToolPath(serverId: string, toolId: string): string {
+  return `/integrations/${serverId}/tools/${toolId}`;
+}
+
+/** Legacy MCP-server URL. Prefer `integrationPath`. */
 export function mcpServerPath(serverId: string): string {
   return `/mcp-servers/${serverId}`;
 }
 
-/** Build the concrete URL path for a selected MCP tool. */
+/** Legacy MCP-tool URL. Prefer `integrationToolPath`. */
 export function mcpServerToolPath(serverId: string, toolId: string): string {
   return `/mcp-servers/${serverId}/tools/${toolId}`;
 }
@@ -156,16 +202,26 @@ function compileMatcher<P extends string>(
 export const matchBoardSurface = compileMatcher(routes.board);
 /** Match `/tasks/:taskId`. */
 export const matchTaskSurface = compileMatcher(routes.task);
+/** Match `/spaces/:spaceId` (the v3 day-screen, plus any deeper surface). */
+export const matchSpaceSurface = compileMatcher(routes.space);
 /** Match `/spaces/:spaceId/settings`. */
 export const matchSpaceSettings = compileMatcher(routes.spaceSettings);
+/** Match `/spaces/:spaceId/boards/:boardId`. */
+export const matchSpaceBoardSurface = compileMatcher(routes.spaceBoard);
+/** Match `/spaces/:spaceId/boards/:boardId/settings`. */
+export const matchSpaceBoardSettings = compileMatcher(routes.spaceBoardSettings);
 /** Match `/boards/:boardId/settings`. */
 export const matchBoardSettings = compileMatcher(routes.boardSettings);
+/** Match `/agents/:agentId`. */
+export const matchAgentSurface = compileMatcher(routes.agent);
 /** Match `/roles/:roleId`. */
 export const matchRoleSurface = compileMatcher(routes.role);
 /** Match `/skills/:skillId`. */
 export const matchSkillSurface = compileMatcher(routes.skill);
 /** Match `/tags/:tagId`. */
 export const matchTagSurface = compileMatcher(routes.tag);
+/** Match `/integrations/:serverId` (and the tool sub-surface). */
+export const matchIntegrationSurface = compileMatcher(routes.integration);
 /** Match `/mcp-servers/:serverId` (and `/mcp-servers/:serverId/tools/:toolId`). */
 export const matchMcpServerSurface = compileMatcher(routes.mcpServer);
 
@@ -180,11 +236,11 @@ export function pathForView(view: NavView): string {
     case "prompts":
       return routes.prompts;
     case "agent-roles":
-      return routes.roles;
+      return routes.agents;
     case "skills":
       return routes.skills;
     case "mcp-servers":
-      return routes.mcpServers;
+      return routes.integrations;
     case "spaces":
       return routes.spaces;
     case "settings":
@@ -199,17 +255,25 @@ export function pathForView(view: NavView): string {
  * Defaults to `"boards"` for unknown paths.
  */
 export function viewForPath(path: string): NavView {
-  if (path === routes.boards || path === "") return "boards";
+  if (path === routes.home || path === "") return "boards";
   // Round-19c: /prompt-groups was merged into /prompts — keep the legacy
   // path resolving so any saved deep-link still lands on the new page.
   if (path === routes.prompts || path === "/prompt-groups") return "prompts";
-  if (path === routes.roles || matchRoleSurface(path) !== null)
+  if (
+    path === routes.agents ||
+    path === routes.roles ||
+    matchAgentSurface(path) !== null ||
+    matchRoleSurface(path) !== null
+  ) {
     return "agent-roles";
+  }
   if (path === routes.skills || matchSkillSurface(path) !== null)
     return "skills";
   if (
+    path === routes.integrations ||
     path === routes.mcpServers ||
     path === routes.mcpServersLegacy ||
+    matchIntegrationSurface(path) !== null ||
     matchMcpServerSurface(path) !== null
   ) {
     return "mcp-servers";
@@ -220,9 +284,10 @@ export function viewForPath(path: string): NavView {
   // alongside the settings or detail pane (round-19e).
   if (
     path === routes.spaces ||
+    matchSpaceSurface(path) !== null ||
+    matchSpaceBoardSurface(path) !== null ||
     matchBoardSurface(path) !== null ||
-    matchTaskSurface(path) !== null ||
-    matchSpaceSettings(path) !== null
+    matchTaskSurface(path) !== null
   ) {
     return "boards";
   }

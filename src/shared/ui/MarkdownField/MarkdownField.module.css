@@ -9,11 +9,25 @@
  * containing Markdown formatting affordances (bold, italic, link, …).
  */
 
+/* The whole edit surface (toolbar + textarea) reads as ONE bordered input:
+ * the border + focus ring live on this wrapper (focus-within), matching the
+ * shared Input/TextArea, instead of a separate ring on the inner textarea. */
 .editRoot {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
   width: 100%;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  overflow: hidden;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.editRoot:focus-within {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
 }
 
 /*
@@ -34,10 +48,8 @@
   flex-wrap: wrap;
   gap: var(--space-2);
   padding: var(--space-4) var(--space-6);
-  border: 1px solid var(--color-border-default);
-  border-bottom: none;
-  border-top-left-radius: var(--radius-md);
-  border-top-right-radius: var(--radius-md);
+  /* Inner separator only — the outer border lives on `.editRoot`. */
+  border-bottom: 1px solid var(--color-border-subtle);
   background-color: var(--color-surface-raised);
   position: sticky;
   top: 0;
@@ -142,25 +154,19 @@
   width: 100%;
   min-height: 160px;
   padding: var(--space-12);
-  background-color: var(--color-surface-canvas);
+  /* Borderless — `.editRoot` owns the field border + focus ring so the
+   * toolbar + textarea read as one bordered input. */
+  background-color: var(--color-surface-raised);
   color: var(--color-text-default);
-  border: 1px solid var(--color-border-default);
-  /* Square the top so it merges with the toolbar above. */
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  border: none;
+  border-radius: 0;
   font-family: var(--font-mono, monospace);
   font-size: var(--font-size-body-sm);
   line-height: 1.55;
   resize: vertical;
   outline: none;
-  transition:
-    border-color 80ms ease-out,
-    box-shadow 80ms ease-out;
 }
 
-.textarea:focus-visible {
-  border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 3px var(--color-accent-ring);
-}
 
 .textarea::placeholder {
   color: var(--color-text-subtle);
@@ -173,9 +179,9 @@
   width: 100%;
   min-height: 64px;
   padding: var(--space-12);
-  background-color: var(--color-surface-canvas);
+  background-color: var(--color-surface-raised);
   color: var(--color-text-default);
-  border: 1px solid var(--color-border-subtle);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   font-family: var(--font-sans);
   font-size: var(--font-size-body-sm);

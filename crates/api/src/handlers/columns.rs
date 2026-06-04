@@ -60,14 +60,18 @@ pub async fn create_column(
 ///
 /// Forwards every error from `ColumnsUseCase::update`.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn update_column(
     state: State<'_, AppState>,
     id: String,
     name: Option<String>,
     position: Option<i64>,
     role_id: Option<Option<String>>,
+    icon: Option<Option<String>>,
+    color: Option<Option<String>>,
 ) -> Result<Column, AppError> {
-    let column = ColumnsUseCase::new(&state.pool).update(id, name, position, role_id)?;
+    let column =
+        ColumnsUseCase::new(&state.pool).update(id, name, position, role_id, icon, color)?;
     events::emit(
         &state,
         events::COLUMN_UPDATED,

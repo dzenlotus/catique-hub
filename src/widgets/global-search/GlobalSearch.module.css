@@ -76,11 +76,32 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  /*
+   * `overflow: hidden` keeps the rounded corners intact. The standard
+   * <Input> focus ring (0 0 0 3px accent-ring) is NOT clipped because the
+   * input row (`.inputWrap`) carries 16px of horizontal padding — far more
+   * than the 3px ring needs — so the bordered input + ring sit well inside
+   * the panel edge.
+   */
   overflow: hidden;
+  /* The palette surface — was fully transparent (no background/border),
+   * so the open palette looked invisible. Matches the shared Dialog
+   * surface treatment + a strong floating-popover shadow. */
+  background-color: var(--color-surface-overlay);
+  color: var(--color-text-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-high);
 }
 
 /* ── Search input area ────────────────────────────────────────── */
 
+/*
+ * Input row — a leading search icon next to the standard <Input>. The row
+ * keeps a bottom border off (the bordered input now provides its own visual
+ * frame) and the horizontal padding gives the input's focus ring room before
+ * the panel's `overflow-clip-margin`.
+ */
 .inputWrap {
   display: flex;
   align-items: center;
@@ -95,20 +116,15 @@
   flex-shrink: 0;
 }
 
-.input {
+/*
+ * Search field — shared <Input> wrapper. The palette renders the standard
+ * app Input verbatim: bordered (`--color-border-strong`), with the canonical
+ * `0 0 0 3px accent-ring` focus ring. We only stretch it to fill the row —
+ * the primitive owns border / background / focus treatment.
+ */
+.searchField {
   flex: 1;
-  height: 36px;
-  padding: 0 var(--space-8);
-  border: none;
-  background: transparent;
-  color: var(--color-text-default);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body);
-  outline: none;
-}
-
-.input::placeholder {
-  color: var(--color-text-subtle);
+  min-width: 0;
 }
 
 /* ── Results body ─────────────────────────────────────────────── */
@@ -212,4 +228,45 @@
   .resultItem {
     transition: none;
   }
+}
+
+/* ── Footer cheatsheet ────────────────────────────────────────── */
+
+.footerHint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-16);
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.cheatItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.cheatSep {
+  color: var(--color-text-subtle);
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
 }

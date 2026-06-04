@@ -15,8 +15,8 @@ import type { ReactElement } from "react";
 import type { Board } from "@entities/board";
 import type { Column } from "@entities/column";
 import type { Task } from "@entities/task";
-import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ActiveSpaceProvider } from "@app/providers";
+import { ToastProvider } from "@shared/lib";
 
 vi.mock("@shared/api", async () => {
   const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
@@ -80,6 +80,8 @@ function makeColumn(overrides: Partial<Column> = {}): Column {
     position: 1n,
     createdAt: 0n,
     isDefault: false,
+    icon: null,
+    color: null,
     ...overrides,
   };
 }
@@ -97,6 +99,9 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,
+    effectivePromptCount: 0n,
+    effectiveSkillCount: 0n,
+    effectiveToolCount: 0n,
     ...overrides,
   };
 }

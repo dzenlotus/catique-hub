@@ -51,7 +51,7 @@ vi.mock("@shared/api", async () => {
 });
 
 import { invoke } from "@shared/api";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 import { Toaster } from "@widgets/toaster";
 import { McpServersPage } from "../McpServersPage";
 

@@ -26,8 +26,6 @@ test.describe("settings", () => {
 
     for (const id of [
       "settings-appearance",
-      "settings-profile",
-      "settings-connected-agents",
       "settings-keyboard-shortcuts",
       "settings-tokens",
       "settings-data",

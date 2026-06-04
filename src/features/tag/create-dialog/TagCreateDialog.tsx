@@ -9,13 +9,25 @@
  * Fields: name (required), color (optional with reset).
  */
 
-import { useState, type ReactElement } from "react";
+import { useCallback, useState, type ReactElement } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { useCreateTagMutation } from "@entities/tag";
 import type { Tag } from "@entities/tag";
 import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 
 import styles from "./TagCreateDialog.module.css";
+
+// react-hook-form schema — name required; color is picker-driven (not a
+// form field) and stays as local state, matching the etalon pattern of
+// keeping IconColorPicker outside the validated form values.
+const tagFormSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+});
+
+type TagFormValues = z.infer<typeof tagFormSchema>;
 
 export interface TagCreateDialogProps {
   isOpen: boolean;
@@ -65,51 +77,64 @@ function TagCreateDialogContent({
 }: TagCreateDialogContentProps): ReactElement {
   const createMutation = useCreateTagMutation();
 
-  const [name, setName] = useState("");
+  // Color is picker-driven, not a validated form field — kept as local
+  // state outside react-hook-form (etalon: SpaceCreateDialog icon/color).
   const [color, setColor] = useState("");
-  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const canSubmit = name.trim().length > 0;
+  const {
+    control,
+    handleSubmit,
+    setError,
+    formState: { errors, isValid, isSubmitting },
+  } = useForm<TagFormValues>({
+    resolver: zodResolver(tagFormSchema),
+    defaultValues: { name: "" },
+    mode: "onChange",
+  });
 
-  const handleSave = (): void => {
-    setSaveError(null);
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setSaveError("Name cannot be empty.");
-      return;
-    }
-
-    type MutationArgs = Parameters<typeof createMutation.mutate>[0];
-    const args: MutationArgs = { name: trimmedName };
+  const onValid = handleSubmit(async (values) => {
+    type MutationArgs = Parameters<typeof createMutation.mutateAsync>[0];
+    const args: MutationArgs = { name: values.name };
     if (color !== "") args.color = color;
 
-    createMutation.mutate(args, {
-      onSuccess: (tag) => {
-        onCreated?.(tag);
-        onClose();
-      },
-      onError: (err) => {
-        setSaveError(`Failed to create: ${err.message}`);
-      },
-    });
-  };
+    try {
+      const tag = await createMutation.mutateAsync(args);
+      onCreated?.(tag);
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError("root.serverError", { message: `Failed to create: ${message}` });
+    }
+  });
 
-  const handleCancel = (): void => {
+  const handleSubmitPress = useCallback((): void => {
+    void onValid();
+  }, [onValid]);
+
+  const handleCancel = useCallback((): void => {
     onClose();
-  };
+  }, [onClose]);
+
+  const serverError = errors.root?.serverError?.message;
 
   return (
     <>
       {/* Name */}
       <div className={styles.section}>
-        <Input
-          label="Name"
-          value={name}
-          onChange={setName}
-          placeholder="Tag name"
-          autoFocus
-          className={styles.fullWidthInput}
-          data-testid="tag-create-dialog-name-input"
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <Input
+              label="Name"
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Tag name"
+              autoFocus
+              className={styles.fullWidthInput}
+              data-testid="tag-create-dialog-name-input"
+            />
+          )}
         />
       </div>
 
@@ -126,13 +151,13 @@ function TagCreateDialogContent({
 
       {/* Footer */}
       <div className={styles.footer}>
-        {saveError ? (
+        {serverError ? (
           <p
             className={styles.saveError}
             role="alert"
             data-testid="tag-create-dialog-error"
           >
-            {saveError}
+            {serverError}
           </p>
         ) : null}
         <Button
@@ -146,9 +171,9 @@ function TagCreateDialogContent({
         <Button
           variant="primary"
           size="md"
-          isPending={createMutation.status === "pending"}
-          isDisabled={!canSubmit}
-          onPress={handleSave}
+          isPending={isSubmitting}
+          isDisabled={!isValid}
+          onPress={handleSubmitPress}
           data-testid="tag-create-dialog-save"
         >
           Create

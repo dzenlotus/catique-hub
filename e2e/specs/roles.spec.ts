@@ -5,9 +5,10 @@ import { invokeBridge, readBridge } from "../helpers/bridge";
 import { sel } from "../helpers/selectors";
 
 async function gotoRoles(page: Page): Promise<void> {
+  // v3: "Roles" nav label renamed to "Agents".
   await page
     .getByTestId(sel.mainSidebar)
-    .getByRole("button", { name: "Roles" })
+    .getByRole("button", { name: "Agents" })
     .click();
   await expect(page.getByTestId(sel.rolesPage)).toBeVisible();
 }
@@ -277,6 +278,9 @@ test.describe("roles", () => {
     await gotoRoles(page);
     const id = await createRole(page, "Named");
     await page.getByTestId(sel.roleSidebarRow(id)).click({ force: true });
+    // v3: role name is now an inline EntityTitle (click-to-edit heading).
+    // The `role-editor-name-input` only appears after clicking the trigger.
+    await page.getByTestId(`${sel.roleEditorName}-trigger`).click();
     await expect(page.getByTestId(sel.roleEditorName)).toHaveValue("Named");
   });
 

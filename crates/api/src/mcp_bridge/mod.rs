@@ -171,8 +171,7 @@ pub async fn install(mgr: &SidecarManager, pool: Pool, orchestrator: Option<Orch
                 "proxy_tool_call" => return proxy_tool_call_arm(&pool, &mgr, params).await,
                 "add_provider" => {
                     let params_clone = params.clone();
-                    let res =
-                        mcp_dispatch::add_provider_arm(&pool, orch.as_ref(), params).await;
+                    let res = mcp_dispatch::add_provider_arm(&pool, orch.as_ref(), params).await;
                     if let Ok(ref v) = res {
                         mcp_dispatch::publish_change_for_method(
                             &pool,
@@ -185,8 +184,7 @@ pub async fn install(mgr: &SidecarManager, pool: Pool, orchestrator: Option<Orch
                 }
                 "remove_provider" => {
                     let params_clone = params.clone();
-                    let res =
-                        mcp_dispatch::remove_provider_arm(&pool, orch.as_ref(), params).await;
+                    let res = mcp_dispatch::remove_provider_arm(&pool, orch.as_ref(), params).await;
                     if let Ok(ref v) = res {
                         mcp_dispatch::publish_change_for_method(
                             &pool,
@@ -231,11 +229,10 @@ pub async fn install(mgr: &SidecarManager, pool: Pool, orchestrator: Option<Orch
             let pool_for_publish = Arc::clone(&pool);
             let method_for_publish = method.clone();
             let params_for_publish = params.clone();
-            let dispatch_result = tokio::task::spawn_blocking(move || {
-                mcp_dispatch::dispatch(&pool, &method, params)
-            })
-            .await
-            .map_err(|e| format!("dispatch join error: {e}"))?;
+            let dispatch_result =
+                tokio::task::spawn_blocking(move || mcp_dispatch::dispatch(&pool, &method, params))
+                    .await
+                    .map_err(|e| format!("dispatch join error: {e}"))?;
             if let Ok(ref v) = dispatch_result {
                 mcp_dispatch::publish_change_for_method(
                     &pool_for_publish,

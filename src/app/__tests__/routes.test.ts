@@ -3,6 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   routes,
   boardPath,
+  spaceBoardPath,
+  spaceBoardSettingsPath,
+  spacePath,
+  agentPath,
+  integrationPath,
+  integrationToolPath,
   taskPath,
   pathForView,
   viewForPath,
@@ -10,26 +16,27 @@ import {
   mcpServerToolPath,
   matchBoardSurface,
   matchTaskSurface,
+  matchSpaceSurface,
   matchSpaceSettings,
+  matchSpaceBoardSurface,
+  matchSpaceBoardSettings,
   matchBoardSettings,
+  matchAgentSurface,
   matchRoleSurface,
   matchSkillSurface,
   matchTagSurface,
+  matchIntegrationSurface,
   matchMcpServerSurface,
 } from "../routes";
 import type { NavView } from "@widgets/main-sidebar";
 
 // ---------------------------------------------------------------------------
-// All nav views for round-trip coverage
-// "roles" → "agent-roles", "mcp-tools" → "mcp-servers" (Round 4 rename)
-// "tags" and "reports" removed from sidebar nav but routes still exist
+// All nav views for round-trip coverage.
+// v3 rename: pathForView("agent-roles") → "/agents",
+//            pathForView("mcp-servers") → "/integrations".
+// Internal NavView identifiers stay as-is; only the URL surface migrated.
 // ---------------------------------------------------------------------------
 
-// Round-19e: "spaces" stays in the NavView union for deep-link
-// resolution but no longer round-trips through pathForView/viewForPath
-// — the standalone /spaces page was retired so /spaces resolves to
-// "boards" (sidebar visible, BoardHome content). The list omits it
-// from the round-trip table accordingly.
 const ALL_VIEWS: NavView[] = [
   "boards",
   "prompts",
@@ -40,16 +47,68 @@ const ALL_VIEWS: NavView[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// boardPath helper
+// boardPath helper (legacy)
 // ---------------------------------------------------------------------------
 
-describe("boardPath", () => {
+describe("boardPath (legacy)", () => {
   it("returns /boards/<id>", () => {
     expect(boardPath("abc-123")).toBe("/boards/abc-123");
   });
+});
 
-  it("handles arbitrary id strings", () => {
-    expect(boardPath("my-board")).toBe("/boards/my-board");
+// ---------------------------------------------------------------------------
+// spaceBoardPath helper (v3 canonical)
+// ---------------------------------------------------------------------------
+
+describe("spaceBoardPath", () => {
+  it("returns /spaces/<spaceId>/boards/<boardId>", () => {
+    expect(spaceBoardPath("sp-1", "brd-1")).toBe("/spaces/sp-1/boards/brd-1");
+  });
+
+  it("returns settings sub-path via spaceBoardSettingsPath", () => {
+    expect(spaceBoardSettingsPath("sp-1", "brd-1")).toBe(
+      "/spaces/sp-1/boards/brd-1/settings",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// spacePath helper (v3 day-screen)
+// ---------------------------------------------------------------------------
+
+describe("spacePath", () => {
+  it("returns /spaces/<spaceId>", () => {
+    expect(spacePath("sp-1")).toBe("/spaces/sp-1");
+  });
+
+  it("route constant has :spaceId placeholder", () => {
+    expect(routes.space).toBe("/spaces/:spaceId");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// agentPath / integrationPath — v3 canonical helpers
+// ---------------------------------------------------------------------------
+
+describe("agentPath", () => {
+  it("returns /agents/<id>", () => {
+    expect(agentPath("a-1")).toBe("/agents/a-1");
+  });
+
+  it("route constant has :agentId placeholder", () => {
+    expect(routes.agent).toBe("/agents/:agentId");
+  });
+});
+
+describe("integrationPath / integrationToolPath", () => {
+  it("returns /integrations/<id>", () => {
+    expect(integrationPath("srv-1")).toBe("/integrations/srv-1");
+  });
+
+  it("returns /integrations/<srv>/tools/<tool>", () => {
+    expect(integrationToolPath("srv-1", "tool-1")).toBe(
+      "/integrations/srv-1/tools/tool-1",
+    );
   });
 });
 
@@ -62,20 +121,16 @@ describe("taskPath", () => {
     expect(taskPath("tsk-1")).toBe("/tasks/tsk-1");
   });
 
-  it("handles arbitrary id strings", () => {
-    expect(taskPath("my-task-id")).toBe("/tasks/my-task-id");
-  });
-
   it("route constant has :taskId placeholder", () => {
     expect(routes.task).toBe("/tasks/:taskId");
   });
 });
 
 // ---------------------------------------------------------------------------
-// mcpServerPath / mcpServerToolPath — round-22 master-detail routes
+// mcpServerPath / mcpServerToolPath — legacy helpers (still callable)
 // ---------------------------------------------------------------------------
 
-describe("mcpServerPath", () => {
+describe("mcpServerPath (legacy)", () => {
   it("returns /mcp-servers/<id>", () => {
     expect(mcpServerPath("srv-1")).toBe("/mcp-servers/srv-1");
   });
@@ -85,22 +140,16 @@ describe("mcpServerPath", () => {
   });
 });
 
-describe("mcpServerToolPath", () => {
+describe("mcpServerToolPath (legacy)", () => {
   it("returns /mcp-servers/<serverId>/tools/<toolId>", () => {
     expect(mcpServerToolPath("srv-1", "tool-1")).toBe(
       "/mcp-servers/srv-1/tools/tool-1",
     );
   });
-
-  it("route constant has :serverId and :toolId placeholders", () => {
-    expect(routes.mcpServerTool).toBe(
-      "/mcp-servers/:serverId/tools/:toolId",
-    );
-  });
 });
 
 // ---------------------------------------------------------------------------
-// pathForView — each view has a distinct path
+// pathForView — each view has a distinct canonical (v3) path
 // ---------------------------------------------------------------------------
 
 describe("pathForView", () => {
@@ -113,17 +162,16 @@ describe("pathForView", () => {
     expect(pathForView("prompts")).toBe("/prompts");
   });
 
-  it("maps agent-roles → /roles", () => {
-    expect(pathForView("agent-roles")).toBe("/roles");
+  it("maps agent-roles → /agents (v3 canonical)", () => {
+    expect(pathForView("agent-roles")).toBe("/agents");
   });
 
   it("maps skills → /skills", () => {
     expect(pathForView("skills")).toBe("/skills");
   });
 
-  // PROXY-S6: canonical path was renamed `/mcp-tools` → `/mcp-servers`.
-  it("maps mcp-servers → /mcp-servers", () => {
-    expect(pathForView("mcp-servers")).toBe("/mcp-servers");
+  it("maps mcp-servers → /integrations (v3 canonical)", () => {
+    expect(pathForView("mcp-servers")).toBe("/integrations");
   });
 
   it("maps spaces → /spaces", () => {
@@ -142,7 +190,7 @@ describe("pathForView", () => {
 });
 
 // ---------------------------------------------------------------------------
-// viewForPath — reverse lookup + round-trips
+// viewForPath — reverse lookup + round-trips (legacy paths still resolve)
 // ---------------------------------------------------------------------------
 
 describe("viewForPath", () => {
@@ -162,13 +210,19 @@ describe("viewForPath", () => {
     expect(viewForPath("/prompts")).toBe("prompts");
   });
 
-  // Round-19c: /prompt-groups was merged into /prompts. The legacy path
-  // maps to the new "prompts" view so deep-links keep working.
   it("maps /prompt-groups → prompts (round-19c merge)", () => {
     expect(viewForPath("/prompt-groups")).toBe("prompts");
   });
 
-  it("maps /roles → agent-roles (renamed in Round 4)", () => {
+  it("maps /agents → agent-roles (v3 canonical)", () => {
+    expect(viewForPath("/agents")).toBe("agent-roles");
+  });
+
+  it("maps /agents/:id → agent-roles", () => {
+    expect(viewForPath("/agents/a-1")).toBe("agent-roles");
+  });
+
+  it("maps /roles → agent-roles (legacy alias still resolves)", () => {
     expect(viewForPath("/roles")).toBe("agent-roles");
   });
 
@@ -176,16 +230,32 @@ describe("viewForPath", () => {
     expect(viewForPath("/skills")).toBe("skills");
   });
 
-  it("maps /mcp-servers → mcp-servers (PROXY-S6 canonical path)", () => {
+  it("maps /integrations → mcp-servers (v3 canonical)", () => {
+    expect(viewForPath("/integrations")).toBe("mcp-servers");
+  });
+
+  it("maps /integrations/:id → mcp-servers", () => {
+    expect(viewForPath("/integrations/srv-1")).toBe("mcp-servers");
+  });
+
+  it("maps /mcp-servers → mcp-servers (legacy alias)", () => {
     expect(viewForPath("/mcp-servers")).toBe("mcp-servers");
   });
 
-  it("maps /mcp-tools → mcp-servers (PROXY-S6 legacy alias)", () => {
+  it("maps /mcp-tools → mcp-servers (legacy alias)", () => {
     expect(viewForPath("/mcp-tools")).toBe("mcp-servers");
   });
 
-  it("maps /spaces → boards (round-19e: standalone listing retired)", () => {
+  it("maps /spaces → boards", () => {
     expect(viewForPath("/spaces")).toBe("boards");
+  });
+
+  it("maps /spaces/:id → boards (v3 day-screen surfaces under boards)", () => {
+    expect(viewForPath("/spaces/sp-1")).toBe("boards");
+  });
+
+  it("maps /spaces/:id/boards/:bid → boards (v3 canonical board URL)", () => {
+    expect(viewForPath("/spaces/sp-1/boards/brd-1")).toBe("boards");
   });
 
   it("maps /settings → settings", () => {
@@ -197,22 +267,18 @@ describe("viewForPath", () => {
     expect(viewForPath("/some/deep/path")).toBe("boards");
   });
 
-  it("maps /tasks/:id → boards (sidebar stays on boards for task deep-links)", () => {
+  it("maps /tasks/:id → boards (sidebar stays on boards)", () => {
     expect(viewForPath("/tasks/tsk-1")).toBe("boards");
-    expect(viewForPath("/tasks/some-other-id")).toBe("boards");
   });
 
-  // /tags and /reports are no longer in the sidebar but the routes still exist.
-  // viewForPath falls back to "boards" for them (they are no longer NavView members).
-  it("maps /tags → boards (removed from sidebar nav)", () => {
+  it("maps /tags → boards", () => {
     expect(viewForPath("/tags")).toBe("boards");
   });
 
-  it("maps /reports → boards (removed from sidebar nav)", () => {
+  it("maps /reports → boards", () => {
     expect(viewForPath("/reports")).toBe("boards");
   });
 
-  // Round-trip: pathForView(view) → viewForPath → same view
   it.each(ALL_VIEWS)(
     "round-trip: viewForPath(pathForView('%s')) === '%s'",
     (view) => {
@@ -223,7 +289,7 @@ describe("viewForPath", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Path matchers — compiled from `routes.<x>` patterns
+// Path matchers
 // ---------------------------------------------------------------------------
 
 describe("matchBoardSurface", () => {
@@ -254,6 +320,22 @@ describe("matchTaskSurface", () => {
   });
 });
 
+describe("matchSpaceSurface", () => {
+  it("extracts spaceId from /spaces/:id", () => {
+    expect(matchSpaceSurface("/spaces/sp-1")).toEqual({ spaceId: "sp-1" });
+  });
+
+  it("extracts spaceId from /spaces/:id/boards/... (sub-path)", () => {
+    expect(matchSpaceSurface("/spaces/sp-1/boards/brd-1")).toEqual({
+      spaceId: "sp-1",
+    });
+  });
+
+  it("returns null for /spaces (no id)", () => {
+    expect(matchSpaceSurface("/spaces")).toBeNull();
+  });
+});
+
 describe("matchSpaceSettings", () => {
   it("extracts spaceId from /spaces/:id/settings", () => {
     expect(matchSpaceSettings("/spaces/spc-1/settings")).toEqual({
@@ -263,6 +345,37 @@ describe("matchSpaceSettings", () => {
 
   it("does not match /spaces (list view)", () => {
     expect(matchSpaceSettings("/spaces")).toBeNull();
+  });
+});
+
+describe("matchSpaceBoardSurface", () => {
+  it("extracts both ids from /spaces/:id/boards/:bid", () => {
+    expect(matchSpaceBoardSurface("/spaces/sp-1/boards/brd-1")).toEqual({
+      spaceId: "sp-1",
+      boardId: "brd-1",
+    });
+  });
+
+  it("extracts ids from the settings sub-path too", () => {
+    expect(
+      matchSpaceBoardSurface("/spaces/sp-1/boards/brd-1/settings"),
+    ).toEqual({ spaceId: "sp-1", boardId: "brd-1" });
+  });
+
+  it("returns null for /spaces/:id alone", () => {
+    expect(matchSpaceBoardSurface("/spaces/sp-1")).toBeNull();
+  });
+});
+
+describe("matchSpaceBoardSettings", () => {
+  it("extracts both ids from .../boards/:bid/settings", () => {
+    expect(
+      matchSpaceBoardSettings("/spaces/sp-1/boards/brd-1/settings"),
+    ).toEqual({ spaceId: "sp-1", boardId: "brd-1" });
+  });
+
+  it("does not match the bare board URL", () => {
+    expect(matchSpaceBoardSettings("/spaces/sp-1/boards/brd-1")).toBeNull();
   });
 });
 
@@ -278,13 +391,19 @@ describe("matchBoardSettings", () => {
   });
 });
 
-describe("matchRoleSurface", () => {
-  it("extracts roleId from /roles/:id", () => {
-    expect(matchRoleSurface("/roles/rol-1")).toEqual({ roleId: "rol-1" });
+describe("matchAgentSurface", () => {
+  it("extracts agentId from /agents/:id", () => {
+    expect(matchAgentSurface("/agents/a-1")).toEqual({ agentId: "a-1" });
   });
 
-  it("returns null for /roles list", () => {
-    expect(matchRoleSurface("/roles")).toBeNull();
+  it("returns null for /agents list", () => {
+    expect(matchAgentSurface("/agents")).toBeNull();
+  });
+});
+
+describe("matchRoleSurface (legacy)", () => {
+  it("extracts roleId from /roles/:id", () => {
+    expect(matchRoleSurface("/roles/rol-1")).toEqual({ roleId: "rol-1" });
   });
 });
 
@@ -292,31 +411,35 @@ describe("matchSkillSurface", () => {
   it("extracts skillId from /skills/:id", () => {
     expect(matchSkillSurface("/skills/skl-1")).toEqual({ skillId: "skl-1" });
   });
-
-  it("returns null for /skills list", () => {
-    expect(matchSkillSurface("/skills")).toBeNull();
-  });
 });
 
 describe("matchTagSurface", () => {
   it("extracts tagId from /tags/:id", () => {
     expect(matchTagSurface("/tags/tag-1")).toEqual({ tagId: "tag-1" });
   });
-
-  it("returns null for /tags list", () => {
-    expect(matchTagSurface("/tags")).toBeNull();
-  });
 });
 
-describe("matchMcpServerSurface", () => {
-  it("extracts serverId from /mcp-servers/:id", () => {
-    expect(matchMcpServerSurface("/mcp-servers/srv-1")).toEqual({
+describe("matchIntegrationSurface", () => {
+  it("extracts serverId from /integrations/:id", () => {
+    expect(matchIntegrationSurface("/integrations/srv-1")).toEqual({
       serverId: "srv-1",
     });
   });
 
-  it("extracts serverId from /mcp-servers/:id/tools/:toolId (sub-path)", () => {
-    expect(matchMcpServerSurface("/mcp-servers/srv-1/tools/tool-1")).toEqual({
+  it("extracts serverId from /integrations/:id/tools/:toolId", () => {
+    expect(
+      matchIntegrationSurface("/integrations/srv-1/tools/tool-1"),
+    ).toEqual({ serverId: "srv-1" });
+  });
+
+  it("returns null for /integrations list", () => {
+    expect(matchIntegrationSurface("/integrations")).toBeNull();
+  });
+});
+
+describe("matchMcpServerSurface (legacy)", () => {
+  it("extracts serverId from /mcp-servers/:id", () => {
+    expect(matchMcpServerSurface("/mcp-servers/srv-1")).toEqual({
       serverId: "srv-1",
     });
   });

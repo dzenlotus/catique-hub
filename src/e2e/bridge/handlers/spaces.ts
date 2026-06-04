@@ -37,6 +37,8 @@ function seedDefaultColumns(boardId: string): void {
       roleId: null,
       createdAt: nowBig(),
       isDefault: true,
+      icon: null,
+      color: null,
     };
     store.columns.set(id, column);
   });

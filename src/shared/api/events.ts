@@ -71,6 +71,16 @@ export type AppEvent =
       type: "task:deleted";
       payload: { id: string; column_id: string; board_id: string };
     }
+  // ---------------- task run lifecycle (Stream J / v3 Wave 4) ----------------
+  // The Rust handler [`run_task_agent`] emits `task:run:started` the
+  // moment the IPC is accepted; the future agent-run executor will
+  // emit the matching `finished` / `failed` events when the run
+  // terminates. The frontend `EventsProvider` forwards each into
+  // `setTaskStatus(taskId, status)` so `useTaskStatus(taskId)` flips
+  // without polling.
+  | { type: "task:run:started"; payload: { taskId: string } }
+  | { type: "task:run:finished"; payload: { taskId: string } }
+  | { type: "task:run:failed"; payload: { taskId: string; error: string } }
   // ---------------- spaces ----------------
   | { type: "space:created"; payload: { id: string } }
   | { type: "space:updated"; payload: { id: string } }
@@ -182,13 +192,17 @@ export type AppEvent =
   | { type: "prompt_group:updated"; payload: { id: string } }
   | { type: "prompt_group:deleted"; payload: { id: string } }
   | { type: "prompt_group:members_changed"; payload: { group_id: string } }
+  | { type: "mcp_tool_group:created"; payload: { id: string } }
+  | { type: "mcp_tool_group:updated"; payload: { id: string } }
+  | { type: "mcp_tool_group:deleted"; payload: { id: string } }
+  | { type: "mcp_tool_group:members_changed"; payload: { group_id: string } }
   // ---------------- connected providers (round-21) ----------------
-  | {
-      type: "client:discovered";
-      payload: { clients: unknown[] };
-    }
-  | { type: "client:updated"; payload: { id: string } }
-  | { type: "client:removed"; payload: { id: string } }
+  // Wire names are `connected_provider:*` (see crates/api/src/events.rs
+  // CONNECTED_PROVIDER_ADDED/REMOVED, payload `{ id }`). The earlier
+  // `client:*` namespace was renamed backend-side; these must match the
+  // emitter exactly or the connected-providers list never refreshes.
+  | { type: "connected_provider:added"; payload: { id: string } }
+  | { type: "connected_provider:removed"; payload: { id: string } }
   | {
       /**
        * Round-21: emitted by the backend whenever the global

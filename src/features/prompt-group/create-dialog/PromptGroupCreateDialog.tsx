@@ -9,13 +9,24 @@
  * Fields: name (required), color (optional with reset).
  */
 
-import { useState, type ReactElement } from "react";
+import { useCallback, useState, type ReactElement } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { useCreatePromptGroupMutation } from "@entities/prompt-group";
 import type { PromptGroup } from "@entities/prompt-group";
 import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 
 import styles from "./PromptGroupCreateDialog.module.css";
+
+// react-hook-form schema — name required; color is picker-driven (local
+// state, not a validated form field).
+const promptGroupFormSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+});
+
+type PromptGroupFormValues = z.infer<typeof promptGroupFormSchema>;
 
 export interface PromptGroupCreateDialogProps {
   isOpen: boolean;
@@ -65,38 +76,44 @@ function PromptGroupCreateDialogContent({
 }: PromptGroupCreateDialogContentProps): ReactElement {
   const createMutation = useCreatePromptGroupMutation();
 
-  const [name, setName] = useState("");
+  // Color is picker-driven, not a validated form field — local state.
   const [color, setColor] = useState("");
-  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const canSubmit = name.trim().length > 0;
+  const {
+    control,
+    handleSubmit,
+    setError,
+    formState: { errors, isValid, isSubmitting },
+  } = useForm<PromptGroupFormValues>({
+    resolver: zodResolver(promptGroupFormSchema),
+    defaultValues: { name: "" },
+    mode: "onChange",
+  });
 
-  const handleSave = (): void => {
-    setSaveError(null);
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setSaveError("Name cannot be empty.");
-      return;
-    }
-
-    type MutationArgs = Parameters<typeof createMutation.mutate>[0];
-    const args: MutationArgs = { name: trimmedName };
+  const onValid = handleSubmit(async (values) => {
+    type MutationArgs = Parameters<typeof createMutation.mutateAsync>[0];
+    const args: MutationArgs = { name: values.name };
     if (color !== "") args.color = color;
 
-    createMutation.mutate(args, {
-      onSuccess: (group) => {
-        onCreated?.(group);
-        onClose();
-      },
-      onError: (err) => {
-        setSaveError(`Failed to create: ${err.message}`);
-      },
-    });
-  };
+    try {
+      const group = await createMutation.mutateAsync(args);
+      onCreated?.(group);
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError("root.serverError", { message: `Failed to create: ${message}` });
+    }
+  });
 
-  const handleCancel = (): void => {
+  const handleSubmitPress = useCallback((): void => {
+    void onValid();
+  }, [onValid]);
+
+  const handleCancel = useCallback((): void => {
     onClose();
-  };
+  }, [onClose]);
+
+  const serverError = errors.root?.serverError?.message;
 
   return (
     <>
@@ -120,27 +137,33 @@ function PromptGroupCreateDialogContent({
           />
         </div>
         <div className={styles.identityFields}>
-          <Input
-            label="Name"
-            value={name}
-            onChange={setName}
-            placeholder="Group name"
-            autoFocus
-            className={styles.fullWidthInput}
-            data-testid="prompt-group-create-dialog-name-input"
+          <Controller
+            control={control}
+            name="name"
+            render={({ field }) => (
+              <Input
+                label="Name"
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Group name"
+                autoFocus
+                className={styles.fullWidthInput}
+                data-testid="prompt-group-create-dialog-name-input"
+              />
+            )}
           />
         </div>
       </div>
 
       {/* Footer */}
       <div className={styles.footer}>
-        {saveError ? (
+        {serverError ? (
           <p
             className={styles.saveError}
             role="alert"
             data-testid="prompt-group-create-dialog-error"
           >
-            {saveError}
+            {serverError}
           </p>
         ) : null}
         <Button
@@ -154,9 +177,9 @@ function PromptGroupCreateDialogContent({
         <Button
           variant="primary"
           size="md"
-          isPending={createMutation.status === "pending"}
-          isDisabled={!canSubmit}
-          onPress={handleSave}
+          isPending={isSubmitting}
+          isDisabled={!isValid}
+          onPress={handleSubmitPress}
           data-testid="prompt-group-create-dialog-save"
         >
           Create

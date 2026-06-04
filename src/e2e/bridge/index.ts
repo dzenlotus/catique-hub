@@ -68,6 +68,7 @@ import { handleBoards } from "./handlers/boards";
 import { handleColumns } from "./handlers/columns";
 import { handleMcpServers } from "./handlers/mcpServers";
 import { handleMcpTools } from "./handlers/mcpTools";
+import { handleMcpToolGroups } from "./handlers/mcpToolGroups";
 import { handleMisc } from "./handlers/misc";
 import { handlePromptGroups } from "./handlers/promptGroups";
 import { handlePrompts } from "./handlers/prompts";
@@ -111,6 +112,7 @@ const DISPATCHERS = [
   handleSkills,
   handleMcpServers,
   handleMcpTools,
+  handleMcpToolGroups,
   handleTags,
   // Tasks must run BEFORE `handleMisc` because misc's catch-all returns
   // `[]` for `list_tasks`. Putting tasks first lets the proper handler

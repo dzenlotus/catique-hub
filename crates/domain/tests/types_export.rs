@@ -12,7 +12,8 @@
 //! get confused chasing a non-existent `export_all`.
 
 use catique_domain::{
-    AgentReport, Attachment, Board, Column, Prompt, PromptGroup, Role, Space, Tag, Task,
+    AgentReport, Attachment, Board, Column, McpToolGroup, Prompt, PromptGroup, Role, Space, Tag,
+    Task,
 };
 use ts_rs::TS;
 
@@ -66,4 +67,9 @@ fn export_attachment() {
 #[test]
 fn export_prompt_group() {
     PromptGroup::export().expect("PromptGroup TS bindings should export cleanly");
+}
+
+#[test]
+fn export_mcp_tool_group() {
+    McpToolGroup::export().expect("McpToolGroup TS bindings should export cleanly");
 }

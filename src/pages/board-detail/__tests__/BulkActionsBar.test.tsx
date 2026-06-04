@@ -14,6 +14,8 @@ function makeColumn(overrides: Partial<Column> = {}): Column {
     roleId: null,
     createdAt: 0n,
     isDefault: false,
+    icon: null,
+    color: null,
     ...overrides,
   };
 }

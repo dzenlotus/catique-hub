@@ -32,6 +32,9 @@ function stubTask(overrides?: Partial<Task>): Task {
     stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,
+    effectivePromptCount: 0n,
+    effectiveSkillCount: 0n,
+    effectiveToolCount: 0n,
     ...overrides,
   };
 }

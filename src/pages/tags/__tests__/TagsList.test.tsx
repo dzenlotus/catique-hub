@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Tag } from "@entities/tag";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 
 // Mock the Tauri invoke wrapper at the shared/api boundary — same
 // approach as BoardsList tests, exercising the real react-query store.

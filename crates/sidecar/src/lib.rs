@@ -270,11 +270,20 @@ impl SidecarManager {
     /// Also kicks off the multiplexed stdout reader and the heartbeat
     /// supervisor.
     ///
+    /// **Idempotency**: when the sidecar is already `Running`, this is a
+    /// no-op that returns the existing pid. Callers (manual UI Start,
+    /// `restart`) therefore don't need to inspect the status first.
+    ///
     /// # Errors
     ///
     /// Returns `SidecarError::SpawnFailed` if `node` is not found or
     /// the process cannot be created.
     pub async fn start(&self, sidecar_dir: &Path) -> Result<u32, SidecarError> {
+        // Fast path: already running — return the existing pid without
+        // touching the restart budget or spawning a second child.
+        if let SidecarStatus::Running { pid } = self.inner.lock().await.status.clone() {
+            return Ok(pid);
+        }
         let pid = do_spawn(&self.inner, &self.pending, sidecar_dir).await?;
         spawn_supervisor(self.clone());
         Ok(pid)
@@ -283,9 +292,15 @@ impl SidecarManager {
     /// Send `__shutdown` over the supervisor channel, wait up to
     /// `timeout_dur`, then SIGKILL on overrun.
     ///
+    /// **Idempotency**: returns `Ok` even when the sidecar is already
+    /// stopped — `do_stop` collapses any missing-child / missing-stdin
+    /// branches into a no-op so the UI Stop button stays safe to spam.
+    ///
     /// # Errors
     ///
-    /// Returns `Ok` even if the sidecar was already stopped.
+    /// None in practice — the function is engineered to always succeed
+    /// on shutdown attempts; the `Result` is preserved for forward
+    /// compatibility if richer diagnostics get plumbed back later.
     pub async fn stop(&self, timeout_dur: Duration) -> Result<(), SidecarError> {
         do_stop(self, timeout_dur).await
     }
@@ -869,6 +884,24 @@ mod tests {
             .await
             .expect("stop should succeed");
 
+        assert_eq!(mgr.status().await, SidecarStatus::Stopped);
+    }
+
+    /// `stop()` is idempotent — calling it on a fresh, never-started
+    /// manager must not error. The Start/Stop UI buttons in the system
+    /// drawer depend on this contract.
+    #[tokio::test]
+    async fn stop_is_idempotent_on_fresh_manager() {
+        let mgr = SidecarManager::new();
+        assert_eq!(mgr.status().await, SidecarStatus::Stopped);
+        // First call — no child, no stdin: returns Ok.
+        mgr.stop(Duration::from_millis(50))
+            .await
+            .expect("stop on fresh manager must be Ok");
+        // Second call — still Stopped, still Ok.
+        mgr.stop(Duration::from_millis(50))
+            .await
+            .expect("second stop must remain Ok");
         assert_eq!(mgr.status().await, SidecarStatus::Stopped);
     }
 }

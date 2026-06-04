@@ -81,19 +81,19 @@
 /* ----------------------------- size scale ----------------------------- */
 
 .group[data-size="sm"] .item {
-  height: 28px;
+  height: var(--control-height-sm);
   padding: 0 var(--space-12);
   font-size: var(--font-size-caption);
 }
 
 .group[data-size="md"] .item {
-  height: 32px;
+  height: var(--control-height-md);
   padding: 0 var(--space-16);
   font-size: var(--font-size-body);
 }
 
 .group[data-size="lg"] .item {
-  height: 40px;
+  height: var(--control-height-lg);
   padding: 0 var(--space-20);
   font-size: var(--font-size-body);
 }

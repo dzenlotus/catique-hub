@@ -151,3 +151,49 @@ export async function listMcpToolsByServer(
     serverId,
   });
 }
+
+// ── server-as-live-unit attachment (Phase C) ────────────────────────
+// Attaching a server materialises ALL its tools into the scope's tasks
+// and stays live across re-introspection.
+
+/** `list_role_mcp_servers` — server ids attached to a role. */
+export async function listRoleMcpServers(roleId: string): Promise<string[]> {
+  return invokeWithAppError<string[]>("list_role_mcp_servers", { roleId });
+}
+
+/** `set_role_mcp_servers` — replace a role's attached servers. */
+export async function setRoleMcpServers(
+  roleId: string,
+  serverIds: string[],
+): Promise<void> {
+  return invokeWithAppError<void>("set_role_mcp_servers", { roleId, serverIds });
+}
+
+/** `list_board_mcp_servers` — server ids attached to a board. */
+export async function listBoardMcpServers(boardId: string): Promise<string[]> {
+  return invokeWithAppError<string[]>("list_board_mcp_servers", { boardId });
+}
+
+/** `set_board_mcp_servers` — replace a board's attached servers. */
+export async function setBoardMcpServers(
+  boardId: string,
+  serverIds: string[],
+): Promise<void> {
+  return invokeWithAppError<void>("set_board_mcp_servers", {
+    boardId,
+    serverIds,
+  });
+}
+
+/** `list_task_mcp_servers` — server ids attached to a task. */
+export async function listTaskMcpServers(taskId: string): Promise<string[]> {
+  return invokeWithAppError<string[]>("list_task_mcp_servers", { taskId });
+}
+
+/** `set_task_mcp_servers` — replace a task's attached servers. */
+export async function setTaskMcpServers(
+  taskId: string,
+  serverIds: string[],
+): Promise<void> {
+  return invokeWithAppError<void>("set_task_mcp_servers", { taskId, serverIds });
+}

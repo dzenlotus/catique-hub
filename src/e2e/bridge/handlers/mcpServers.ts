@@ -131,6 +131,31 @@ export function handleMcpServers(
     }
     case "get_mcp_server_connection_hint":
       return null;
+    // ── server-as-live-unit attachment (Phase C) ──
+    case "list_role_mcp_servers":
+      return store.roleMcpServers.get(String(args["roleId"])) ?? [];
+    case "set_role_mcp_servers": {
+      const roleId = String(args["roleId"]);
+      store.roleMcpServers.set(roleId, [...(args["serverIds"] as string[])]);
+      emitEvent("role:updated", { id: roleId });
+      return null;
+    }
+    case "list_board_mcp_servers":
+      return store.boardMcpServers.get(String(args["boardId"])) ?? [];
+    case "set_board_mcp_servers": {
+      const boardId = String(args["boardId"]);
+      store.boardMcpServers.set(boardId, [...(args["serverIds"] as string[])]);
+      emitEvent("board:updated", { id: boardId });
+      return null;
+    }
+    case "list_task_mcp_servers":
+      return store.taskMcpServers.get(String(args["taskId"])) ?? [];
+    case "set_task_mcp_servers": {
+      const taskId = String(args["taskId"]);
+      store.taskMcpServers.set(taskId, [...(args["serverIds"] as string[])]);
+      emitEvent("task:updated", { id: taskId });
+      return null;
+    }
     default:
       return undefined;
   }

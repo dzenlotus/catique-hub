@@ -84,38 +84,99 @@ pub fn search_tasks(
     query: &str,
     limit: Option<i64>,
 ) -> Result<Vec<SearchResult>, DbError> {
-    let Some(fts_query) = fts5_quote(query) else {
-        return Ok(Vec::new());
-    };
     let lim = resolve_limit(limit);
+    // `resolve_limit` clamps to `[1, MAX_LIMIT]`, so this never falls back.
+    let lim_usize = usize::try_from(lim).unwrap_or(usize::MAX);
+    let mut out: Vec<SearchResult> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    // snippet(fts_table, col_index, open_tag, close_tag, ellipsis, max_tokens)
-    // col 1 = title (the first indexed column after the UNINDEXED task_id).
-    let mut stmt = conn.prepare(
-        "SELECT t.id, t.board_id, t.column_id, t.title, \
-                snippet(tasks_fts, 1, '<b>', '</b>', '…', 16) AS snippet \
-         FROM tasks_fts \
-         JOIN tasks t ON t.id = tasks_fts.task_id \
-         WHERE tasks_fts MATCH ?1 \
-         ORDER BY tasks_fts.rank \
-         LIMIT ?2",
-    )?;
+    // 1. Full-text over title + description (BM25-ranked).
+    if let Some(fts_query) = fts5_quote(query) {
+        // snippet(fts_table, col_index, open_tag, close_tag, ellipsis, max_tokens)
+        // col 1 = title (the first indexed column after the UNINDEXED task_id).
+        let mut stmt = conn.prepare(
+            "SELECT t.id, t.board_id, t.column_id, t.title, \
+                    snippet(tasks_fts, 1, '<b>', '</b>', '…', 16) AS snippet \
+             FROM tasks_fts \
+             JOIN tasks t ON t.id = tasks_fts.task_id \
+             WHERE tasks_fts MATCH ?1 \
+             ORDER BY tasks_fts.rank \
+             LIMIT ?2",
+        )?;
 
-    let rows = stmt.query_map(params![fts_query, lim], |row| {
-        Ok(SearchResult::Task {
-            id: row.get(0)?,
-            board_id: row.get(1)?,
-            column_id: row.get(2)?,
-            title: row.get(3)?,
-            snippet: row.get(4)?,
-        })
-    })?;
-
-    let mut out = Vec::new();
-    for row in rows {
-        out.push(row?);
+        let rows = stmt.query_map(params![fts_query, lim], |row| {
+            Ok(SearchResult::Task {
+                id: row.get(0)?,
+                board_id: row.get(1)?,
+                column_id: row.get(2)?,
+                title: row.get(3)?,
+                snippet: row.get(4)?,
+            })
+        })?;
+        for row in rows {
+            let result = row?;
+            if let SearchResult::Task { id, .. } = &result {
+                seen.insert(id.clone());
+            }
+            out.push(result);
+        }
     }
+
+    // 2. Match the human task "number" — the per-space slug (e.g. `CTQ-1`).
+    //    The slug is NOT in the FTS index, so a `LIKE` over the indexed
+    //    `tasks.slug` column covers number lookups (FTS handles title +
+    //    description above). `%` / `_` / `\` in the user input are escaped so
+    //    they match literally; the pattern is a bound parameter — no SQL is
+    //    built from user input (NFR §4.3). Slug hits already returned by FTS
+    //    are de-duplicated.
+    let trimmed = query.trim();
+    if !trimmed.is_empty() && out.len() < lim_usize {
+        let pattern = format!("%{}%", escape_like(trimmed));
+        let mut stmt = conn.prepare(
+            "SELECT t.id, t.board_id, t.column_id, t.title, t.slug AS snippet \
+             FROM tasks t \
+             WHERE t.slug LIKE ?1 ESCAPE '\\' \
+             ORDER BY t.slug \
+             LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![pattern, lim], |row| {
+            Ok(SearchResult::Task {
+                id: row.get(0)?,
+                board_id: row.get(1)?,
+                column_id: row.get(2)?,
+                title: row.get(3)?,
+                snippet: row.get(4)?,
+            })
+        })?;
+        for row in rows {
+            let result = row?;
+            if let SearchResult::Task { id, .. } = &result {
+                // `insert` returns false when the id was already present.
+                if !seen.insert(id.clone()) {
+                    continue;
+                }
+            }
+            out.push(result);
+            if out.len() >= lim_usize {
+                break;
+            }
+        }
+    }
+
     Ok(out)
+}
+
+/// Escape SQLite `LIKE` metacharacters (`\`, `%`, `_`) so user input is
+/// matched literally under `ESCAPE '\'`.
+fn escape_like(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for ch in input.chars() {
+        if matches!(ch, '\\' | '%' | '_') {
+            out.push('\\');
+        }
+        out.push(ch);
+    }
+    out
 }
 
 /// Search the `agent_reports_fts` virtual table. JOINs with
@@ -314,6 +375,43 @@ mod tests {
         }
         let results = search_tasks(&conn, "common", Some(3)).unwrap();
         assert!(results.len() <= 3);
+    }
+
+    #[test]
+    fn search_tasks_matches_by_slug_number() {
+        let conn = fresh_db();
+        // Title + description deliberately do NOT contain the slug token, so
+        // any hit must come from the slug ("task number") path.
+        conn.execute(
+            "INSERT INTO tasks \
+                 (id, board_id, column_id, slug, title, description, position, created_at, updated_at) \
+             VALUES ('t1','bd1','c1','CTQ-42','Unrelated title','body text', 0, 0, 0)",
+            [],
+        )
+        .unwrap();
+        insert_task(&conn, "t2", "Another task", "more text");
+
+        // Exact slug, just the number, and ASCII-case-insensitive all hit.
+        assert_eq!(search_tasks(&conn, "CTQ-42", None).unwrap().len(), 1);
+        assert_eq!(search_tasks(&conn, "42", None).unwrap().len(), 1);
+        assert_eq!(search_tasks(&conn, "ctq-42", None).unwrap().len(), 1);
+        // A number that matches nothing returns empty.
+        assert!(search_tasks(&conn, "999", None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn search_tasks_title_and_slug_hit_is_deduped() {
+        let conn = fresh_db();
+        // "alpha" matches BOTH the FTS title and the slug — must appear once.
+        conn.execute(
+            "INSERT INTO tasks \
+                 (id, board_id, column_id, slug, title, description, position, created_at, updated_at) \
+             VALUES ('t1','bd1','c1','alpha-1','alpha task','x', 0, 0, 0)",
+            [],
+        )
+        .unwrap();
+        let results = search_tasks(&conn, "alpha", None).unwrap();
+        assert_eq!(results.len(), 1, "FTS + slug hit must dedupe to one row");
     }
 
     // ------------------------------------------------------------------

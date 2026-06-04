@@ -23,17 +23,33 @@ import {
   createTask,
   deleteTask,
   getTask,
+  getTaskBundle,
   listTasksByBoard,
   listTasksByColumn,
   updateTask,
   addTaskPrompt,
   setTaskPrompts,
   listTaskPrompts,
+  setTaskSkills,
+  setTaskMcpTools,
+  setTaskPromptOverride,
+  clearTaskPromptOverride,
+  setTaskSkillOverride,
+  clearTaskSkillOverride,
+  setTaskMcpToolOverride,
+  clearTaskMcpToolOverride,
   type CreateTaskArgs,
   type UpdateTaskArgs,
   type AddTaskPromptArgs,
+  type SetTaskPromptOverrideArgs,
+  type ClearTaskPromptOverrideArgs,
+  type SetTaskSkillOverrideArgs,
+  type ClearTaskSkillOverrideArgs,
+  type SetTaskMcpToolOverrideArgs,
+  type ClearTaskMcpToolOverrideArgs,
 } from "../api";
 import type { Prompt } from "@bindings/Prompt";
+import type { TaskBundle } from "@bindings/TaskBundle";
 import type { Task } from "./types";
 
 export const tasksKeys = {
@@ -45,6 +61,8 @@ export const tasksKeys = {
   detail: (id: string) => [...tasksKeys.all, "detail", id] as const,
   prompts: (taskId: string) =>
     [...tasksKeys.all, "prompts", taskId] as const,
+  bundle: (taskId: string) =>
+    [...tasksKeys.all, "bundle", taskId] as const,
 };
 
 /** `useTasksByBoard` — every task on a board. The kanban widget's hook. */
@@ -82,6 +100,23 @@ export function useTaskPrompts(taskId: string): UseQueryResult<Prompt[], Error> 
   return useQuery({
     queryKey: tasksKeys.prompts(taskId),
     queryFn: () => listTaskPrompts(taskId),
+    enabled: taskId.length > 0,
+  });
+}
+
+/**
+ * `useTaskBundle` — resolved agent bundle (prompts + skills + mcp_tools
+ * with origin tags) for a task. Drives the Effective Context Panel.
+ * ADR-0006 documents the resolver path; the query is keyed independently
+ * of `useTask` so the heavy resolver call doesn't refire on minor task
+ * row updates.
+ */
+export function useTaskBundle(
+  taskId: string,
+): UseQueryResult<TaskBundle, Error> {
+  return useQuery({
+    queryKey: tasksKeys.bundle(taskId),
+    queryFn: () => getTaskBundle(taskId),
     enabled: taskId.length > 0,
   });
 }
@@ -257,6 +292,179 @@ export function useSetTaskPromptsMutation(): UseMutationResult<
       void queryClient.invalidateQueries({
         queryKey: tasksKeys.prompts(vars.taskId),
       });
+      // Bundle drives the XML preview (`TaskXmlPreview`); invalidate it too
+      // so attach/detach reflects live — matching skills/mcpTools below.
+      void queryClient.invalidateQueries({
+        queryKey: tasksKeys.bundle(vars.taskId),
+      });
+    },
+  });
+}
+
+export interface SetTaskSkillsArgs {
+  taskId: string;
+  /** Skills currently directly attached, in render order. */
+  previous: ReadonlyArray<string>;
+  /** Desired skill list, in render order. */
+  next: ReadonlyArray<string>;
+}
+
+/**
+ * `useSetTaskSkillsMutation` — bulk set the directly-attached skills of a
+ * task. Diffs internally via `setTaskSkills`. Invalidates the bundle cache
+ * so `EffectiveContextPanel` re-renders with updated origin tags.
+ */
+export function useSetTaskSkillsMutation(): UseMutationResult<
+  void,
+  Error,
+  SetTaskSkillsArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, previous, next }) =>
+      setTaskSkills(taskId, previous, next),
+    onSettled: (_void, _err, vars) => {
+      void queryClient.invalidateQueries({
+        queryKey: tasksKeys.bundle(vars.taskId),
+      });
+    },
+  });
+}
+
+export interface SetTaskMcpToolsArgs {
+  taskId: string;
+  /** MCP tools currently directly attached, in render order. */
+  previous: ReadonlyArray<string>;
+  /** Desired MCP tool list, in render order. */
+  next: ReadonlyArray<string>;
+}
+
+/**
+ * `useSetTaskMcpToolsMutation` — bulk set the directly-attached MCP tools of a
+ * task. Diffs internally via `setTaskMcpTools`. Invalidates the bundle cache
+ * so `EffectiveContextPanel` re-renders with updated origin tags.
+ */
+export function useSetTaskMcpToolsMutation(): UseMutationResult<
+  void,
+  Error,
+  SetTaskMcpToolsArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, previous, next }) =>
+      setTaskMcpTools(taskId, previous, next),
+    onSettled: (_void, _err, vars) => {
+      void queryClient.invalidateQueries({
+        queryKey: tasksKeys.bundle(vars.taskId),
+      });
+    },
+  });
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Override-v2 mutations (refactor-v3 D-A).
+//
+// Each one invalidates `tasksKeys.bundle(taskId)` on settle so the
+// EffectiveContextPanel re-resolves with the new origin/suppression
+// state. Board-list `byBoard` is also invalidated because the
+// denormalised effective_*_count columns shift with every override.
+// ──────────────────────────────────────────────────────────────────────
+
+function makeBundleInvalidator(
+  queryClient: ReturnType<typeof useQueryClient>,
+  taskId: string,
+): void {
+  void queryClient.invalidateQueries({
+    queryKey: tasksKeys.bundle(taskId),
+  });
+  void queryClient.invalidateQueries({
+    queryKey: tasksKeys.detail(taskId),
+  });
+  // Effective-count columns ride along with bundle changes; rely on
+  // refresh of the byBoard list so kanban cards re-render their badge.
+  void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
+}
+
+export function useSetTaskPromptOverrideMutation(): UseMutationResult<
+  void,
+  Error,
+  SetTaskPromptOverrideArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: setTaskPromptOverride,
+    onSettled: (_void, _err, vars) => {
+      makeBundleInvalidator(queryClient, vars.taskId);
+    },
+  });
+}
+
+export function useClearTaskPromptOverrideMutation(): UseMutationResult<
+  void,
+  Error,
+  ClearTaskPromptOverrideArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: clearTaskPromptOverride,
+    onSettled: (_void, _err, vars) => {
+      makeBundleInvalidator(queryClient, vars.taskId);
+    },
+  });
+}
+
+export function useSetTaskSkillOverrideMutation(): UseMutationResult<
+  void,
+  Error,
+  SetTaskSkillOverrideArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: setTaskSkillOverride,
+    onSettled: (_void, _err, vars) => {
+      makeBundleInvalidator(queryClient, vars.taskId);
+    },
+  });
+}
+
+export function useClearTaskSkillOverrideMutation(): UseMutationResult<
+  void,
+  Error,
+  ClearTaskSkillOverrideArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: clearTaskSkillOverride,
+    onSettled: (_void, _err, vars) => {
+      makeBundleInvalidator(queryClient, vars.taskId);
+    },
+  });
+}
+
+export function useSetTaskMcpToolOverrideMutation(): UseMutationResult<
+  void,
+  Error,
+  SetTaskMcpToolOverrideArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: setTaskMcpToolOverride,
+    onSettled: (_void, _err, vars) => {
+      makeBundleInvalidator(queryClient, vars.taskId);
+    },
+  });
+}
+
+export function useClearTaskMcpToolOverrideMutation(): UseMutationResult<
+  void,
+  Error,
+  ClearTaskMcpToolOverrideArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: clearTaskMcpToolOverride,
+    onSettled: (_void, _err, vars) => {
+      makeBundleInvalidator(queryClient, vars.taskId);
     },
   });
 }

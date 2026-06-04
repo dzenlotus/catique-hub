@@ -10,7 +10,7 @@ import { move } from "@dnd-kit/helpers";
 import { useLocationCompat as useLocation } from "@shared/lib";
 
 import { boardSettingsPath, taskPath } from "@app/routes";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 import { useBoard, useUpdateBoardMutation } from "@entities/board";
 import type { Column } from "@entities/column";
 import {
@@ -26,7 +26,7 @@ import {
   useMoveTaskMutation,
   useTasksByBoard,
 } from "@entities/task";
-import { BoardTitle, Button, Scrollable } from "@shared/ui";
+import { Button, EntityTitle, Scrollable } from "@shared/ui";
 import {
   PixelInterfaceEssentialSettingCog,
   PixelInterfaceEssentialPlus,
@@ -35,23 +35,18 @@ import { cn } from "@shared/lib";
 import { TaskCreateDialog } from "@features/task/create-dialog";
 import { ColumnCreateDialog } from "@features/column/create-dialog";
 import { lastBoardStore } from "@shared/storage";
-import { SpacesSidebar } from "@widgets/spaces-sidebar";
-import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
+import { useTrackBoardVisitMutation } from "@entities/recent-board";
 
 import { KanbanColumn } from "./KanbanColumn";
 import { BulkActionsBar } from "./BulkActionsBar";
 import { useTaskSelection } from "./useTaskSelection";
 import styles from "./KanbanBoard.module.css";
 
-// Two-pane layout helper — pairs the kanban content with `<SpacesSidebar/>`
-// across every rendering branch (loading, error, empty, populated).
+// Layout helper — RootLayout owns the sidebar; pages render content only.
 function BoardScreen({ children }: { children: ReactElement }): ReactElement {
   return (
-    <section className={shellStyles.root} data-testid="board-detail-shell">
-      <div className={shellStyles.sidebarSlot}>
-        <SpacesSidebar />
-      </div>
-      <div className={shellStyles.contentSlot}>{children}</div>
+    <section className={styles.shell} data-testid="board-detail-shell">
+      {children}
     </section>
   );
 }
@@ -137,9 +132,33 @@ export function KanbanBoard({
   const createTask = useCreateTaskMutation();
   const deleteTask = useDeleteTaskMutation();
   const updateBoard = useUpdateBoardMutation();
+  const trackVisit = useTrackBoardVisitMutation();
   const taskSelection = useTaskSelection();
 
   const { pushToast } = useToast();
+
+  // Board-title handlers. Lifted out of JSX (useCallback) so the
+  // EntityTitle below stays declarative and we don't re-allocate on
+  // every render.
+  const boardData = boardQuery.data;
+  const handleBoardRename = useCallback(
+    (next: string) => {
+      if (boardData === undefined) return;
+      updateBoard.mutate({ id: boardData.id, name: next });
+    },
+    [updateBoard, boardData],
+  );
+  const handleBoardAppearance = useCallback(
+    (next: { icon: string | null; color: string | null }) => {
+      if (boardData === undefined) return;
+      updateBoard.mutate({
+        id: boardData.id,
+        icon: next.icon,
+        color: next.color,
+      });
+    },
+    [updateBoard, boardData],
+  );
 
   const [items, setItems] = useState<TaskBuckets>({});
   const itemsRef = useRef<TaskBuckets>({});
@@ -194,13 +213,25 @@ export function KanbanBoard({
     itemsRef.current = serverItems;
   }, [serverItems, isMutating]);
 
-  // Persist this board as the last-opened for its space, so that on next
-  // launch / when navigating to "/" we can redirect back to it. The store
-  // internally swallows errors from restricted environments.
+  // Persist this board as the last-opened for its space, so that on
+  // next launch / when navigating to "/" we can redirect back to it.
+  // The store internally swallows errors from restricted environments.
+  //
+  // Refactor-v3 D-F: the global Recent LRU is now persisted server-side
+  // through `useTrackBoardVisitMutation` rather than localStorage. The
+  // mutation is fire-and-forget (errors only logged to the toast bus is
+  // overkill for a sidebar nicety — silent skip on a closed FK race is
+  // fine because the row would be evicted by CASCADE anyway).
+  //
+  // `trackVisit.mutate` is stable across renders (TanStack-Query memoises
+  // the closure), so it's deliberately omitted from the dep array; the
+  // effect only needs to re-fire when the underlying board changes.
   useEffect(() => {
     const spaceId = boardQuery.data?.spaceId;
     if (!spaceId) return;
     lastBoardStore(spaceId).set(boardId);
+    trackVisit.mutate(boardId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardId, boardQuery.data?.spaceId]);
 
   useEffect(() => {
@@ -341,6 +372,18 @@ export function KanbanBoard({
   const handleRenameColumn = useCallback(
     (id: string, name: string): void => {
       updateColumn.mutate({ id, boardId, name });
+    },
+    [updateColumn, boardId],
+  );
+
+  const handleColumnAppearance = useCallback(
+    (id: string, next: { icon: string | null; color: string | null }): void => {
+      updateColumn.mutate({
+        id,
+        boardId,
+        icon: next.icon,
+        color: next.color,
+      });
     },
     [updateColumn, boardId],
   );
@@ -550,22 +593,18 @@ export function KanbanBoard({
     <BoardScreen>
     <div className={styles.root}>
       <header className={styles.boardHeader}>
-        <BoardTitle
+        <EntityTitle
           size="lg"
-          name={boardQuery.data?.name ?? boardId}
-          description={boardQuery.data?.description ?? null}
+          editable
+          name={boardData?.name ?? boardId}
+          onNameChange={handleBoardRename}
+          editTestId="board-title-rename"
+          description={boardData?.description ?? null}
           value={{
-            icon: boardQuery.data?.icon ?? null,
-            color: boardQuery.data?.color ?? null,
+            icon: boardData?.icon ?? null,
+            color: boardData?.color ?? null,
           }}
-          onAppearanceChange={(next) => {
-            if (boardQuery.data === undefined) return;
-            updateBoard.mutate({
-              id: boardQuery.data.id,
-              icon: next.icon,
-              color: next.color,
-            });
-          }}
+          onAppearanceChange={handleBoardAppearance}
           pickerAriaLabel="Board icon and color"
           pickerTestId="kanban-board-appearance-picker"
         />
@@ -608,6 +647,7 @@ export function KanbanBoard({
                 onAddTask={setTaskColumnId}
                 onQuickAddTask={handleQuickAddTask}
                 onRenameColumn={handleRenameColumn}
+                onColumnAppearance={handleColumnAppearance}
                 onDeleteColumn={handleDeleteColumn}
                 selectedTaskIds={taskSelection.selected}
                 selectionActive={taskSelection.selectionActive}

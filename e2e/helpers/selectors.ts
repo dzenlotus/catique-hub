@@ -7,9 +7,12 @@
 
 export const sel = {
   // Shell / nav
-  mainSidebar: "main-sidebar-root",
+  // Refactor v3 Wave 1: `mainSidebar` now points at the unified
+  // `AppSidebar` testid; the legacy `main-sidebar-root` is gone.
+  mainSidebar: "app-sidebar-root",
   topBar: "top-bar",
   spacesSidebar: "spaces-sidebar-root",
+  statusBar: "status-bar",
 
   // Page roots
   promptsPage: "prompts-page-root",
@@ -19,7 +22,7 @@ export const sel = {
   mcpServersOverview: "mcp-servers-page-overview",
 
   // Spaces sidebar
-  spacesAdd: "spaces-sidebar-add-space",
+  spacesAdd: "spaces-sidebar-add",
   spaceCreate: {
     root: "space-create-dialog",
     name: "space-create-dialog-name-input",
@@ -75,7 +78,6 @@ export const sel = {
   },
 
   // Prompts sidebar
-  promptsAllPrompts: "prompts-sidebar-all-prompts",
   promptsAddPrompt: "prompts-sidebar-prompts-add",
   promptsAddGroup: "prompts-sidebar-groups-add",
   promptsSettingsTrigger: "prompts-sidebar-settings-trigger",
@@ -95,6 +97,8 @@ export const sel = {
   groupRow: (id: string) => `prompts-sidebar-groups-row-${id}`,
   groupItem: (id: string) => `prompts-sidebar-groups-item-${id}`,
   groupKebab: (id: string) => `prompts-sidebar-group-kebab-${id}`,
+  groupRenameInput: (id: string) =>
+    `prompts-sidebar-group-rename-input-${id}`,
   groupCreate: {
     root: "prompt-group-create-dialog",
     name: "prompt-group-create-dialog-name-input",
@@ -116,7 +120,7 @@ export const sel = {
   },
   inlineGroupSettings: {
     root: "inline-group-settings",
-    nameInput: "inline-group-settings-name-input",
+    appearance: "inline-group-settings-appearance",
     save: "inline-group-settings-save",
     cancel: "inline-group-settings-cancel",
     back: "inline-group-settings-back",
@@ -207,7 +211,8 @@ export const sel = {
   // Settings
   settings: {
     viewScroll: "settings-view-scroll",
-    nav: (id: string) => `settings-view-nav-${id}`,
+    // EntityTree generates `${testIdPrefix}-item-${node.id}` for each row.
+    nav: (id: string) => `settings-view-nav-item-${id}`,
     themeLight: "settings-theme-button-light",
     themeDark: "settings-theme-button-dark",
     activeThemeName: "active-theme-name",

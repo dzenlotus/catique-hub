@@ -14,7 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TestRouter } from "@shared/lib";
 import type { ReactElement } from "react";
 
-import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
+import { ActiveSpaceProvider } from "@app/providers";
 
 // ---------------------------------------------------------------------------
 // Mock IPC
@@ -149,29 +149,48 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("TopBar", () => {
-  it("does NOT render the global search trigger (search is disabled)", () => {
+  it("renders the global search trigger pill", () => {
     renderAt();
 
-    expect(screen.queryByTestId("top-bar-search-trigger")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Search tasks, boards, agents..."),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("⌘K")).not.toBeInTheDocument();
+    expect(screen.getByTestId("top-bar-search-trigger")).toBeInTheDocument();
+    expect(screen.getByText("⌘K")).toBeInTheDocument();
   });
 
-  it("does NOT mount the global search palette (search is disabled)", () => {
+  it("opens the global search palette when the trigger is clicked", () => {
     renderAt();
 
-    expect(capturedIsOpen).toBe(false);
     expect(screen.queryByTestId("global-search-mock")).not.toBeInTheDocument();
+
+    act(() => {
+      screen.getByTestId("top-bar-search-trigger").click();
+    });
+
+    expect(capturedIsOpen).toBe(true);
+    expect(screen.getByTestId("global-search-mock")).toBeInTheDocument();
   });
 
-  it("does NOT wire the ⌘K keybind (search is disabled)", () => {
+  it("wires the ⌘K keybind to open the palette", () => {
     renderAt();
     const activate = (window as unknown as Record<string, unknown>)[
       "__searchActivate__"
-    ];
-    expect(activate).toBeUndefined();
+    ] as (() => void) | undefined;
+    expect(activate).toBeDefined();
+
+    act(() => {
+      activate!();
+    });
+
+    expect(screen.getByTestId("global-search-mock")).toBeInTheDocument();
+  });
+
+  it("does NOT render the prompts tag-filter (moved to the prompts sidebar)", () => {
+    renderAt("/prompts");
+    expect(
+      screen.queryByTestId("top-bar-prompts-tag-filter"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("prompts-tag-filter"),
+    ).not.toBeInTheDocument();
   });
 
   it("размечает пустые области шапки как drag-region для Tauri 2.10", () => {

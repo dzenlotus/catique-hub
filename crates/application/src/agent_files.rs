@@ -118,10 +118,7 @@ pub fn remove_section(target_path: &Path) -> Result<(), AgentFileError> {
 /// # Errors
 ///
 /// Same as [`remove_section`].
-pub fn remove_keyed_section(
-    target_path: &Path,
-    section_key: &str,
-) -> Result<(), AgentFileError> {
+pub fn remove_keyed_section(target_path: &Path, section_key: &str) -> Result<(), AgentFileError> {
     let existing = match fs::read_to_string(target_path) {
         Ok(s) => s,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -162,27 +159,24 @@ fn render_section_with(begin: &str, end: &str, body: &str) -> String {
 }
 
 fn replace_section_with(existing: &str, begin: &str, end: &str, new_section: &str) -> String {
-    match find_section_range_with(existing, begin, end) {
-        Some((start, stop)) => {
-            let mut out = String::with_capacity(existing.len() + new_section.len());
-            out.push_str(&existing[..start]);
-            out.push_str(new_section);
-            out.push_str(&existing[stop..]);
-            out
-        }
-        None => {
-            // No existing section — append. Leave a blank line between
-            // prior content and the section so the .md stays readable.
-            let mut out = existing.to_owned();
-            if !out.is_empty() && !out.ends_with("\n\n") {
-                if !out.ends_with('\n') {
-                    out.push('\n');
-                }
+    if let Some((start, stop)) = find_section_range_with(existing, begin, end) {
+        let mut out = String::with_capacity(existing.len() + new_section.len());
+        out.push_str(&existing[..start]);
+        out.push_str(new_section);
+        out.push_str(&existing[stop..]);
+        out
+    } else {
+        // No existing section — append. Leave a blank line between
+        // prior content and the section so the .md stays readable.
+        let mut out = existing.to_owned();
+        if !out.is_empty() && !out.ends_with("\n\n") {
+            if !out.ends_with('\n') {
                 out.push('\n');
             }
-            out.push_str(new_section);
-            out
+            out.push('\n');
         }
+        out.push_str(new_section);
+        out
     }
 }
 

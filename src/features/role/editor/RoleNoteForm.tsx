@@ -3,15 +3,18 @@
  * `+ Add note` affordance and the per-row inline edit mode in
  * `RoleMemorySection` (ctq-137 / MEM-S2).
  *
- * Stateful at the form level (it owns the draft inputs); commit happens
- * via the `onSubmit` callback the parent supplies. The parent is
- * responsible for translating the draft into a mutation call and
- * surfacing errors via `errorMessage`.
+ * Stateful at the form level (it owns the draft inputs via
+ * react-hook-form); commit happens via the `onSubmit` callback the
+ * parent supplies. The parent is responsible for translating the draft
+ * into a mutation call and surfacing errors via `errorMessage`.
  */
 
-import { useState, type ReactElement } from "react";
+import { useCallback, type ReactElement } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
-import { Button } from "@shared/ui";
+import { Button, Input } from "@shared/ui";
 
 import styles from "./RoleMemorySection.module.css";
 
@@ -43,6 +46,19 @@ const EMPTY_DRAFT: RoleNoteDraft = {
   pinned: false,
 };
 
+// Body is required (trimmed); tags are entered as a comma-separated
+// string and parsed on submit; priority clamps to 0–10; pinned is a
+// boolean. The form value mirrors the inputs (tags as raw string);
+// `onSubmit` receives the parsed `RoleNoteDraft`.
+const roleNoteFormSchema = z.object({
+  body: z.string().trim().min(1, "Body cannot be empty."),
+  tagsRaw: z.string(),
+  priority: z.number().int().min(0).max(10),
+  pinned: z.boolean(),
+});
+
+type RoleNoteFormShape = z.infer<typeof roleNoteFormSchema>;
+
 /** Split "a, b, , c" → ["a", "b", "c"]. Whitespace + empties dropped. */
 function parseTagInput(raw: string): string[] {
   return raw
@@ -60,21 +76,33 @@ export function RoleNoteForm({
   errorMessage = null,
   isPending = false,
 }: RoleNoteFormProps): ReactElement {
-  const [body, setBody] = useState(initial.body);
-  const [tagsRaw, setTagsRaw] = useState(initial.tags.join(", "));
-  const [priority, setPriority] = useState(initial.priority);
-  const [pinned, setPinned] = useState(initial.pinned);
+  const {
+    control,
+    handleSubmit,
+    formState: { isValid },
+  } = useForm<RoleNoteFormShape>({
+    resolver: zodResolver(roleNoteFormSchema),
+    defaultValues: {
+      body: initial.body,
+      tagsRaw: initial.tags.join(", "),
+      priority: initial.priority,
+      pinned: initial.pinned,
+    },
+    mode: "onChange",
+  });
 
-  const handleSubmit = (): void => {
-    const trimmed = body.trim();
-    if (trimmed.length === 0) return;
+  const onValid = handleSubmit((values) => {
     onSubmit({
-      body: trimmed,
-      tags: parseTagInput(tagsRaw),
-      priority,
-      pinned,
+      body: values.body.trim(),
+      tags: parseTagInput(values.tagsRaw),
+      priority: values.priority,
+      pinned: values.pinned,
     });
-  };
+  });
+
+  const handleSubmitPress = useCallback((): void => {
+    void onValid();
+  }, [onValid]);
 
   return (
     <div
@@ -84,26 +112,37 @@ export function RoleNoteForm({
       <label className={styles.formLabel} htmlFor={`${idPrefix}-body`}>
         Body
       </label>
-      <textarea
-        id={`${idPrefix}-body`}
-        className={styles.bodyTextarea}
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder="What should the agent remember next time?"
-        data-testid={`${idPrefix}-body-input`}
+      <Controller
+        control={control}
+        name="body"
+        render={({ field }) => (
+          <textarea
+            id={`${idPrefix}-body`}
+            className={styles.bodyTextarea}
+            value={field.value}
+            onChange={(e) => field.onChange(e.target.value)}
+            placeholder="What should the agent remember next time?"
+            data-testid={`${idPrefix}-body-input`}
+          />
+        )}
       />
 
-      <label className={styles.formLabel} htmlFor={`${idPrefix}-tags`}>
-        Tags (comma-separated)
-      </label>
-      <input
-        id={`${idPrefix}-tags`}
-        type="text"
-        className={styles.tagsInput}
-        value={tagsRaw}
-        onChange={(e) => setTagsRaw(e.target.value)}
-        placeholder="e.g. style, lint, db"
-        data-testid={`${idPrefix}-tags-input`}
+      <Controller
+        control={control}
+        name="tagsRaw"
+        render={({ field }) => (
+          <Input
+            type="text"
+            label="Tags (comma-separated)"
+            className={styles.tagsField}
+            value={field.value}
+            onChange={field.onChange}
+            onBlur={field.onBlur}
+            name={field.name}
+            placeholder="e.g. style, lint, db"
+            data-testid={`${idPrefix}-tags-input`}
+          />
+        )}
       />
 
       <div className={styles.formRow}>
@@ -112,29 +151,41 @@ export function RoleNoteForm({
           htmlFor={`${idPrefix}-priority`}
         >
           <span className={styles.formLabel}>Priority</span>
-          <input
-            id={`${idPrefix}-priority`}
-            type="number"
-            min={0}
-            max={10}
-            step={1}
-            value={priority}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              if (Number.isNaN(n)) return;
-              setPriority(Math.max(0, Math.min(10, Math.round(n))));
-            }}
-            className={styles.priorityNumberInput}
-            data-testid={`${idPrefix}-priority-input`}
+          <Controller
+            control={control}
+            name="priority"
+            render={({ field }) => (
+              <input
+                id={`${idPrefix}-priority`}
+                type="number"
+                min={0}
+                max={10}
+                step={1}
+                value={field.value}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (Number.isNaN(n)) return;
+                  field.onChange(Math.max(0, Math.min(10, Math.round(n))));
+                }}
+                className={styles.priorityNumberInput}
+                data-testid={`${idPrefix}-priority-input`}
+              />
+            )}
           />
         </label>
 
         <label className={styles.pinnedField}>
-          <input
-            type="checkbox"
-            checked={pinned}
-            onChange={(e) => setPinned(e.target.checked)}
-            data-testid={`${idPrefix}-pinned-input`}
+          <Controller
+            control={control}
+            name="pinned"
+            render={({ field }) => (
+              <input
+                type="checkbox"
+                checked={field.value}
+                onChange={(e) => field.onChange(e.target.checked)}
+                data-testid={`${idPrefix}-pinned-input`}
+              />
+            )}
           />
           Pinned (always loaded for the agent)
         </label>
@@ -162,9 +213,9 @@ export function RoleNoteForm({
         <Button
           variant="primary"
           size="sm"
-          isDisabled={body.trim().length === 0}
+          isDisabled={!isValid}
           isPending={isPending}
-          onPress={handleSubmit}
+          onPress={handleSubmitPress}
           data-testid={`${idPrefix}-submit`}
         >
           {submitLabel}

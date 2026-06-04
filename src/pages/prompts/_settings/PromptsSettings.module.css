@@ -107,7 +107,12 @@
   color: var(--color-text-muted);
 }
 
-.fieldInput,
+/* Shared <Input> wrapper — the primitive owns its own field styling;
+ * we only stretch it to the form width. */
+.field {
+  width: 100%;
+}
+
 .fieldTextarea {
   width: 100%;
   padding: var(--space-8) var(--space-12);
@@ -115,18 +120,13 @@
   border-radius: var(--radius-sm);
   background-color: var(--color-surface-canvas);
   color: var(--color-text-default);
-  font-family: var(--font-sans);
+  font-family: var(--font-mono, var(--font-sans));
   font-size: var(--font-size-body-sm);
   outline: none;
-}
-
-.fieldTextarea {
   resize: vertical;
   min-height: 120px;
-  font-family: var(--font-mono, var(--font-sans));
 }
 
-.fieldInput:focus,
 .fieldTextarea:focus {
   border-color: var(--color-border-focus);
 }

@@ -101,6 +101,10 @@ export function useLocationCompat(): LocationCompat {
 export function useParamsCompat<T = Record<string, string>>(): T {
   const router = useSafeRouter();
   if (router === null) return {} as T;
+  // Hooks order: the `router === null` branch is exclusive within a render
+  // tree (the parent provider stack does not flip mid-lifecycle), so this
+  // inline call is safe — same rationale as `useSafePathname` above.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   return useParams({ strict: false }) as unknown as T;
 }
 

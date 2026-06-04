@@ -17,7 +17,7 @@ import type { UpdateColumnVars } from "@entities/column";
 import { useRoles } from "@entities/role";
 import { Dialog, Button, Input, Listbox, ListboxItem } from "@shared/ui";
 import { cn } from "@shared/lib";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 
 import styles from "./ColumnEditor.module.css";
 

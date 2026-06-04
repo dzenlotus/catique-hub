@@ -3,7 +3,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { PropsWithChildren, ReactElement } from "react";
 
-import { ToastProvider, useToast } from "@app/providers/ToastProvider";
+import { ToastProvider, useToast } from "@shared/lib";
 import { Toaster } from "../Toaster";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

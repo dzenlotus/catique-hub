@@ -72,6 +72,24 @@
   font-size: var(--font-size-body);
 }
 
+/* Inline group-rename field (round-26). Sits in place of the row label
+ * button while a group is being renamed — sized to fill the row so it
+ * reads as a contiguous edit affordance rather than a popped-out input. */
+.renameField {
+  flex: 1;
+  min-width: 0;
+}
+
+.renameField input {
+  height: auto;
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-sm);
+  border-color: var(--color-border-focus);
+  background-color: var(--color-surface-canvas);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+}
+
 /* Consumer-owned wrapper that lands inside EntityTree's `.rowContent`
  * slot. The primitive is layout-agnostic — gap, alignment, and the
  * canonical left inset live here so the rail's contents align with the

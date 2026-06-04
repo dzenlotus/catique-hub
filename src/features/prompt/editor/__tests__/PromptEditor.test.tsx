@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Prompt } from "@entities/prompt";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 
 vi.mock("@shared/api", async () => {
   const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");

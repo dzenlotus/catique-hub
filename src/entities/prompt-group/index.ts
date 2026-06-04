@@ -32,15 +32,32 @@ export {
   usePromptGroups,
   usePromptGroup,
   usePromptGroupMembers,
+  usePromptGroupMembersMap,
   useCreatePromptGroupMutation,
   useUpdatePromptGroupMutation,
   useDeletePromptGroupMutation,
   useAddPromptGroupMemberMutation,
   useRemovePromptGroupMemberMutation,
   useSetPromptGroupMembersMutation,
+  useRolePromptGroups,
+  useBoardPromptGroups,
+  useTaskPromptGroups,
+  useSetRolePromptGroupsMutation,
+  useSetBoardPromptGroupsMutation,
+  useSetTaskPromptGroupsMutation,
 } from "./model";
 export type { PromptGroup } from "./model";
 
 // UI
 export { PromptGroupCard } from "./ui";
 export type { PromptGroupCardProps } from "./ui";
+
+// Lib — combined prompt+group select adapter
+export {
+  useGroupedPromptSelect,
+  GROUP_VALUE_PREFIX,
+} from "./lib/useGroupedPromptSelect";
+export type {
+  GroupedPromptSelectArgs,
+  GroupedPromptSelectResult,
+} from "./lib/useGroupedPromptSelect";

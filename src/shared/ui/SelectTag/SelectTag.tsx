@@ -1,8 +1,7 @@
 /**
  * SelectTag — tags-inside-the-field multi-select primitive.
  *
- * Mirrors the chip-in-field pattern from `MultiTagInput` (chips and the
- * search input share one bordered surface) and adds:
+ * Chips and the search input share one bordered surface, plus:
  *   - toggle-off via a clicking-an-already-selected option (with a `✓` mark);
  *   - optional clear-all `×` button before the dropdown chevron;
  *   - optional `+N` overflow when `maxVisibleChips > 0`;
@@ -52,6 +51,7 @@ import { useSortable } from "@dnd-kit/react/sortable";
 import { move } from "@dnd-kit/helpers";
 
 import { cn } from "@shared/lib";
+import { ChipSwatch, ChipLabel, ChipRemove } from "@shared/ui/Chip";
 
 import styles from "./SelectTag.module.css";
 
@@ -172,9 +172,9 @@ export function SelectTag({
   const hasError = Boolean(errorMessage);
   const isInteractive = !disabled && !readOnly;
 
-  // Clear the input every time the selection-length changes (parity with
-  // MultiTagInput — RAC's ComboBox echoes the picked option's text into
-  // the input value just before our handler runs).
+  // Clear the input every time the selection-length changes — RAC's
+  // ComboBox echoes the picked option's text into the input value just
+  // before our handler runs.
   useEffect(() => {
     setQuery("");
   }, [valuesLength]);
@@ -611,31 +611,16 @@ function Chip({
           <span aria-hidden="true">⋮⋮</span>
         </button>
       ) : null}
-      {option.color ? (
-        <span
-          className={styles.tagSwatch}
-          style={{ backgroundColor: option.color }}
-          aria-hidden="true"
-        />
-      ) : null}
-      <span className={styles.tagLabel}>{option.label}</span>
+      <ChipSwatch color={option.color} className={styles.tagSwatch} />
+      <ChipLabel className={styles.tagLabel}>{option.label}</ChipLabel>
       {isInteractive ? (
-        <button
-          type="button"
+        <ChipRemove
           className={styles.tagRemove}
           aria-label={`Remove ${option.label}`}
           data-testid={`${scope}-chip-remove-${option.id}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove(option.id);
-          }}
-          onMouseDown={(e) => {
-            // Don't steal focus from the combobox input.
-            e.preventDefault();
-          }}
-        >
-          <span aria-hidden="true">×</span>
-        </button>
+          onClick={() => onRemove(option.id)}
+          preventFocusSteal
+        />
       ) : null}
     </span>
   );
@@ -715,13 +700,7 @@ function OverflowCounter({
                 className={styles.overflowItem}
                 data-testid={`${scope}-overflow-item-${option.id}`}
               >
-                {option.color ? (
-                  <span
-                    className={styles.tagSwatch}
-                    style={{ backgroundColor: option.color }}
-                    aria-hidden="true"
-                  />
-                ) : null}
+                <ChipSwatch color={option.color} className={styles.tagSwatch} />
                 <span>{option.label}</span>
               </li>
             ))}

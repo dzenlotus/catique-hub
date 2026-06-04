@@ -98,26 +98,11 @@
   flex-wrap: wrap;
 }
 
-.searchInput {
+/* Wrapper for the shared <Input> filter; the primitive supplies the
+ * bordered field + focus ring, we only place it in the flex row. */
+.searchField {
   flex: 1 1 220px;
   min-width: 0;
-  background-color: var(--color-surface-raised);
-  color: var(--color-text-default);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-sm);
-  padding: 6px var(--space-12);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body-sm);
-  outline: none;
-}
-
-.searchInput:focus {
-  border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 2px var(--color-border-focus);
-}
-
-.searchInput::placeholder {
-  color: var(--color-text-subtle);
 }
 
 .sortSelect {
@@ -199,22 +184,10 @@
   color: var(--color-text-subtle);
 }
 
-.tagsInput {
+/* Shared <Input> wrapper for the tags field — stretch to the form width;
+ * the primitive owns the bordered field + focus ring. */
+.tagsField {
   width: 100%;
-  background-color: var(--color-surface-canvas);
-  color: var(--color-text-default);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-sm);
-  padding: 6px var(--space-12);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body-sm);
-  outline: none;
-  box-sizing: border-box;
-}
-
-.tagsInput:focus {
-  border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 2px var(--color-border-focus);
 }
 
 .formRow {
@@ -274,6 +247,7 @@
 /* ── Row ──────────────────────────────────────────────────────────── */
 
 .row {
+  width: 100%;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: flex-start;
@@ -282,6 +256,12 @@
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
   background-color: var(--color-surface-canvas);
+}
+
+/* Inline-edit body fills the EntityTree row width so the form doesn't
+ * collapse to its content width inside the flex `.rowContent` slot. */
+.editBody {
+  width: 100%;
 }
 
 .rowPinned {

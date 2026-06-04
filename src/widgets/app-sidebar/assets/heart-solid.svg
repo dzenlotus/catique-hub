@@ -1,0 +1,25 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Solid pixel heart (9 cols x 8 rows of 4 px cells, centred horizontally).
+       Each <rect> is one pixel of the heart shape. -->
+  <!-- row 1: . # # . . # # . . -->
+  <rect x="6" y="6" width="4" height="4" fill="currentColor"/>
+  <rect x="10" y="6" width="4" height="4" fill="currentColor"/>
+  <rect x="18" y="6" width="4" height="4" fill="currentColor"/>
+  <rect x="22" y="6" width="4" height="4" fill="currentColor"/>
+  <!-- row 2: # # # # . # # # # -->
+  <rect x="2" y="10" width="4" height="4" fill="currentColor"/>
+  <rect x="6" y="10" width="4" height="4" fill="currentColor"/>
+  <rect x="10" y="10" width="4" height="4" fill="currentColor"/>
+  <rect x="14" y="10" width="4" height="4" fill="currentColor"/>
+  <rect x="18" y="10" width="4" height="4" fill="currentColor"/>
+  <rect x="22" y="10" width="4" height="4" fill="currentColor"/>
+  <rect x="26" y="10" width="4" height="4" fill="currentColor"/>
+  <!-- row 3: # # # # # # # # # -->
+  <rect x="2" y="14" width="28" height="4" fill="currentColor"/>
+  <!-- row 4: . # # # # # # # . -->
+  <rect x="6" y="18" width="20" height="4" fill="currentColor"/>
+  <!-- row 5: . . # # # # # . . -->
+  <rect x="10" y="22" width="12" height="4" fill="currentColor"/>
+  <!-- row 6: . . . # # # . . . -->
+  <rect x="14" y="26" width="4" height="4" fill="currentColor"/>
+</svg>

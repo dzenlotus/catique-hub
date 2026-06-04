@@ -16,9 +16,8 @@ import {
   PixelInterfaceEssentialAlertCircle1,
 } from "@shared/ui/Icon";
 
-import { useToast } from "@app/providers/ToastProvider";
-import type { Toast, ToastKind } from "@app/providers/ToastProvider";
-import { cn } from "@shared/lib";
+import { cn, useToast } from "@shared/lib";
+import type { Toast, ToastKind } from "@shared/lib";
 
 import styles from "./Toaster.module.css";
 

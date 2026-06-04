@@ -10,8 +10,10 @@ test.describe("onboarding / empty states", () => {
   });
 
   test("main sidebar exposes every workspace nav row", async ({ page }) => {
+    // v3: "Boards" nav row removed (spaces tree navigates to boards),
+    //     "Roles" renamed to "Agents", "MCP servers" renamed to "Integrations".
     const sidebar = page.getByTestId(sel.mainSidebar);
-    for (const label of ["Boards", "Roles", "Prompts", "Skills", "MCP servers", "Settings"]) {
+    for (const label of ["Agents", "Prompts", "Skills", "Integrations", "Settings"]) {
       await expect(sidebar.getByRole("button", { name: label })).toBeVisible();
     }
   });
@@ -25,25 +27,30 @@ test.describe("onboarding / empty states", () => {
   test("clicking each nav row navigates to the corresponding page", async ({
     page,
   }) => {
+    // v3: "Roles" renamed to "Agents", "MCP servers" renamed to "Integrations".
     const sidebar = page.getByTestId(sel.mainSidebar);
 
     await sidebar.getByRole("button", { name: "Prompts" }).click();
     await expect(page.getByTestId(sel.promptsPage)).toBeVisible();
 
-    await sidebar.getByRole("button", { name: "Roles" }).click();
+    await sidebar.getByRole("button", { name: "Agents" }).click();
     await expect(page.getByTestId(sel.rolesPage)).toBeVisible();
 
     await sidebar.getByRole("button", { name: "Skills" }).click();
     await expect(page.getByTestId(sel.skillsPage)).toBeVisible();
 
-    await sidebar.getByRole("button", { name: "MCP servers" }).click();
+    await sidebar.getByRole("button", { name: "Integrations" }).click();
     await expect(page.getByTestId(sel.mcpServersPage)).toBeVisible();
   });
 
   test("returning to /boards lands on the empty board home", async ({ page }) => {
+    // v3: no "Boards" nav button — navigate via SPA push to the board-home root.
     await page.getByTestId(sel.mainSidebar).getByRole("button", { name: "Prompts" }).click();
     await expect(page.getByTestId(sel.promptsPage)).toBeVisible();
-    await page.getByTestId(sel.mainSidebar).getByRole("button", { name: "Boards" }).click();
+    await page.evaluate(() => {
+      window.history.pushState({}, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
     await expect(page.getByTestId(sel.spacesSidebar)).toBeVisible();
     await expect(page.getByRole("heading", { name: "All quiet here" })).toBeVisible();
   });
@@ -59,18 +66,20 @@ test.describe("onboarding / empty states", () => {
   });
 
   test("empty ROLES list shows the empty copy", async ({ page }) => {
+    // v3: "Roles" nav renamed to "Agents".
     await page
       .getByTestId(sel.mainSidebar)
-      .getByRole("button", { name: "Roles" })
+      .getByRole("button", { name: "Agents" })
       .click();
     await expect(page.getByTestId(sel.rolesPage)).toBeVisible();
     await expect(page.getByText("No roles yet.")).toBeVisible();
   });
 
   test("empty MCP servers list shows the empty copy", async ({ page }) => {
+    // v3: "MCP servers" nav renamed to "Integrations".
     await page
       .getByTestId(sel.mainSidebar)
-      .getByRole("button", { name: "MCP servers" })
+      .getByRole("button", { name: "Integrations" })
       .click();
     await expect(page.getByTestId(sel.mcpServersPage)).toBeVisible();
     await expect(page.getByText("No MCP servers yet.")).toBeVisible();

@@ -1,10 +1,16 @@
 /**
- * RoleNoteRow — single curation note inside `RoleMemorySection`
+ * RoleNoteRow — single curation note body inside `RoleMemorySection`
  * (ctq-137 / MEM-S2).
  *
  * Two states: read (chips + body preview + actions) and edit (inline
  * `RoleNoteForm`). Pin toggle + delete + expand are read-state
  * affordances; Save / Cancel come from the form when editing.
+ *
+ * The surrounding `<li>` + row chrome (hover overlay, geometry) is
+ * owned by `<EntityTree/>`'s `Row` — this component renders only the
+ * row BODY through EntityTree's `renderRow` slot. The note id test-id
+ * (`role-memory-note-<id>`) lands on the EntityTree row `<li>` via
+ * `testIdPrefix`, so it is not stamped here.
  */
 
 import { useState, type ReactElement } from "react";
@@ -89,7 +95,10 @@ export function RoleNoteRow({ note, onToast }: RoleNoteRowProps): ReactElement {
 
   if (editing) {
     return (
-      <li data-testid={`role-memory-note-${note.id}`}>
+      <div
+        className={styles.editBody}
+        data-testid={`role-memory-note-${note.id}`}
+      >
         <RoleNoteForm
           idPrefix={`role-memory-edit-${note.id}`}
           submitLabel="Save"
@@ -107,12 +116,12 @@ export function RoleNoteRow({ note, onToast }: RoleNoteRowProps): ReactElement {
           errorMessage={editError}
           isPending={updateMutation.status === "pending"}
         />
-      </li>
+      </div>
     );
   }
 
   return (
-    <li
+    <div
       className={cn(styles.row, note.pinned && styles.rowPinned)}
       data-testid={`role-memory-note-${note.id}`}
     >
@@ -203,6 +212,6 @@ export function RoleNoteRow({ note, onToast }: RoleNoteRowProps): ReactElement {
           Delete
         </Button>
       </span>
-    </li>
+    </div>
   );
 }

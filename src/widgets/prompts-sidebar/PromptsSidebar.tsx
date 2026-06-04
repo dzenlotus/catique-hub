@@ -1,26 +1,28 @@
-import { useMemo, useState, type ReactElement } from "react";
+import { useCallback, useMemo, useState, type ReactElement } from "react";
 
 import {
   EntityActionMenu,
   EntityTree,
   type EntityTreeNode,
+  Input,
   MarqueeText,
   RowLeading,
-  SidebarNavItem,
   SidebarSectionDivider,
   SidebarShell,
 } from "@shared/ui";
 import { SidebarSectionAddTrigger } from "@shared/ui/SidebarShell";
+import { usePromptTagFilter, useToast } from "@shared/lib";
 import { type Prompt, usePrompts, usePromptTagsMap } from "@entities/prompt";
 import {
   type PromptGroup,
   usePromptGroups,
+  useUpdatePromptGroupMutation,
 } from "@entities/prompt-group";
 import { PromptGroupCreateDialog } from "@features/prompt-group/create-dialog";
 import { PromptCreateDialog } from "@features/prompt/create-dialog";
 
 import { PromptsSettingsButton } from "./PromptsSettingsButton";
-import { TagsFilterButton } from "./TagsFilterButton";
+import { PromptsTagFilterPopover } from "./PromptsTagFilterPopover";
 import styles from "./PromptsSidebar.module.css";
 
 // ---------------------------------------------------------------------------
@@ -43,14 +45,12 @@ import styles from "./PromptsSidebar.module.css";
 export interface PromptsSidebarProps {
   /** Currently-selected prompt id (drives the active highlight). */
   selectedPromptId: string | null;
-  /** Currently-selected group id (`null` = "All Prompts" / default). */
+  /** Currently-selected group id (`null` = nothing selected / default). */
   selectedGroupId: string | null;
   /** Called when the user picks a group entry. */
   onSelectGroup: (groupId: string | null) => void;
   /** Called when the user picks a prompt — opens the inline editor. */
   onSelectPrompt: (promptId: string) => void;
-  /** Called when the user picks "Rename" on a group's kebab. */
-  onRenameGroup: (groupId: string) => void;
   /** Called when the user picks "Settings" on a group's kebab. */
   onGroupSettings: (groupId: string) => void;
   /** Called when the user picks "Delete" on a group's kebab. */
@@ -71,7 +71,6 @@ export function PromptsSidebar({
   selectedGroupId,
   onSelectGroup,
   onSelectPrompt,
-  onRenameGroup,
   onGroupSettings,
   onDeleteGroup,
   onOpenSettings,
@@ -79,6 +78,40 @@ export function PromptsSidebar({
   const promptsQuery = usePrompts();
   const groupsQuery = usePromptGroups();
   const tagsMapQuery = usePromptTagsMap();
+  const updateGroup = useUpdatePromptGroupMutation();
+  const { pushToast } = useToast();
+
+  // ── Inline group rename (round-26) ─────────────────────────────────
+  // Replaces the old `PromptGroupEditor` modal. The kebab "Rename" item
+  // swaps the group row's label into a shared `<Input labelHidden>` that
+  // commits on Enter / blur and cancels on Escape.
+  const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+
+  const commitRename = useCallback(
+    (groupId: string, nextName: string): void => {
+      const trimmed = nextName.trim();
+      const current = groupsQuery.data?.find((g) => g.id === groupId);
+      if (trimmed.length === 0 || trimmed === current?.name) {
+        setRenamingGroupId(null);
+        return;
+      }
+      updateGroup.mutate(
+        { id: groupId, name: trimmed },
+        {
+          onSuccess: () => setRenamingGroupId(null),
+          onError: (err) => {
+            pushToast("error", `Failed to rename group: ${err.message}`);
+            setRenamingGroupId(null);
+          },
+        },
+      );
+    },
+    [groupsQuery.data, updateGroup, pushToast],
+  );
+
+  const cancelRename = useCallback((): void => {
+    setRenamingGroupId(null);
+  }, []);
 
   const prompts: ReadonlyArray<Prompt> = useMemo(
     () => promptsQuery.data ?? [],
@@ -90,7 +123,10 @@ export function PromptsSidebar({
   );
 
   // ── Filter state ───────────────────────────────────────────────────
-  const [filterTagIds, setFilterTagIds] = useState<ReadonlyArray<string>>([]);
+  // The tag-filter control now lives in the global header (TopBar). The
+  // selected ids are shared through the `usePromptTagFilter` store so the
+  // sidebar list reacts without the control living here.
+  const { selectedTagIds: filterTagIds } = usePromptTagFilter();
 
   const filteredPrompts = useMemo<ReadonlyArray<Prompt>>(() => {
     if (filterTagIds.length === 0) return prompts;
@@ -110,9 +146,6 @@ export function PromptsSidebar({
   // ── Dialogs ────────────────────────────────────────────────────────
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [isPromptDialogOpen, setIsPromptDialogOpen] = useState(false);
-
-  const isAllPromptsActive =
-    selectedGroupId === null && selectedPromptId === null;
 
   const activeGroupSelectionId =
     selectedPromptId === null ? selectedGroupId : null;
@@ -141,18 +174,6 @@ export function PromptsSidebar({
   return (
     <>
       <SidebarShell ariaLabel="Prompts navigation" testId="prompts-sidebar-root">
-        {/* Default landing — sits above any section label. */}
-        <SidebarNavItem
-          isActive={isAllPromptsActive}
-          onClick={() => onSelectGroup(null)}
-          ariaLabel="All Prompts"
-          testId="prompts-sidebar-all-prompts"
-        >
-          All Prompts
-        </SidebarNavItem>
-
-        <SidebarSectionDivider />
-
         <EntityTree<PromptGroup>
           testIdPrefix="prompts-sidebar-groups"
           title="GROUPS"
@@ -192,8 +213,11 @@ export function PromptsSidebar({
             return (
               <GroupRowBody
                 group={group}
+                isRenaming={renamingGroupId === group.id}
                 onSelect={() => onSelectGroup(group.id)}
-                onRename={onRenameGroup}
+                onBeginRename={() => setRenamingGroupId(group.id)}
+                onCommitRename={(next) => commitRename(group.id, next)}
+                onCancelRename={cancelRename}
                 onSettings={onGroupSettings}
                 onDelete={onDeleteGroup}
               />
@@ -220,10 +244,7 @@ export function PromptsSidebar({
           }
           titleTrailingNode={
             <span className={styles.sectionLabelActions}>
-              <TagsFilterButton
-                selectedTagIds={filterTagIds}
-                onChange={setFilterTagIds}
-              />
+              <PromptsTagFilterPopover />
               <PromptsSettingsButton onPress={onOpenSettings} />
               {promptsQuery.status === "success" ? (
                 <SidebarSectionAddTrigger
@@ -279,19 +300,41 @@ export function PromptsSidebar({
 
 interface GroupRowBodyProps {
   group: PromptGroup;
+  /** When true, the label row is replaced by the inline rename input. */
+  isRenaming: boolean;
   onSelect: () => void;
-  onRename: (id: string) => void;
+  /** Enter inline rename mode (kebab "Rename"). */
+  onBeginRename: () => void;
+  /** Commit the new name (Enter / blur). */
+  onCommitRename: (nextName: string) => void;
+  /** Abort the rename (Escape). */
+  onCancelRename: () => void;
   onSettings: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
 function GroupRowBody({
   group,
+  isRenaming,
   onSelect,
-  onRename,
+  onBeginRename,
+  onCommitRename,
+  onCancelRename,
   onSettings,
   onDelete,
 }: GroupRowBodyProps): ReactElement {
+  if (isRenaming) {
+    return (
+      <div className={styles.rowBody}>
+        <GroupRenameInput
+          group={group}
+          onCommit={onCommitRename}
+          onCancel={onCancelRename}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={styles.rowBody}>
       <button
@@ -306,7 +349,7 @@ function GroupRowBody({
       </button>
       <EntityActionMenu
         items={[
-          { id: "rename", label: "Rename", onAction: () => onRename(group.id) },
+          { id: "rename", label: "Rename", onAction: onBeginRename },
           { id: "settings", label: "Settings", onAction: () => onSettings(group.id) },
           { id: "delete", label: "Delete", onAction: () => onDelete(group.id) },
         ]}
@@ -315,6 +358,43 @@ function GroupRowBody({
         triggerClassName={styles.groupKebab}
       />
     </div>
+  );
+}
+
+interface GroupRenameInputProps {
+  group: PromptGroup;
+  onCommit: (nextName: string) => void;
+  onCancel: () => void;
+}
+
+function GroupRenameInput({
+  group,
+  onCommit,
+  onCancel,
+}: GroupRenameInputProps): ReactElement {
+  const [draft, setDraft] = useState(group.name);
+
+  return (
+    <Input
+      type="text"
+      label={`Rename group ${group.name}`}
+      labelHidden
+      className={styles.renameField}
+      value={draft}
+      onChange={setDraft}
+      onBlur={() => onCommit(draft)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onCommit(draft);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          onCancel();
+        }
+      }}
+      autoFocus
+      data-testid={`prompts-sidebar-group-rename-input-${group.id}`}
+    />
   );
 }
 

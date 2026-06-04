@@ -6,15 +6,36 @@
  *   - `onClose`  — called on Cancel, successful Save, or Esc (via RAC).
  */
 
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, type ReactElement } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
 import { useSkill, useUpdateSkillMutation } from "@entities/skill";
-import { Dialog, Button, Input, TextArea } from "@shared/ui";
+import type { Skill } from "@entities/skill";
+import { Dialog, Button, EntityTitle, TextArea } from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import { SkillAttachmentsSection } from "./SkillAttachmentsSection";
 import { SkillStepsSection } from "./SkillStepsSection";
 import { SkillImportButton } from "./SkillImportButton";
+import { SkillExportButton } from "./SkillExportButton";
 import styles from "./SkillEditor.module.css";
+
+// Name is required (trimmed); overview is optional markdown ("" → null
+// on update). Validation that used to live in `handleSave` now lives
+// here as the single source of truth.
+const skillFormSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+  overview: z.string(),
+});
+
+type SkillFormValues = z.infer<typeof skillFormSchema>;
+
+/** Map a loaded skill into the editor's form values. */
+function skillToFormValues(skill: Skill): SkillFormValues {
+  return { name: skill.name, overview: skill.description ?? "" };
+}
 
 export interface SkillEditorProps {
   /** null = closed, string = open for this skill id */
@@ -82,19 +103,28 @@ export function SkillEditorContent({
   const query = useSkill(skillId);
   const updateMutation = useUpdateSkillMutation();
 
-  // Local edit state — initialised from the loaded skill.
-  const [localName, setLocalName] = useState("");
-  const [localOverview, setLocalOverview] = useState("");
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setError,
+    clearErrors,
+    formState: { errors },
+  } = useForm<SkillFormValues>({
+    resolver: zodResolver(skillFormSchema),
+    defaultValues: { name: "", overview: "" },
+    mode: "onChange",
+  });
 
-  // Sync local state when skill data loads or skillId changes.
+  // Repopulate the form when the loaded skill changes (different skillId
+  // or a fresh fetch). `reset` re-seeds values + clears dirty state.
+  const skill = query.data;
   useEffect(() => {
-    if (query.data) {
-      setLocalName(query.data.name);
-      setLocalOverview(query.data.description ?? "");
-      setSaveError(null);
+    if (skill) {
+      reset(skillToFormValues(skill));
+      clearErrors("root.serverError");
     }
-  }, [query.data, skillId]);
+  }, [skill, reset, clearErrors]);
 
   // ── Pending ────────────────────────────────────────────────────────
 
@@ -184,73 +214,90 @@ export function SkillEditorContent({
 
   // ── Loaded ─────────────────────────────────────────────────────────
 
-  const skill = query.data;
+  // Narrowed non-null after the !query.data guard above.
+  const loadedSkill = query.data;
 
-  const handleSave = (): void => {
-    setSaveError(null);
-    const trimmedName = localName.trim();
-    if (!trimmedName) {
-      setSaveError("Name cannot be empty.");
-      return;
-    }
+  const onValid = handleSubmit((values) => {
+    const trimmedName = values.name.trim();
     const resolvedOverview =
-      localOverview.trim() === "" ? null : localOverview;
+      values.overview.trim() === "" ? null : values.overview;
 
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
-    const mutationArgs: MutationArgs = { id: skill.id };
-    if (trimmedName !== skill.name) mutationArgs.name = trimmedName;
-    if (resolvedOverview !== skill.description) {
+    const mutationArgs: MutationArgs = { id: loadedSkill.id };
+    if (trimmedName !== loadedSkill.name) mutationArgs.name = trimmedName;
+    if (resolvedOverview !== loadedSkill.description) {
       mutationArgs.description = resolvedOverview;
     }
 
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => onClose(),
-      onError: (err) => setSaveError(`Failed to save: ${err.message}`),
+      onError: (err) =>
+        setError("root.serverError", {
+          message: `Failed to save: ${err.message}`,
+        }),
     });
+  });
+
+  const handleSavePress = (): void => {
+    void onValid();
   };
 
   const handleCancel = (): void => {
-    setLocalName(skill.name);
-    setLocalOverview(skill.description ?? "");
-    setSaveError(null);
+    reset(skillToFormValues(loadedSkill));
+    clearErrors("root.serverError");
     onClose();
   };
+
+  const saveError = errors.root?.serverError?.message;
 
   return (
     <>
       <div className={styles.section}>
-        <Input
-          label="Name"
-          value={localName}
-          onChange={setLocalName}
-          placeholder="Skill name"
-          className={styles.fullWidthInput}
-          data-testid="skill-editor-name-input"
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <EntityTitle
+              size="lg"
+              editable
+              name={field.value}
+              onNameChange={field.onChange}
+              editPlaceholder="Skill name"
+              editTestId="skill-editor-name-input"
+            />
+          )}
         />
       </div>
 
       <div className={styles.section}>
-        <TextArea
-          label="Overview"
-          value={localOverview}
-          onChange={setLocalOverview}
-          rows={4}
-          placeholder="What is this skill for? When should the agent reach for it?"
-          className={styles.fullWidthInput}
-          data-testid="skill-editor-overview-input"
+        <Controller
+          control={control}
+          name="overview"
+          render={({ field }) => (
+            <TextArea
+              label="Overview"
+              value={field.value}
+              onChange={field.onChange}
+              rows={4}
+              placeholder="What is this skill for? When should the agent reach for it?"
+              className={styles.fullWidthInput}
+              data-testid="skill-editor-overview-input"
+            />
+          )}
         />
       </div>
 
-      <SkillStepsSection skillId={skill.id} />
+      <SkillStepsSection skillId={loadedSkill.id} />
 
-      <div className={styles.section}>
-        <SkillImportButton skillId={skill.id} />
+      <div className={styles.section} style={{ display: "flex", gap: 8 }}>
+        <SkillImportButton skillId={loadedSkill.id} />
+        <SkillExportButton skillId={loadedSkill.id} />
       </div>
 
-      <SkillAttachmentsSection skillId={skill.id} />
+      <SkillAttachmentsSection skillId={loadedSkill.id} />
 
       <div className={styles.footer}>
-        {saveError ? (
+        {saveError !== undefined ? (
           <p
             className={styles.saveError}
             role="alert"
@@ -271,7 +318,7 @@ export function SkillEditorContent({
           variant="primary"
           size="md"
           isPending={updateMutation.status === "pending"}
-          onPress={handleSave}
+          onPress={handleSavePress}
           data-testid="skill-editor-save"
         >
           Save

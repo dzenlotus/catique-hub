@@ -7,8 +7,11 @@
  *   - Header: `<IconColorPicker>` to the LEFT of the title — same
  *     placement as `<PromptEditorPanel>` so appearance always sits
  *     next to the title, not in a labelled body section.
- *   - Name field (controlled).
  *   - Danger zone: delete (confirm + parent handler).
+ *
+ * Round-26: renaming is handled inline (sidebar row / inline-group-view
+ * title), so Settings is now just appearance (icon/color) + delete — the
+ * name field was removed as redundant.
  *
  * Member management lives in `<InlineGroupView>` — the user opens
  * the group itself for that, opens Settings only to tweak metadata.
@@ -20,12 +23,8 @@ import {
   usePromptGroup,
   useUpdatePromptGroupMutation,
 } from "@entities/prompt-group";
-import {
-  Button,
-  Input,
-  IconColorPicker,
-} from "@shared/ui";
-import { useToast } from "@app/providers/ToastProvider";
+import { Button, IconColorPicker } from "@shared/ui";
+import { useToast } from "@shared/lib";
 
 import styles from "./InlineGroupSettings.module.css";
 
@@ -46,14 +45,12 @@ export function InlineGroupSettings({
   const updateMutation = useUpdatePromptGroupMutation();
   const { pushToast } = useToast();
 
-  const [localName, setLocalName] = useState("");
   const [localColor, setLocalColor] = useState<string>("");
   const [localIcon, setLocalIcon] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (query.data) {
-      setLocalName(query.data.name);
       setLocalColor(query.data.color ?? "");
       setLocalIcon(query.data.icon ?? null);
       setSaveError(null);
@@ -110,15 +107,9 @@ export function InlineGroupSettings({
 
   const handleSave = (): void => {
     setSaveError(null);
-    const trimmedName = localName.trim();
-    if (!trimmedName) {
-      setSaveError("Name cannot be empty.");
-      return;
-    }
 
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
     const args: MutationArgs = { id: group.id };
-    if (trimmedName !== group.name) args.name = trimmedName;
     const resolvedColor = localColor === "" ? null : localColor;
     if (resolvedColor !== group.color) args.color = resolvedColor;
     if (localIcon !== (group.icon ?? null)) args.icon = localIcon;
@@ -135,7 +126,6 @@ export function InlineGroupSettings({
   };
 
   const handleCancel = (): void => {
-    setLocalName(group.name);
     setLocalColor(group.color ?? "");
     setLocalIcon(group.icon ?? null);
     setSaveError(null);
@@ -175,17 +165,6 @@ export function InlineGroupSettings({
       </header>
 
       <div className={styles.body}>
-        <div className={styles.section}>
-          <Input
-            label="Name"
-            value={localName}
-            onChange={setLocalName}
-            placeholder="Group name"
-            className={styles.fullWidthInput}
-            data-testid="inline-group-settings-name-input"
-          />
-        </div>
-
         <div className={styles.section}>
           <p className={styles.sectionLabel}>Danger zone</p>
           <div className={styles.dangerZone}>

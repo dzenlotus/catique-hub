@@ -21,8 +21,8 @@ import { columnsKeys } from "@entities/column";
 import type { Column } from "@entities/column";
 import { rolesKeys } from "@entities/role";
 import type { Role } from "@entities/role";
-import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ActiveSpaceProvider } from "@app/providers";
+import { ToastProvider } from "@shared/lib";
 
 import { TaskCreateDialog } from "./TaskCreateDialog";
 
@@ -55,6 +55,8 @@ function stubColumn(overrides?: Partial<Column>): Column {
     roleId: null,
     createdAt: 0n,
     isDefault: false,
+    icon: null,
+    color: null,
     ...overrides,
   };
 }

@@ -27,7 +27,7 @@ import {
   useSyncStatus,
   type ConnectedClient,
 } from "@entities/connected-client";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 
 import { AddProviderDialog } from "./AddProviderDialog";
 import styles from "./ConnectedAgentsSection.module.css";

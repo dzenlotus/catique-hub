@@ -3,6 +3,7 @@ export {
   spacesKeys,
   useSpaces,
   useSpace,
+  useSpacePrompts,
   useCreateSpaceMutation,
   useUpdateSpaceMutation,
   useDeleteSpaceMutation,

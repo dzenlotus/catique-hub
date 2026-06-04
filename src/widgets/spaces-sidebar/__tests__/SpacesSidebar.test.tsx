@@ -5,9 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { TestRouter } from "@shared/lib";
 
-import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
+import { ActiveSpaceProvider } from "@app/providers";
 import { ExpandedSpacesProvider } from "@app/providers/ExpandedSpacesProvider";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 import { LocalStorageStore, stringCodec } from "@shared/storage";
 import { SpacesSidebar } from "../SpacesSidebar";
 

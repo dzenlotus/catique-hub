@@ -120,6 +120,8 @@ pub trait NodeNameLookup {
 /// changed.
 #[must_use]
 pub fn render_prompt<L: NodeNameLookup>(graph: &WorkflowGraph, lookup: &L) -> String {
+    use std::fmt::Write as _;
+
     let mut out = String::new();
     out.push_str("## Workflow\n\n");
     if graph.nodes.is_empty() {
@@ -134,7 +136,10 @@ pub fn render_prompt<L: NodeNameLookup>(graph: &WorkflowGraph, lookup: &L) -> St
     for node in &nodes_sorted {
         let name = lookup.node_label(node);
         node_lookup.insert(node.id.as_str(), name.clone());
-        out.push_str(&format!("- **{name}** (`{}`)\n", node.id));
+        // `write!` on a String is infallible; the `let _ =` discards
+        // the Result to satisfy clippy's `format_push_string` pedantic
+        // lint without bringing in expect().
+        let _ = writeln!(out, "- **{name}** (`{}`)", node.id);
     }
 
     if graph.edges.is_empty() {
@@ -154,8 +159,11 @@ pub fn render_prompt<L: NodeNameLookup>(graph: &WorkflowGraph, lookup: &L) -> St
             .get(edge.to_node.as_str())
             .cloned()
             .unwrap_or_else(|| edge.to_node.clone());
-        let verb = edge.label.as_deref().unwrap_or_else(|| edge.kind.template());
-        out.push_str(&format!("- **{from}** {verb} **{to}**.\n"));
+        let verb = edge
+            .label
+            .as_deref()
+            .unwrap_or_else(|| edge.kind.template());
+        let _ = writeln!(out, "- **{from}** {verb} **{to}**.");
     }
     out
 }
@@ -165,7 +173,7 @@ mod tests {
     use super::*;
 
     struct StaticLookup<'a>(&'a [(&'a str, &'a str)]);
-    impl<'a> NodeNameLookup for StaticLookup<'a> {
+    impl NodeNameLookup for StaticLookup<'_> {
         fn role_name(&self, role_id: &str) -> Option<String> {
             self.0
                 .iter()

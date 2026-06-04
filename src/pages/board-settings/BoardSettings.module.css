@@ -167,27 +167,6 @@
   }
 }
 
-.actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-8);
-}
-
-.error {
-  flex: 1 1 auto;
-  margin: 0;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-status-danger);
-}
-
-.savedHint {
-  flex: 1 1 auto;
-  margin: 0;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-status-success, var(--color-text-muted));
-}
-
 /* ── Danger zone ──────────────────────────────────────────────────── */
 
 .dangerCard {
@@ -214,21 +193,3 @@
   color: var(--color-status-danger);
 }
 
-/* ── Status panel ─────────────────────────────────────────────────── */
-
-.statusPanel {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-8);
-  padding: var(--space-16);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface-raised);
-}
-
-.statusMessage {
-  margin: 0;
-  font-size: var(--font-size-body);
-  color: var(--color-text-default);
-}

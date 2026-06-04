@@ -32,7 +32,7 @@ import {
   useSkillAttachments,
 } from "@entities/skill";
 import type { SkillAttachment } from "@entities/skill";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 import { Button, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
 

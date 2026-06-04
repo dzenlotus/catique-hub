@@ -17,6 +17,36 @@ use crate::state::AppState;
 /// E2 will populate per-domain initialisation here.
 pub fn register() {}
 
+/// IPC: signal that the user wants to run an agent on a task.
+///
+/// Stream J / v3 Wave 4. The actual agent-run executor does not ship
+/// yet — this handler validates the task exists (so a stale UI
+/// referencing a deleted id gets a typed `NotFound` instead of a
+/// silent success), emits [`events::TASK_RUN_STARTED`] on the
+/// realtime channel, and returns `Ok(())`. The frontend's
+/// `EventsProvider` subscribes to the event and flips
+/// `useTaskStatus(task_id)` from `"idle"` to `"running"`; the badge
+/// + `RunningTaskIndicator` light up the moment the IPC returns.
+///
+/// A follow-up will wire the real run pipeline and emit
+/// [`events::TASK_RUN_FINISHED`] / [`events::TASK_RUN_FAILED`] from
+/// the executor when the agent terminates.
+///
+/// # Errors
+///
+/// `AppError::NotFound` when `task_id` does not exist; forwards every
+/// other error from `TasksUseCase::get`.
+#[tauri::command]
+pub async fn run_task_agent(state: State<'_, AppState>, task_id: String) -> Result<(), AppError> {
+    // Validate the task exists so a stale UI gets a typed NotFound
+    // instead of a silent success that later confuses the run-history
+    // panel. We deliberately do not lock any rows — the executor will
+    // re-resolve the task bundle on its own when it lands.
+    TasksUseCase::new(&state.pool).get(&task_id)?;
+    events::emit_task_run_started(&state, &task_id);
+    Ok(())
+}
+
 /// IPC: list every task.
 ///
 /// # Errors
@@ -363,7 +393,12 @@ pub async fn add_task_prompt(
     catique_infrastructure::db::repositories::tasks::add_task_prompt(
         &conn, &task_id, &prompt_id, position,
     )
-    .map_err(map_db)
+    .map_err(map_db)?;
+    // Refactor-v3 D-B: bump the denormalised counter so the kanban card
+    // surface reflects the new attachment without re-resolving the bundle.
+    catique_infrastructure::db::repositories::tasks::recompute_effective_counts(&conn, &task_id)
+        .map_err(map_db)?;
+    Ok(())
 }
 
 /// Detach a direct prompt from a task.
@@ -383,6 +418,11 @@ pub async fn remove_task_prompt(
     )
     .map_err(map_db)?;
     if removed {
+        // Refactor-v3 D-B counter sync.
+        catique_infrastructure::db::repositories::tasks::recompute_effective_counts(
+            &conn, &task_id,
+        )
+        .map_err(map_db)?;
         Ok(())
     } else {
         Err(AppError::NotFound {
@@ -435,6 +475,124 @@ pub async fn clear_task_prompt_override(
             id: format!("{task_id}|{prompt_id}"),
         })
     }
+}
+
+// ---------------------------------------------------------------------
+// Refactor-v3 D-A — replace-OR-suppress overrides (v2).
+//
+// Three pairs of IPCs (prompts / skills / mcp_tools), each:
+//   * `set_task_<kind>_override_v2(task_id, source_id, replacement_id?)`
+//     UPSERTs the override row. `replacement_id = None` suppresses the
+//     inherited entity; `Some(id)` substitutes it with another entity
+//     of the same kind.
+//   * `clear_task_<kind>_override_v2(task_id, source_id)` removes the
+//     override, restoring the inherited entry.
+//
+// The legacy `set_task_prompt_override(enabled: bool)` IPC stays for one
+// release as a thin compat layer (decision memo §"New IPC"); migrating
+// clients to the `_v2` surface is a frontend concern.
+// ---------------------------------------------------------------------
+
+/// Set a per-task prompt override (replace-OR-suppress).
+///
+/// # Errors
+///
+/// * `AppError::NotFound` — `task_id` does not exist.
+/// * `AppError::TransactionRolledBack` — FK violation on source or
+///   replacement prompt id.
+#[tauri::command]
+pub async fn set_task_prompt_override_v2(
+    state: State<'_, AppState>,
+    task_id: String,
+    source_prompt_id: String,
+    replacement_prompt_id: Option<String>,
+) -> Result<(), AppError> {
+    TasksUseCase::new(&state.pool).set_task_prompt_override_v2(
+        &task_id,
+        &source_prompt_id,
+        replacement_prompt_id.as_deref(),
+    )
+}
+
+/// Clear a per-task prompt override (refactor-v3 D-A).
+///
+/// # Errors
+///
+/// `AppError::NotFound` if no override existed for the
+/// `(task_id, source_prompt_id)` pair.
+#[tauri::command]
+pub async fn clear_task_prompt_override_v2(
+    state: State<'_, AppState>,
+    task_id: String,
+    source_prompt_id: String,
+) -> Result<(), AppError> {
+    TasksUseCase::new(&state.pool).clear_task_prompt_override_v2(&task_id, &source_prompt_id)
+}
+
+/// Set a per-task skill override (replace-OR-suppress).
+///
+/// # Errors
+///
+/// See [`set_task_prompt_override_v2`].
+#[tauri::command]
+pub async fn set_task_skill_override_v2(
+    state: State<'_, AppState>,
+    task_id: String,
+    source_skill_id: String,
+    replacement_skill_id: Option<String>,
+) -> Result<(), AppError> {
+    TasksUseCase::new(&state.pool).set_task_skill_override_v2(
+        &task_id,
+        &source_skill_id,
+        replacement_skill_id.as_deref(),
+    )
+}
+
+/// Clear a per-task skill override (refactor-v3 D-A).
+///
+/// # Errors
+///
+/// `AppError::NotFound` if no override existed.
+#[tauri::command]
+pub async fn clear_task_skill_override_v2(
+    state: State<'_, AppState>,
+    task_id: String,
+    source_skill_id: String,
+) -> Result<(), AppError> {
+    TasksUseCase::new(&state.pool).clear_task_skill_override_v2(&task_id, &source_skill_id)
+}
+
+/// Set a per-task mcp-tool override (replace-OR-suppress).
+///
+/// # Errors
+///
+/// See [`set_task_prompt_override_v2`].
+#[tauri::command]
+pub async fn set_task_mcp_tool_override_v2(
+    state: State<'_, AppState>,
+    task_id: String,
+    source_tool_id: String,
+    replacement_tool_id: Option<String>,
+) -> Result<(), AppError> {
+    TasksUseCase::new(&state.pool).set_task_mcp_tool_override_v2(
+        &task_id,
+        &source_tool_id,
+        replacement_tool_id.as_deref(),
+    )
+}
+
+/// Clear a per-task mcp-tool override (refactor-v3 D-A).
+///
+/// # Errors
+///
+/// `AppError::NotFound` if no override existed.
+#[tauri::command]
+pub async fn clear_task_mcp_tool_override_v2(
+    state: State<'_, AppState>,
+    task_id: String,
+    source_tool_id: String,
+) -> Result<(), AppError> {
+    TasksUseCase::new(&state.pool).clear_task_mcp_tool_override_v2(&task_id, &source_tool_id)
 }
 
 // ---------------------------------------------------------------------
@@ -536,5 +694,82 @@ fn map_db(err: catique_infrastructure::db::pool::DbError) -> AppError {
         DbError::Io(e) => AppError::TransactionRolledBack {
             reason: e.to_string(),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Stream J / v3 Wave 4 — `run_task_agent` smoke checks.
+    //!
+    //! The `#[tauri::command]` attribute lowers the handler into a
+    //! private wrapper so we can't call it directly from a unit test.
+    //! Instead we exercise the exact two operations the handler
+    //! performs: `TasksUseCase::get(id)` (the typed-NotFound gate) and
+    //! `events::emit_task_run_started(&state, id)` (silent in test
+    //! mode). Any future change that swaps the order or drops the
+    //! validation needs to update this test, which is the contract we
+    //! actually care about.
+    use super::*;
+    use crate::state::AppState;
+    use catique_application::AppError;
+    use catique_infrastructure::db::pool::memory_pool_for_tests;
+    use catique_infrastructure::db::runner::run_pending;
+
+    fn fresh_state_with_task() -> (AppState, String) {
+        let pool = memory_pool_for_tests();
+        let mut conn = pool.get().expect("acquire migration conn");
+        run_pending(&mut conn).expect("run migrations");
+        // Seed a minimal task hierarchy. The default-board invariant
+        // (D-006) is enforced via the migration's INSERT triggers in
+        // the real schema; here we drop straight to raw INSERTs for
+        // the smallest reproducer.
+        conn.execute_batch(
+            "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
+                 VALUES ('sp','Space','sp',0,0,0,0); \
+             INSERT INTO boards (id, name, space_id, position, created_at, updated_at) \
+                 VALUES ('bd','B','sp',0,0,0); \
+             INSERT INTO columns (id, board_id, name, position, created_at) \
+                 VALUES ('co','bd','C',0,0); \
+             INSERT INTO tasks (id, board_id, column_id, slug, title, position, created_at, updated_at) \
+                 VALUES ('t-real','bd','co','sp-1','Title',0,0,0);",
+        )
+        .expect("seed");
+        drop(conn);
+        let state = AppState::new(pool, std::path::PathBuf::new());
+        (state, "t-real".to_owned())
+    }
+
+    /// Valid task id: the use-case `get` resolves, and the silent
+    /// emit helper is a no-op in test mode — the handler-equivalent
+    /// returns `Ok(())`.
+    #[test]
+    fn run_task_agent_path_succeeds_for_existing_task() {
+        let (state, task_id) = fresh_state_with_task();
+        // The handler reduces to these two operations; we exercise
+        // them in the same order.
+        let task = TasksUseCase::new(&state.pool)
+            .get(&task_id)
+            .expect("existing task resolves");
+        assert_eq!(task.id, task_id);
+        crate::events::emit_task_run_started(&state, &task_id);
+        // No app handle attached → silent no-op contract holds.
+        assert!(state.app_handle.get().is_none());
+    }
+
+    /// Missing task id: the `get` gate surfaces a typed `NotFound` and
+    /// the emit step is never reached.
+    #[test]
+    fn run_task_agent_path_returns_not_found_for_ghost_task() {
+        let (state, _) = fresh_state_with_task();
+        let err = TasksUseCase::new(&state.pool)
+            .get("ghost")
+            .expect_err("missing task id surfaces NotFound");
+        match err {
+            AppError::NotFound { entity, id } => {
+                assert_eq!(entity, "task");
+                assert_eq!(id, "ghost");
+            }
+            other => panic!("expected NotFound, got {other:?}"),
+        }
     }
 }

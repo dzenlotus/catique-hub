@@ -25,7 +25,7 @@ vi.mock("@shared/api", async () => {
 });
 
 import { invoke } from "@shared/api";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 import { ConnectedAgentsSection } from "../ConnectedAgentsSection";
 
 const invokeMock = vi.mocked(invoke);

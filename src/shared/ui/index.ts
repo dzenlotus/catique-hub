@@ -16,6 +16,15 @@ export type { ConfirmDialogProps } from "./ConfirmDialog";
 export { Collapsible } from "./Collapsible";
 export type { CollapsibleProps } from "./Collapsible";
 
+export { OriginBadge } from "./OriginBadge";
+export type { OriginBadgeProps, OriginRef } from "./OriginBadge";
+
+export { StatusBadge } from "./StatusBadge";
+export type { StatusBadgeProps, TaskStatus } from "./StatusBadge";
+
+export { RunningTaskIndicator } from "./RunningTaskIndicator";
+export type { RunningTaskIndicatorProps } from "./RunningTaskIndicator";
+
 export { Input } from "./Input";
 export type { InputProps } from "./Input";
 
@@ -52,8 +61,8 @@ export type {
   EntityActionMenuProps,
 } from "./EntityActionMenu";
 
-export { BoardTitle } from "./BoardTitle";
-export type { BoardTitleProps, BoardTitleSize } from "./BoardTitle";
+export { EntityTitle } from "./EntityTitle";
+export type { EntityTitleProps, EntityTitleSize } from "./EntityTitle";
 
 export { GroupButton } from "./GroupButton";
 export type {
@@ -66,17 +75,22 @@ export type {
 export { Combobox } from "./Combobox";
 export type { ComboboxProps, ComboboxItem } from "./Combobox";
 
-export { MultiTagInput } from "./MultiTagInput";
-export type {
-  MultiTagInputProps,
-  MultiTagInputItem,
-} from "./MultiTagInput";
-
-export { MultiSelect } from "./MultiSelect";
-export type { MultiSelectProps, MultiSelectOption } from "./MultiSelect";
-
 export { SelectTag } from "./SelectTag";
 export type { SelectTagProps, SelectTagOption } from "./SelectTag";
+
+export {
+  ChipRoot,
+  ChipSwatch,
+  ChipLabel,
+  ChipRemove,
+  chipStyles,
+} from "./Chip";
+export type {
+  ChipRootProps,
+  ChipSwatchProps,
+  ChipLabelProps,
+  ChipRemoveProps,
+} from "./Chip";
 
 export { Tooltip, TooltipTrigger } from "./Tooltip";
 export type { TooltipProps, TooltipTriggerProps } from "./Tooltip";
@@ -115,6 +129,15 @@ export type {
   EditorShellBodyProps,
   EditorShellFooterProps,
 } from "./EditorShell";
+
+export { SaveBar } from "./SaveBar";
+export type { SaveBarProps } from "./SaveBar";
+
+export { SettingsCard } from "./SettingsCard";
+export type {
+  SettingsCardProps,
+  SettingsStatePanelProps,
+} from "./SettingsCard";
 
 export {
   SidebarShell,

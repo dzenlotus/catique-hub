@@ -1,0 +1,49 @@
+/*
+ * SettingsCard — bordered card with a heading bar and a padded body.
+ * Mirrors the former per-page `.card` / `.cardHeading` / `.cardBody`
+ * trio (SpaceSettings). Token-driven only.
+ */
+
+.card {
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.cardHeading {
+  margin: 0;
+  padding: var(--space-12) var(--space-16);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background-color: var(--color-surface-canvas);
+}
+
+.cardBody {
+  padding: var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+/* ── Status panel (loading / error / not-found guards) ─────────────── */
+
+.statusPanel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+  padding: var(--space-16);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+}
+
+.statusMessage {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-default);
+}

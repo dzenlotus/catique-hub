@@ -1,18 +1,25 @@
 /**
  * Root layout shell for the TanStack Router tree.
  *
- * Two-column grid: `<MainSidebar>` | `<TopBar> + <main>` (route Outlet).
- * Pages that need a secondary rail (boards, spaces, prompts, …) mount
- * their own sidebar inside the content slot — RootLayout has no
- * knowledge of feature-specific rails.
+ * v3 grid:
+ *   [ AppSidebar ] [ TopBar      ]
+ *   [ AppSidebar ] [ Outlet      ]
+ *   [ AppSidebar ] [ StatusBar   ]
+ *
+ * The AppSidebar consolidates the legacy `MainSidebar` (top-level nav)
+ * and `SpacesSidebar` (per-space tree) into a single rail with Pinned /
+ * Recent / Search / collapse — so individual pages no longer mount
+ * their own secondary navigation. Pages that previously embedded
+ * `<SpacesSidebar/>` lose the embed in their content area.
  */
 import { useMemo, type ReactElement } from "react";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 
-import { MainSidebar } from "@widgets/main-sidebar";
+import { AppSidebar } from "@widgets/app-sidebar";
 import type { NavView } from "@widgets/main-sidebar";
 import { TopBar } from "@widgets/top-bar";
 import { Toaster } from "@widgets/toaster";
+import { StatusBar } from "@widgets/status-bar";
 
 import { BoardOwnershipReviewMount } from "./providers/BoardOwnershipReviewMount";
 import { pathForView, viewForPath } from "./routes";
@@ -37,12 +44,16 @@ export function RootLayout(): ReactElement {
       </div>
 
       <div className={styles.mainSidebarSlot}>
-        <MainSidebar activeView={activeView} onSelectView={handleSelectView} />
+        <AppSidebar activeView={activeView} onSelectView={handleSelectView} />
       </div>
 
       <main className={styles.mainPane}>
         <Outlet />
       </main>
+
+      <div className={styles.statusBarSlot}>
+        <StatusBar />
+      </div>
 
       <Toaster />
       <BoardOwnershipReviewMount />

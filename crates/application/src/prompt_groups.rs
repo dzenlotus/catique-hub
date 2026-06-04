@@ -8,10 +8,12 @@
 use catique_domain::PromptGroup;
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
-    repositories::prompt_groups::{
-        self as repo, PromptGroupDraft, PromptGroupPatch, PromptGroupRow,
+    repositories::{
+        prompt_group_attachments::{self as pg_attach, GroupAttachScope},
+        prompt_groups::{self as repo, PromptGroupDraft, PromptGroupPatch, PromptGroupRow},
     },
 };
+use rusqlite::TransactionBehavior;
 
 use crate::{
     error::AppError,
@@ -131,16 +133,23 @@ impl<'a> PromptGroupsUseCase<'a> {
     ///
     /// `AppError::NotFound` if the id is absent.
     pub fn delete(&self, id: &str) -> Result<(), AppError> {
-        let conn = acquire(self.pool).map_err(map_db_err)?;
-        let removed = repo::delete(&conn, id).map_err(map_db_err)?;
-        if removed {
-            Ok(())
-        } else {
-            Err(AppError::NotFound {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+        // Clear the group's materialised rows + recompute counts BEFORE
+        // dropping the row. The on-delete trigger sweeps rows defensively
+        // but leaves effective_*_count stale; this keeps them correct.
+        pg_attach::clear_group_everywhere(&tx, id).map_err(map_db_err)?;
+        let removed = repo::delete(&tx, id).map_err(map_db_err)?;
+        if !removed {
+            return Err(AppError::NotFound {
                 entity: "prompt_group".into(),
                 id: id.to_owned(),
-            })
+            });
         }
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
+        Ok(())
     }
 
     // ------------------------------------------------------------------
@@ -174,8 +183,16 @@ impl<'a> PromptGroupsUseCase<'a> {
         prompt_id: String,
         position: i64,
     ) -> Result<(), AppError> {
-        let conn = acquire(self.pool).map_err(map_db_err)?;
-        repo::add_member(&conn, &group_id, &prompt_id, position).map_err(map_db_err)
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+        repo::add_member(&tx, &group_id, &prompt_id, position).map_err(map_db_err)?;
+        // Live link: re-expand the group everywhere it is attached so the
+        // new member lands in every dependent task's effective context.
+        pg_attach::rematerialize_prompt_group(&tx, &group_id).map_err(map_db_err)?;
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
+        Ok(())
     }
 
     /// Remove a prompt from a group.
@@ -185,16 +202,21 @@ impl<'a> PromptGroupsUseCase<'a> {
     /// `AppError::NotFound` if no row matched.
     #[allow(clippy::needless_pass_by_value)]
     pub fn remove_member(&self, group_id: String, prompt_id: String) -> Result<(), AppError> {
-        let conn = acquire(self.pool).map_err(map_db_err)?;
-        let removed = repo::remove_member(&conn, &group_id, &prompt_id).map_err(map_db_err)?;
-        if removed {
-            Ok(())
-        } else {
-            Err(AppError::NotFound {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+        let removed = repo::remove_member(&tx, &group_id, &prompt_id).map_err(map_db_err)?;
+        if !removed {
+            return Err(AppError::NotFound {
                 entity: "prompt_group_member".into(),
                 id: format!("{group_id}|{prompt_id}"),
-            })
+            });
         }
+        // Live link: re-expand so the removed member drops out everywhere.
+        pg_attach::rematerialize_prompt_group(&tx, &group_id).map_err(map_db_err)?;
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
+        Ok(())
     }
 
     /// Atomically replace the complete ordered member list.
@@ -208,8 +230,105 @@ impl<'a> PromptGroupsUseCase<'a> {
         group_id: String,
         ordered_prompt_ids: Vec<String>,
     ) -> Result<(), AppError> {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+        repo::set_members(&tx, &group_id, &ordered_prompt_ids).map_err(map_db_err)?;
+        // Live link: re-expand the new member set everywhere it's attached.
+        pg_attach::rematerialize_prompt_group(&tx, &group_id).map_err(map_db_err)?;
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
+        Ok(())
+    }
+
+    // ------------------------------------------------------------------
+    // Group attachment (group as a live unit at task / role / board)
+    // ------------------------------------------------------------------
+
+    /// Bulk-set the prompt groups attached at `scope` to `group_ids`
+    /// (in order). Clears the scope's prior group rows, re-materialises
+    /// the new set's members, and recomputes effective counts — all in
+    /// one `IMMEDIATE` transaction. Mirrors `set_*_prompts`.
+    #[allow(clippy::needless_pass_by_value)]
+    fn set_groups_at(
+        &self,
+        scope: GroupAttachScope,
+        group_ids: Vec<String>,
+    ) -> Result<(), AppError> {
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+        pg_attach::set_groups_at(&tx, &scope, &group_ids).map_err(map_db_err)?;
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
+        Ok(())
+    }
+
+    /// Set the prompt groups attached to a role.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces storage-layer errors.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn set_role_groups(&self, role_id: String, group_ids: Vec<String>) -> Result<(), AppError> {
+        self.set_groups_at(GroupAttachScope::Role(role_id), group_ids)
+    }
+
+    /// Set the prompt groups attached to a board.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces storage-layer errors.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn set_board_groups(
+        &self,
+        board_id: String,
+        group_ids: Vec<String>,
+    ) -> Result<(), AppError> {
+        self.set_groups_at(GroupAttachScope::Board(board_id), group_ids)
+    }
+
+    /// Set the prompt groups attached directly to a task.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces storage-layer errors.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn set_task_groups(&self, task_id: String, group_ids: Vec<String>) -> Result<(), AppError> {
+        self.set_groups_at(GroupAttachScope::Task(task_id), group_ids)
+    }
+
+    /// List the prompt groups attached at a role.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces storage-layer errors.
+    pub fn list_role_groups(&self, role_id: &str) -> Result<Vec<String>, AppError> {
         let conn = acquire(self.pool).map_err(map_db_err)?;
-        repo::set_members(&conn, &group_id, &ordered_prompt_ids).map_err(map_db_err)
+        pg_attach::list_groups_at(&conn, &GroupAttachScope::Role(role_id.to_owned()))
+            .map_err(map_db_err)
+    }
+
+    /// List the prompt groups attached at a board.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces storage-layer errors.
+    pub fn list_board_groups(&self, board_id: &str) -> Result<Vec<String>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        pg_attach::list_groups_at(&conn, &GroupAttachScope::Board(board_id.to_owned()))
+            .map_err(map_db_err)
+    }
+
+    /// List the prompt groups attached directly to a task.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces storage-layer errors.
+    pub fn list_task_groups(&self, task_id: &str) -> Result<Vec<String>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        pg_attach::list_groups_at(&conn, &GroupAttachScope::Task(task_id.to_owned()))
+            .map_err(map_db_err)
     }
 }
 
@@ -392,6 +511,86 @@ mod tests {
             }
             other => panic!("got {other:?}"),
         }
+    }
+
+    /// Seed a space/board/column/role + one task on the role. Returns task id.
+    fn seed_board_role_task(pool: &Pool) -> String {
+        let conn = pool.get().unwrap();
+        conn.execute_batch(
+            "INSERT INTO spaces (id, name, prefix, is_default, position, created_at, updated_at) \
+                 VALUES ('sp1','S','sp',0,0,0,0); \
+             INSERT INTO boards (id, name, space_id, position, created_at, updated_at) \
+                 VALUES ('bd1','B','sp1',0,0,0); \
+             INSERT INTO columns (id, board_id, name, position, created_at) \
+                 VALUES ('c1','bd1','Todo',0,0); \
+             INSERT INTO roles (id, name, content, created_at, updated_at) \
+                 VALUES ('rl1','R','',0,0); \
+             INSERT INTO tasks (id, board_id, column_id, slug, title, position, role_id, created_at, updated_at) \
+                 VALUES ('tk1','bd1','c1','sp-1','T',1.0,'rl1',0,0);",
+        )
+        .unwrap();
+        "tk1".into()
+    }
+
+    fn prompt_count(pool: &Pool, task_id: &str) -> i64 {
+        let conn = pool.get().unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM task_prompts WHERE task_id=?1",
+            rusqlite::params![task_id],
+            |r| r.get(0),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn attach_group_to_role_then_membership_change_is_live() {
+        let pool = fresh_pool();
+        seed_prompt(&pool, "p1");
+        seed_prompt(&pool, "p2");
+        let task = seed_board_role_task(&pool);
+        let uc = PromptGroupsUseCase::new(&pool);
+        let g = uc.create("G".into(), None, None, None).unwrap();
+        uc.add_member(g.id.clone(), "p1".into(), 0).unwrap();
+
+        // Attach the group to the role → the task inherits p1.
+        uc.set_role_groups("rl1".into(), vec![g.id.clone()])
+            .unwrap();
+        assert_eq!(uc.list_role_groups("rl1").unwrap(), vec![g.id.clone()]);
+        assert_eq!(prompt_count(&pool, &task), 1);
+
+        // Live link: adding p2 to the group propagates to the task.
+        uc.add_member(g.id.clone(), "p2".into(), 1).unwrap();
+        assert_eq!(prompt_count(&pool, &task), 2);
+
+        // Detaching the group clears the inherited rows.
+        uc.set_role_groups("rl1".into(), vec![]).unwrap();
+        assert_eq!(prompt_count(&pool, &task), 0);
+    }
+
+    #[test]
+    fn deleting_attached_group_clears_rows_and_counts() {
+        let pool = fresh_pool();
+        seed_prompt(&pool, "p1");
+        let task = seed_board_role_task(&pool);
+        let uc = PromptGroupsUseCase::new(&pool);
+        let g = uc.create("G".into(), None, None, None).unwrap();
+        uc.add_member(g.id.clone(), "p1".into(), 0).unwrap();
+        uc.set_role_groups("rl1".into(), vec![g.id.clone()])
+            .unwrap();
+        assert_eq!(prompt_count(&pool, &task), 1);
+
+        uc.delete(&g.id).unwrap();
+        assert_eq!(prompt_count(&pool, &task), 0);
+        let cnt: i64 = {
+            let conn = pool.get().unwrap();
+            conn.query_row(
+                "SELECT effective_prompt_count FROM tasks WHERE id=?1",
+                rusqlite::params![task],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(cnt, 0);
     }
 
     #[test]

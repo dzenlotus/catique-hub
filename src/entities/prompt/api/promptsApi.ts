@@ -16,6 +16,7 @@
 import { invokeWithAppError } from "@shared/api";
 import type { Prompt } from "@bindings/Prompt";
 import type { PromptTagMapEntry } from "@bindings/PromptTagMapEntry";
+import type { PromptContentVersionView } from "@bindings/PromptContentVersionView";
 
 /** `list_prompts` — return every prompt, ordered by `createdAt` (server-side). */
 export async function listPrompts(): Promise<Prompt[]> {
@@ -126,4 +127,39 @@ export async function listPromptTagsMap(): Promise<PromptTagMapEntry[]> {
  */
 export async function recomputePromptTokenCount(id: string): Promise<Prompt> {
   return invokeWithAppError<Prompt>("recompute_prompt_token_count", { id });
+}
+
+// ─── Version history (D-C) ─────────────────────────────────────────────
+
+/**
+ * `list_prompt_versions` — last 50 versions of `prompt.content`, newest first.
+ * The current content is NOT included in the list — diff against it via
+ * the loaded `Prompt`.
+ */
+export async function listPromptVersions(
+  promptId: string,
+): Promise<PromptContentVersionView[]> {
+  return invokeWithAppError<PromptContentVersionView[]>(
+    "list_prompt_versions",
+    { promptId },
+  );
+}
+
+/** `get_prompt_version` — full content of a single version row. */
+export async function getPromptVersion(
+  versionId: string,
+): Promise<PromptContentVersionView> {
+  return invokeWithAppError<PromptContentVersionView>("get_prompt_version", {
+    versionId,
+  });
+}
+
+/**
+ * `revert_prompt_to_version` — set `prompt.content` to the version's content.
+ * The pre-revert state is snapshotted by the use case.
+ */
+export async function revertPromptToVersion(
+  versionId: string,
+): Promise<Prompt> {
+  return invokeWithAppError<Prompt>("revert_prompt_to_version", { versionId });
 }

@@ -46,7 +46,7 @@ import {
   DialogFooter,
   type ComboboxItem,
 } from "@shared/ui";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 
 import styles from "./BoardOwnershipReviewModal.module.css";
 

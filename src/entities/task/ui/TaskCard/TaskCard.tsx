@@ -6,8 +6,10 @@ import {
 } from "@shared/ui/Icon";
 
 import { cn } from "@shared/lib";
+import { RunningTaskIndicator } from "@shared/ui";
 
 import type { Task } from "../../model/types";
+import { useTaskStatus } from "../../model/useTaskStatus";
 
 import styles from "./TaskCard.module.css";
 
@@ -41,14 +43,21 @@ export interface TaskCardProps {
    */
   attachmentsCount?: number;
   /**
-   * Number of prompts attached to this task. When defined and > 0, a
-   * MessageSquare chip renders in the meta row. The value comes from
-   * `useTaskPrompts` inside TaskDialog (fetched per-task on open) rather
-   * than from the kanban grid, to avoid an N+1 query per visible card.
-   * Pass `undefined` (or omit) to suppress the chip while the source has
-   * not yet loaded — the chip is intentionally hidden in that case.
+   * Legacy: number of prompts attached to this task. Kept for backwards
+   * compatibility with tests / stories pre-refactor-v3. New callers
+   * should pass `effectiveCount` (combined prompts+skills+tools) instead.
+   * When `effectiveCount` is defined it wins; otherwise this falls
+   * through and the chip behaves as before.
    */
   promptsCount?: number;
+  /**
+   * Combined effective-context count — `effective_prompt_count +
+   * effective_skill_count + effective_tool_count` from the Task row.
+   * When defined and > 0 renders the meta chip with an "items" label
+   * (refactor-v3 §"Effective context performance"). The per-kind
+   * breakdown surfaces on the task detail panel, not on the card.
+   */
+  effectiveCount?: number;
   /**
    * Loading-state variant. Renders a skeleton with no interactivity.
    * Useful when the parent column is paginating tasks.
@@ -104,6 +113,7 @@ export function TaskCard({
   onEdit: _onEdit,
   attachmentsCount = 0,
   promptsCount,
+  effectiveCount,
   isPending = false,
   dragOverlay = false,
   isDoneColumn = false,
@@ -115,6 +125,11 @@ export function TaskCard({
   selectionActive = false,
   onToggleSelection,
 }: TaskCardProps): ReactElement {
+  // Hoisted above the early returns below (skeleton / drag-overlay) so the
+  // hook call order stays identical across renders (rules-of-hooks). Drives
+  // the manual double-click detection in `handleBodyClick`.
+  const lastClickAtRef = useRef<number>(0);
+
   if (isPending || !task) {
     return (
       <div
@@ -147,6 +162,7 @@ export function TaskCard({
           task={task}
           attachmentsCount={attachmentsCount}
           promptsCount={promptsCount}
+          effectiveCount={effectiveCount}
           isDoneColumn={isDoneColumn}
         />
       </div>
@@ -162,7 +178,7 @@ export function TaskCard({
   // active (unchanged behaviour); otherwise it's a no-op until the
   // second click within the window arrives, at which point we open
   // the task dialog through the parent's `onSelect` handler.
-  const lastClickAtRef = useRef<number>(0);
+  // (`lastClickAtRef` is declared at the top of the component.)
   const DBL_CLICK_WINDOW_MS = 350;
 
   const handleBodyClick = (e: React.MouseEvent): void => {
@@ -267,18 +283,27 @@ export function TaskCard({
           task={task}
           attachmentsCount={attachmentsCount}
           promptsCount={promptsCount}
+          effectiveCount={effectiveCount}
           isDoneColumn={isDoneColumn}
         />
+        <TaskRunIndicator taskId={task.id} />
       </button>
     </article>
   );
 }
 
+function TaskRunIndicator({ taskId }: { taskId: string }): ReactElement | null {
+  const status = useTaskStatus(taskId);
+  return <RunningTaskIndicator status={status} />;
+}
+
 interface CardBodyProps {
   task: Task;
   attachmentsCount: number;
-  /** See `TaskCardProps.promptsCount` for suppression semantics. */
+  /** See `TaskCardProps.promptsCount` for legacy suppression semantics. */
   promptsCount?: number | undefined;
+  /** See `TaskCardProps.effectiveCount`. Wins over `promptsCount` when set. */
+  effectiveCount?: number | undefined;
   isDoneColumn: boolean;
 }
 
@@ -286,6 +311,7 @@ function CardBody({
   task,
   attachmentsCount,
   promptsCount,
+  effectiveCount,
   isDoneColumn,
 }: CardBodyProps): ReactElement {
   // Slug chip: format `<spacePrefix>-<n>` (e.g. `cot-1`) — use
@@ -340,18 +366,39 @@ function CardBody({
             </span>
           ) : null}
 
-          {/* Prompt count chip — suppressed when promptsCount is undefined
-              (source not yet loaded, e.g. outside TaskDialog context). */}
-          {promptsCount !== undefined && promptsCount > 0 ? (
-            <span
-              className={styles.attachments}
-              aria-label={`${promptsCount} prompts attached`}
-              data-testid="task-card-prompts-count"
-            >
-              <PixelInterfaceEssentialMessage width={12} height={12} aria-hidden={true} />
-              {promptsCount}
-            </span>
-          ) : null}
+          {/*
+           * Effective-context chip — refactor-v3 §"Effective context
+           * performance". Reads the combined effective_*_count from the
+           * Task row (server-denormalised, D-B). Falls back to the legacy
+           * `promptsCount` prop when callers haven't migrated yet.
+           */}
+          {(() => {
+            const total =
+              effectiveCount !== undefined ? effectiveCount : promptsCount;
+            if (total === undefined || total <= 0) return null;
+            const isEffective = effectiveCount !== undefined;
+            const label = isEffective
+              ? `${String(total)} effective context items`
+              : `${String(total)} prompts attached`;
+            return (
+              <span
+                className={styles.attachments}
+                aria-label={label}
+                data-testid={
+                  isEffective
+                    ? "task-card-effective-count"
+                    : "task-card-prompts-count"
+                }
+              >
+                <PixelInterfaceEssentialMessage
+                  width={12}
+                  height={12}
+                  aria-hidden={true}
+                />
+                {total}
+              </span>
+            );
+          })()}
         </span>
         {/* Slug chip — bottom-right per DS v1 mockup */}
         <span

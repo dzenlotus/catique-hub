@@ -19,15 +19,37 @@
  * surface ever consumes it.
  */
 
-import { useState, type ReactElement } from "react";
+import { useState, useCallback, type ReactElement } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { useCreateSpaceMutation, validatePrefix } from "@entities/space";
 import type { Space } from "@entities/space";
-import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
+import { useActiveSpace } from "@shared/lib";
 import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 import { pickFolder } from "@shared/lib";
 
 import styles from "./SpaceCreateDialog.module.css";
+
+// react-hook-form schema (zod v4; zodResolver auto-detects v4). Validation
+// that used to live in scattered useState handlers now lives here as the
+// single source of truth. `validatePrefix` (the existing domain validator)
+// is folded into a superRefine so its exact message surfaces on the field.
+const spaceFormSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+  prefix: z
+    .string()
+    .trim()
+    .min(1, "Prefix is required.")
+    .superRefine((val, ctx) => {
+      const err = validatePrefix(val);
+      if (err !== null) ctx.addIssue({ code: "custom", message: err });
+    }),
+  projectFolderPath: z.string().trim().optional(),
+});
+
+type SpaceFormValues = z.infer<typeof spaceFormSchema>;
 
 export interface SpaceCreateDialogProps {
   isOpen: boolean;
@@ -114,97 +136,105 @@ function SpaceCreateDialogContent({
   const createMutation = useCreateSpaceMutation();
   const { setActiveSpaceId } = useActiveSpace();
 
-  const [name, setName] = useState("");
-  const [prefix, setPrefix] = useState("");
-  const [prefixError, setPrefixError] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  // Round-21: optional project folder path. Empty string means "unset".
-  const [projectFolderPath, setProjectFolderPath] = useState("");
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    setError,
+    getValues,
+    formState: { errors, isValid, isSubmitting },
+  } = useForm<SpaceFormValues>({
+    resolver: zodResolver(spaceFormSchema),
+    defaultValues: { name: "", prefix: "", projectFolderPath: "" },
+    mode: "onChange",
+  });
 
-  const handlePrefixChange = (value: string): void => {
-    setPrefix(value);
-    // Validate on every keystroke so the hint appears immediately.
-    setPrefixError(validatePrefix(value));
-  };
-
-  const canSubmit =
-    name.trim().length > 0 &&
-    prefix.trim().length > 0 &&
-    validatePrefix(prefix.trim()) === null;
-
-  const handleSave = (): void => {
-    setSaveError(null);
-    const trimmedName = name.trim();
-    const trimmedPrefix = prefix.trim();
-    const trimmedProjectFolderPath = projectFolderPath.trim();
-
-    if (!trimmedName) {
-      setSaveError("Name cannot be empty.");
-      return;
-    }
-
-    const prefixValidation = validatePrefix(trimmedPrefix);
-    if (prefixValidation !== null) {
-      setPrefixError(prefixValidation);
-      return;
-    }
-
-    type MutationArgs = Parameters<typeof createMutation.mutate>[0];
-    const args: MutationArgs = { name: trimmedName, prefix: trimmedPrefix };
+  const onValid = handleSubmit(async (values) => {
+    type MutationArgs = Parameters<typeof createMutation.mutateAsync>[0];
+    const args: MutationArgs = { name: values.name, prefix: values.prefix };
     if (color !== "") args.color = color;
     if (icon !== null) args.icon = icon;
-    if (trimmedProjectFolderPath.length > 0) {
-      args.projectFolderPath = trimmedProjectFolderPath;
+    const folder = values.projectFolderPath?.trim() ?? "";
+    if (folder.length > 0) args.projectFolderPath = folder;
+
+    try {
+      const space = await createMutation.mutateAsync(args);
+      setActiveSpaceId(space.id);
+      onCreated?.(space);
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError("root.serverError", {
+        message: `Failed to create: ${message}`,
+      });
     }
+  });
 
-    createMutation.mutate(args, {
-      onSuccess: (space) => {
-        setActiveSpaceId(space.id);
-        onCreated?.(space);
-        onClose();
-      },
-      onError: (err) => {
-        setSaveError(`Failed to create: ${err.message}`);
-      },
+  const handleSubmitPress = useCallback((): void => {
+    void onValid();
+  }, [onValid]);
+
+  const handleBrowse = useCallback((): void => {
+    const current = getValues("projectFolderPath")?.trim() ?? "";
+    void pickFolder({
+      title: "Select project folder",
+      ...(current.length > 0 ? { defaultPath: current } : {}),
+    }).then((picked) => {
+      if (picked !== null) {
+        setValue("projectFolderPath", picked, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
     });
-  };
+  }, [getValues, setValue]);
 
-  const handleCancel = (): void => {
-    onClose();
-  };
+  const serverError = errors.root?.serverError?.message;
 
   return (
     <>
       {/* Name */}
       <div className={styles.section}>
-        <Input
-          label="Name"
-          value={name}
-          onChange={setName}
-          placeholder="Space name"
-          autoFocus
-          className={styles.fullWidthInput}
-          data-testid="space-create-dialog-name-input"
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <Input
+              label="Name"
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Space name"
+              autoFocus
+              className={styles.fullWidthInput}
+              data-testid="space-create-dialog-name-input"
+            />
+          )}
         />
       </div>
 
       {/* Prefix */}
       <div className={styles.section}>
-        <Input
-          label="Prefix"
-          value={prefix}
-          onChange={handlePrefixChange}
-          placeholder="e.g. dev"
-          className={styles.fullWidthInput}
-          data-testid="space-create-dialog-prefix-input"
+        <Controller
+          control={control}
+          name="prefix"
+          render={({ field }) => (
+            <Input
+              label="Prefix"
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="e.g. dev"
+              className={styles.fullWidthInput}
+              data-testid="space-create-dialog-prefix-input"
+            />
+          )}
         />
-        {prefixError !== null && prefix.length > 0 ? (
+        {errors.prefix?.message ? (
           <p
             className={styles.fieldError}
             role="alert"
             data-testid="space-create-dialog-prefix-error"
           >
-            {prefixError}
+            {errors.prefix.message}
           </p>
         ) : null}
       </div>
@@ -214,28 +244,25 @@ function SpaceCreateDialogContent({
        * back into the input. */}
       <div className={styles.section}>
         <div className={styles.projectFolderRow}>
-          <Input
-            label="Project folder"
-            value={projectFolderPath}
-            onChange={setProjectFolderPath}
-            placeholder="/Users/you/projects/my-app"
-            description="Optional. Click Browse to pick a folder, or paste a path."
-            className={styles.projectFolderInput}
-            data-testid="space-create-dialog-project-folder-input"
+          <Controller
+            control={control}
+            name="projectFolderPath"
+            render={({ field }) => (
+              <Input
+                label="Project folder"
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                placeholder="/Users/you/projects/my-app"
+                description="Optional. Click Browse to pick a folder, or paste a path."
+                className={styles.projectFolderInput}
+                data-testid="space-create-dialog-project-folder-input"
+              />
+            )}
           />
           <Button
             variant="secondary"
             size="sm"
-            onPress={() => {
-              void pickFolder({
-                title: "Select project folder",
-                ...(projectFolderPath.trim().length > 0
-                  ? { defaultPath: projectFolderPath.trim() }
-                  : {}),
-              }).then((picked) => {
-                if (picked !== null) setProjectFolderPath(picked);
-              });
-            }}
+            onPress={handleBrowse}
             aria-label="Browse for project folder"
             data-testid="space-create-dialog-project-folder-browse"
           >
@@ -246,19 +273,19 @@ function SpaceCreateDialogContent({
 
       {/* Footer */}
       <div className={styles.footer}>
-        {saveError ? (
+        {serverError ? (
           <p
             className={styles.saveError}
             role="alert"
             data-testid="space-create-dialog-error"
           >
-            {saveError}
+            {serverError}
           </p>
         ) : null}
         <Button
           variant="ghost"
           size="md"
-          onPress={handleCancel}
+          onPress={onClose}
           data-testid="space-create-dialog-cancel"
         >
           Cancel
@@ -266,9 +293,9 @@ function SpaceCreateDialogContent({
         <Button
           variant="primary"
           size="md"
-          isPending={createMutation.status === "pending"}
-          isDisabled={!canSubmit}
-          onPress={handleSave}
+          isPending={isSubmitting}
+          isDisabled={!isValid}
+          onPress={handleSubmitPress}
           data-testid="space-create-dialog-save"
         >
           Create

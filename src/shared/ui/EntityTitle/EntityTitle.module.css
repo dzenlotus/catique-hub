@@ -1,0 +1,128 @@
+/*
+ * EntityTitle — canonical entity-header title block (icon/leading slot +
+ * name + optional description + optional trailing actions). Replaces the
+ * old `BoardTitle`; supports inline rename when `editable=true`.
+ */
+
+.root {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.leading {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: var(--color-text-default);
+}
+
+.staticIcon {
+  flex: 0 0 auto;
+  color: var(--color-text-default);
+}
+
+.body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--space-8);
+}
+
+.heading {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-default);
+  font-family: var(--font-display);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0;
+  line-height: var(--line-height-tight);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.description {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-left: auto;
+}
+
+/* ---------- editable affordance ---------- */
+
+.editableTrigger {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: text;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  border-radius: var(--radius-sm, 4px);
+}
+
+.editableTrigger:hover,
+.editableTrigger:focus-visible {
+  background: var(--color-overlay-hover);
+  outline: none;
+}
+
+.editor {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-default);
+  font-family: var(--font-display);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
+  outline: none;
+}
+
+.editor:focus-visible {
+  border-bottom-color: var(--color-border-focus, var(--color-text-default));
+}
+
+/* ----------------------------- size scale ----------------------------- */
+
+.sizeSM .heading,
+.sizeSM .editor,
+.sizeSM .editableTrigger {
+  font-size: 16px;
+}
+.sizeMD .heading,
+.sizeMD .editor,
+.sizeMD .editableTrigger {
+  font-size: 18px;
+}
+.sizeLG .heading,
+.sizeLG .editor,
+.sizeLG .editableTrigger {
+  font-size: 22px;
+}

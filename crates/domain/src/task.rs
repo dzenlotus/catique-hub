@@ -29,4 +29,25 @@ pub struct Task {
     /// Append-only newline-separated log of timestamped step summaries
     /// (`[YYYY-MM-DDTHH:MM:SSZ] {summary}\n`). Default `""`.
     pub step_log: String,
+    /// Denormalised effective-context counters (refactor-v3 D-B). The
+    /// kanban card surface reads these directly so a 50-card board open
+    /// stays one SELECT instead of `N × resolve_task_bundle`. Maintained
+    /// by application-layer hooks at every mutation that touches
+    /// `task_prompts` / `task_skills` / `task_mcp_tools` or any
+    /// `task_*_overrides_v2` row.
+    ///
+    /// Formula per kind: `COUNT(task_<kind>) - COUNT(suppress-only
+    /// overrides for <kind>)`. Replace-overrides preserve cardinality
+    /// (one row in, one row out) so they do not enter the formula. See
+    /// `docs/refactor-v3/decisions/D-B-effective-counter-denormalization.md`.
+    ///
+    /// `#[serde(default)]` keeps the wire shape forward-compatible: a
+    /// persisted JSON payload predating D-B can still deserialise into
+    /// the new struct (missing fields fall through to `0`).
+    #[serde(default)]
+    pub effective_prompt_count: i64,
+    #[serde(default)]
+    pub effective_skill_count: i64,
+    #[serde(default)]
+    pub effective_tool_count: i64,
 }

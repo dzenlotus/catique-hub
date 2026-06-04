@@ -24,7 +24,7 @@ import type { ReactElement } from "react";
 import type { Board } from "@entities/board";
 import type { Role } from "@entities/role";
 import type { Space } from "@entities/space";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 import { BoardOwnershipReviewMount } from "@app/providers/BoardOwnershipReviewMount";
 
 vi.mock("@shared/api", async () => {

@@ -19,22 +19,28 @@ import { SidebarSectionAddTrigger } from "@shared/ui/SidebarShell";
 import {
   booleanCodec,
   LocalStorageStore,
+  usePinnedBoards,
 } from "@shared/storage";
+import {
+  usePinBoardMutation,
+  useUnpinBoardMutation,
+} from "@entities/pinned-board";
 import { useSpaces, type Space } from "@entities/space";
 import {
   type Board,
   useBoards,
   useDeleteBoardMutation,
 } from "@entities/board";
-import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
+import { useActiveSpace } from "@shared/lib";
 import { useExpandedSpaces } from "@app/providers/ExpandedSpacesProvider";
 import {
   boardPath,
   boardSettingsPath,
   matchBoardSurface,
+  matchSpaceBoardSurface,
   spaceSettingsPath,
 } from "@app/routes";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 import { SpaceCreateDialog } from "@features/space/create-dialog";
 
 import styles from "./SpacesSidebar.module.css";
@@ -81,9 +87,26 @@ type SpaceTreePayload =
 // inline board children. Built on top of the unified `<EntityTree/>`:
 // space nodes carry `children` (boards) and a `chevron` toggle, board
 // rows render a kebab menu via `renderRow`.
+//
+// When mounted **inside** the unified `<AppSidebar/>` (Project Map v3),
+// pass `embedded` so the outer `<SidebarShell>` chrome and the "SPACES"
+// section title fold away — AppSidebar owns the section heading itself
+// so it sits alongside its peer "Pinned" / "Recent" titles. Standalone
+// callers (legacy pages, Storybook) get the default `embedded={false}`
+// and keep the full chrome.
 // ---------------------------------------------------------------------------
 
-export function SpacesSidebar(): ReactElement {
+export interface SpacesSidebarProps {
+  /**
+   * When true, render only the `<EntityTree/>` block (no `<SidebarShell>`
+   * wrapper, no "SPACES" header). The host is expected to provide its own
+   * section title and surrounding chrome.
+   */
+  embedded?: boolean;
+}
+
+export function SpacesSidebar(props: SpacesSidebarProps = {}): ReactElement {
+  const { embedded = false } = props;
   const spacesQuery = useSpaces();
   const boardsQuery = useBoards();
   const { activeSpaceId, setActiveSpaceId } = useActiveSpace();
@@ -93,12 +116,30 @@ export function SpacesSidebar(): ReactElement {
   const spaces = useMemo(() => spacesQuery.data ?? [], [spacesQuery.data]);
   const boards = useMemo(() => boardsQuery.data ?? [], [boardsQuery.data]);
 
+  // Subscribe to pinned-boards state so the kebab "Pin/Unpin" label
+  // refreshes instantly after the user toggles. Refactor-v3 D-F: the
+  // backing store moved from localStorage to dedicated SQLite tables;
+  // the hook signature is unchanged (still `ReadonlyArray<string>` of
+  // board ids), so this component never had to know.
+  const pinnedBoardIds = usePinnedBoards();
+  const pinnedSet = useMemo(
+    () => new Set(pinnedBoardIds),
+    [pinnedBoardIds],
+  );
+  const pinMutation = usePinBoardMutation();
+  const unpinMutation = useUnpinBoardMutation();
+
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
-  // Both `/boards/:id` and `/boards/:id/settings` keep the same row
-  // highlighted in the sidebar — when the user opens settings the
-  // board still reads as "the active surface".
-  const activeBoardId = matchBoardSurface(location)?.boardId ?? null;
+  // Keep the clicked board highlighted across every board surface. The
+  // tree navigates to the CANONICAL `/spaces/:spaceId/boards/:boardId`
+  // (spaceBoardPath), so that matcher must be checked FIRST; the legacy
+  // `/boards/:id` form is kept as a fallback. (Settings sub-paths resolve
+  // to the same boardId via the matchers, so the row stays active there.)
+  const activeBoardId =
+    matchSpaceBoardSurface(location)?.boardId ??
+    matchBoardSurface(location)?.boardId ??
+    null;
 
   // Expand state lives in the App-level `ExpandedSpacesProvider` so a
   // navigation that re-mounts `<SpacesSidebar/>` (e.g. clicking a board
@@ -167,6 +208,32 @@ export function SpacesSidebar(): ReactElement {
     [setLocation],
   );
 
+  const handleTogglePin = useCallback(
+    (board: Board): void => {
+      const wasPinned = pinnedSet.has(board.id);
+      const mutation = wasPinned ? unpinMutation : pinMutation;
+      mutation.mutate(board.id, {
+        onSuccess: () => {
+          pushToast(
+            "success",
+            wasPinned
+              ? `Unpinned "${board.name}"`
+              : `Pinned "${board.name}"`,
+          );
+        },
+        onError: (err) => {
+          pushToast(
+            "error",
+            wasPinned
+              ? `Failed to unpin board: ${err.message}`
+              : `Failed to pin board: ${err.message}`,
+          );
+        },
+      });
+    },
+    [pinMutation, unpinMutation, pinnedSet, pushToast],
+  );
+
   // Tree data — root nodes are spaces; their children are the boards
   // attached to each space. The active-space flag is baked into the
   // payload so `rowConfig` doesn't have to close over the surrounding
@@ -205,98 +272,143 @@ export function SpacesSidebar(): ReactElement {
     return { isLoading: false, errorMessage: null };
   })();
 
+  // When embedded inside `<AppSidebar/>` the host owns the section
+  // heading + chrome, so we render the bare `<EntityTree/>` and surface
+  // the "+ Add space" affordance through the embedded host instead of
+  // the title trailing slot. Standalone usage keeps the full
+  // `<SidebarShell>` + section title.
+  const addSpaceTrigger =
+    spacesQuery.status === "success" ? (
+      <SidebarSectionAddTrigger
+        ariaLabel="Add space"
+        onPress={() => setCreateDialogOpen(true)}
+        testId="spaces-sidebar-add"
+      />
+    ) : null;
+
+  const tree = (
+    <EntityTree<SpaceTreePayload>
+      testIdPrefix="spaces-sidebar"
+      {...(embedded
+        ? {}
+        : {
+            title: "SPACES",
+            titleAriaLabel: "Spaces",
+            titleTrailingNode: addSpaceTrigger,
+          })}
+      emptyText="No spaces yet"
+      isLoading={sectionState.isLoading}
+      errorMessage={sectionState.errorMessage}
+      data={treeData}
+      rowConfig={(node) => {
+        const payload = node.data;
+        if (payload?.kind === "space") {
+          const { space } = payload;
+          const spaceIndex = spaces.findIndex((s) => s.id === space.id);
+          const expanded = isExpanded(space, spaceIndex);
+          const onSpaceSettings = location === spaceSettingsPath(space.id);
+          return {
+            isActive: onSpaceSettings,
+            onClick: () => handleSelectSpace(space),
+            // Render as a Group even when the space currently has no
+            // boards so the chevron stays visible and the user can
+            // collapse / expand consistently across all spaces.
+            expandable: true,
+            isExpanded: expanded,
+            onToggleExpand: () => toggleExpanded(space, spaceIndex),
+            chevronAriaLabel: expanded
+              ? `Collapse ${space.name}`
+              : `Expand ${space.name}`,
+          };
+        }
+        if (payload?.kind === "board") {
+          const { board } = payload;
+          return {
+            isActive: activeBoardId === board.id,
+            onClick: () => handleSelectBoard(board.id),
+          };
+        }
+        return { isActive: false };
+      }}
+      renderRow={({ node }) => {
+        const payload = node.data;
+        if (payload?.kind === "space") {
+          const { space, isActiveSpace } = payload;
+          return (
+            <div className={styles.spaceRowBody}>
+              <button
+                type="button"
+                className={styles.spaceNameBtn}
+                onClick={() => handleSelectSpace(space)}
+                aria-label={`${space.name}${isActiveSpace ? " (active space)" : ""}`}
+                data-testid={`spaces-sidebar-space-name-${space.id}`}
+              >
+                <RowLeading icon={space.icon} color={space.color} />
+                <MarqueeText
+                  text={space.name}
+                  className={styles.spaceNameText}
+                />
+              </button>
+            </div>
+          );
+        }
+        if (payload?.kind === "board") {
+          const { board } = payload;
+          return (
+            <BoardRowBody
+              board={board}
+              isPinned={pinnedSet.has(board.id)}
+              onSelect={() => handleSelectBoard(board.id)}
+              onSettings={() => setLocation(boardSettingsPath(board.id))}
+              onTogglePin={() => handleTogglePin(board)}
+              onDelete={() => setBoardPendingDelete(board)}
+            />
+          );
+        }
+        return null;
+      }}
+    />
+  );
+
   return (
     <>
-      <SidebarShell
-        ariaLabel="Spaces navigation"
-        testId="spaces-sidebar-root"
-      >
-        <EntityTree<SpaceTreePayload>
-          testIdPrefix="spaces-sidebar"
-          title="SPACES"
-          titleAriaLabel="Spaces"
-          titleTrailingNode={
-            spacesQuery.status === "success" ? (
-              <SidebarSectionAddTrigger
-                ariaLabel="Add space"
-                onPress={() => setCreateDialogOpen(true)}
-                testId="spaces-sidebar-add"
-              />
-            ) : null
-          }
-          emptyText="No spaces yet"
-          isLoading={sectionState.isLoading}
-          errorMessage={sectionState.errorMessage}
-          data={treeData}
-          rowConfig={(node) => {
-            const payload = node.data;
-            if (payload?.kind === "space") {
-              const { space } = payload;
-              const spaceIndex = spaces.findIndex((s) => s.id === space.id);
-              const expanded = isExpanded(space, spaceIndex);
-              const onSpaceSettings = location === spaceSettingsPath(space.id);
-              return {
-                isActive: onSpaceSettings,
-                onClick: () => handleSelectSpace(space),
-                // Render as a Group even when the space currently has no
-                // boards so the chevron stays visible and the user can
-                // collapse / expand consistently across all spaces.
-                expandable: true,
-                isExpanded: expanded,
-                onToggleExpand: () => toggleExpanded(space, spaceIndex),
-                chevronAriaLabel: expanded
-                  ? `Collapse ${space.name}`
-                  : `Expand ${space.name}`,
-              };
-            }
-            if (payload?.kind === "board") {
-              const { board } = payload;
-              return {
-                isActive: activeBoardId === board.id,
-                onClick: () => handleSelectBoard(board.id),
-              };
-            }
-            return { isActive: false };
-          }}
-          renderRow={({ node }) => {
-            const payload = node.data;
-            if (payload?.kind === "space") {
-              const { space, isActiveSpace } = payload;
-              return (
-                <div className={styles.spaceRowBody}>
-                  <button
-                    type="button"
-                    className={styles.spaceNameBtn}
-                    onClick={() => handleSelectSpace(space)}
-                    aria-label={`${space.name}${isActiveSpace ? " (active space)" : ""}`}
-                    data-testid={`spaces-sidebar-space-name-${space.id}`}
-                  >
-                    <RowLeading icon={space.icon} color={space.color} />
-                    <MarqueeText
-                      text={space.name}
-                      className={styles.spaceNameText}
-                    />
-                  </button>
-                </div>
-              );
-            }
-            if (payload?.kind === "board") {
-              const { board } = payload;
-              return (
-                <BoardRowBody
-                  board={board}
-                  onSelect={() => handleSelectBoard(board.id)}
-                  onSettings={() =>
-                    setLocation(boardSettingsPath(board.id))
-                  }
-                  onDelete={() => setBoardPendingDelete(board)}
-                />
-              );
-            }
-            return null;
-          }}
-        />
-      </SidebarShell>
+      {embedded ? (
+        // Host (`AppSidebar`) owns the outer `<aside>` landmark and
+        // scroll container. We render a plain wrapper here with the
+        // SPACES heading sitting as a peer of "Pinned" / "Recent" so
+        // visual hierarchy stays flat. Loading / error / empty states
+        // are surfaced inline because the headerless branch of
+        // `<EntityTree/>` skips them.
+        <div
+          className={styles.embeddedRoot}
+          data-testid="spaces-sidebar-root"
+        >
+          <div className={styles.embeddedTitleRow}>
+            <span className={styles.embeddedTitle}>SPACES</span>
+            {addSpaceTrigger}
+          </div>
+          {sectionState.isLoading ? (
+            <div className={styles.embeddedHint} aria-hidden="true">
+              Loading…
+            </div>
+          ) : sectionState.errorMessage !== null ? (
+            <div className={styles.embeddedError} role="alert">
+              {sectionState.errorMessage}
+            </div>
+          ) : treeData.length === 0 ? (
+            <div className={styles.embeddedHint}>No spaces yet</div>
+          ) : (
+            tree
+          )}
+        </div>
+      ) : (
+        <SidebarShell
+          ariaLabel="Spaces navigation"
+          testId="spaces-sidebar-root"
+        >
+          {tree}
+        </SidebarShell>
+      )}
 
       <SpaceCreateDialog
         isOpen={createDialogOpen}
@@ -330,21 +442,30 @@ export function SpacesSidebar(): ReactElement {
 
 interface BoardRowBodyProps {
   board: Board;
+  isPinned: boolean;
   onSelect: () => void;
   onSettings: () => void;
+  onTogglePin: () => void;
   onDelete: () => void;
 }
 
 function BoardRowBody({
   board,
+  isPinned,
   onSelect,
   onSettings,
+  onTogglePin,
   onDelete,
 }: BoardRowBodyProps): ReactElement {
   // Default boards are auto-created with their owning space and cannot
   // be deleted via the IPC (use-case returns Validation { is_default }).
   // Hide the affordance entirely so the user never fires a doomed delete.
   const menuItems = [
+    {
+      id: "pin",
+      label: isPinned ? "Unpin board" : "Pin board",
+      onAction: onTogglePin,
+    },
     { id: "settings", label: "Settings", onAction: onSettings },
     ...(board.isDefault
       ? []

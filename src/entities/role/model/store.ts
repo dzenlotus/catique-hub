@@ -36,6 +36,9 @@ import {
   removeRoleMcpTool,
   listRoleMcpTools,
   setRoleMcpTools,
+  listRoleVersions,
+  getRoleVersion,
+  revertRoleToVersion,
   type CreateRoleArgs,
   type UpdateRoleArgs,
   type AddRolePromptArgs,
@@ -45,6 +48,7 @@ import {
   type AddRoleMcpToolArgs,
   type RemoveRoleMcpToolArgs,
 } from "../api";
+import type { RoleContentVersionView } from "@bindings/RoleContentVersionView";
 // Round-21: provider sync is now driven server-side. The role mutation
 // IPCs trigger the fanout in Rust; the topbar indicator (`useSyncStatus`
 // in `@entities/connected-client`) reflects the global state via the
@@ -67,6 +71,10 @@ export const rolesKeys = {
     [...rolesKeys.all, "skills", roleId] as const,
   mcpTools: (roleId: string) =>
     [...rolesKeys.all, "mcpTools", roleId] as const,
+  versions: (roleId: string) =>
+    [...rolesKeys.all, "versions", roleId] as const,
+  version: (versionId: string) =>
+    [...rolesKeys.all, "version", versionId] as const,
 };
 
 /**
@@ -473,6 +481,70 @@ export function useSetRoleMcpToolsMutation(): UseMutationResult<
     onSettled: (_void, _err, vars) => {
       void queryClient.invalidateQueries({
         queryKey: rolesKeys.mcpTools(vars.roleId),
+      });
+    },
+  });
+}
+
+// ─── Version history (D-C) ─────────────────────────────────────────────
+
+/**
+ * `useRoleVersions` — last 50 content versions of a role, newest first.
+ * Disabled when `roleId` is empty.
+ */
+export function useRoleVersions(
+  roleId: string,
+): UseQueryResult<RoleContentVersionView[], Error> {
+  return useQuery({
+    queryKey: rolesKeys.versions(roleId),
+    queryFn: () => listRoleVersions(roleId),
+    enabled: roleId.length > 0,
+  });
+}
+
+/**
+ * `useRoleVersion` — a single version row (for the right pane). Disabled
+ * when `versionId` is empty.
+ */
+export function useRoleVersion(
+  versionId: string,
+): UseQueryResult<RoleContentVersionView, Error> {
+  return useQuery({
+    queryKey: rolesKeys.version(versionId),
+    queryFn: () => getRoleVersion(versionId),
+    enabled: versionId.length > 0,
+  });
+}
+
+export interface RevertRoleToVersionArgs {
+  /** Version row id to revert to. */
+  versionId: string;
+  /** Owning role id — used for cache invalidation. */
+  roleId: string;
+}
+
+/**
+ * `useRevertRoleToVersionMutation` — revert a role to a stored version.
+ * Invalidates list, detail, and the versions query so the new snapshot
+ * (taken by the use case) shows up in the timeline.
+ */
+export function useRevertRoleToVersionMutation(): UseMutationResult<
+  void,
+  Error,
+  RevertRoleToVersionArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ versionId }) => {
+      await revertRoleToVersion(versionId);
+    },
+    onSuccess: (_void, vars) => {
+      void queryClient.invalidateQueries({ queryKey: rolesKeys.list() });
+      void queryClient.invalidateQueries({
+        queryKey: rolesKeys.detail(vars.roleId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: rolesKeys.versions(vars.roleId),
       });
     },
   });

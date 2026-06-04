@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 
 import { cn } from "@shared/lib";
+import { ChipSwatch, ChipLabel, ChipRemove } from "@shared/ui";
 
 import type { Tag } from "../../model/types";
 
@@ -66,33 +67,20 @@ export function TagChip({
     );
   }
 
-  const swatch =
-    tag.color !== null ? (
-      <span
-        className={styles.swatch}
-        style={{ backgroundColor: tag.color }}
-        aria-hidden="true"
-      />
-    ) : null;
+  const swatch = <ChipSwatch color={tag.color} />;
 
-  const name = <span className={styles.name}>{tag.name}</span>;
+  const name = <ChipLabel className={styles.name}>{tag.name}</ChipLabel>;
 
   // Close button — rendered as a sibling of the chip body inside the
   // pill so the chip itself stays clickable (when `onSelect` is set)
   // without the × hijacking the row activation.
   const removeBtn = onRemove ? (
-    <button
-      type="button"
+    <ChipRemove
       className={styles.removeBtn}
-      onClick={(e) => {
-        e.stopPropagation();
-        onRemove(tag.id);
-      }}
+      onClick={() => onRemove(tag.id)}
       aria-label={`Remove tag ${tag.name}`}
       data-testid={`tag-chip-remove-${tag.id}`}
-    >
-      <span aria-hidden="true">×</span>
-    </button>
+    />
   ) : null;
 
   if (onSelect) {

@@ -169,3 +169,97 @@ pub async fn set_prompt_group_members(
     );
     Ok(())
 }
+
+// -------------------------------------------------------------------------
+// Group attachment — attach a prompt group as a live unit to a scope.
+// Each setter re-materialises the group's current members onto every task
+// in scope and emits the scope's `*_UPDATED` event so the frontend
+// re-resolves affected task bundles.
+// -------------------------------------------------------------------------
+
+/// IPC: set the prompt groups attached to a role.
+///
+/// # Errors
+///
+/// Forwards every error from `PromptGroupsUseCase::set_role_groups`.
+#[tauri::command]
+pub async fn set_role_prompt_groups(
+    state: State<'_, AppState>,
+    role_id: String,
+    group_ids: Vec<String>,
+) -> Result<(), AppError> {
+    PromptGroupsUseCase::new(&state.pool).set_role_groups(role_id.clone(), group_ids)?;
+    events::emit(&state, events::ROLE_UPDATED, json!({ "id": role_id }));
+    Ok(())
+}
+
+/// IPC: list the prompt groups attached to a role.
+///
+/// # Errors
+///
+/// Forwards every error from `PromptGroupsUseCase::list_role_groups`.
+#[tauri::command]
+pub async fn list_role_prompt_groups(
+    state: State<'_, AppState>,
+    role_id: String,
+) -> Result<Vec<String>, AppError> {
+    PromptGroupsUseCase::new(&state.pool).list_role_groups(&role_id)
+}
+
+/// IPC: set the prompt groups attached to a board.
+///
+/// # Errors
+///
+/// Forwards every error from `PromptGroupsUseCase::set_board_groups`.
+#[tauri::command]
+pub async fn set_board_prompt_groups(
+    state: State<'_, AppState>,
+    board_id: String,
+    group_ids: Vec<String>,
+) -> Result<(), AppError> {
+    PromptGroupsUseCase::new(&state.pool).set_board_groups(board_id.clone(), group_ids)?;
+    events::emit(&state, events::BOARD_UPDATED, json!({ "id": board_id }));
+    Ok(())
+}
+
+/// IPC: list the prompt groups attached to a board.
+///
+/// # Errors
+///
+/// Forwards every error from `PromptGroupsUseCase::list_board_groups`.
+#[tauri::command]
+pub async fn list_board_prompt_groups(
+    state: State<'_, AppState>,
+    board_id: String,
+) -> Result<Vec<String>, AppError> {
+    PromptGroupsUseCase::new(&state.pool).list_board_groups(&board_id)
+}
+
+/// IPC: set the prompt groups attached directly to a task.
+///
+/// # Errors
+///
+/// Forwards every error from `PromptGroupsUseCase::set_task_groups`.
+#[tauri::command]
+pub async fn set_task_prompt_groups(
+    state: State<'_, AppState>,
+    task_id: String,
+    group_ids: Vec<String>,
+) -> Result<(), AppError> {
+    PromptGroupsUseCase::new(&state.pool).set_task_groups(task_id.clone(), group_ids)?;
+    events::emit(&state, events::TASK_UPDATED, json!({ "id": task_id }));
+    Ok(())
+}
+
+/// IPC: list the prompt groups attached directly to a task.
+///
+/// # Errors
+///
+/// Forwards every error from `PromptGroupsUseCase::list_task_groups`.
+#[tauri::command]
+pub async fn list_task_prompt_groups(
+    state: State<'_, AppState>,
+    task_id: String,
+) -> Result<Vec<String>, AppError> {
+    PromptGroupsUseCase::new(&state.pool).list_task_groups(&task_id)
+}

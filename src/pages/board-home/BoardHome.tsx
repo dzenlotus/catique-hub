@@ -1,13 +1,14 @@
 import { useEffect, type ReactElement } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 
-import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
+import { useActiveSpace } from "@shared/lib";
 import { useBoards } from "@entities/board";
-import { boardPath, routes } from "@app/routes";
+import { boardPath, routes, spacePath } from "@app/routes";
 import { PixelPetAnimalsCat } from "@shared/ui/Icon";
-import { lastBoardStore } from "@shared/storage";
-import { SpacesSidebar } from "@widgets/spaces-sidebar";
-import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
+import {
+  lastBoardStore,
+  readLastActiveSpaceId,
+} from "@shared/storage";
 
 import styles from "./BoardHome.module.css";
 
@@ -46,18 +47,30 @@ export function BoardHome(): ReactElement {
     // Only redirect from the actual home path. When BoardHome renders
     // as a backdrop under `/tasks/:taskId`, the dialog is in charge and
     // we must not navigate away from underneath it.
-    if (location !== routes.boards) return;
-    if (activeSpaceId === null) return;
+    if (location !== routes.home) return;
     if (boardsQuery.status !== "success") return;
 
-    const lastId = readLastBoardId(activeSpaceId);
-    if (lastId === null) return;
+    // v3 Home behaviour: prefer the last active space's day-screen
+    // when one is persisted. Falls through to the kanban redirect or
+    // empty-state cat below if nothing is remembered.
+    const persistedSpaceId = readLastActiveSpaceId();
+    const targetSpaceId = persistedSpaceId ?? activeSpaceId;
 
-    const stillExists = boardsQuery.data.some(
-      (b) => b.id === lastId && b.spaceId === activeSpaceId,
-    );
-    if (stillExists) {
-      void navigate({ to: boardPath(lastId) });
+    if (targetSpaceId !== null) {
+      const lastId = readLastBoardId(targetSpaceId);
+      if (lastId !== null) {
+        const stillExists = boardsQuery.data.some(
+          (b) => b.id === lastId && b.spaceId === targetSpaceId,
+        );
+        if (stillExists) {
+          void navigate({ to: boardPath(lastId) });
+          return;
+        }
+      }
+      // Space known but no last board — land on the day-screen.
+      if (persistedSpaceId !== null && persistedSpaceId !== activeSpaceId) {
+        void navigate({ to: spacePath(persistedSpaceId) });
+      }
     }
   }, [
     location,
@@ -68,29 +81,25 @@ export function BoardHome(): ReactElement {
   ]);
 
   return (
-    <section className={shellStyles.root} data-testid="board-home-root">
-      <div className={shellStyles.sidebarSlot}>
-        <SpacesSidebar />
+    <section
+      className={styles.root}
+      aria-labelledby="board-home-heading"
+      data-testid="board-home-root"
+    >
+      <div className={styles.center}>
+        <PixelPetAnimalsCat
+          width={96}
+          height={96}
+          aria-hidden="true"
+          className={styles.cat}
+        />
+        <h2 id="board-home-heading" className={styles.title}>
+          All quiet here
+        </h2>
+        <p className={styles.caption}>
+          All set up. Open a board from the sidebar to get going.
+        </p>
       </div>
-      <section
-        className={`${shellStyles.contentSlot} ${styles.root}`}
-        aria-labelledby="board-home-heading"
-      >
-        <div className={styles.center}>
-          <PixelPetAnimalsCat
-            width={96}
-            height={96}
-            aria-hidden="true"
-            className={styles.cat}
-          />
-          <h2 id="board-home-heading" className={styles.title}>
-            All quiet here
-          </h2>
-          <p className={styles.caption}>
-            All set up. Open a board from the sidebar to get going.
-          </p>
-        </div>
-      </section>
     </section>
   );
 }

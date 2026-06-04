@@ -11,7 +11,16 @@
  *   - Danger zone: Delete board (hidden when board.isDefault).
  */
 
-import { useEffect, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+} from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocationCompat as useLocation, useParamsCompat as useParams } from "@shared/lib";
 
@@ -23,8 +32,13 @@ import {
   useUpdateBoardMutation,
 } from "@entities/board";
 import type { Board } from "@entities/board";
-import { usePrompts } from "@entities/prompt";
+import {
+  useBoardPromptGroups,
+  useSetBoardPromptGroupsMutation,
+  useGroupedPromptSelect,
+} from "@entities/prompt-group";
 import { useRoles } from "@entities/role";
+import { useSpacePrompts } from "@entities/space";
 import { invoke } from "@shared/api";
 import {
   Button,
@@ -33,17 +47,38 @@ import {
   EditorShell,
   IconColorPicker,
   Input,
-  MultiSelect,
+  SelectTag,
+  OriginBadge,
+  SaveBar,
   Select,
   SelectItem,
+  SettingsCard,
   TextArea,
 } from "@shared/ui";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 import { boardPath, routes } from "@app/routes";
-import { SpacesSidebar } from "@widgets/spaces-sidebar";
-import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
 
 import styles from "./BoardSettings.module.css";
+
+// `trimNullable` collapses a blank string to `null` for the nullable
+// description field; the appearance picker's `""` color sentinel maps to
+// `null` inline at submit time.
+const trimNullable = (value: string): string | null => {
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
+};
+
+// Form schema. `name` is required (trimmed, non-empty); `description` is
+// optional free-text (collapses to null at submit); appearance fields are
+// nullable.
+const boardSettingsSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+  description: z.string(),
+  icon: z.string().nullable(),
+  color: z.string(),
+});
+
+type BoardSettingsFormValues = z.infer<typeof boardSettingsSchema>;
 
 function BoardSettingsScreen({
   children,
@@ -51,11 +86,8 @@ function BoardSettingsScreen({
   children: ReactElement;
 }): ReactElement {
   return (
-    <section className={shellStyles.root} data-testid="board-settings-shell-root">
-      <div className={shellStyles.sidebarSlot}>
-        <SpacesSidebar />
-      </div>
-      <div className={shellStyles.contentSlot}>{children}</div>
+    <section className={styles.shell} data-testid="board-settings-shell-root">
+      {children}
     </section>
   );
 }
@@ -79,9 +111,7 @@ export function BoardSettings(): ReactElement {
             className={styles.shellBody}
           >
             <div className={styles.root} data-testid="board-settings">
-              <div className={styles.statusPanel} role="status">
-                <p className={styles.statusMessage}>Loading board…</p>
-              </div>
+              <SettingsCard.StatePanel role="status" message="Loading board…" />
             </div>
           </EditorShell.Body>
         </EditorShell>
@@ -98,20 +128,23 @@ export function BoardSettings(): ReactElement {
             className={styles.shellBody}
           >
             <div className={styles.root} data-testid="board-settings">
-              <div className={styles.statusPanel} role="alert">
-                <p className={styles.statusMessage}>
-                  {boardQuery.status === "error"
+              <SettingsCard.StatePanel
+                role="alert"
+                message={
+                  boardQuery.status === "error"
                     ? `Failed to load board: ${boardQuery.error.message}`
-                    : "Board not found."}
-                </p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => setLocation(routes.boards)}
-                >
-                  Back to boards
-                </Button>
-              </div>
+                    : "Board not found."
+                }
+                action={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => setLocation(routes.boards)}
+                  >
+                    Back to boards
+                  </Button>
+                }
+              />
             </div>
           </EditorShell.Body>
         </EditorShell>
@@ -132,6 +165,7 @@ export function BoardSettings(): ReactElement {
             <BoardSettingsForm
               key={board.id}
               boardId={board.id}
+              spaceId={board.spaceId}
               initialName={board.name}
               initialDescription={board.description ?? ""}
               initialIcon={board.icon ?? null}
@@ -150,6 +184,7 @@ export function BoardSettings(): ReactElement {
 
 interface BoardSettingsFormProps {
   boardId: string;
+  spaceId: string;
   initialName: string;
   initialDescription: string;
   initialIcon: string | null;
@@ -161,6 +196,7 @@ interface BoardSettingsFormProps {
 
 function BoardSettingsForm({
   boardId,
+  spaceId,
   initialName,
   initialDescription,
   initialIcon,
@@ -178,25 +214,78 @@ function BoardSettingsForm({
   const rolesQuery = useRoles({ excludeSystem: true });
   const { pushToast } = useToast();
 
-  const [name, setName] = useState(initialName);
-  const [description, setDescription] = useState(initialDescription);
-  const [icon, setIcon] = useState<string | null>(initialIcon);
-  const [color, setColor] = useState<string>(initialColor);
+  // Form-migration: dirty-tracking + partial-payload + save-status are now
+  // driven by react-hook-form. audit-#12: `position` is not user-editable
+  // (drag-reorder owns ordering); the Space picker is gone too — a board's
+  // space is set when the owning role is attached.
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    setError,
+    clearErrors,
+    watch,
+    formState: { errors, isDirty, isValid },
+  } = useForm<BoardSettingsFormValues>({
+    resolver: zodResolver(boardSettingsSchema),
+    defaultValues: {
+      name: initialName,
+      description: initialDescription,
+      icon: initialIcon,
+      color: initialColor,
+    },
+    mode: "onChange",
+  });
+
+  // Repopulate when the loaded board changes (the page also remounts via
+  // `key`, but this keeps the form aligned on background refetch).
+  useEffect(() => {
+    reset({
+      name: initialName,
+      description: initialDescription,
+      icon: initialIcon,
+      color: initialColor,
+    });
+    setSavedAt(null);
+  }, [reset, initialName, initialDescription, initialIcon, initialColor]);
+
+  // Auto-clear the transient "Saved" hint so it doesn't linger.
+  useEffect(() => {
+    if (savedAt === null) return;
+    const t = window.setTimeout(() => setSavedAt(null), 2200);
+    return () => window.clearTimeout(t);
+  }, [savedAt]);
+
+  const watchedName = watch("name");
+  const watchedIcon = watch("icon");
+  const watchedColor = watch("color");
+
+  const handleAppearanceChange = useCallback(
+    (next: { icon: string | null; color: string | null }) => {
+      setValue("icon", next.icon, { shouldDirty: true });
+      setValue("color", next.color ?? "", { shouldDirty: true });
+    },
+    [setValue],
+  );
+
   // Local owner state. Mutations apply optimistically — the React
   // Query cache is the single source of truth, this state mirrors it
   // for the rendered <select> value and rolls back on IPC error.
   const [ownerRoleId, setOwnerRoleId] = useState<string>(initialOwnerRoleId);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // Local prompt-list state for the Board prompts MultiSelect.
+  // Local prompt-list state for the Board prompts SelectTag.
   // No `list_board_prompts` IPC exists yet (TODO ctq-117) so the chip
   // rail starts empty and `set_board_prompts` is destructive — the
-  // multiselect canonically replaces the attached list each call.
+  // tag-input canonically replaces the attached list each call.
   const [boardPromptIds, setBoardPromptIds] = useState<string[]>([]);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  const promptsQuery = usePrompts();
+  const spacePromptsQuery = useSpacePrompts(spaceId);
   const setBoardPromptsMutation = useSetBoardPromptsMutation();
+  const boardGroupsQuery = useBoardPromptGroups(boardId);
+  const setBoardGroupsMutation = useSetBoardPromptGroupsMutation();
 
   /**
    * Owner-cat reassignment. Optimistically writes the new id into the
@@ -259,60 +348,106 @@ function BoardSettingsForm({
     },
   });
 
-  // Reset savedAt after a few seconds so the indicator doesn't linger.
-  useEffect(() => {
-    if (savedAt === null) return;
-    const t = window.setTimeout(() => setSavedAt(null), 2200);
-    return () => window.clearTimeout(t);
-  }, [savedAt]);
+  const trimmedName = watchedName.trim();
+  const resolvedColor = watchedColor === "" ? null : watchedColor;
 
-  const trimmedName = name.trim();
-  const trimmedDescription = description.trim();
-  const resolvedColor = color === "" ? null : color;
-  const initialResolvedColor = initialColor === "" ? null : initialColor;
-
-  // audit-#12: `position` is no longer user-editable — drag-reorder on
-  // the kanban owns the ordering write-path. The form's dirty-check and
-  // mutation payload omit `position` entirely; the underlying
-  // `board.position` value stays untouched on save. Maintainer feedback
-  // 2026-05-06: the Space picker is gone too — a board's space is set
-  // when the owning role is attached and is not user-editable here.
-  const isDirty =
-    trimmedName !== initialName.trim() ||
-    trimmedDescription !== initialDescription.trim() ||
-    icon !== initialIcon ||
-    resolvedColor !== initialResolvedColor;
-
-  const canSubmit = trimmedName.length > 0 && isDirty;
-
-  const handleSave = (): void => {
-    setError(null);
+  // Partial-payload save: only fields whose normalised value differs from
+  // the loaded board are forwarded to `update_board`. `handleSubmit` runs
+  // the zod resolver first, so an empty name short-circuits before mutate.
+  const onValid = handleSubmit((values) => {
+    clearErrors("root.serverError");
     setSavedAt(null);
-    if (trimmedName.length === 0) {
-      setError("Name cannot be empty.");
-      return;
-    }
+
+    const nextName = values.name.trim();
+    const nextDescription = trimNullable(values.description);
+    const nextColor = values.color === "" ? null : values.color;
+    const initialDescriptionValue =
+      initialDescription === "" ? null : initialDescription;
+    const initialColorValue = initialColor === "" ? null : initialColor;
 
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
     const args: MutationArgs = { id: boardId };
-    if (trimmedName !== initialName) args.name = trimmedName;
-    if (trimmedDescription !== initialDescription.trim()) {
-      args.description =
-        trimmedDescription.length > 0 ? trimmedDescription : null;
+    if (nextName !== initialName) args.name = nextName;
+    if (nextDescription !== initialDescriptionValue) {
+      args.description = nextDescription;
     }
-    if (icon !== initialIcon) args.icon = icon;
-    if (resolvedColor !== initialResolvedColor) args.color = resolvedColor;
+    if (values.icon !== initialIcon) args.icon = values.icon;
+    if (nextColor !== initialColorValue) args.color = nextColor;
 
     updateMutation.mutate(args, {
       onSuccess: () => setSavedAt(Date.now()),
       onError: (err) => {
-        setError(`Failed to save: ${err.message}`);
+        setError("root.serverError", {
+          message: `Failed to save: ${err.message}`,
+        });
         pushToast("error", `Failed to save board: ${err.message}`);
       },
     });
-  };
+  });
 
-  const handleDelete = (): void => {
+  const handleSave = useCallback((): void => {
+    void onValid();
+  }, [onValid]);
+
+  const serverError = errors.root?.serverError?.message ?? null;
+
+  const handleOwnerChange = useCallback(
+    (key: React.Key | null): void => {
+      const next = String(key);
+      if (next === ownerRoleId) return;
+      setOwnerMutation.mutate({ boardId, roleId: next });
+    },
+    [ownerRoleId, setOwnerMutation, boardId],
+  );
+
+  const handleBoardPromptsChange = useCallback(
+    (next: string[]): void => {
+      setBoardPromptIds(next);
+      setBoardPromptsMutation.mutate(
+        { boardId, promptIds: next },
+        {
+          onError: (err) => {
+            pushToast(
+              "error",
+              `Failed to update board prompts: ${err.message}`,
+            );
+          },
+        },
+      );
+    },
+    [boardId, setBoardPromptsMutation, pushToast],
+  );
+
+  const attachedBoardGroupIds = useMemo(
+    () => boardGroupsQuery.data ?? [],
+    [boardGroupsQuery.data],
+  );
+
+  const handleBoardGroupsChange = useCallback(
+    (next: string[]): void => {
+      setBoardGroupsMutation.mutate(
+        { id: boardId, groupIds: next },
+        {
+          onError: (err) => {
+            pushToast(
+              "error",
+              `Failed to update board prompt groups: ${err.message}`,
+            );
+          },
+        },
+      );
+    },
+    [boardId, setBoardGroupsMutation, pushToast],
+  );
+
+  const boardPromptSelect = useGroupedPromptSelect({
+    attachedPromptIds: boardPromptIds,
+    attachedGroupIds: attachedBoardGroupIds,
+    onChangePrompts: handleBoardPromptsChange,
+    onChangeGroups: handleBoardGroupsChange,
+  });
+
+  const handleDelete = useCallback((): void => {
     deleteMutation.mutate(boardId, {
       onSuccess: () => {
         setConfirmOpen(false);
@@ -326,7 +461,7 @@ function BoardSettingsForm({
         setConfirmOpen(false);
       },
     });
-  };
+  }, [deleteMutation, boardId, pushToast, initialName, setLocation]);
 
   return (
     <>
@@ -346,11 +481,8 @@ function BoardSettingsForm({
         aria-labelledby="board-settings-heading"
       >
         <IconColorPicker
-          value={{ icon, color: resolvedColor }}
-          onChange={(next) => {
-            setIcon(next.icon);
-            setColor(next.color ?? "");
-          }}
+          value={{ icon: watchedIcon, color: resolvedColor }}
+          onChange={handleAppearanceChange}
           ariaLabel="Board icon and color"
           data-testid="board-settings-appearance-picker"
         />
@@ -369,12 +501,18 @@ function BoardSettingsForm({
 
       <Collapsible title="General" testId="board-settings-general-section">
         <div className={styles.fields}>
-          <Input
-            label="Name"
-            value={name}
-            onChange={setName}
-            placeholder="Board name"
-            data-testid="board-settings-name-input"
+          <Controller
+            control={control}
+            name="name"
+            render={({ field }) => (
+              <Input
+                label="Name"
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Board name"
+                data-testid="board-settings-name-input"
+              />
+            )}
           />
 
           {/* Owner role — required (`boards.owner_role_id NOT NULL`).
@@ -386,11 +524,7 @@ function BoardSettingsForm({
             <Select
               label="Owner role"
               selectedKey={ownerRoleId}
-              onSelectionChange={(key) => {
-                const next = String(key);
-                if (next === ownerRoleId) return;
-                setOwnerMutation.mutate({ boardId, roleId: next });
-              }}
+              onSelectionChange={handleOwnerChange}
               isDisabled={
                 rolesQuery.status !== "success" || setOwnerMutation.isPending
               }
@@ -409,46 +543,30 @@ function BoardSettingsForm({
             </Select>
           ) : null}
 
-          <TextArea
-            label="Description"
-            value={description}
-            onChange={setDescription}
-            placeholder="Optional"
-            rows={3}
-            data-testid="board-settings-description-input"
+          <Controller
+            control={control}
+            name="description"
+            render={({ field }) => (
+              <TextArea
+                label="Description"
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Optional"
+                rows={3}
+                data-testid="board-settings-description-input"
+              />
+            )}
           />
         </div>
 
-        <div className={styles.actions}>
-          {error !== null ? (
-            <p
-              className={styles.error}
-              role="alert"
-              data-testid="board-settings-error"
-            >
-              {error}
-            </p>
-          ) : null}
-          {error === null && savedAt !== null ? (
-            <p
-              className={styles.savedHint}
-              role="status"
-              data-testid="board-settings-saved"
-            >
-              Saved
-            </p>
-          ) : null}
-          <Button
-            variant="primary"
-            size="md"
-            isPending={updateMutation.status === "pending"}
-            isDisabled={!canSubmit}
-            onPress={handleSave}
-            data-testid="board-settings-save"
-          >
-            Save
-          </Button>
-        </div>
+        <SaveBar
+          error={serverError}
+          saved={savedAt !== null}
+          isDisabled={!isDirty || !isValid}
+          isPending={updateMutation.status === "pending"}
+          onSave={handleSave}
+          testIdPrefix="board-settings"
+        />
       </Collapsible>
 
       <Collapsible
@@ -456,34 +574,84 @@ function BoardSettingsForm({
         description="Prompts attached at the board level cascade to every task on this board."
         testId="board-settings-prompts-section"
       >
+        {spacePromptsQuery.data !== undefined &&
+        spacePromptsQuery.data.length > 0 ? (
+          <div
+            style={{ marginBottom: 12 }}
+            data-testid="board-settings-inherited-prompts"
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+                color: "var(--color-text-muted)",
+                marginBottom: 6,
+              }}
+            >
+              Inherited from space
+            </div>
+            <ul
+              style={{
+                listStyle: "none",
+                margin: 0,
+                padding: 0,
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 6,
+              }}
+            >
+              {spacePromptsQuery.data.map((p) => (
+                <li
+                  key={p.id}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                  data-testid={`board-settings-inherited-${p.id}`}
+                >
+                  <span style={{ fontSize: 12 }}>{p.name}</span>
+                  <OriginBadge origin={{ kind: "space", id: spaceId }} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {/* Origin scope header — every chip in the SelectTag below
+            anchors at the board scope. Surfacing the badge alongside
+            the section heading communicates "these cascade to every
+            task on this board" before the user picks anything. */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "var(--space-8)",
+            marginBottom: 8,
+          }}
+          data-testid="board-settings-prompts-scope"
+        >
+          <span
+            style={{
+              fontSize: "var(--font-size-body-sm)",
+              color: "var(--color-text-muted)",
+            }}
+          >
+            Anchored to this board.
+          </span>
+          <OriginBadge
+            origin={{ kind: "board", id: boardId }}
+            data-testid="board-settings-prompts-scope-badge"
+          />
+        </div>
         {/* TODO(ctq-117): seed `values` from `list_board_prompts` once
             the IPC ships. Until then the chip rail starts empty and
             `set_board_prompts` canonically replaces the attached list. */}
-        <MultiSelect<string>
+        <SelectTag
           label="Board prompts"
-          values={boardPromptIds}
-          options={(promptsQuery.data ?? []).map((p) =>
-            p.shortDescription != null && p.shortDescription.length > 0
-              ? { id: p.id, name: p.name, description: p.shortDescription }
-              : { id: p.id, name: p.name },
-          )}
-          onChange={(next) => {
-            setBoardPromptIds(next);
-            setBoardPromptsMutation.mutate(
-              { boardId, promptIds: next },
-              {
-                onError: (err) => {
-                  pushToast(
-                    "error",
-                    `Failed to update board prompts: ${err.message}`,
-                  );
-                },
-              },
-            );
-          }}
-          placeholder="Search prompts…"
-          emptyText="No prompts available"
-          testId="board-settings-prompts-select"
+          values={boardPromptSelect.values}
+          options={boardPromptSelect.options}
+          onChange={boardPromptSelect.onChange}
+          placeholder="Search prompts or groups…"
+          data-testid="board-settings-prompts-select"
         />
       </Collapsible>
 

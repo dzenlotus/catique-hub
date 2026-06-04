@@ -3,8 +3,7 @@
  *
  * Mirrors the field-primitive family:
  *   - field shell + label + description + error    → Input.module.css
- *   - chip background / radius / × hover            → MultiTagInput.module.css
- *   - chip-rail drag-handle visuals                 → MultiSelect.module.css
+ *   - chip background / radius / × hover            → Chip.module.css
  *   - popover surface + option row                  → Combobox.module.css
  *   - empty/loading body                            → EntityTree.module.css
  *
@@ -18,7 +17,7 @@
   font-family: var(--font-sans);
   color: var(--color-text-default);
   width: 100%;
-  min-width: 220px;
+  min-width: var(--size-popover-sm);
 }
 
 .label {
@@ -45,7 +44,7 @@
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4) var(--space-12);
-  min-height: 32px;
+  min-height: var(--control-height-md);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   background-color: var(--color-surface-raised);
@@ -112,8 +111,8 @@
   gap: var(--space-4);
   padding: var(--space-2) var(--space-6) var(--space-2) var(--space-8);
   border: 1px solid var(--color-border-card);
-  border-radius: var(--radius-xl);
-  background-color: var(--color-surface-raised);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-cream-200);
   color: var(--color-text-default);
   font-family: var(--font-sans);
   font-size: var(--font-size-caption);

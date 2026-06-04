@@ -131,3 +131,12 @@ codegen-units = 1
 lto = "thin"
 opt-level = "s"
 strip = true
+
+[profile.dev]
+# Debug artefacts in `target/debug/` are dominated by full DWARF debuginfo
+# (`debug = 2`, the default), which inflated the dir to ~78 GB across deps +
+# incremental caches. `"line-tables-only"` keeps `file:line` in panics and
+# backtraces — all we need given the no-`unwrap`/no-`panic!` NFR — while
+# cutting per-artefact debuginfo by a large margin. Reversible: drop this
+# section to restore full debuginfo.
+debug = "line-tables-only"

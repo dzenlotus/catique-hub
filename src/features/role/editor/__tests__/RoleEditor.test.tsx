@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Role } from "@entities/role";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 
 vi.mock("@shared/api", async () => {
   const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
@@ -98,6 +98,15 @@ describe("RoleEditor", () => {
     expect(screen.getByText(/transport down/i)).toBeInTheDocument();
   });
 
+  // Helper: enter inline rename mode for the role name and return the
+  // active input. The EntityTitle component renders the input only after
+  // the user clicks the editable heading button.
+  async function openNameEditor(user: ReturnType<typeof userEvent.setup>) {
+    const trigger = await screen.findByTestId("role-editor-name-input-trigger");
+    await user.click(trigger);
+    return screen.getByTestId("role-editor-name-input") as HTMLInputElement;
+  }
+
   it("renders form fields populated when loaded", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_role") return makeRole();
@@ -107,8 +116,11 @@ describe("RoleEditor", () => {
     const onClose = vi.fn();
     renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
 
-    await screen.findByTestId("role-editor-name-input");
-    expect(screen.getByTestId("role-editor-name-input")).toHaveValue("Тестовая роль");
+    // The view-mode title button carries the role name verbatim.
+    await screen.findByTestId("role-editor-name-input-trigger");
+    expect(
+      screen.getByRole("button", { name: /rename тестовая роль/i }),
+    ).toBeInTheDocument();
     // Round-19c: content is rendered through MarkdownField in view mode
     // by default — the testid points to the preview button. Assert the
     // visible text instead of a textarea `value`.
@@ -128,7 +140,7 @@ describe("RoleEditor", () => {
     const onClose = vi.fn();
     const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
 
-    const nameInput = await screen.findByTestId("role-editor-name-input");
+    const nameInput = await openNameEditor(user);
     await user.clear(nameInput);
     await user.type(nameInput, "Новое название");
 
@@ -147,7 +159,7 @@ describe("RoleEditor", () => {
     const onClose = vi.fn();
     const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
 
-    const nameInput = await screen.findByTestId("role-editor-name-input");
+    const nameInput = await openNameEditor(user);
     await user.clear(nameInput);
     await user.type(nameInput, "Новое название");
 
@@ -177,7 +189,7 @@ describe("RoleEditor", () => {
     const onClose = vi.fn();
     const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
 
-    await screen.findByTestId("role-editor-name-input");
+    await screen.findByTestId("role-editor-name-input-trigger");
     const cancelButton = screen.getByTestId("role-editor-cancel");
     await user.click(cancelButton);
 
@@ -198,7 +210,7 @@ describe("RoleEditor", () => {
     const onClose = vi.fn();
     const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
 
-    await screen.findByTestId("role-editor-name-input");
+    await screen.findByTestId("role-editor-name-input-trigger");
 
     // Open the IconColorPicker popover and click its Reset button.
     await user.click(screen.getByTestId("role-editor-color-input"));
@@ -233,7 +245,7 @@ describe("RoleEditor", () => {
     const onClose = vi.fn();
     renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
 
-    await screen.findByTestId("role-editor-name-input");
+    await screen.findByTestId("role-editor-name-input-trigger");
 
     // Round-19c: explicit "Edit / Preview" toggle replaced by `MarkdownField`
     // (ctq-76 #11). Default mode is the preview surface — clicking it
@@ -252,7 +264,7 @@ describe("RoleEditor", () => {
     const onClose = vi.fn();
     const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
 
-    await screen.findByTestId("role-editor-name-input");
+    await screen.findByTestId("role-editor-name-input-trigger");
 
     // Default mode is "view" — heading is rendered through MarkdownPreview.
     expect(
@@ -279,7 +291,7 @@ describe("RoleEditor", () => {
     const onClose = vi.fn();
     const { user } = renderWithClient(<RoleEditor roleId="role-1" onClose={onClose} />);
 
-    const nameInput = await screen.findByTestId("role-editor-name-input");
+    const nameInput = await openNameEditor(user);
     await user.clear(nameInput);
     await user.type(nameInput, "Другое название");
 

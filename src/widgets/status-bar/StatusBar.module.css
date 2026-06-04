@@ -1,0 +1,102 @@
+.root {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: 0 var(--space-8);
+  height: 32px;
+  background-color: var(--color-surface-sidebar);
+  border-top: 1px solid var(--color-border-default);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* Non-interactive status indicator (dot + label) — read-only, not a button. */
+.indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+  color: var(--color-text-muted);
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background-color: var(--color-text-muted);
+}
+
+.indicator[data-variant="ok"] .dot {
+  background-color: var(--color-status-success);
+}
+
+.indicator[data-variant="warn"] .dot {
+  background-color: var(--color-status-warning);
+}
+
+.indicator[data-variant="error"] .dot {
+  background-color: var(--color-status-danger);
+}
+
+.indicator[data-variant="idle"] .dot {
+  background-color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
+.label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 36ch;
+}
+
+/* Connection button — the ONLY clickable element; opens the SystemDrawer.
+ * Bigger, status-colored plug icon. */
+.connection {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.connection:hover {
+  background-color: var(--color-overlay-hover);
+  color: var(--color-text-default);
+}
+
+.connection:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -1px;
+}
+
+.connection[data-variant="ok"] {
+  color: var(--color-status-success);
+}
+
+.connection[data-variant="warn"] {
+  color: var(--color-status-warning);
+}
+
+.connection[data-variant="error"] {
+  color: var(--color-status-danger);
+}
+
+.connection[data-variant="idle"] {
+  color: var(--color-text-muted);
+}

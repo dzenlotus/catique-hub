@@ -34,6 +34,8 @@ vi.mock("@tauri-apps/api/event", () => ({
   ),
 }));
 
+import { ToastProvider } from "@shared/lib";
+
 import { EventsProvider } from "../EventsProvider";
 
 function dispatch(name: string, payload: unknown): void {
@@ -56,11 +58,16 @@ function renderWithProvider(): {
   });
   const invalidateSpy = vi.spyOn(client, "invalidateQueries");
   const removeSpy = vi.spyOn(client, "removeQueries");
+  // Stream J / v3 Wave 4: EventsProvider now consumes `useToast()` for
+  // the `task:run:failed` error-toast bridge, so a ToastProvider must
+  // wrap it for the listener registration to mount.
   const tree: ReactElement = (
     <QueryClientProvider client={client}>
-      <EventsProvider>
-        <div data-testid="kid">child</div>
-      </EventsProvider>
+      <ToastProvider>
+        <EventsProvider>
+          <div data-testid="kid">child</div>
+        </EventsProvider>
+      </ToastProvider>
     </QueryClientProvider>
   );
   const result = render(tree);
@@ -158,6 +165,62 @@ describe("EventsProvider — Tauri events → react-query invalidation", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: tasksKeys.detail("t1"),
     });
+    unmount();
+  });
+
+  // Stream J / v3 Wave 4 — task:run:* lifecycle wiring.
+  //
+  // We mount a tiny consumer that calls `useTaskStatus(taskId)` and
+  // assert that the rendered text flips from `idle` to `running` /
+  // `completed` / `failed` after each event lands. This exercises the
+  // full bridge: Tauri event → `setTaskStatus` mutator → external
+  // store → `useSyncExternalStore` re-render.
+  it("forwards task:run:* events into the useTaskStatus store", async () => {
+    const { useTaskStatus, resetTaskStatuses } = await import(
+      "@entities/task"
+    );
+    resetTaskStatuses();
+
+    function TaskStatusProbe({ taskId }: { taskId: string }): ReactElement {
+      const status = useTaskStatus(taskId);
+      return <div data-testid={`probe-${taskId}`}>{status}</div>;
+    }
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    const { findByTestId, unmount } = render(
+      <QueryClientProvider client={client}>
+        <ToastProvider>
+          <EventsProvider>
+            <TaskStatusProbe taskId="t-1" />
+          </EventsProvider>
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+
+    expect((await findByTestId("probe-t-1")).textContent).toBe("idle");
+
+    await waitFor(() => {
+      expect(listeners.get("task:run:started")?.size ?? 0).toBeGreaterThan(0);
+    });
+
+    act(() => {
+      dispatch("task:run:started", { taskId: "t-1" });
+    });
+    expect((await findByTestId("probe-t-1")).textContent).toBe("running");
+
+    act(() => {
+      dispatch("task:run:finished", { taskId: "t-1" });
+    });
+    expect((await findByTestId("probe-t-1")).textContent).toBe("completed");
+
+    act(() => {
+      dispatch("task:run:failed", { taskId: "t-1", error: "boom" });
+    });
+    expect((await findByTestId("probe-t-1")).textContent).toBe("failed");
+
+    resetTaskStatuses();
     unmount();
   });
 

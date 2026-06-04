@@ -8,7 +8,11 @@ export {
   useUpdatePromptMutation,
   useDeletePromptMutation,
   useRecomputePromptTokenCountMutation,
+  usePromptVersions,
+  usePromptVersion,
+  useRevertPromptToVersionMutation,
 } from "./store";
+export type { RevertPromptToVersionArgs } from "./store";
 export {
   PROMPT_TEMPLATE_STORAGE_KEY,
   promptTemplateCodec,

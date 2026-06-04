@@ -29,11 +29,9 @@ import {
   recomputePromptTokenCount,
   usePrompts,
 } from "@entities/prompt";
-import { useToast } from "@app/providers/ToastProvider";
-import { Scrollable } from "@shared/ui";
-import { PromptsList } from "@entities/prompt";
+import { useToast } from "@shared/lib";
+import { EmptyState, Scrollable } from "@shared/ui";
 import { PromptEditorPanel } from "@features/prompt/editor-panel";
-import { PromptGroupEditor } from "@features/prompt-group/editor";
 import { PromptsSidebar } from "@widgets/prompts-sidebar";
 import { InlineGroupView } from "@features/prompt-group/inline-view";
 import { InlineGroupSettings } from "@features/prompt-group/inline-settings";
@@ -47,7 +45,9 @@ import styles from "./PromptsPage.module.css";
 // Right-pane router:
 //   - selectedPromptId !== null  → inline `<PromptEditorPanel>` (no modal).
 //   - selectedGroupId  !== null  → `<InlineGroupView>` of that group.
-//   - both null                  → `<PromptsList>` grid (default landing).
+//   - both null                  → empty state. The sidebar (PROMPTS +
+//     GROUPS sections) is the single list — the old right-pane card grid
+//     duplicated it, so it was removed (consistent with Roles / Skills).
 //
 // DnD is owned at this level so the sidebar's draggable rows and the
 // inline group view's droppable area share one provider. Drop targets:
@@ -102,9 +102,9 @@ export function PromptsPage(): ReactElement {
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
-  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
-  // Round-19d: inline group-settings page (right pane). Distinct from
-  // `editingGroupId` which still drives the rename modal.
+  // Round-19d: inline group-settings page (right pane). Group rename is
+  // handled inline in the sidebar row / inline-group-view title — there
+  // is no rename modal.
   const [groupSettingsId, setGroupSettingsId] = useState<string | null>(null);
   // Round-19e: prompts-global settings opens inline in the right pane
   // (tag library + new-prompt template). Triggered by the cog next to
@@ -350,7 +350,6 @@ export function PromptsPage(): ReactElement {
         <InlineGroupView
           groupId={selectedGroupId}
           onSelectPrompt={(id) => setSelectedPromptId(id)}
-          onRenameGroup={(id) => setEditingGroupId(id)}
           onGroupSettings={(id) => {
             setGroupSettingsId(id);
             setSelectedPromptId(null);
@@ -361,16 +360,12 @@ export function PromptsPage(): ReactElement {
       );
     }
     return (
-      <Scrollable
-        axis="y"
-        className={styles.contentSlot}
-        data-testid="prompts-page-content-scroll"
-      >
-        <PromptsList
-          onSelectPrompt={(id) => setSelectedPromptId(id)}
-          externallyManagedEditor
+      <div className={styles.emptyPane} data-testid="prompts-page-empty">
+        <EmptyState
+          title="Nothing selected"
+          description="Pick a prompt or group from the sidebar to view and edit it here."
         />
-      </Scrollable>
+      </div>
     );
   };
 
@@ -400,7 +395,6 @@ export function PromptsPage(): ReactElement {
               setGroupSettingsId(null);
               setIsSettingsOpen(false);
             }}
-            onRenameGroup={(id) => setEditingGroupId(id)}
             onGroupSettings={(id) => {
               // Open settings AND highlight the group in the sidebar.
               // Back from settings drops to the group view (selectedGroupId
@@ -424,12 +418,15 @@ export function PromptsPage(): ReactElement {
           />
         </div>
 
-        <div className={styles.contentSlot}>{renderRightPane()}</div>
-
-        <PromptGroupEditor
-          groupId={editingGroupId}
-          onClose={() => setEditingGroupId(null)}
-        />
+        {/* No tab bar: the sidebar (PROMPTS + GROUPS) is the list; the tag
+            library lives in the settings page (cog). The right pane is just
+            the editor / group view / settings / empty state. */}
+        <div
+          className={styles.contentSlot}
+          data-testid="prompts-page-content"
+        >
+          {renderRightPane()}
+        </div>
       </section>
     </DragDropProvider>
   );

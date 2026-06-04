@@ -77,6 +77,14 @@
   --radius-lg: 7px;
   --radius-xl: 10px;
   --radius-full: 9999px;
+  /* control-height */
+  --control-height-sm: 28px;
+  --control-height-md: 32px;
+  --control-height-lg: 40px;
+  /* size-popover */
+  --size-popover-sm: 220px;
+  --size-popover-md: 280px;
+  --size-popover-lg: 320px;
 
   /* Semantic layer — light theme (default). UI reads only these. */
   --color-bg-default: #f4f1ec;

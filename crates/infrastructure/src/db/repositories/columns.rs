@@ -28,6 +28,10 @@ pub struct ColumnRow {
     /// remove them, and cross-board task moves drop tasks here. Stored
     /// as INTEGER 0/1 — converted on read.
     pub is_default: bool,
+    /// Optional icon registry name. Migration `031_columns_icon_color.sql`.
+    pub icon: Option<String>,
+    /// Optional CSS color string. Migration `031_columns_icon_color.sql`.
+    pub color: Option<String>,
 }
 
 impl ColumnRow {
@@ -40,6 +44,8 @@ impl ColumnRow {
             role_id: row.get("role_id")?,
             created_at: row.get("created_at")?,
             is_default: row.get::<_, i64>("is_default")? != 0,
+            icon: row.get("icon")?,
+            color: row.get("color")?,
         })
     }
 }
@@ -55,6 +61,10 @@ pub struct ColumnDraft {
     /// (migration `016_*`). Set on insert only — there is no patch
     /// path that mutates this column, mirroring `boards.is_default`.
     pub is_default: bool,
+    /// Optional icon registry name. Defaults to `None`.
+    pub icon: Option<String>,
+    /// Optional CSS color string. Defaults to `None`.
+    pub color: Option<String>,
 }
 
 /// Partial update payload for `update`.
@@ -65,6 +75,10 @@ pub struct ColumnPatch {
     /// `Option<Option<…>>` lets the caller distinguish "skip this field"
     /// (outer None) from "clear to NULL" (Some(None)).
     pub role_id: Option<Option<String>>,
+    /// Tri-state — same semantics as `role_id`.
+    pub icon: Option<Option<String>>,
+    /// Tri-state — same semantics as `role_id`.
+    pub color: Option<Option<String>>,
 }
 
 /// `SELECT … FROM columns ORDER BY board_id, position ASC`.
@@ -74,7 +88,7 @@ pub struct ColumnPatch {
 /// Surfaces rusqlite errors.
 pub fn list_all(conn: &Connection) -> Result<Vec<ColumnRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, board_id, name, position, role_id, created_at, is_default \
+        "SELECT id, board_id, name, position, role_id, created_at, is_default, icon, color \
          FROM columns ORDER BY board_id, position ASC",
     )?;
     let rows = stmt.query_map([], ColumnRow::from_row)?;
@@ -92,7 +106,7 @@ pub fn list_all(conn: &Connection) -> Result<Vec<ColumnRow>, DbError> {
 /// Surfaces rusqlite errors.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<ColumnRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, board_id, name, position, role_id, created_at, is_default \
+        "SELECT id, board_id, name, position, role_id, created_at, is_default, icon, color \
          FROM columns WHERE id = ?1",
     )?;
     Ok(stmt
@@ -113,7 +127,7 @@ pub fn get_default_for_board(
     board_id: &str,
 ) -> Result<Option<ColumnRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, board_id, name, position, role_id, created_at, is_default \
+        "SELECT id, board_id, name, position, role_id, created_at, is_default, icon, color \
          FROM columns WHERE board_id = ?1 AND is_default = 1 \
          ORDER BY position ASC LIMIT 1",
     )?;
@@ -146,8 +160,8 @@ pub fn insert(conn: &Connection, draft: &ColumnDraft) -> Result<ColumnRow, DbErr
     let is_default = i64::from(draft.is_default);
     conn.execute(
         "INSERT INTO columns \
-            (id, board_id, name, position, role_id, is_default, created_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            (id, board_id, name, position, role_id, is_default, created_at, icon, color) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             id,
             draft.board_id,
@@ -155,7 +169,9 @@ pub fn insert(conn: &Connection, draft: &ColumnDraft) -> Result<ColumnRow, DbErr
             draft.position,
             draft.role_id,
             is_default,
-            now
+            now,
+            draft.icon,
+            draft.color,
         ],
     )?;
     Ok(ColumnRow {
@@ -166,6 +182,8 @@ pub fn insert(conn: &Connection, draft: &ColumnDraft) -> Result<ColumnRow, DbErr
         role_id: draft.role_id.clone(),
         created_at: now,
         is_default: draft.is_default,
+        icon: draft.icon.clone(),
+        color: draft.color.clone(),
     })
 }
 
@@ -180,23 +198,40 @@ pub fn update(
     id: &str,
     patch: &ColumnPatch,
 ) -> Result<Option<ColumnRow>, DbError> {
-    let updated = match &patch.role_id {
-        Some(new_role) => conn.execute(
-            "UPDATE columns SET \
-                 name = COALESCE(?1, name), \
-                 position = COALESCE(?2, position), \
-                 role_id = ?3 \
-             WHERE id = ?4",
-            params![patch.name, patch.position, new_role, id],
-        )?,
-        None => conn.execute(
-            "UPDATE columns SET \
-                 name = COALESCE(?1, name), \
-                 position = COALESCE(?2, position) \
-             WHERE id = ?3",
-            params![patch.name, patch.position, id],
-        )?,
-    };
+    // Dynamic SQL — each tri-state nullable column would otherwise
+    // require 2^N branches against `COALESCE`. We collect SET fragments
+    // and bind values in lockstep; the empty-patch case short-circuits
+    // to a plain existence check.
+    let mut sets: Vec<&'static str> = Vec::new();
+    let mut binds: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+    if let Some(name) = &patch.name {
+        sets.push("name = ?");
+        binds.push(Box::new(name.clone()));
+    }
+    if let Some(position) = patch.position {
+        sets.push("position = ?");
+        binds.push(Box::new(position));
+    }
+    if let Some(role_id) = &patch.role_id {
+        sets.push("role_id = ?");
+        binds.push(Box::new(role_id.clone()));
+    }
+    if let Some(icon) = &patch.icon {
+        sets.push("icon = ?");
+        binds.push(Box::new(icon.clone()));
+    }
+    if let Some(color) = &patch.color {
+        sets.push("color = ?");
+        binds.push(Box::new(color.clone()));
+    }
+    if sets.is_empty() {
+        // No-op patch — return the current row (or None if id is gone).
+        return get_by_id(conn, id);
+    }
+    let sql = format!("UPDATE columns SET {} WHERE id = ?", sets.join(", "));
+    binds.push(Box::new(id.to_owned()));
+    let params_vec: Vec<&dyn rusqlite::ToSql> = binds.iter().map(AsRef::as_ref).collect();
+    let updated = conn.execute(&sql, params_vec.as_slice())?;
     if updated == 0 {
         return Ok(None);
     }
@@ -253,6 +288,8 @@ mod tests {
                 position: 1,
                 role_id: None,
                 is_default: false,
+                icon: None,
+                color: None,
             },
         )
         .unwrap();
@@ -272,6 +309,8 @@ mod tests {
                 position: 2,
                 role_id: None,
                 is_default: false,
+                icon: None,
+                color: None,
             },
         )
         .unwrap();
@@ -283,6 +322,8 @@ mod tests {
                 position: 1,
                 role_id: None,
                 is_default: false,
+                icon: None,
+                color: None,
             },
         )
         .unwrap();
@@ -303,6 +344,8 @@ mod tests {
                 position: 1,
                 role_id: None,
                 is_default: false,
+                icon: None,
+                color: None,
             },
         )
         .unwrap();
@@ -332,6 +375,8 @@ mod tests {
                 position: 1,
                 role_id: None,
                 is_default: false,
+                icon: None,
+                color: None,
             },
         )
         .unwrap();
@@ -350,6 +395,8 @@ mod tests {
                 position: 1,
                 role_id: None,
                 is_default: false,
+                icon: None,
+                color: None,
             },
         )
         .expect_err("FK");
@@ -373,6 +420,8 @@ mod tests {
                 position: 1,
                 role_id: None,
                 is_default: false,
+                icon: None,
+                color: None,
             },
         )
         .unwrap();

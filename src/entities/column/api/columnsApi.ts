@@ -70,6 +70,10 @@ export interface UpdateColumnArgs {
    * Olga's `Option<Option<String>>` shape on the Rust side.
    */
   roleId?: string | null;
+  /** Tri-state — same convention as `roleId`. */
+  icon?: string | null;
+  /** Tri-state — same convention as `roleId`. */
+  color?: string | null;
 }
 
 /** `update_column` — partial update. */
@@ -78,6 +82,8 @@ export async function updateColumn(args: UpdateColumnArgs): Promise<Column> {
   if (args.name !== undefined) payload.name = args.name;
   if (args.position !== undefined) payload.position = args.position;
   if (args.roleId !== undefined) payload.roleId = args.roleId;
+  if (args.icon !== undefined) payload.icon = args.icon;
+  if (args.color !== undefined) payload.color = args.color;
   return invokeWithAppError<Column>("update_column", payload);
 }
 

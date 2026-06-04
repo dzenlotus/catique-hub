@@ -47,6 +47,13 @@ use crate::{McpTool, Prompt, Role, Skill, Task};
 ///
 /// Wire format (`#[serde(tag = "kind", content = "id")]`):
 /// `{ "kind": "direct" }`, `{ "kind": "role", "id": "<role-id>" }`, …
+///
+/// `Group` is a UI-only variant — the inheritance resolver in
+/// `resolve_task_bundle` never produces it. The frontend uses it for
+/// prompt-group membership badges (`InlineGroupView` renders "via
+/// group" next to each member prompt). The variant is exported through
+/// `ts-rs` so `OriginBadge` stays type-safe end-to-end without a
+/// frontend-local widening of the union.
 #[derive(TS, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
 #[serde(tag = "kind", content = "id", rename_all = "camelCase")]
@@ -64,6 +71,11 @@ pub enum OriginRef {
     /// yet shipped on this DB; the resolver returns no `Space` rows in
     /// that case.
     Space(String),
+    /// UI-only: prompt is shown via prompt-group membership. The
+    /// inheritance resolver never emits this; frontend constructs it
+    /// directly in `InlineGroupView` to render a "via group" badge on
+    /// every member row.
+    Group(String),
 }
 
 impl OriginRef {
@@ -78,18 +90,31 @@ impl OriginRef {
             Self::Column(_) => 3,
             Self::Board(_) => 2,
             Self::Space(_) => 1,
+            // `Group` is a UI-only origin (frontend uses it for
+            // prompt-group membership badges in `InlineGroupView`); the
+            // inheritance resolver never produces it, so its precedence
+            // is never compared against the inheritance variants.
+            Self::Group(_) => 0,
         }
     }
 
     /// Parse the SQL-side origin string (`"direct"`, `"role:abc"`, …).
     /// Returns `None` for malformed strings; the resolver treats those
     /// rows as if they were `Direct` rather than crashing.
+    ///
+    /// Composite group/server-sourced rows use an origin
+    /// `"<scope>:<id>#group:<gid>"` or `"<scope>:<id>#server:<sid>"` (and
+    /// the `"direct#…"` task forms). `parse` strips everything from the
+    /// first `#` and returns the **base scope** so precedence/breadcrumb
+    /// logic keeps working unchanged; callers that need the source group
+    /// use [`OriginRef::parse_with_group`].
     #[must_use]
     pub fn parse(raw: &str) -> Option<Self> {
-        if raw == "direct" {
+        let base = raw.split_once('#').map_or(raw, |(b, _)| b);
+        if base == "direct" {
             return Some(Self::Direct);
         }
-        let (scope, id) = raw.split_once(':')?;
+        let (scope, id) = base.split_once(':')?;
         let id = id.to_owned();
         match scope {
             "role" => Some(Self::Role(id)),
@@ -99,35 +124,84 @@ impl OriginRef {
             _ => None,
         }
     }
+
+    /// Parse a (possibly composite) origin into its base scope plus the
+    /// optional source-group id. Group-sourced materialised rows carry a
+    /// `"#group:<gid>"` suffix; this splits it off so the resolver can
+    /// tag [`PromptWithOrigin::via_group`] while keeping the base scope's
+    /// precedence intact. Returns `None` only when the base scope is
+    /// malformed (same contract as [`OriginRef::parse`]).
+    #[must_use]
+    pub fn parse_with_group(raw: &str) -> Option<(Self, Option<String>)> {
+        let (base, group) = match raw.split_once("#group:") {
+            Some((b, g)) => (b, Some(g.to_owned())),
+            None => (raw, None),
+        };
+        Some((Self::parse(base)?, group))
+    }
 }
 
 /// One prompt entry inside a [`TaskBundle`], paired with its origin.
+///
+/// `overridden` (refactor-v3 D-A) is `true` when the row is a
+/// replacement substituted in by `task_prompt_overrides_v2`. The
+/// `origin` field stays the **original** inherited origin so the UI can
+/// render the breadcrumb (board / column / role / space) the user is
+/// actually overriding; rendering the "★ override" badge is a frontend
+/// concern. `serde(default)` keeps deserialisation of stored payloads
+/// forward-compatible with pre-D-A callers.
 #[derive(TS, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct PromptWithOrigin {
     pub prompt: Prompt,
     pub origin: OriginRef,
+    #[serde(default)]
+    pub overridden: bool,
+    /// Set when this row was materialised from an attached prompt group.
+    /// Carries the source group's id so the UI can render a "via group"
+    /// badge and hide the member from the picker's option list. `None`
+    /// for individually-attached rows. `origin` still reflects the
+    /// *scope* the group was attached at (its base, group suffix stripped).
+    #[serde(default)]
+    #[ts(optional)]
+    pub via_group: Option<String>,
 }
 
 /// One skill entry inside a [`TaskBundle`], paired with its origin.
 /// ctq-119 — mirrors [`PromptWithOrigin`] over `task_skills` rows.
+/// `overridden` carries the same refactor-v3 D-A semantics.
 #[derive(TS, Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct SkillWithOrigin {
     pub skill: Skill,
     pub origin: OriginRef,
+    #[serde(default)]
+    pub overridden: bool,
+    /// Source prompt/skill group when materialised via a group attachment;
+    /// see [`PromptWithOrigin::via_group`].
+    #[serde(default)]
+    #[ts(optional)]
+    pub via_group: Option<String>,
 }
 
 /// One MCP-tool entry inside a [`TaskBundle`], paired with its origin.
 /// ctq-119 — mirrors [`PromptWithOrigin`] over `task_mcp_tools` rows.
+/// `overridden` carries the same refactor-v3 D-A semantics.
 #[derive(TS, Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct McpToolWithOrigin {
     pub mcp_tool: McpTool,
     pub origin: OriginRef,
+    #[serde(default)]
+    pub overridden: bool,
+    /// Source MCP-tool group when materialised via a group attachment;
+    /// see [`PromptWithOrigin::via_group`].
+    #[serde(default)]
+    #[ts(optional)]
+    pub via_group: Option<String>,
 }
 
 /// Fully-resolved view of one task: its row, its active role (if any),
@@ -160,6 +234,18 @@ pub struct TaskBundle {
     /// MCP tools ordered by the same precedence rule.
     #[serde(default)]
     pub mcp_tools: Vec<McpToolWithOrigin>,
+    /// Inherited prompts the user explicitly suppressed via
+    /// `task_prompt_overrides_v2` (refactor-v3 D-A). The UI renders
+    /// these struck-through with a "restore" affordance. Empty on
+    /// pre-D-A tasks. `serde(default)` keeps backward compatibility.
+    #[serde(default)]
+    pub suppressed_prompts: Vec<Prompt>,
+    /// Inherited skills the user explicitly suppressed.
+    #[serde(default)]
+    pub suppressed_skills: Vec<Skill>,
+    /// Inherited mcp_tools the user explicitly suppressed.
+    #[serde(default)]
+    pub suppressed_mcp_tools: Vec<McpTool>,
 }
 
 #[cfg(test)]
@@ -191,6 +277,34 @@ mod tests {
     fn parse_unknown_returns_none() {
         assert_eq!(OriginRef::parse("nonsense"), None);
         assert_eq!(OriginRef::parse("foo:bar"), None);
+    }
+
+    #[test]
+    fn parse_strips_group_suffix_to_base_scope() {
+        // Composite group-sourced origins resolve to their base scope.
+        assert_eq!(
+            OriginRef::parse("role:abc#group:g1"),
+            Some(OriginRef::Role("abc".into()))
+        );
+        assert_eq!(OriginRef::parse("direct#group:g1"), Some(OriginRef::Direct));
+    }
+
+    #[test]
+    fn parse_with_group_extracts_source_group() {
+        assert_eq!(
+            OriginRef::parse_with_group("board:b1"),
+            Some((OriginRef::Board("b1".into()), None))
+        );
+        assert_eq!(
+            OriginRef::parse_with_group("board:b1#group:g9"),
+            Some((OriginRef::Board("b1".into()), Some("g9".into())))
+        );
+        assert_eq!(
+            OriginRef::parse_with_group("direct#group:g9"),
+            Some((OriginRef::Direct, Some("g9".into())))
+        );
+        // Malformed base scope still yields None.
+        assert_eq!(OriginRef::parse_with_group("foo:bar#group:g9"), None);
     }
 
     #[test]

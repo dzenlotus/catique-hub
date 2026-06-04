@@ -25,6 +25,9 @@ export {
   removeRoleMcpTool,
   listRoleMcpTools,
   setRoleMcpTools,
+  listRoleVersions,
+  getRoleVersion,
+  revertRoleToVersion,
 } from "./api";
 export type {
   CreateRoleArgs,
@@ -57,6 +60,9 @@ export {
   useAddRoleMcpToolMutation,
   useRemoveRoleMcpToolMutation,
   useSetRoleMcpToolsMutation,
+  useRoleVersions,
+  useRoleVersion,
+  useRevertRoleToVersionMutation,
 } from "./model";
 export type {
   Role,
@@ -64,6 +70,7 @@ export type {
   SetRolePromptsArgs,
   SetRoleSkillsArgs,
   SetRoleMcpToolsArgs,
+  RevertRoleToVersionArgs,
 } from "./model";
 
 // UI

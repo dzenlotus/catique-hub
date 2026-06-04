@@ -28,11 +28,34 @@
  * `.contentSlot` is the OverlayScrollbars host (round-19c migration).
  * Native `overflow-y` is no longer needed — the Scrollable wrapper owns
  * the scroll inside its own viewport.
+ *
+ * v3 refactor: the slot now stacks a Tabs strip on top of the dynamic
+ * right pane, so flex-column owns the layout. The Tabs panel grows to
+ * fill remaining space; its child surfaces (PromptsList grid, inline
+ * group view, prompt editor panel) hand scroll over to their own
+ * `<Scrollable>` viewport so the strip stays pinned at the top.
  */
 .contentSlot {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
   background-color: var(--color-bg-default);
+}
+
+/* The single right-pane surface (editor / group view / settings / empty)
+ * stretches to fill the content slot. */
+.contentSlot > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Empty right pane (no prompt/group selected) — centers the EmptyState. */
+.emptyPane {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-16);
 }
 
 @media (max-width: 720px) {

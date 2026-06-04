@@ -6,14 +6,27 @@
 use catique_domain::Role;
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
+    repositories::content_versions::{self as versions, ContentVersionRow},
     repositories::roles::{self as repo, RoleDraft, RolePatch, RoleRow},
-    repositories::tasks::{cascade_clear_scope, cascade_prompt_attachment, AttachScope},
+    repositories::tasks::{
+        cascade_clear_scope, cascade_prompt_attachment, recompute_effective_counts_for_scope,
+        AttachScope,
+    },
 };
 
 use crate::{
     error::AppError,
     error_map::{map_db_err, map_db_err_unique, validate_non_empty, validate_optional_color},
 };
+
+/// D-C: how many content versions to keep per role.
+const ROLE_VERSION_RETENTION: usize = 50;
+/// D-C: 5-minute debounce window (in milliseconds) between snapshots
+/// of `role.content`. Editing the same role within this window only
+/// produces a single row — the first edit captures the start-of-
+/// session content, subsequent edits update `roles.content` without
+/// adding history rows.
+const ROLE_VERSION_DEBOUNCE_MS: i64 = 5 * 60 * 1_000;
 
 /// Roles use case.
 pub struct RolesUseCase<'a> {
@@ -86,10 +99,23 @@ impl<'a> RolesUseCase<'a> {
 
     /// Partial update.
     ///
+    /// **D-C version history**: when `content` is `Some(_)` AND it
+    /// actually changes the stored value, a debounced snapshot of the
+    /// *previous* content lands in `role_content_versions` (one row
+    /// per 5-min editing window, last 50 rows retained per role).
+    /// Every other field (name, color, icon) is touched without
+    /// touching the version stream — those are not history-tracked.
+    ///
     /// # Errors
     ///
     /// `AppError::NotFound` if id missing.
     #[allow(clippy::needless_pass_by_value)]
+    // `Option<Option<String>>` is the project-wide tri-state encoding
+    // for nullable column patches (`None` = leave alone, `Some(None)` =
+    // clear, `Some(Some(s))` = set). Lifting it into a dedicated enum
+    // would be churn for no real readability win; we silence the lint
+    // and document the convention in module-level comments.
+    #[allow(clippy::option_option)]
     pub fn update(
         &self,
         id: String,
@@ -98,26 +124,131 @@ impl<'a> RolesUseCase<'a> {
         color: Option<Option<String>>,
         icon: Option<Option<String>>,
     ) -> Result<Role, AppError> {
+        self.update_with_clock(id, name, content, color, icon, default_clock)
+    }
+
+    /// Clock-injected variant of [`Self::update`]. Production calls
+    /// [`Self::update`] which seeds the wall clock; tests can pass a
+    /// fixed clock to verify debounce semantics without sleeping.
+    ///
+    /// # Errors
+    ///
+    /// See [`Self::update`].
+    #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::option_option)]
+    pub(crate) fn update_with_clock<F>(
+        &self,
+        id: String,
+        name: Option<String>,
+        content: Option<String>,
+        color: Option<Option<String>>,
+        icon: Option<Option<String>>,
+        clock: F,
+    ) -> Result<Role, AppError>
+    where
+        F: Fn() -> i64,
+    {
         if let Some(n) = name.as_deref() {
             validate_non_empty("name", n)?;
         }
         if let Some(Some(c)) = color.as_ref() {
             validate_optional_color("color", Some(c))?;
         }
-        let conn = acquire(self.pool).map_err(map_db_err)?;
+
+        let mut conn = acquire(self.pool).map_err(map_db_err)?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|e| map_db_err(e.into()))?;
+
+        // Snapshot BEFORE the write, only when the caller is actually
+        // changing content AND the new value differs from the stored
+        // value. Identical-write debouncing keeps storage clean for the
+        // common "save same text" autosave path.
+        if let Some(new_content) = content.as_deref() {
+            let previous = repo::get_by_id(&tx, &id).map_err(map_db_err)?;
+            if let Some(prev) = previous {
+                if prev.content != new_content {
+                    snapshot_role_if_due(&tx, &id, &prev.content, clock())?;
+                }
+            }
+        }
+
         let patch = RolePatch {
             name: name.map(|n| n.trim().to_owned()),
             content,
             color,
             icon,
         };
-        match repo::update(&conn, &id, &patch).map_err(|e| map_db_err_unique(e, "role"))? {
-            Some(row) => Ok(row_to_role(row)),
-            None => Err(AppError::NotFound {
+        let updated = repo::update(&tx, &id, &patch).map_err(|e| map_db_err_unique(e, "role"))?;
+        let Some(role) = updated else {
+            return Err(AppError::NotFound {
                 entity: "role".into(),
                 id,
-            }),
-        }
+            });
+        };
+        tx.commit().map_err(|e| map_db_err(e.into()))?;
+        Ok(row_to_role(role))
+    }
+
+    /// List the last 50 content-version rows for a role, newest first.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn list_role_versions(&self, role_id: &str) -> Result<Vec<RoleContentVersion>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let rows = versions::list_role_versions(&conn, role_id, ROLE_VERSION_RETENTION)
+            .map_err(map_db_err)?;
+        Ok(rows.into_iter().map(row_to_version).collect())
+    }
+
+    /// Fetch the full content of one version row by id.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound` if the version id is unknown.
+    pub fn get_role_version(&self, version_id: &str) -> Result<RoleContentVersion, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let row = versions::get_role_version(&conn, version_id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "role_content_version".into(),
+                id: version_id.to_owned(),
+            })?;
+        Ok(row_to_version(row))
+    }
+
+    /// Revert a role's content to the value stored in `version_id`.
+    ///
+    /// The pre-revert content is itself snapshotted into a new version
+    /// row (subject to the 5-min debounce, like any other write). The
+    /// target version row is **not** removed — the user can re-revert
+    /// in either direction.
+    ///
+    /// # Errors
+    ///
+    /// `AppError::NotFound` if `version_id` is unknown, or if the
+    /// underlying role row vanished between the lookup and the update.
+    pub fn revert_role_to_version(&self, version_id: &str) -> Result<Role, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let version = versions::get_role_version(&conn, version_id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "role_content_version".into(),
+                id: version_id.to_owned(),
+            })?;
+        drop(conn);
+        // Delegate to `update` so the pre-revert content snapshot +
+        // debounce + transaction handling stays in one place. The
+        // revert acts as a normal content write from the use-case's
+        // point of view.
+        self.update(
+            version.source_id.clone(),
+            None,
+            Some(version.content),
+            None,
+            None,
+        )
     }
 
     /// Delete a role.
@@ -248,6 +379,11 @@ impl<'a> RolesUseCase<'a> {
             .map_err(|e| map_db_err(catique_infrastructure::db::pool::DbError::Sqlite(e)))?;
             cascade_prompt_attachment(&tx, &scope, prompt_id, position).map_err(map_db_err)?;
         }
+        // Refactor-v3 D-B: the cascade just rewrote `task_prompts` rows
+        // for every task on this role. Recompute the denormalised
+        // counters in the same transaction so the post-commit state is
+        // self-consistent.
+        recompute_effective_counts_for_scope(&tx, &scope).map_err(map_db_err)?;
 
         tx.commit().map_err(|e| map_db_err(e.into()))?;
         Ok(())
@@ -265,6 +401,69 @@ fn row_to_role(row: RoleRow) -> Role {
         updated_at: row.updated_at,
         is_system: row.is_system,
     }
+}
+
+/// D-C: snapshot the PRE-update content of `role_id` if the most-recent
+/// version row is at least [`ROLE_VERSION_DEBOUNCE_MS`] old (or no
+/// version row exists yet), then prune everything beyond
+/// [`ROLE_VERSION_RETENTION`].
+///
+/// `now_ms` is passed in so the same call site can run under a fake
+/// clock in tests. The helper runs against `conn` — caller decides
+/// whether that's a stand-alone `Connection` or a `Transaction`; both
+/// `Deref` to `Connection` so the rusqlite functions work uniformly.
+fn snapshot_role_if_due(
+    conn: &rusqlite::Connection,
+    role_id: &str,
+    pre_update_content: &str,
+    now_ms: i64,
+) -> Result<(), AppError> {
+    let due = match versions::latest_role_version_timestamp(conn, role_id).map_err(map_db_err)? {
+        Some(latest) => now_ms.saturating_sub(latest) >= ROLE_VERSION_DEBOUNCE_MS,
+        None => true,
+    };
+    if due {
+        versions::insert_role_version_at(conn, role_id, pre_update_content, None, now_ms)
+            .map_err(map_db_err)?;
+        versions::prune_role_versions(conn, role_id, ROLE_VERSION_RETENTION).map_err(map_db_err)?;
+    }
+    Ok(())
+}
+
+/// D-C: one content-version row as returned to the IPC layer. Wire
+/// shape lives in `crates/api/src/handlers/roles.rs` (ts-rs export);
+/// the application layer keeps a plain struct so this crate has no
+/// `serde`/`ts-rs` dependency in its hot path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoleContentVersion {
+    pub id: String,
+    pub role_id: String,
+    pub content: String,
+    pub created_at: i64,
+    pub author_note: Option<String>,
+}
+
+fn row_to_version(row: ContentVersionRow) -> RoleContentVersion {
+    RoleContentVersion {
+        id: row.id,
+        role_id: row.source_id,
+        content: row.content,
+        created_at: row.created_at,
+        author_note: row.author_note,
+    }
+}
+
+/// Wall-clock seed for [`RolesUseCase::update`]. Lifted into a free
+/// function so the clock-injected variant in tests can pass any
+/// `Fn() -> i64`. Saturating on pre-1970 / year-292M overflow follows
+/// the same convention as `infrastructure::repositories::util::now_millis`.
+fn default_clock() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|d| i64::try_from(d.as_millis()).ok())
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -583,5 +782,178 @@ mod tests {
             .map(Result::unwrap)
             .collect();
         assert_eq!(join_ids, vec!["p1".to_string()]);
+    }
+
+    // -----------------------------------------------------------------
+    // D-C — content-version history: debounce, retention, revert.
+    // -----------------------------------------------------------------
+
+    /// Helper for the test suite: clock cell that returns the same
+    /// value on every call; tests bump it between phases to simulate
+    /// the passage of real time without sleeping.
+    fn fixed_clock(value: i64) -> impl Fn() -> i64 {
+        move || value
+    }
+
+    /// Direct row count against `role_content_versions` — used by the
+    /// debounce tests because the use-case caps `list_role_versions`
+    /// at 50 by design and never surfaces "how many rows exist".
+    fn count_role_versions(pool: &Pool, role_id: &str) -> i64 {
+        let conn = acquire(pool).unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM role_content_versions WHERE role_id = ?1",
+            rusqlite::params![role_id],
+            |r| r.get(0),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn t1_role_update_within_debounce_window_writes_single_version() {
+        // Two content-changing updates inside the 5-minute window:
+        // the first snapshots the pre-update content, the second
+        // sees a recent version row and skips.
+        let pool = fresh_pool();
+        let uc = RolesUseCase::new(&pool);
+        let role = uc
+            .create("Debouncer".into(), "v0".into(), None, None)
+            .unwrap();
+        uc.update_with_clock(
+            role.id.clone(),
+            None,
+            Some("v1".into()),
+            None,
+            None,
+            fixed_clock(10_000),
+        )
+        .unwrap();
+        uc.update_with_clock(
+            role.id.clone(),
+            None,
+            Some("v2".into()),
+            None,
+            None,
+            fixed_clock(10_500),
+        )
+        .unwrap();
+        assert_eq!(count_role_versions(&pool, &role.id), 1);
+        // The single row captures the FIRST pre-update content (v0).
+        let listed = uc.list_role_versions(&role.id).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].content, "v0");
+    }
+
+    #[test]
+    fn t2_role_update_beyond_debounce_window_writes_new_version() {
+        // First content edit snapshots v0; second edit happens 6 min
+        // later (well past the 5-min debounce) so a second row lands
+        // capturing the pre-update content of that write.
+        let pool = fresh_pool();
+        let uc = RolesUseCase::new(&pool);
+        let role = uc
+            .create("Sessioned".into(), "v0".into(), None, None)
+            .unwrap();
+        uc.update_with_clock(
+            role.id.clone(),
+            None,
+            Some("v1".into()),
+            None,
+            None,
+            fixed_clock(10_000),
+        )
+        .unwrap();
+        // +6 minutes — past the 5-minute debounce.
+        let later = 10_000 + 6 * 60 * 1_000;
+        uc.update_with_clock(
+            role.id.clone(),
+            None,
+            Some("v2".into()),
+            None,
+            None,
+            fixed_clock(later),
+        )
+        .unwrap();
+        assert_eq!(count_role_versions(&pool, &role.id), 2);
+        let listed = uc.list_role_versions(&role.id).unwrap();
+        // Newest-first ordering: pre-update of the second edit was v1.
+        assert_eq!(listed[0].content, "v1");
+        assert_eq!(listed[1].content, "v0");
+    }
+
+    #[test]
+    fn t3_role_version_retention_caps_at_fifty() {
+        // 51 separate editing sessions (each its own clock window) must
+        // produce exactly 50 surviving version rows; the oldest one is
+        // pruned away after the 51st snapshot lands.
+        let pool = fresh_pool();
+        let uc = RolesUseCase::new(&pool);
+        let role = uc
+            .create("Prolific".into(), "v0".into(), None, None)
+            .unwrap();
+        // Each iteration uses a clock advance of 10 minutes so the
+        // debounce window never suppresses a snapshot.
+        let step = 10 * 60 * 1_000_i64;
+        for i in 1..=51_i64 {
+            uc.update_with_clock(
+                role.id.clone(),
+                None,
+                Some(format!("v{i}")),
+                None,
+                None,
+                fixed_clock(step.saturating_mul(i)),
+            )
+            .unwrap();
+        }
+        assert_eq!(count_role_versions(&pool, &role.id), 50);
+        let listed = uc.list_role_versions(&role.id).unwrap();
+        assert_eq!(listed.len(), 50);
+        // Newest row carries the pre-update content of the 51st write,
+        // which was "v50".
+        assert_eq!(listed[0].content, "v50");
+        // Oldest surviving row is the pre-update of the 2nd write =
+        // "v1" — the v0 snapshot got pruned out.
+        assert_eq!(listed[49].content, "v1");
+    }
+
+    #[test]
+    fn t4_revert_role_to_version_sets_content_and_snapshots_pre_revert() {
+        // Set up: v0 → v1 (snapshots v0). After 6 min: revert to the
+        // v0 version row. The revert must (a) put the role back on
+        // "v0" content, and (b) leave a new version row carrying the
+        // pre-revert content "v1" — so the user can re-revert.
+        let pool = fresh_pool();
+        let uc = RolesUseCase::new(&pool);
+        let role = uc
+            .create("Reverter".into(), "v0".into(), None, None)
+            .unwrap();
+        uc.update_with_clock(
+            role.id.clone(),
+            None,
+            Some("v1".into()),
+            None,
+            None,
+            fixed_clock(10_000),
+        )
+        .unwrap();
+        let v0_row = uc
+            .list_role_versions(&role.id)
+            .unwrap()
+            .into_iter()
+            .find(|v| v.content == "v0")
+            .expect("v0 snapshot");
+        // Drive the revert through the real public entry point — the
+        // wall clock will be used here, but since the previous
+        // snapshot landed at t=10_000 ms (epoch start of the test
+        // pool), 60 years of real time will easily satisfy the
+        // debounce. So we get a deterministic new version row.
+        let after = uc.revert_role_to_version(&v0_row.id).unwrap();
+        assert_eq!(after.content, "v0");
+        let listed = uc.list_role_versions(&role.id).unwrap();
+        // Two rows: the original v0 snapshot + the v1 snapshot the
+        // revert created. The target version row stays in place.
+        assert_eq!(listed.len(), 2, "got: {listed:?}");
+        let contents: Vec<&str> = listed.iter().map(|v| v.content.as_str()).collect();
+        assert!(contents.contains(&"v0"), "original snapshot survives");
+        assert!(contents.contains(&"v1"), "pre-revert content snapshotted");
     }
 }

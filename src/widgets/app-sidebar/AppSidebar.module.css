@@ -1,0 +1,174 @@
+/*
+ * AppSidebar — the single unified left rail (Project Map v3).
+ *
+ * Reads as ONE family with the embedded SpacesSidebar tree and the rest
+ * of the rail primitives: real design tokens only (no phantom
+ * `--font-size-sm/--color-bg-hover/--color-accent-default` names, which
+ * silently fell back to inherited sizes + hardcoded greys and made this
+ * rail look unrelated to the tree). Row typography mirrors
+ * `shared/ui/EntityTree` / `spaces-sidebar`:
+ *   - top-level rows (nav, folders): body size, semibold, default text
+ *   - leaf rows (pinned / recent boards): body size, medium
+ *   - hover: --color-overlay-hover ; active: --color-accent-soft
+ */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background-color: var(--color-surface-sidebar);
+  border-right: 1px solid var(--color-border-default);
+  overflow: hidden;
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: 18px;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.wordmarkTitle {
+  /* Brand serif — same wordmark family as the rest of the shell. */
+  font-family: var(--font-wordmark);
+  font-size: var(--font-size-body-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-wordmark);
+  white-space: nowrap;
+}
+
+.wordmarkHeart {
+  flex-shrink: 0;
+  color: var(--color-cta-bg);
+  image-rendering: pixelated;
+}
+
+.scrollArea {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-6) 0 var(--space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.spacesSlot {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-12);
+}
+
+/* Section title — matches SpacesSidebar's embedded "SPACES" heading so
+ * Pinned / Recent / Spaces read as peer sections. */
+.sectionTitle {
+  margin: 0;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  padding: var(--space-4) 0 var(--space-2);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.sectionTrailing {
+  display: inline-flex;
+  align-items: center;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Leaf row (pinned / recent board) — mirrors `.boardRowBtn` in
+ * SpacesSidebar: body size, medium weight, default text, overlay hover. */
+.rowBtn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: var(--space-2) var(--space-8);
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowBtn:hover {
+  background-color: var(--color-overlay-hover);
+}
+
+.rowBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+}
+
+/* Top-level nav + Settings — a single EntityTree. Uniform space-12 padding
+ * all round; Settings is just the last row of the same tree. */
+.navRail {
+  padding: var(--space-12);
+  border-top: 1px solid var(--color-border-default);
+}
+
+/* Top-level nav row body — rides inside EntityTree's Row, which owns the
+ * hover overlay + active red-strip/underlay (same family as the SPACES
+ * tree). The button itself is transparent; it only carries typography +
+ * the icon/label layout. */
+.navItem {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-2) var(--space-8);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  color: var(--color-text-default);
+  text-align: left;
+}
+
+.navItem:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.navLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

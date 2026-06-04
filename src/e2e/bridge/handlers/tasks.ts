@@ -78,6 +78,10 @@ export function handleTasks(
         createdAt: ts,
         updatedAt: ts,
         stepLog: "",
+        // Refactor-v3 D-B: fresh tasks start with zero attached context.
+        effectivePromptCount: 0n,
+        effectiveSkillCount: 0n,
+        effectiveToolCount: 0n,
       };
       store.tasks.set(id, task);
       emitEvent("task:created", { id });

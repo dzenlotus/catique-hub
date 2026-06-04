@@ -1,21 +1,20 @@
 /**
- * SkillStepCard — one step row inside `SkillStepsSection`.
+ * SkillStepCard — one step row BODY inside `SkillStepsSection`.
  *
  * Two render modes:
- *   - **read** (default): drag handle, index, title, expand chevron,
- *     edit and delete buttons. Body + expected-outcome render below
- *     when expanded.
+ *   - **read** (default): index, title, expand chevron, edit and delete
+ *     buttons. Body + expected-outcome render below when expanded.
  *   - **edit**: swaps the entire card body for an inline
  *     `<SkillStepForm>` keyed to the current step.
  *
- * Drag is wired through `@dnd-kit/react`'s `useSortable` — same pattern
- * the prompts-page member list uses. Drop semantics (canceled / reorder
- * settle) are owned by the parent `<SkillStepsSection>` via the shared
+ * Drag is owned by `<EntityTree/>`'s `Row` (built-in handle + sortable
+ * registration via `rowConfig.draggable`); this component renders only
+ * the row body through EntityTree's `renderRow` slot. Drop semantics
+ * (canceled / reorder settle) stay with `<SkillStepsSection>`'s shared
  * `<DragDropProvider>`.
  */
 
 import { useState, type ReactElement } from "react";
-import { useSortable } from "@dnd-kit/react/sortable";
 
 import { Button } from "@shared/ui";
 import { cn } from "@shared/lib";
@@ -26,9 +25,8 @@ import styles from "./SkillStepsSection.module.css";
 
 export interface SkillStepCardProps {
   step: SkillStep;
+  /** Zero-based position — drives the visible "N." ordinal. */
   index: number;
-  /** Shared sortable group key — must match every sibling card. */
-  sortableGroupKey: string;
   /** True while the parent's update mutation targets this step. */
   isUpdating: boolean;
   /** True while the parent's delete mutation targets this step. */
@@ -40,7 +38,6 @@ export interface SkillStepCardProps {
 export function SkillStepCard({
   step,
   index,
-  sortableGroupKey,
   isUpdating,
   isDeleting,
   onSave,
@@ -48,14 +45,6 @@ export function SkillStepCard({
 }: SkillStepCardProps): ReactElement {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-
-  const { ref, handleRef, isDragging } = useSortable({
-    id: `skill-step:${step.id}`,
-    index,
-    group: sortableGroupKey,
-    type: "skill-step",
-    accept: ["skill-step"],
-  });
 
   const handleSubmit = (value: SkillStepFormValue): void => {
     onSave(value);
@@ -65,9 +54,7 @@ export function SkillStepCard({
   if (isEditing) {
     return (
       <div
-        ref={(element) => ref(element)}
         className={styles.card}
-        data-dragging={isDragging ? "true" : undefined}
         data-testid={`skill-step-card-${step.id}`}
       >
         <SkillStepForm
@@ -88,21 +75,10 @@ export function SkillStepCard({
 
   return (
     <div
-      ref={(element) => ref(element)}
       className={styles.card}
-      data-dragging={isDragging ? "true" : undefined}
       data-testid={`skill-step-card-${step.id}`}
     >
       <div className={styles.cardHeader}>
-        <button
-          type="button"
-          ref={(element) => handleRef(element)}
-          className={styles.dragHandle}
-          aria-label={`Drag step ${step.title}`}
-          data-testid={`skill-step-handle-${step.id}`}
-        >
-          <span aria-hidden="true">⋮⋮</span>
-        </button>
         <span className={styles.stepIndex} aria-hidden="true">
           {index + 1}.
         </span>

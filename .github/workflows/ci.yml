@@ -67,6 +67,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Lint
+        # ESLint exits non-zero only on `error`-severity findings, so this
+        # gates the merge on real bugs (react-hooks/rules-of-hooks) while
+        # `warn`-level rules (exhaustive-deps, jsx-a11y, FSD boundaries)
+        # surface their count in the log without blocking. Tighten to
+        # `--max-warnings 0` once the boundaries + a11y backlog is burned down.
+        run: pnpm lint
+
       - name: Type-check
         run: pnpm exec tsc --noEmit
 

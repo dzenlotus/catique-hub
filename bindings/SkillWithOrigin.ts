@@ -2,4 +2,9 @@
 import type { OriginRef } from "./OriginRef";
 import type { Skill } from "./Skill";
 
-export type SkillWithOrigin = { skill: Skill, origin: OriginRef, };
+export type SkillWithOrigin = { skill: Skill, origin: OriginRef, overridden: boolean, 
+/**
+ * Source prompt/skill group when materialised via a group attachment;
+ * see [`PromptWithOrigin::via_group`].
+ */
+viaGroup?: string, };

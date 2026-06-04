@@ -154,7 +154,7 @@ export interface SetBoardPromptsArgs {
 
 /**
  * `useSetBoardPromptsMutation` — bulk set the board's prompt list. Used
- * by the BoardSettings `<MultiSelect>` (audit-#8).
+ * by the BoardSettings `<SelectTag>` (audit-#8).
  */
 export function useSetBoardPromptsMutation(): UseMutationResult<
   void,

@@ -14,6 +14,7 @@ import type { Board } from "@bindings/Board";
 import type { Column } from "@bindings/Column";
 import type { McpServer } from "@bindings/McpServer";
 import type { McpTool } from "@bindings/McpTool";
+import type { McpToolGroup } from "@bindings/McpToolGroup";
 import type { Prompt } from "@bindings/Prompt";
 import type { PromptGroup } from "@bindings/PromptGroup";
 import type { Role } from "@bindings/Role";
@@ -45,6 +46,22 @@ export interface MockStore {
   promptTags: Map<string, string[]>;
   /** Join: groupId -> ordered promptId[]. */
   promptGroupMembers: Map<string, string[]>;
+  /** Join: roleId -> ordered prompt-group id[] (groups as live units). */
+  rolePromptGroups: Map<string, string[]>;
+  /** Join: boardId -> ordered prompt-group id[]. */
+  boardPromptGroups: Map<string, string[]>;
+  /** Join: taskId -> ordered prompt-group id[]. */
+  taskPromptGroups: Map<string, string[]>;
+  /** MCP tool groups (entity) + members + attach joins. */
+  mcpToolGroups: Map<string, McpToolGroup>;
+  mcpToolGroupMembers: Map<string, string[]>;
+  roleMcpToolGroups: Map<string, string[]>;
+  boardMcpToolGroups: Map<string, string[]>;
+  taskMcpToolGroups: Map<string, string[]>;
+  /** Join: scope -> ordered mcp-server id[] (server as live unit). */
+  roleMcpServers: Map<string, string[]>;
+  boardMcpServers: Map<string, string[]>;
+  taskMcpServers: Map<string, string[]>;
   /** Join: roleId -> ordered promptId[]. */
   rolePrompts: Map<string, string[]>;
   /** Join: roleId -> ordered skillId[]. */
@@ -71,6 +88,17 @@ function freshStore(): MockStore {
     tasks: new Map(),
     promptTags: new Map(),
     promptGroupMembers: new Map(),
+    rolePromptGroups: new Map(),
+    boardPromptGroups: new Map(),
+    taskPromptGroups: new Map(),
+    mcpToolGroups: new Map(),
+    mcpToolGroupMembers: new Map(),
+    roleMcpToolGroups: new Map(),
+    boardMcpToolGroups: new Map(),
+    taskMcpToolGroups: new Map(),
+    roleMcpServers: new Map(),
+    boardMcpServers: new Map(),
+    taskMcpServers: new Map(),
     rolePrompts: new Map(),
     roleSkills: new Map(),
     roleMcpTools: new Map(),

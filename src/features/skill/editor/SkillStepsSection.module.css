@@ -43,62 +43,21 @@
   border-radius: var(--radius-sm);
 }
 
-.list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.listItem {
-  margin: 0;
-}
-
 .card {
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
-  padding: var(--space-8) var(--space-8) var(--space-8) var(--space-4);
+  padding: var(--space-8);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-sm);
   background-color: var(--color-surface-raised);
-}
-
-.card[data-dragging="true"] {
-  opacity: 0.4;
 }
 
 .cardHeader {
   display: flex;
   align-items: center;
   gap: var(--space-8);
-}
-
-.dragHandle {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 28px;
-  border: 0;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: grab;
-  border-radius: var(--radius-xs);
-  font-size: var(--font-size-body);
-  line-height: 1;
-}
-
-.dragHandle:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-}
-
-.dragHandle:active {
-  cursor: grabbing;
 }
 
 .stepIndex {
@@ -142,7 +101,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
-  padding: 0 var(--space-4) var(--space-4) calc(24px + var(--space-8));
+  /* Indent under the step ordinal so body text aligns with the title. */
+  padding: 0 var(--space-4) var(--space-4) calc(1.8em + var(--space-8));
 }
 
 .bodyText {

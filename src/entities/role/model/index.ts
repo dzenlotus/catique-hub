@@ -18,10 +18,14 @@ export {
   useAddRoleMcpToolMutation,
   useRemoveRoleMcpToolMutation,
   useSetRoleMcpToolsMutation,
+  useRoleVersions,
+  useRoleVersion,
+  useRevertRoleToVersionMutation,
 } from "./store";
 export type {
   UseRolesOptions,
   SetRolePromptsArgs,
   SetRoleSkillsArgs,
   SetRoleMcpToolsArgs,
+  RevertRoleToVersionArgs,
 } from "./store";

@@ -15,6 +15,9 @@ const baseTask: Task = {
   stepLog: "",
   createdAt: 0n,
   updatedAt: 0n,
+  effectivePromptCount: 0n,
+  effectiveSkillCount: 0n,
+  effectiveToolCount: 0n,
 };
 
 const meta = {
@@ -41,6 +44,10 @@ export const WithRole: Story = {
 
 export const WithAttachments: Story = {
   args: { attachmentsCount: 3 },
+};
+
+export const WithEffectiveCount: Story = {
+  args: { effectiveCount: 5 },
 };
 
 export const WithRoleAndAttachments: Story = {

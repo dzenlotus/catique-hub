@@ -120,6 +120,31 @@ export function handlePromptGroups(
       emitEvent("prompt_group:members_changed", { group_id: groupId });
       return null;
     }
+    // ── group attachment (groups as live units) ──────────────────────
+    case "list_role_prompt_groups":
+      return store.rolePromptGroups.get(String(args["roleId"])) ?? [];
+    case "set_role_prompt_groups": {
+      const roleId = String(args["roleId"]);
+      store.rolePromptGroups.set(roleId, [...(args["groupIds"] as string[])]);
+      emitEvent("role:updated", { id: roleId });
+      return null;
+    }
+    case "list_board_prompt_groups":
+      return store.boardPromptGroups.get(String(args["boardId"])) ?? [];
+    case "set_board_prompt_groups": {
+      const boardId = String(args["boardId"]);
+      store.boardPromptGroups.set(boardId, [...(args["groupIds"] as string[])]);
+      emitEvent("board:updated", { id: boardId });
+      return null;
+    }
+    case "list_task_prompt_groups":
+      return store.taskPromptGroups.get(String(args["taskId"])) ?? [];
+    case "set_task_prompt_groups": {
+      const taskId = String(args["taskId"]);
+      store.taskPromptGroups.set(taskId, [...(args["groupIds"] as string[])]);
+      emitEvent("task:updated", { id: taskId });
+      return null;
+    }
     default:
       return undefined;
   }

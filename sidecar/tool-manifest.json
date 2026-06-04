@@ -2697,6 +2697,14 @@
           "role_id": {
             "type": ["string", "null"],
             "description": "Tri-state nullable role assignment. Omit = keep, `null` = clear, string = set."
+          },
+          "icon": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable icon registry name (e.g. `PixelDesignLayer`). Omit = keep, `null` = clear, string = set."
+          },
+          "color": {
+            "type": ["string", "null"],
+            "description": "Tri-state nullable CSS color string (e.g. `#3b82f6`). Omit = keep, `null` = clear, string = set."
           }
         },
         "required": ["id"],

@@ -7,7 +7,7 @@ import type { ReactElement } from "react";
 import type { Board } from "@entities/board";
 import type { Role } from "@entities/role";
 import type { Space } from "@entities/space";
-import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
+import { ActiveSpaceProvider } from "@app/providers";
 
 vi.mock("@shared/api", async () => {
   const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");

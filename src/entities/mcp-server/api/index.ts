@@ -7,6 +7,12 @@ export {
   refreshMcpServer,
   getMcpServerStatus,
   listMcpToolsByServer,
+  listRoleMcpServers,
+  setRoleMcpServers,
+  listBoardMcpServers,
+  setBoardMcpServers,
+  listTaskMcpServers,
+  setTaskMcpServers,
 } from "./mcpServersApi";
 export type {
   CreateMcpServerArgs,

@@ -1,21 +1,17 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import {
-  PixelInterfaceEssentialRefresh,
-  PixelBusinessProductCheck,
-  PixelDesignLayer,
-  PixelInterfaceEssentialPlus,
-} from "@shared/ui/Icon";
+import { PixelInterfaceEssentialPlus } from "@shared/ui/Icon";
 
 import {
   Button,
   Dialog,
-  Input,
+  EntityTitle,
   KebabIcon,
   Menu,
   MenuItem,
   MenuTrigger,
 } from "@shared/ui";
+import type { IconColorValue } from "@shared/ui";
 import { cn } from "@shared/lib";
 
 import styles from "./ColumnHeader.module.css";
@@ -27,8 +23,22 @@ export interface ColumnHeaderProps {
   name: string;
   /** Number of tasks currently in this column (for the count badge). */
   taskCount: number;
-  /** Callback for the "Rename" menu action — receives `(id, newName)`. */
+  /**
+   * User-chosen icon registry name. `null` falls back to the
+   * name-heuristic glyph (Backlog/In progress/Done → distinct icons).
+   */
+  icon?: string | null;
+  /** User-chosen CSS color string. `null` inherits the column foreground. */
+  color?: string | null;
+  /** Callback for inline rename — receives `(id, newName)`. */
   onRename?: (id: string, newName: string) => void;
+  /**
+   * Called when the user changes icon and/or color via the
+   * IconColorPicker exposed by the header title. Receives the new
+   * appearance pair; the caller decides whether to persist it through
+   * `updateColumn`.
+   */
+  onAppearanceChange?: (id: string, next: IconColorValue) => void;
   /** Callback for the "Delete" menu action — receives `id`. Dialog confirms first. */
   onDelete?: (id: string) => void;
   /**
@@ -47,40 +57,32 @@ export interface ColumnHeaderProps {
   className?: string;
 }
 
-/** Derive a column icon from its display name. Case-insensitive heuristic.
+/** Derive a fallback icon-registry name from a column's display name.
+ *  Used as `defaultIcon` for the EntityTitle picker when the user has
+ *  not yet stored an explicit `column.icon`.
  *
- * Icon mapping per DS v1 mockup (image.png):
- *   Backlog     → PixelDesignLayer (closest available)
- *   In Progress → PixelInterfaceEssentialRefresh (circular arrow)
- *   Done        → PixelBusinessProductCheck (checkmark)
- *   Default     → PixelDesignLayer
+ *  Mapping per DS v1 mockup:
+ *    Backlog     → PixelDesignLayer
+ *    In Progress → PixelInterfaceEssentialRefresh
+ *    Done        → PixelBusinessProductCheck
+ *    Default     → PixelDesignLayer
  */
-function getColumnIcon(name: string): ReactElement {
+function heuristicIconName(name: string): string {
   const lower = name.toLowerCase();
   if (lower.includes("backlog") || lower.includes("бэклог")) {
-    return <PixelDesignLayer width={14} height={14} aria-hidden="true" className={styles.columnIcon} />;
+    return "PixelDesignLayer";
   }
   if (
     lower.includes("in progress") ||
     lower.includes("в работе") ||
     lower.includes("doing")
   ) {
-    return (
-      <PixelInterfaceEssentialRefresh width={14} height={14} aria-hidden="true" className={styles.columnIcon} />
-    );
+    return "PixelInterfaceEssentialRefresh";
   }
   if (lower.includes("done") || lower.includes("готово")) {
-    return (
-      <PixelBusinessProductCheck
-        width={14}
-        height={14}
-        aria-hidden="true"
-        className={cn(styles.columnIcon, styles.columnIconDone)}
-        data-testid="column-header-icon-done"
-      />
-    );
+    return "PixelBusinessProductCheck";
   }
-  return <PixelDesignLayer width={14} height={14} aria-hidden="true" className={styles.columnIcon} />;
+  return "PixelDesignLayer";
 }
 
 /**
@@ -96,14 +98,15 @@ export function ColumnHeader({
   id,
   name,
   taskCount,
+  icon = null,
+  color = null,
   onRename,
+  onAppearanceChange,
   onDelete,
   dragHandle,
   onAddTask,
   className,
 }: ColumnHeaderProps): ReactElement {
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [renameValue, setRenameValue] = useState(name);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   // TODO(audit-F14): the column overflow menu loses "Attach prompt"
@@ -111,27 +114,19 @@ export function ColumnHeader({
   // attached prompts (audit-#8 + audit-F14). The widget is intentionally
   // stripped down here to remove the broken dialog wiring.
   const handleMenuAction = (key: React.Key): void => {
-    if (key === "rename") {
-      setRenameValue(name);
-      setIsRenaming(true);
-    } else if (key === "delete") {
+    if (key === "delete") {
       setIsConfirmingDelete(true);
     }
   };
 
-  const submitRename = (): void => {
-    const trimmed = renameValue.trim();
-    if (!trimmed || trimmed === name) {
-      setIsRenaming(false);
-      return;
-    }
-    onRename?.(id, trimmed);
-    setIsRenaming(false);
+  const handleRename = (next: string): void => {
+    if (!next || next === name) return;
+    onRename?.(id, next);
   };
 
-  const isDoneColumn =
-    name.toLowerCase().includes("done") ||
-    name.toLowerCase().includes("готово");
+  const handleAppearance = (next: IconColorValue): void => {
+    onAppearanceChange?.(id, next);
+  };
 
   return (
     <header
@@ -140,31 +135,30 @@ export function ColumnHeader({
     >
       {dragHandle ?? null}
 
-      <span className={styles.iconSlot} data-testid="column-header-icon">
-        {getColumnIcon(name)}
-      </span>
-
-      {isDoneColumn ? (
-        <PixelBusinessProductCheck
-          width={14}
-          height={14}
-          aria-hidden="true"
-          className={styles.doneCheck}
-          data-testid="column-header-done-check"
-        />
-      ) : null}
-
-      <h3 className={styles.name} title={name}>
-        {name}
-      </h3>
-
-      <span
-        className={styles.count}
-        aria-label={`${taskCount} ${taskCount === 1 ? "task" : "tasks"}`}
-        data-testid="column-header-count"
-      >
-        {taskCount}
-      </span>
+      <EntityTitle
+        size="sm"
+        editable={onRename !== undefined}
+        name={name}
+        onNameChange={handleRename}
+        editTestId={`column-header-rename-${id}`}
+        value={{ icon, color }}
+        {...(onAppearanceChange !== undefined
+          ? { onAppearanceChange: handleAppearance }
+          : {})}
+        defaultIcon={heuristicIconName(name)}
+        pickerAriaLabel={`Column appearance for ${name}`}
+        pickerTestId={`column-header-appearance-${id}`}
+        actions={
+          <span
+            className={styles.count}
+            aria-label={`${taskCount} ${taskCount === 1 ? "task" : "tasks"}`}
+            data-testid="column-header-count"
+          >
+            {taskCount}
+          </span>
+        }
+        className={styles.titleFill}
+      />
 
       <span className={styles.spacer} />
 
@@ -190,49 +184,11 @@ export function ColumnHeader({
           <KebabIcon />
         </Button>
         <Menu onAction={handleMenuAction} placement="bottom end">
-          <MenuItem id="rename">Rename</MenuItem>
           <MenuItem id="delete" variant="danger">
             Delete
           </MenuItem>
         </Menu>
       </MenuTrigger>
-
-      {isRenaming ? (
-        <Dialog
-          title="Rename column"
-          isOpen
-          onOpenChange={(open) => {
-            if (!open) setIsRenaming(false);
-          }}
-        >
-          <form
-            className={styles.renameForm}
-            onSubmit={(e) => {
-              e.preventDefault();
-              submitRename();
-            }}
-          >
-            <Input
-              label="Column name"
-              value={renameValue}
-              onChange={setRenameValue}
-              autoFocus
-            />
-            <div className={styles.formActions}>
-              <Button
-                variant="ghost"
-                type="button"
-                onPress={() => setIsRenaming(false)}
-              >
-                Cancel
-              </Button>
-              <Button variant="primary" type="submit">
-                Save
-              </Button>
-            </div>
-          </form>
-        </Dialog>
-      ) : null}
 
       {isConfirmingDelete ? (
         <Dialog

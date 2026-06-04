@@ -6,12 +6,15 @@
  * is stored (or the stored id is no longer present in the list), falls
  * back to the default space or the first space in the list.
  *
- * Consumers read/write via `useActiveSpace()`.
+ * The Context object + the `useActiveSpace` consumer hook live in
+ * `@shared/lib/active-space` (they only touch `React.useContext`, so they
+ * carry no entity deps). This provider supplies the value: it imports the
+ * shared context plus `useSpaces()` from `@entities/space` for default
+ * resolution — `app` may import entities, `shared` may not. Consumers read
+ * via `useActiveSpace()` from the shared barrel.
  */
 
 import {
-  createContext,
-  useContext,
   useEffect,
   useState,
   type PropsWithChildren,
@@ -20,6 +23,7 @@ import {
 
 import { useSpaces } from "@entities/space";
 import type { Space } from "@entities/space";
+import { ActiveSpaceContext } from "@shared/lib";
 import { useLocalStorage, stringCodec } from "@shared/storage";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,26 +47,6 @@ function resolveActiveId(
   if (!spaces || spaces.length === 0) return null;
   if (storedId !== null && spaces.some((s) => s.id === storedId)) return storedId;
   return (spaces.find((s) => s.isDefault) ?? spaces[0]).id;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface ActiveSpaceContextValue {
-  activeSpaceId: string | null;
-  setActiveSpaceId: (id: string | null) => void;
-}
-
-const ActiveSpaceContext = createContext<ActiveSpaceContextValue | null>(null);
-
-/**
- * `useActiveSpace` — consume the global active-space context.
- *
- * Must be called inside `<ActiveSpaceProvider>`.
- */
-export function useActiveSpace(): ActiveSpaceContextValue {
-  const ctx = useContext(ActiveSpaceContext);
-  if (!ctx) throw new Error("useActiveSpace must be used within <ActiveSpaceProvider>");
-  return ctx;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

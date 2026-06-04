@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 
 import type { Board } from "@entities/board";
 import type { Space } from "@entities/space";
-import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
+import { ActiveSpaceProvider } from "@app/providers";
 
 // Mock the Tauri invoke wrapper at the shared/api boundary — this is
 // the single place IPC traffic crosses, so all four states (loading,

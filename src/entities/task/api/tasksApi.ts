@@ -18,6 +18,7 @@
 import { invokeWithAppError } from "@shared/api";
 import type { Prompt } from "@bindings/Prompt";
 import type { Task } from "@bindings/Task";
+import type { TaskBundle } from "@bindings/TaskBundle";
 
 /**
  * `list_tasks` for an entire board. Filters client-side by `boardId`.
@@ -109,6 +110,15 @@ export async function listTaskPrompts(taskId: string): Promise<Prompt[]> {
   return invokeWithAppError<Prompt[]>("list_task_prompts", { taskId });
 }
 
+/**
+ * `get_task_bundle` — resolved agent bundle for a task: prompts /
+ * skills / mcp-tools each tagged with their inheritance origin. The
+ * EffectiveContextPanel reads this; ADR-0006 documents the resolver.
+ */
+export async function getTaskBundle(taskId: string): Promise<TaskBundle> {
+  return invokeWithAppError<TaskBundle>("get_task_bundle", { taskId });
+}
+
 export interface AddTaskPromptArgs {
   taskId: string;
   promptId: string;
@@ -139,6 +149,214 @@ export async function removeTaskPrompt(
   return invokeWithAppError<void>("remove_task_prompt", {
     taskId: args.taskId,
     promptId: args.promptId,
+  });
+}
+
+export interface AddTaskSkillArgs {
+  taskId: string;
+  skillId: string;
+  position: number;
+}
+
+/** `add_task_skill` — attach a skill directly to a task at the given position. */
+export async function addTaskSkill(args: AddTaskSkillArgs): Promise<void> {
+  return invokeWithAppError<void>("add_task_skill", {
+    taskId: args.taskId,
+    skillId: args.skillId,
+    position: args.position,
+  });
+}
+
+export interface RemoveTaskSkillArgs {
+  taskId: string;
+  skillId: string;
+}
+
+/** `remove_task_skill` — detach a directly-attached skill from a task. */
+export async function removeTaskSkill(
+  args: RemoveTaskSkillArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("remove_task_skill", {
+    taskId: args.taskId,
+    skillId: args.skillId,
+  });
+}
+
+/**
+ * `setTaskSkills` — bulk set the directly-attached skill list of a task
+ * by computing the diff against `previous` and dispatching
+ * `add_task_skill` / `remove_task_skill`.
+ */
+export async function setTaskSkills(
+  taskId: string,
+  previous: ReadonlyArray<string>,
+  next: ReadonlyArray<string>,
+): Promise<void> {
+  const previousSet = new Set(previous);
+  const nextSet = new Set(next);
+  const toRemove = previous.filter((id) => !nextSet.has(id));
+  const toAdd = next.filter((id) => !previousSet.has(id));
+  for (const skillId of toRemove) {
+    await removeTaskSkill({ taskId, skillId });
+  }
+  let position = previous.length - toRemove.length;
+  for (const skillId of toAdd) {
+    await addTaskSkill({ taskId, skillId, position });
+    position += 1;
+  }
+}
+
+export interface AddTaskMcpToolArgs {
+  taskId: string;
+  mcpToolId: string;
+  position: number;
+}
+
+/** `add_task_mcp_tool` — attach an MCP tool directly to a task at the given position. */
+export async function addTaskMcpTool(args: AddTaskMcpToolArgs): Promise<void> {
+  return invokeWithAppError<void>("add_task_mcp_tool", {
+    taskId: args.taskId,
+    mcpToolId: args.mcpToolId,
+    position: args.position,
+  });
+}
+
+export interface RemoveTaskMcpToolArgs {
+  taskId: string;
+  mcpToolId: string;
+}
+
+/** `remove_task_mcp_tool` — detach a directly-attached MCP tool from a task. */
+export async function removeTaskMcpTool(
+  args: RemoveTaskMcpToolArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("remove_task_mcp_tool", {
+    taskId: args.taskId,
+    mcpToolId: args.mcpToolId,
+  });
+}
+
+/**
+ * `setTaskMcpTools` — bulk set the directly-attached MCP tool list of a task
+ * by computing the diff against `previous` and dispatching
+ * `add_task_mcp_tool` / `remove_task_mcp_tool`.
+ */
+export async function setTaskMcpTools(
+  taskId: string,
+  previous: ReadonlyArray<string>,
+  next: ReadonlyArray<string>,
+): Promise<void> {
+  const previousSet = new Set(previous);
+  const nextSet = new Set(next);
+  const toRemove = previous.filter((id) => !nextSet.has(id));
+  const toAdd = next.filter((id) => !previousSet.has(id));
+  for (const mcpToolId of toRemove) {
+    await removeTaskMcpTool({ taskId, mcpToolId });
+  }
+  let position = previous.length - toRemove.length;
+  for (const mcpToolId of toAdd) {
+    await addTaskMcpTool({ taskId, mcpToolId, position });
+    position += 1;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Override-v2 surface (refactor-v3 D-A).
+//
+// One pair of IPC commands per inheritable entity kind. The replacement
+// argument is `null` → suppress the inherited row entirely; a string id
+// → replace the inherited row with another instance of the same kind.
+// Passing `undefined` is illegal — the wrapper normalises to `null`.
+// ──────────────────────────────────────────────────────────────────────
+
+export interface SetTaskPromptOverrideArgs {
+  taskId: string;
+  sourcePromptId: string;
+  /** `null` = suppress, string id = replace with that prompt. */
+  replacementPromptId: string | null;
+}
+
+export async function setTaskPromptOverride(
+  args: SetTaskPromptOverrideArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("set_task_prompt_override_v2", {
+    taskId: args.taskId,
+    sourcePromptId: args.sourcePromptId,
+    replacementPromptId: args.replacementPromptId,
+  });
+}
+
+export interface ClearTaskPromptOverrideArgs {
+  taskId: string;
+  sourcePromptId: string;
+}
+
+export async function clearTaskPromptOverride(
+  args: ClearTaskPromptOverrideArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("clear_task_prompt_override_v2", {
+    taskId: args.taskId,
+    sourcePromptId: args.sourcePromptId,
+  });
+}
+
+export interface SetTaskSkillOverrideArgs {
+  taskId: string;
+  sourceSkillId: string;
+  replacementSkillId: string | null;
+}
+
+export async function setTaskSkillOverride(
+  args: SetTaskSkillOverrideArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("set_task_skill_override_v2", {
+    taskId: args.taskId,
+    sourceSkillId: args.sourceSkillId,
+    replacementSkillId: args.replacementSkillId,
+  });
+}
+
+export interface ClearTaskSkillOverrideArgs {
+  taskId: string;
+  sourceSkillId: string;
+}
+
+export async function clearTaskSkillOverride(
+  args: ClearTaskSkillOverrideArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("clear_task_skill_override_v2", {
+    taskId: args.taskId,
+    sourceSkillId: args.sourceSkillId,
+  });
+}
+
+export interface SetTaskMcpToolOverrideArgs {
+  taskId: string;
+  sourceToolId: string;
+  replacementToolId: string | null;
+}
+
+export async function setTaskMcpToolOverride(
+  args: SetTaskMcpToolOverrideArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("set_task_mcp_tool_override_v2", {
+    taskId: args.taskId,
+    sourceToolId: args.sourceToolId,
+    replacementToolId: args.replacementToolId,
+  });
+}
+
+export interface ClearTaskMcpToolOverrideArgs {
+  taskId: string;
+  sourceToolId: string;
+}
+
+export async function clearTaskMcpToolOverride(
+  args: ClearTaskMcpToolOverrideArgs,
+): Promise<void> {
+  return invokeWithAppError<void>("clear_task_mcp_tool_override_v2", {
+    taskId: args.taskId,
+    sourceToolId: args.sourceToolId,
   });
 }
 

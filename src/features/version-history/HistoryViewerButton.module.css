@@ -1,0 +1,209 @@
+/*
+ * HistoryViewerButton — version-history dialog layout.
+ *
+ * Two-column body: 240 px rail on the left (timeline rows), flexible
+ * right pane (selected version preview + diff). Each column scrolls
+ * independently — the Dialog's body owns the outer overflow but we lock
+ * its height via `min-height: 60vh` so the columns have a stable size
+ * to scroll within.
+ */
+
+.layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: var(--space-12);
+  min-height: 60vh;
+  /* Constrain the layout so each column scrolls instead of pushing the
+   * dialog body. `min-height: 0` is essential for grid children to shrink. */
+  align-items: stretch;
+}
+
+.layout > * {
+  min-height: 0;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border-subtle);
+  padding-right: var(--space-8);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.railRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-6) var(--space-8);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  background: transparent;
+  color: var(--color-text-default);
+  font: inherit;
+}
+
+.railRow:hover {
+  background-color: var(--color-overlay-hover);
+}
+
+.railRow[data-active="true"] {
+  background-color: var(--color-overlay-active);
+  border-color: var(--color-border-default);
+}
+
+.railRow:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.railRowMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.railRowTime {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-default);
+}
+
+.railRowPreview {
+  font-size: var(--font-size-body-xs, var(--font-size-body-sm));
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.railRowMenu {
+  flex: 0 0 auto;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: 0;
+  overflow-y: auto;
+  padding-right: var(--space-4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.paneSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.paneLabel {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.previewSurface {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-8) var(--space-12);
+  background-color: var(--color-surface-default);
+  /*
+   * Cap the rendered markdown so the diff below stays in view. Inner
+   * overflow keeps long versions scrollable within this box, not the
+   * whole dialog.
+   */
+  max-height: 22vh;
+  overflow-y: auto;
+}
+
+.diffPre {
+  margin: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-8);
+  background-color: var(--color-surface-default);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-normal);
+  /* Stable diff column: wrap long lines so right pane never grows the
+     grid track horizontally. */
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 28vh;
+  overflow-y: auto;
+}
+
+.diffLine {
+  display: block;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-xs);
+}
+
+.diffLine[data-kind="added"] {
+  background-color: var(--color-status-success-soft, var(--color-overlay-hover));
+  color: var(--color-status-success, var(--color-text-default));
+}
+
+.diffLine[data-kind="removed"] {
+  background-color: var(--color-status-danger-soft, var(--color-overlay-hover));
+  color: var(--color-status-danger, var(--color-text-default));
+}
+
+.diffLine[data-kind="context"] {
+  color: var(--color-text-muted);
+}
+
+/* ─── Empty / loading states ─────────────────────────────────────── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-24);
+  color: var(--color-text-muted);
+  min-height: 40vh;
+}
+
+.skeletonList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8);
+}
+
+.skeletonRow {
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--color-overlay-hover) 0%,
+    var(--color-surface-default) 50%,
+    var(--color-overlay-hover) 100%
+  );
+  background-size: 200% 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeletonRow {
+    animation: history-skeleton-shimmer 1.4s linear infinite;
+  }
+  @keyframes history-skeleton-shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+  }
+}

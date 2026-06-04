@@ -16,6 +16,53 @@
  */
 
 /* ============================================================
+ * Embedded mode — used when mounted inside `<AppSidebar/>`.
+ *
+ * The host owns the surrounding `<aside>` landmark and scroll
+ * container, so we render a plain wrapper here. The "SPACES" title
+ * row mirrors `AppSidebar.module.css .sectionTitle` typography so the
+ * heading reads as a peer of "Pinned" / "Recent".
+ * ============================================================ */
+
+.embeddedRoot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--space-12);
+}
+
+.embeddedTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0 2px;
+}
+
+.embeddedTitle {
+  /* Match the canonical secondary-rail section label (SidebarShell /
+   * RailSection: 13px bold, 0.04em, text-subtle) used by ROLES / SKILLS /
+   * PROMPTS so SPACES reads the same as the rest of the app. */
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-subtle);
+}
+
+.embeddedHint {
+  padding: var(--space-4) 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+.embeddedError {
+  padding: var(--space-4) 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-status-danger);
+}
+
+/* ============================================================
  * SPACES list — flex column hosting `<Group>` siblings.
  * ============================================================ */
 

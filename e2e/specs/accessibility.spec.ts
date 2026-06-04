@@ -27,7 +27,8 @@ test.describe("accessibility — keyboard navigation", () => {
       const inside = await page.evaluate(() => {
         const active = document.activeElement;
         if (!active) return false;
-        return active.closest('[data-testid="main-sidebar-root"]') !== null;
+        // v3: main sidebar testid is now "app-sidebar-root".
+        return active.closest('[data-testid="app-sidebar-root"]') !== null;
       });
       if (inside) {
         landedInsideSidebar = true;

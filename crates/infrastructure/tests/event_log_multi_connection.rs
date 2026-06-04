@@ -53,7 +53,7 @@ fn separate_connections_to_same_wal_db_observe_each_others_commits() {
             ("task:updated", "t1"),
             ("space:created", "s1"),
         ] {
-            event_log::publish(&conn, name, &json!({ "id": id })).expect("publish");
+            event_log::publish(&conn, name, &json!({ "id": id }), "global", None).expect("publish");
         }
     }
 
@@ -83,8 +83,8 @@ fn tail_advances_monotonically_across_multiple_polls() {
     // First batch.
     {
         let conn = pool_b.get().expect("acquire pool b");
-        event_log::publish(&conn, "task:created", &json!({ "id": "a" })).unwrap();
-        event_log::publish(&conn, "task:updated", &json!({ "id": "a" })).unwrap();
+        event_log::publish(&conn, "task:created", &json!({ "id": "a" }), "global", None).unwrap();
+        event_log::publish(&conn, "task:updated", &json!({ "id": "a" }), "global", None).unwrap();
     }
     let mut last_seen = 0;
     {
@@ -97,7 +97,7 @@ fn tail_advances_monotonically_across_multiple_polls() {
     // Second batch — tail must skip past the first batch.
     {
         let conn = pool_b.get().expect("acquire pool b");
-        event_log::publish(&conn, "task:deleted", &json!({ "id": "a" })).unwrap();
+        event_log::publish(&conn, "task:deleted", &json!({ "id": "a" }), "global", None).unwrap();
     }
     {
         let conn = pool_a.get().expect("acquire");

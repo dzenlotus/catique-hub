@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Skill, SkillAttachment } from "@entities/skill";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 
 vi.mock("@shared/api", async () => {
   const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
@@ -115,6 +115,13 @@ describe("SkillEditor", () => {
     expect(screen.getByText(/transport down/i)).toBeInTheDocument();
   });
 
+  // Helper: enter inline rename mode on the skill name and return the input.
+  async function openNameEditor(user: ReturnType<typeof userEvent.setup>) {
+    const trigger = await screen.findByTestId("skill-editor-name-input-trigger");
+    await user.click(trigger);
+    return screen.getByTestId("skill-editor-name-input") as HTMLInputElement;
+  }
+
   it("renders form fields populated when loaded", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_skill") return makeSkill();
@@ -125,8 +132,10 @@ describe("SkillEditor", () => {
     const onClose = vi.fn();
     renderWithClient(<SkillEditor skillId="skill-1" onClose={onClose} />);
 
-    await screen.findByTestId("skill-editor-name-input");
-    expect(screen.getByTestId("skill-editor-name-input")).toHaveValue("TypeScript");
+    await screen.findByTestId("skill-editor-name-input-trigger");
+    expect(
+      screen.getByRole("button", { name: /rename typescript/i }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("skill-editor-overview-input")).toHaveValue(
       "Строгая типизация для JS",
     );
@@ -166,7 +175,7 @@ describe("SkillEditor", () => {
       <SkillEditor skillId="skill-1" onClose={onClose} />,
     );
 
-    const nameInput = await screen.findByTestId("skill-editor-name-input");
+    const nameInput = await openNameEditor(user);
     await user.clear(nameInput);
     await user.type(nameInput, "JavaScript");
 
@@ -188,7 +197,7 @@ describe("SkillEditor", () => {
       <SkillEditor skillId="skill-1" onClose={onClose} />,
     );
 
-    const nameInput = await screen.findByTestId("skill-editor-name-input");
+    const nameInput = await openNameEditor(user);
     await user.clear(nameInput);
     await user.type(nameInput, "TSX");
 
@@ -221,7 +230,7 @@ describe("SkillEditor", () => {
       <SkillEditor skillId="skill-1" onClose={onClose} />,
     );
 
-    await screen.findByTestId("skill-editor-name-input");
+    await screen.findByTestId("skill-editor-name-input-trigger");
     const cancelButton = screen.getByTestId("skill-editor-cancel");
     await user.click(cancelButton);
 
@@ -278,7 +287,7 @@ describe("SkillEditor", () => {
       <SkillEditor skillId="skill-1" onClose={onClose} />,
     );
 
-    const nameInput = await screen.findByTestId("skill-editor-name-input");
+    const nameInput = await openNameEditor(user);
     await user.clear(nameInput);
     await user.type(nameInput, "Другое название");
 

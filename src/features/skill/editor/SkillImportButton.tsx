@@ -24,7 +24,7 @@ import { useState, type ReactElement } from "react";
 
 import { useImportSkillFromUrlMutation } from "@entities/skill";
 import { Button, Dialog, Input } from "@shared/ui";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 
 import styles from "./SkillImportButton.module.css";
 

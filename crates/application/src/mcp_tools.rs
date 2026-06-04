@@ -183,7 +183,11 @@ impl<'a> McpToolsUseCase<'a> {
         position: f64,
     ) -> Result<(), AppError> {
         let conn = acquire(self.pool).map_err(map_db_err)?;
-        repo::add_task_mcp_tool(&conn, task_id, mcp_tool_id, position).map_err(map_db_err)
+        repo::add_task_mcp_tool(&conn, task_id, mcp_tool_id, position).map_err(map_db_err)?;
+        // Refactor-v3 D-B counter sync.
+        catique_infrastructure::db::repositories::tasks::recompute_effective_counts(&conn, task_id)
+            .map_err(map_db_err)?;
+        Ok(())
     }
 
     /// Detach a direct MCP tool from a task. Idempotent — no row matched
@@ -197,6 +201,9 @@ impl<'a> McpToolsUseCase<'a> {
     pub fn remove_from_task(&self, task_id: &str, mcp_tool_id: &str) -> Result<(), AppError> {
         let conn = acquire(self.pool).map_err(map_db_err)?;
         let _ = repo::remove_task_mcp_tool(&conn, task_id, mcp_tool_id).map_err(map_db_err)?;
+        // Refactor-v3 D-B counter sync.
+        catique_infrastructure::db::repositories::tasks::recompute_effective_counts(&conn, task_id)
+            .map_err(map_db_err)?;
         Ok(())
     }
 }

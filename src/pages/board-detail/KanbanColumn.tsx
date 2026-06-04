@@ -11,9 +11,9 @@ import { useSortable } from "@dnd-kit/react/sortable";
 import type { Column } from "@entities/column";
 import { ColumnHeader } from "@entities/column";
 import type { Task } from "@entities/task";
-import { TaskCard } from "@entities/task";
+import { TaskCard, effectiveCount } from "@entities/task";
 import { cn } from "@shared/lib";
-import { Scrollable } from "@shared/ui";
+import { Input, Scrollable } from "@shared/ui";
 
 import styles from "./KanbanColumn.module.css";
 
@@ -51,6 +51,7 @@ function SortableTask({
       ref={ref}
       handleRef={handleRef as React.Ref<HTMLButtonElement>}
       task={task}
+      effectiveCount={effectiveCount(task)}
       isDoneColumn={isDoneColumn}
       onSelect={onTaskSelect}
       selected={isSelected}
@@ -77,6 +78,11 @@ export interface KanbanColumnProps {
    */
   onQuickAddTask: (columnId: string, title: string) => Promise<void>;
   onRenameColumn: (columnId: string, name: string) => void;
+  /** Persist icon/color changes from the column header picker. */
+  onColumnAppearance: (
+    columnId: string,
+    next: { icon: string | null; color: string | null },
+  ) => void;
   onDeleteColumn: (columnId: string) => void;
   /** Bulk-selection plumbing: see `useTaskSelection`. */
   selectedTaskIds: ReadonlySet<string>;
@@ -98,6 +104,7 @@ function KanbanColumnImpl({
   onAddTask,
   onQuickAddTask,
   onRenameColumn,
+  onColumnAppearance,
   onDeleteColumn,
   selectedTaskIds,
   selectionActive,
@@ -189,9 +196,12 @@ function KanbanColumnImpl({
         id={column.id}
         name={column.name}
         taskCount={tasks.length}
+        icon={column.icon}
+        color={column.color}
         dragHandle={dragHandle}
         onAddTask={onAddTask}
         onRename={onRenameColumn}
+        onAppearanceChange={onColumnAppearance}
         onDelete={onDeleteColumn}
       />
 
@@ -236,12 +246,14 @@ function KanbanColumnImpl({
         )}
       >
         {draftTitle !== null ? (
-          <input
+          <Input
             ref={inputRef}
             type="text"
-            className={styles.quickInput}
+            label={`Quick add task to ${column.name}`}
+            labelHidden
+            className={styles.quickField}
             value={draftTitle}
-            onChange={(e) => setDraftTitle(e.target.value)}
+            onChange={setDraftTitle}
             onKeyDown={handleQuickKeyDown}
             onBlur={() => {
               // If empty on blur, collapse the form. Non-empty drafts
@@ -252,8 +264,7 @@ function KanbanColumnImpl({
               }
             }}
             placeholder="Task title…"
-            aria-label={`Quick add task to ${column.name}`}
-            disabled={isCreating}
+            isDisabled={isCreating}
             data-testid={`kanban-column-quick-input-${column.id}`}
           />
         ) : (

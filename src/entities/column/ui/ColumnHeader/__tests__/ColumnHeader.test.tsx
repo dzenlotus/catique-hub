@@ -21,37 +21,68 @@ describe("ColumnHeader", () => {
     expect(screen.getByLabelText(/^3 tasks$/i)).toBeInTheDocument();
   });
 
-  it("renders a column icon for each header", () => {
+  it("renders an SVG glyph in the header for each column", () => {
+    // Post-migration: the column icon is rendered through EntityTitle's
+    // leading slot (static IconRenderer when no `onAppearanceChange` is
+    // provided, IconColorPicker trigger otherwise). The exact testid the
+    // legacy heuristic used (`column-header-icon`) is gone — we now assert
+    // that the header carries a glyph (svg) and the picker affordance.
     render(<ColumnHeader id="col-1" name="Backlog" taskCount={0} />);
-    expect(screen.getByTestId("column-header-icon")).toBeInTheDocument();
+    const header = screen.getByTestId("column-header-col-1");
+    expect(header.querySelector("svg")).not.toBeNull();
   });
 
-  it("renders the done checkmark for 'Done' column", () => {
-    render(<ColumnHeader id="col-done" name="Done" taskCount={2} />);
-    expect(screen.getByTestId("column-header-done-check")).toBeInTheDocument();
+  it("exposes the appearance picker when onAppearanceChange is provided", () => {
+    render(
+      <ColumnHeader
+        id="col-1"
+        name="Backlog"
+        taskCount={0}
+        onAppearanceChange={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("column-header-appearance-col-1")).toBeInTheDocument();
   });
 
-  it("renders the done checkmark for Russian 'Готово' column", () => {
-    render(<ColumnHeader id="col-done-ru" name="Готово" taskCount={1} />);
-    expect(screen.getByTestId("column-header-done-check")).toBeInTheDocument();
-  });
-
-  it("does not render done checkmark for non-done columns", () => {
-    render(<ColumnHeader id="col-progress" name="In progress" taskCount={3} />);
-    expect(screen.queryByTestId("column-header-done-check")).toBeNull();
-  });
-
-  it("opens the more-menu on click and exposes Rename + Delete items", async () => {
+  it("opens the more-menu on click and exposes the Delete item", async () => {
     const user = userEvent.setup();
-    render(<ColumnHeader id="col-1" name="Backlog" taskCount={0} />);
+    render(
+      <ColumnHeader
+        id="col-1"
+        name="Backlog"
+        taskCount={0}
+        onRename={() => {}}
+      />,
+    );
     await user.click(screen.getByRole("button", { name: /column actions/i }));
 
     expect(
-      await screen.findByRole("menuitem", { name: /rename/i }),
+      await screen.findByRole("menuitem", { name: /delete/i }),
     ).toBeInTheDocument();
+    // Rename moved to an inline-editable title button (no menu item).
     expect(
-      screen.getByRole("menuitem", { name: /delete/i }),
-    ).toBeInTheDocument();
+      screen.queryByRole("menuitem", { name: /^rename$/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("exposes the inline rename affordance instead of a menu entry", async () => {
+    const onRename = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ColumnHeader
+        id="col-1"
+        name="Backlog"
+        taskCount={0}
+        onRename={onRename}
+      />,
+    );
+    // The inline-rename trigger carries `aria-label="Rename <name>"`.
+    const renameTrigger = screen.getByRole("button", { name: /^rename backlog$/i });
+    await user.click(renameTrigger);
+    const editor = await screen.findByRole("textbox", { name: /rename/i });
+    await user.clear(editor);
+    await user.type(editor, "Inbox{Enter}");
+    expect(onRename).toHaveBeenCalledWith("col-1", "Inbox");
   });
 
   it("does not surface a deprecated 'Attach prompt' menu item (audit-#8)", async () => {
@@ -63,9 +94,6 @@ describe("ColumnHeader", () => {
     render(<ColumnHeader id="col-1" name="Backlog" taskCount={0} />);
     await user.click(screen.getByRole("button", { name: /column actions/i }));
 
-    expect(
-      await screen.findByRole("menuitem", { name: /rename/i }),
-    ).toBeInTheDocument();
     expect(
       screen.queryByRole("menuitem", { name: /attach prompt/i }),
     ).not.toBeInTheDocument();

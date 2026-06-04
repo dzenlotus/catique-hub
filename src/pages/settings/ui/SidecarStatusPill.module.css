@@ -1,0 +1,21 @@
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: var(--space-6);
+  vertical-align: middle;
+}
+
+.dotRunning {
+  background-color: var(--color-status-success);
+}
+
+.dotStarting {
+  background-color: var(--color-status-warning);
+}
+
+.dotStopped,
+.dotCrashed {
+  background-color: var(--color-status-danger);
+}

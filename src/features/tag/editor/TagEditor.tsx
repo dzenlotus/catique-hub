@@ -13,7 +13,7 @@ import { useEffect, useState, type ReactElement } from "react";
 import { useTag, useUpdateTagMutation } from "@entities/tag";
 import { Dialog, Button, IconColorPicker, Input } from "@shared/ui";
 import { cn } from "@shared/lib";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 
 import styles from "./TagEditor.module.css";
 

@@ -16,9 +16,27 @@
  * single `selectedId` highlights one row at a time across both levels.
  */
 
-import { useEffect, useMemo, useState, type ReactElement } from "react";
-import { useLocationCompat as useLocation, useRouteCompat as useRoute } from "@shared/lib";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
+import {
+  useLocationCompat as useLocation,
+  useRouteCompat as useRoute,
+  useToast,
+} from "@shared/lib";
 import { useQueries } from "@tanstack/react-query";
+import { DragDropProvider } from "@dnd-kit/react";
+import type {
+  DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
+} from "@dnd-kit/react";
+import { move } from "@dnd-kit/helpers";
 
 import {
   listMcpToolsByServer,
@@ -28,14 +46,25 @@ import {
 } from "@entities/mcp-server";
 import type { McpTool } from "@bindings/McpTool";
 import {
+  listMcpToolGroupMembers,
+  mcpToolGroupsKeys,
+  useMcpToolGroups,
+  useAddMcpToolGroupMemberMutation,
+  useSetMcpToolGroupMembersMutation,
+  type McpToolGroup,
+} from "@entities/mcp-tool-group";
+import {
   EntityTree,
   type EntityTreeNode,
   RowLabelButton,
   Scrollable,
+  SidebarSectionDivider,
   SidebarShell,
 } from "@shared/ui";
 import { SidebarSectionAddTrigger } from "@shared/ui/SidebarShell";
 import { McpServerCreateDialog } from "@features/mcp-server/create-dialog";
+import { McpToolGroupCreateDialog } from "@features/mcp-tool-group/create-dialog";
+import { McpToolGroupInlineView } from "@features/mcp-tool-group/inline-view";
 import { entityPageShellStyles as shellStyles } from "@widgets/entity-page-shell";
 import {
   mcpServerPath,
@@ -49,16 +78,149 @@ import { McpToolDetailPanel } from "./McpToolDetailPanel";
 
 export function McpServersPage(): ReactElement {
   const serversQuery = useMcpServers();
+  const groupsQuery = useMcpToolGroups();
   const [, setLocation] = useLocation();
   const [, toolParams] = useRoute<{ serverId: string; toolId: string }>(
     routes.mcpServerTool,
   );
   const [, serverParams] = useRoute<{ serverId: string }>(routes.mcpServer);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isGroupCreateOpen, setIsGroupCreateOpen] = useState(false);
+  // Group selection is page-local (no dedicated route); selecting a
+  // server/tool clears it so the URL-driven panes take over.
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   const selectedToolId = toolParams?.toolId ?? null;
   const selectedServerId =
     toolParams?.serverId ?? serverParams?.serverId ?? null;
+
+  const groups = useMemo<ReadonlyArray<McpToolGroup>>(
+    () => groupsQuery.data ?? [],
+    [groupsQuery.data],
+  );
+  const groupsTreeData = useMemo<EntityTreeNode<McpToolGroup>[]>(
+    () => groups.map((g) => ({ id: g.id, label: g.name, data: g })),
+    [groups],
+  );
+
+  const handleSelectGroup = (groupId: string): void => {
+    setSelectedGroupId(groupId);
+    // Drop any server/tool route selection so the group pane shows.
+    setLocation(routes.mcpServers);
+  };
+
+  // ── Drag-and-drop ───────────────────────────────────────────────────
+  // Mirrors PromptsPage: tools dragged from the server tree are added to
+  // a group (drop on the sidebar group row OR the inline view), and
+  // member cards inside the inline view reorder via an optimistic bucket.
+  const addGroupMember = useAddMcpToolGroupMemberMutation();
+  const setGroupMembers = useSetMcpToolGroupMembersMutation();
+  const { pushToast } = useToast();
+
+  const memberQueries = useQueries({
+    queries: groups.map((group) => ({
+      queryKey: mcpToolGroupsKeys.members(group.id),
+      queryFn: () => listMcpToolGroupMembers(group.id),
+    })),
+  });
+  const groupMembers = useMemo<Record<string, string[]>>(() => {
+    const map: Record<string, string[]> = {};
+    groups.forEach((group, idx) => {
+      const data = memberQueries[idx]?.data;
+      if (Array.isArray(data)) map[group.id] = data;
+    });
+    return map;
+  }, [groups, memberQueries]);
+
+  // Optimistic reorder state for the inline view's sortable cards.
+  const [reorderGroupId, setReorderGroupId] = useState<string | null>(null);
+  const [reorderItems, setReorderItems] = useState<Record<string, string[]>>({});
+  const reorderItemsRef = useRef<Record<string, string[]>>({});
+
+  const handleDragStart = useCallback(
+    (event: DragStartEvent): void => {
+      if (event.operation.source?.type !== "mcp-group-member-tool") return;
+      // Only one group's members are visible at a time (the selected one).
+      if (selectedGroupId === null) return;
+      const initial = (groupMembers[selectedGroupId] ?? []).map(
+        (id) => `member:${id}`,
+      );
+      const bucket = { [`mcp-group-members-${selectedGroupId}`]: initial };
+      reorderItemsRef.current = bucket;
+      setReorderItems(bucket);
+      setReorderGroupId(selectedGroupId);
+    },
+    [selectedGroupId, groupMembers],
+  );
+
+  const handleDragOver = useCallback(
+    (event: DragOverEvent): void => {
+      if (reorderGroupId === null) return;
+      setReorderItems((current) => {
+        const next = move(current, event);
+        reorderItemsRef.current = next;
+        return next;
+      });
+    },
+    [reorderGroupId],
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent): void => {
+      // Reorder branch — persist the new member order.
+      if (reorderGroupId !== null) {
+        const groupKey = `mcp-group-members-${reorderGroupId}`;
+        const nextOrder = (reorderItemsRef.current[groupKey] ?? []).map((id) =>
+          id.startsWith("member:") ? id.slice("member:".length) : id,
+        );
+        const initial = groupMembers[reorderGroupId] ?? [];
+        const owning = reorderGroupId;
+        setReorderGroupId(null);
+        setReorderItems({});
+        reorderItemsRef.current = {};
+        if (event.canceled) return;
+        const same =
+          initial.length === nextOrder.length &&
+          initial.every((id, i) => id === nextOrder[i]);
+        if (same) return;
+        setGroupMembers.mutate(
+          { groupId: owning, orderedToolIds: nextOrder },
+          {
+            onError: (err) =>
+              pushToast("error", `Failed to reorder tools: ${err.message}`),
+          },
+        );
+        return;
+      }
+
+      if (event.canceled) return;
+
+      // Add branch — tool dropped on a group row or the inline view.
+      const sourceId = event.operation.source?.id;
+      const targetId = event.operation.target?.id;
+      if (typeof sourceId !== "string" || typeof targetId !== "string") return;
+      if (!sourceId.startsWith("tool:")) return;
+      let groupId: string | null = null;
+      if (targetId.startsWith("mcp-group-content:")) {
+        groupId = targetId.slice("mcp-group-content:".length);
+      } else if (targetId.startsWith("mcp-group:")) {
+        groupId = targetId.slice("mcp-group:".length);
+      } else {
+        return;
+      }
+      const toolId = sourceId.slice("tool:".length);
+      const current = groupMembers[groupId] ?? [];
+      if (current.includes(toolId)) return; // already a member — no-op.
+      addGroupMember.mutate(
+        { groupId, mcpToolId: toolId, position: BigInt(current.length) },
+        {
+          onError: (err) =>
+            pushToast("error", `Failed to add tool to group: ${err.message}`),
+        },
+      );
+    },
+    [reorderGroupId, groupMembers, addGroupMember, setGroupMembers, pushToast],
+  );
 
   // Parent expansion is owned by this page. Selecting a tool
   // auto-expands its server so the highlighted child is visible.
@@ -106,10 +268,12 @@ export function McpServersPage(): ReactElement {
   }, [expandedServerIds, toolsQueries]);
 
   const handleSelectServer = (serverId: string): void => {
+    setSelectedGroupId(null);
     setLocation(mcpServerPath(serverId));
   };
 
   const handleSelectTool = (serverId: string, toolId: string): void => {
+    setSelectedGroupId(null);
     setLocation(mcpServerToolPath(serverId, toolId));
   };
 
@@ -149,6 +313,11 @@ export function McpServersPage(): ReactElement {
   );
 
   return (
+    <DragDropProvider
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+    >
     <section
       className={shellStyles.root}
       data-testid="mcp-servers-page-root"
@@ -158,6 +327,50 @@ export function McpServersPage(): ReactElement {
           ariaLabel="MCP servers navigation"
           testId="mcp-servers-sidebar-root-shell"
         >
+          <EntityTree<McpToolGroup>
+            testIdPrefix="mcp-tool-groups-sidebar"
+            title="GROUPS"
+            titleAriaLabel="MCP tool groups"
+            titleTrailingNode={
+              groupsQuery.status === "success" ? (
+                <SidebarSectionAddTrigger
+                  ariaLabel="Add MCP tool group"
+                  onPress={() => setIsGroupCreateOpen(true)}
+                  testId="mcp-tool-groups-sidebar-add"
+                />
+              ) : null
+            }
+            emptyText="No tool groups yet."
+            isLoading={groupsQuery.status === "pending"}
+            errorMessage={
+              groupsQuery.status === "error"
+                ? `Failed to load groups: ${groupsQuery.error.message}`
+                : null
+            }
+            data={groupsTreeData}
+            rowConfig={(node) => ({
+              isActive: selectedGroupId === node.id,
+              onClick: () => handleSelectGroup(node.id),
+              // Drop target: a tool dragged from the server tree below
+              // is added to this group (handled in `handleDragEnd`).
+              droppable: {
+                id: `mcp-group:${node.id}`,
+                type: "mcp-group",
+                accept: ["mcp-tool"],
+              },
+            })}
+            renderRow={({ node }) => (
+              <RowLabelButton
+                label={node.label}
+                onClick={() => handleSelectGroup(node.id)}
+                testId={`mcp-tool-groups-sidebar-row-${node.id}`}
+                hideLeading
+              />
+            )}
+          />
+
+          <SidebarSectionDivider />
+
           <EntityTree<ServerOrTool>
             testIdPrefix="mcp-servers-sidebar"
             title="MCP"
@@ -201,6 +414,13 @@ export function McpServersPage(): ReactElement {
                 return {
                   isActive: selectedToolId === tool.id,
                   onClick: () => handleSelectTool(serverId, tool.id),
+                  // Draggable into a GROUPS row above. Source id is the
+                  // node id (`tool:<id>`); `handleDragEnd` strips it.
+                  draggable: {
+                    type: "mcp-tool",
+                    group: "all",
+                    handleAriaLabel: `Drag ${tool.name}`,
+                  },
                 };
               }
               return {};
@@ -240,7 +460,18 @@ export function McpServersPage(): ReactElement {
         className={shellStyles.contentSlot}
         data-testid="mcp-servers-page-content-scroll"
       >
-        {selectedToolId && selectedServerId ? (
+        {selectedGroupId ? (
+          <McpToolGroupInlineView
+            groupId={selectedGroupId}
+            onDeleted={() => setSelectedGroupId(null)}
+            onSelectTool={handleSelectTool}
+            orderOverride={
+              reorderGroupId === selectedGroupId
+                ? reorderItems[`mcp-group-members-${selectedGroupId}`] ?? null
+                : null
+            }
+          />
+        ) : selectedToolId && selectedServerId ? (
           <McpToolDetailPanel
             serverId={selectedServerId}
             toolId={selectedToolId}
@@ -259,6 +490,13 @@ export function McpServersPage(): ReactElement {
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
       />
+
+      <McpToolGroupCreateDialog
+        isOpen={isGroupCreateOpen}
+        onClose={() => setIsGroupCreateOpen(false)}
+        onCreated={(group) => handleSelectGroup(group.id)}
+      />
     </section>
+    </DragDropProvider>
   );
 }

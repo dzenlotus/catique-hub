@@ -12,22 +12,46 @@
  *   - `onClose`  — called on Cancel or successful Save.
  */
 
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, type ReactElement } from "react";
+import {
+  useForm,
+  useFieldArray,
+  useWatch,
+  Controller,
+} from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { usePrompt, useUpdatePromptMutation } from "@entities/prompt";
 import {
   Button,
+  EntityTitle,
   Input,
   MarkdownField,
-  IconColorPicker,
   Scrollable,
 } from "@shared/ui";
 import { PixelInterfaceEssentialBin } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
-import { useToast } from "@app/providers/ToastProvider";
+import { useToast } from "@shared/lib";
 import { PromptTagsField } from "@features/prompt-tags/field";
+import { HistoryViewerButton } from "@features/version-history";
 
 import styles from "./PromptEditorPanel.module.css";
+
+// Name + content are required (trimmed); short description is optional
+// ("" → null on update). Examples are an ordered list of markdown bodies
+// (trimmed + empties dropped on save). Icon/color drive the EntityTitle
+// appearance picker.
+const promptPanelFormSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty."),
+  shortDescription: z.string(),
+  content: z.string().trim().min(1, "Content cannot be empty."),
+  color: z.string(),
+  icon: z.string().nullable(),
+  examples: z.array(z.object({ value: z.string() })),
+});
+
+type PromptPanelFormValues = z.infer<typeof promptPanelFormSchema>;
 
 export interface PromptEditorPanelProps {
   /** Prompt to edit. */
@@ -52,25 +76,52 @@ export function PromptEditorPanel({
   const updateMutation = useUpdatePromptMutation();
   const { pushToast } = useToast();
 
-  const [localName, setLocalName] = useState("");
-  const [localShortDescription, setLocalShortDescription] = useState("");
-  const [localColor, setLocalColor] = useState("");
-  const [localIcon, setLocalIcon] = useState<string | null>(null);
-  const [localContent, setLocalContent] = useState("");
-  const [localExamples, setLocalExamples] = useState<string[]>([]);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    setError,
+    clearErrors,
+    formState: { errors },
+  } = useForm<PromptPanelFormValues>({
+    resolver: zodResolver(promptPanelFormSchema),
+    defaultValues: {
+      name: "",
+      shortDescription: "",
+      content: "",
+      color: "",
+      icon: null,
+      examples: [],
+    },
+    mode: "onChange",
+  });
 
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "examples",
+  });
+
+  // EntityTitle's appearance picker drives icon + color together; read
+  // them back via `useWatch` for the picker `value` prop.
+  const watchedColor = useWatch({ control, name: "color" });
+  const watchedIcon = useWatch({ control, name: "icon" });
+
+  // Repopulate when prompt data loads or promptId changes.
+  const prompt = query.data;
   useEffect(() => {
-    if (query.data) {
-      setLocalName(query.data.name);
-      setLocalShortDescription(query.data.shortDescription ?? "");
-      setLocalColor(query.data.color ?? "");
-      setLocalIcon(query.data.icon ?? null);
-      setLocalContent(query.data.content);
-      setLocalExamples(query.data.examples);
-      setSaveError(null);
+    if (prompt) {
+      reset({
+        name: prompt.name,
+        shortDescription: prompt.shortDescription ?? "",
+        content: prompt.content,
+        color: prompt.color ?? "",
+        icon: prompt.icon ?? null,
+        examples: prompt.examples.map((value) => ({ value })),
+      });
+      clearErrors("root.serverError");
     }
-  }, [query.data, promptId]);
+  }, [prompt, reset, clearErrors]);
 
   // ── Pending ────────────────────────────────────────────────────────
 
@@ -188,52 +239,44 @@ export function PromptEditorPanel({
 
   // ── Loaded ─────────────────────────────────────────────────────────
 
-  const prompt = query.data;
+  // Narrowed non-null after the !query.data guard above.
+  const loadedPrompt = query.data;
 
-  const handleSave = (): void => {
-    setSaveError(null);
-    const trimmedName = localName.trim();
-    if (!trimmedName) {
-      setSaveError("Name cannot be empty.");
-      return;
-    }
-    const trimmedContent = localContent.trim();
-    if (!trimmedContent) {
-      setSaveError("Content cannot be empty.");
-      return;
-    }
+  const onValid = handleSubmit((values) => {
+    const trimmedName = values.name.trim();
+    const trimmedContent = values.content.trim();
     const resolvedShortDescription =
-      localShortDescription.trim() === ""
+      values.shortDescription.trim() === ""
         ? null
-        : localShortDescription.trim();
-    const resolvedColor = localColor === "" ? null : localColor;
+        : values.shortDescription.trim();
+    const resolvedColor = values.color === "" ? null : values.color;
 
     type MutationArgs = Parameters<typeof updateMutation.mutate>[0];
-    const mutationArgs: MutationArgs = { id: prompt.id };
+    const mutationArgs: MutationArgs = { id: loadedPrompt.id };
 
-    if (trimmedName !== prompt.name) {
+    if (trimmedName !== loadedPrompt.name) {
       mutationArgs.name = trimmedName;
     }
-    if (trimmedContent !== prompt.content) {
+    if (trimmedContent !== loadedPrompt.content) {
       mutationArgs.content = trimmedContent;
     }
-    if (resolvedShortDescription !== prompt.shortDescription) {
+    if (resolvedShortDescription !== loadedPrompt.shortDescription) {
       mutationArgs.shortDescription = resolvedShortDescription;
     }
-    if (resolvedColor !== prompt.color) {
+    if (resolvedColor !== loadedPrompt.color) {
       mutationArgs.color = resolvedColor;
     }
-    if (localIcon !== (prompt.icon ?? null)) {
-      mutationArgs.icon = localIcon;
+    if (values.icon !== (loadedPrompt.icon ?? null)) {
+      mutationArgs.icon = values.icon;
     }
     // Examples diff: trim each + drop empties, then array-equal compare
     // against the loaded value.
-    const trimmedExamples = localExamples
-      .map((e) => e.trim())
+    const trimmedExamples = values.examples
+      .map((e) => e.value.trim())
       .filter((e) => e.length > 0);
     const sameExamples =
-      trimmedExamples.length === prompt.examples.length &&
-      trimmedExamples.every((e, i) => e === prompt.examples[i]);
+      trimmedExamples.length === loadedPrompt.examples.length &&
+      trimmedExamples.every((e, i) => e === loadedPrompt.examples[i]);
     if (!sameExamples) {
       mutationArgs.examples = trimmedExamples;
     }
@@ -241,39 +284,41 @@ export function PromptEditorPanel({
     updateMutation.mutate(mutationArgs, {
       onSuccess: () => {
         // Stay on the editor — query invalidation refreshes `query.data`
-        // which sync-effects re-seed the local state. The user keeps
+        // which re-seeds the form via the reset effect. The user keeps
         // their place; close is now opt-in via Cancel / Back.
         pushToast("success", "Prompt saved");
       },
       onError: (err) => {
         pushToast("error", `Failed to save prompt: ${err.message}`);
-        setSaveError(`Failed to save: ${err.message}`);
+        setError("root.serverError", {
+          message: `Failed to save: ${err.message}`,
+        });
       },
     });
+  });
+
+  const handleSavePress = (): void => {
+    void onValid();
   };
 
   const handleCancel = (): void => {
-    setLocalName(prompt.name);
-    setLocalShortDescription(prompt.shortDescription ?? "");
-    setLocalColor(prompt.color ?? "");
-    setLocalIcon(prompt.icon ?? null);
-    setLocalContent(prompt.content);
-    setLocalExamples(prompt.examples);
-    setSaveError(null);
+    reset({
+      name: loadedPrompt.name,
+      shortDescription: loadedPrompt.shortDescription ?? "",
+      content: loadedPrompt.content,
+      color: loadedPrompt.color ?? "",
+      icon: loadedPrompt.icon ?? null,
+      examples: loadedPrompt.examples.map((value) => ({ value })),
+    });
+    clearErrors("root.serverError");
     onClose();
   };
 
   const addExample = (): void => {
-    setLocalExamples((prev) => [...prev, ""]);
+    append({ value: "" });
   };
-  const updateExample = (index: number, next: string): void => {
-    setLocalExamples((prev) =>
-      prev.map((value, i) => (i === index ? next : value)),
-    );
-  };
-  const removeExample = (index: number): void => {
-    setLocalExamples((prev) => prev.filter((_, i) => i !== index));
-  };
+
+  const saveError = errors.root?.serverError?.message;
 
   return (
     <section
@@ -294,44 +339,75 @@ export function PromptEditorPanel({
         </div>
       ) : null}
       <header className={styles.header}>
-        <IconColorPicker
-          value={{
-            icon: localIcon,
-            color: localColor === "" ? null : localColor,
-          }}
-          onChange={(next) => {
-            setLocalIcon(next.icon);
-            setLocalColor(next.color ?? "");
-          }}
-          ariaLabel="Prompt icon and color"
-          data-testid="prompt-editor-panel-appearance-picker"
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <EntityTitle
+              size="lg"
+              editable
+              name={field.value}
+              onNameChange={field.onChange}
+              editTestId="prompt-editor-panel-name-inline"
+              value={{
+                icon: watchedIcon,
+                color: watchedColor === "" ? null : watchedColor,
+              }}
+              onAppearanceChange={(next) => {
+                setValue("icon", next.icon, { shouldDirty: true });
+                setValue("color", next.color ?? "", { shouldDirty: true });
+              }}
+              pickerAriaLabel="Prompt icon and color"
+              pickerTestId="prompt-editor-panel-appearance-picker"
+              actions={
+                <HistoryViewerButton
+                  title="Prompt content history"
+                  kind="prompt"
+                  sourceId={loadedPrompt.id}
+                  currentContent={loadedPrompt.content}
+                  data-testid="prompt-editor-panel-history"
+                />
+              }
+            />
+          )}
         />
-        <h2 className={styles.title}>{prompt.name}</h2>
       </header>
       <div className={styles.scrollArea}>
       <Scrollable axis="y" className={styles.scrollableHost}>
         <div className={styles.scrollAreaInner}>
         {/* Name */}
         <div className={styles.section}>
-          <Input
-            label="Name"
-            value={localName}
-            onChange={setLocalName}
-            placeholder="Prompt name"
-            className={styles.fullWidthInput}
-            data-testid="prompt-editor-panel-name-input"
+          <Controller
+            control={control}
+            name="name"
+            render={({ field }) => (
+              <Input
+                label="Name"
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Prompt name"
+                className={styles.fullWidthInput}
+                data-testid="prompt-editor-panel-name-input"
+              />
+            )}
           />
         </div>
 
         {/* Short description */}
         <div className={styles.section}>
-          <Input
-            label="Short description"
-            value={localShortDescription}
-            onChange={setLocalShortDescription}
-            placeholder="Optional short description…"
-            className={styles.fullWidthInput}
-            data-testid="prompt-editor-panel-shortdesc-input"
+          <Controller
+            control={control}
+            name="shortDescription"
+            render={({ field }) => (
+              <Input
+                label="Short description"
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Optional short description…"
+                className={styles.fullWidthInput}
+                data-testid="prompt-editor-panel-shortdesc-input"
+              />
+            )}
           />
         </div>
 
@@ -340,18 +416,24 @@ export function PromptEditorPanel({
             the chip row + sidebar filter together. */}
         <div className={styles.section}>
           <p className={styles.sectionLabel}>Tags</p>
-          <PromptTagsField promptId={prompt.id} />
+          <PromptTagsField promptId={loadedPrompt.id} />
         </div>
 
         {/* Content */}
         <div className={styles.section}>
           <p className={styles.sectionLabel}>Content</p>
-          <MarkdownField
-            value={localContent}
-            onChange={setLocalContent}
-            placeholder="Prompt content (Markdown)…"
-            ariaLabel="Content"
-            data-testid="prompt-editor-panel-content-textarea"
+          <Controller
+            control={control}
+            name="content"
+            render={({ field }) => (
+              <MarkdownField
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Prompt content (Markdown)…"
+                ariaLabel="Content"
+                data-testid="prompt-editor-panel-content-textarea"
+              />
+            )}
           />
         </div>
 
@@ -369,28 +451,34 @@ export function PromptEditorPanel({
               + Add example
             </Button>
           </div>
-          {localExamples.length === 0 ? (
+          {fields.length === 0 ? (
             <p className={styles.exampleHint}>
               No examples yet. Examples render as `&lt;example&gt;` children
               inside the prompt's task XML.
             </p>
           ) : (
             <ol className={styles.exampleList}>
-              {localExamples.map((value, index) => (
-                <li key={index} className={styles.exampleItem}>
+              {fields.map((exampleField, index) => (
+                <li key={exampleField.id} className={styles.exampleItem}>
                   <span className={styles.exampleIndex}>#{index}</span>
-                  <MarkdownField
-                    value={value}
-                    onChange={(next) => updateExample(index, next)}
-                    placeholder="Example body (Markdown)…"
-                    ariaLabel={`Example ${index}`}
-                    rows={4}
-                    data-testid={`prompt-editor-panel-example-${index}`}
+                  <Controller
+                    control={control}
+                    name={`examples.${index}.value` as const}
+                    render={({ field }) => (
+                      <MarkdownField
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Example body (Markdown)…"
+                        ariaLabel={`Example ${index}`}
+                        rows={4}
+                        data-testid={`prompt-editor-panel-example-${index}`}
+                      />
+                    )}
                   />
                   <Button
                     variant="ghost"
                     size="sm"
-                    onPress={() => removeExample(index)}
+                    onPress={() => remove(index)}
                     aria-label={`Remove example ${index}`}
                     data-testid={`prompt-editor-panel-example-remove-${index}`}
                   >
@@ -419,12 +507,12 @@ export function PromptEditorPanel({
           data-testid="prompt-editor-panel-token-row"
         >
           <span className={styles.tokenLabel}>
-            {prompt.tokenCount !== null && prompt.tokenCount > 0n
-              ? `Current count: ≈${prompt.tokenCount.toString()} tokens`
+            {loadedPrompt.tokenCount !== null && loadedPrompt.tokenCount > 0n
+              ? `Current count: ≈${loadedPrompt.tokenCount.toString()} tokens`
               : "Current count: not computed"}
           </span>
         </div>
-        {saveError ? (
+        {saveError !== undefined ? (
           <p
             className={styles.saveError}
             role="alert"
@@ -445,7 +533,7 @@ export function PromptEditorPanel({
           variant="primary"
           size="md"
           isPending={updateMutation.status === "pending"}
-          onPress={handleSave}
+          onPress={handleSavePress}
           data-testid="prompt-editor-panel-save"
         >
           Save

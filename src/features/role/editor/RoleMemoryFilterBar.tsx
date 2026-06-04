@@ -8,7 +8,7 @@
 
 import type { ReactElement } from "react";
 
-import { Button } from "@shared/ui";
+import { Button, Input } from "@shared/ui";
 
 import type { RoleNoteSort } from "./useRoleNoteFilters";
 import type { RoleNoteTagCount } from "@entities/role-note";
@@ -83,13 +83,14 @@ export function RoleMemoryFilterBar({
       ) : null}
 
       <div className={styles.filterRow}>
-        <input
+        <Input
           type="search"
-          className={styles.searchInput}
+          label="Search notes"
+          labelHidden
+          className={styles.searchField}
           value={searchInput}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={onSearchChange}
           placeholder="Search note bodies…"
-          aria-label="Search notes"
           data-testid="role-memory-section-search"
         />
         <select

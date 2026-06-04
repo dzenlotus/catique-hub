@@ -214,6 +214,23 @@
 }
 
 /*
+ * "via group" badge (Stream R / v3 Round 4) — anchored to the
+ * bottom-right corner of the card so the card title and metadata
+ * stay legible. `pointer-events: none` so the badge never steals
+ * clicks from the underlying `<PromptCard>` button. The badge
+ * itself is purely informational; mid-drag we drop its visibility
+ * to 0 because the card is being moved (opacity transition is
+ * shared with `.cardCell[data-dragging]`).
+ */
+.groupBadge {
+  position: absolute;
+  right: var(--space-8);
+  bottom: var(--space-8);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/*
  * Drag handle: pinned to the top-LEFT of the card, revealed on hover.
  * Sits on top of the PromptCard so the whole card rectangle remains
  * activatable (PromptCard is a `<button>`); only the handle area

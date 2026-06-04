@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 
 import type { Column } from "@entities/column";
 import type { Role } from "@entities/role";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 
 vi.mock("@shared/api", async () => {
   const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
@@ -32,6 +32,8 @@ function makeColumn(overrides: Partial<Column> = {}): Column {
     roleId: null,
     createdAt: 0n,
     isDefault: false,
+    icon: null,
+    color: null,
     ...overrides,
   };
 }

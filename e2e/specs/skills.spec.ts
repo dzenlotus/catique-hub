@@ -89,6 +89,9 @@ test.describe("skills", () => {
       .click({ force: true });
     await expect(page).toHaveURL(new RegExp(`/skills/${skill.id}$`));
     await expect(page.getByTestId(sel.skillEditorPanel)).toBeVisible();
+    // v3: skill name is now an inline EntityTitle (click-to-edit heading).
+    // The `skill-editor-name-input` only appears after clicking the trigger.
+    await page.getByTestId(`${sel.skillEditorName}-trigger`).click();
     await expect(page.getByTestId(sel.skillEditorName)).toHaveValue("Routed");
   });
 

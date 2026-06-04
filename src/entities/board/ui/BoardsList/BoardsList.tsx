@@ -7,7 +7,7 @@ import { BoardCard, useBoards } from "@entities/board";
 import { useSpaces } from "@entities/space";
 import { Button, EmptyState, Scrollable } from "@shared/ui";
 import { PixelPetAnimalsCat, PixelCodingAppsWebsitesModule } from "@shared/ui/Icon";
-import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
+import { useActiveSpace } from "@shared/lib";
 import { boardSettingsPath } from "@app/routes";
 import { SpaceCreateDialog } from "@features/space/create-dialog";
 

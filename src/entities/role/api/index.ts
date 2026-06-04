@@ -16,6 +16,9 @@ export {
   removeRoleMcpTool,
   listRoleMcpTools,
   setRoleMcpTools,
+  listRoleVersions,
+  getRoleVersion,
+  revertRoleToVersion,
 } from "./rolesApi";
 export type {
   CreateRoleArgs,

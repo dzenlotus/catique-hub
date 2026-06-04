@@ -1,17 +1,17 @@
 /**
  * PromptsTagFilter — multi-select tag filter for the prompts grid.
  *
- * audit-C: migrated from `<MultiTagInput>` to the canonical
- * `<MultiSelect>` primitive. The single-select-feeling list is gone;
- * users add multiple tag chips via combobox + dropdown, and the parent
- * filters prompts in OR-mode (audit-C: AND-mode toggle is a separate
- * audit item, out of scope here).
+ * Built on the canonical `<SelectTag>` primitive (no create row —
+ * `onCreate` omitted). Users add multiple tag chips via combobox + dropdown,
+ * and the parent filters prompts in OR-mode (AND-mode toggle is a
+ * separate audit item, out of scope here). Each chip carries the tag's
+ * colour swatch.
  */
 
 import { useMemo, type ReactElement } from "react";
 
 import { useTags } from "@entities/tag";
-import { MultiSelect, type MultiSelectOption } from "@shared/ui";
+import { SelectTag, type SelectTagOption } from "@shared/ui";
 
 export interface PromptsTagFilterProps {
   selectedTagIds: ReadonlyArray<string>;
@@ -24,23 +24,24 @@ export function PromptsTagFilter({
 }: PromptsTagFilterProps): ReactElement {
   const tagsQuery = useTags();
 
-  const options = useMemo<MultiSelectOption<string>[]>(
+  const options = useMemo<SelectTagOption[]>(
     () =>
       (tagsQuery.data ?? []).map((t) => ({
         id: t.id,
-        name: t.name,
+        label: t.name,
+        color: t.color,
       })),
     [tagsQuery.data],
   );
 
   return (
-    <MultiSelect<string>
+    <SelectTag
       label="Filter prompts by tag"
       values={selectedTagIds}
       options={options}
       onChange={(next) => onChange(next)}
       placeholder="Filter by tag…"
-      testId="prompts-tag-filter"
+      data-testid="prompts-tag-filter"
     />
   );
 }

@@ -5,18 +5,48 @@
 //! `add_column_prompt` / `remove_column_prompt`). The 6-source
 //! resolver itself is deferred to E3.
 
-use catique_application::{prompts::PromptsUseCase, AppError};
+use catique_application::{
+    prompts::{PromptContentVersion, PromptsUseCase},
+    AppError,
+};
 use catique_domain::Prompt;
 use catique_infrastructure::db::{
     pool::acquire,
     repositories::prompts as repo,
     repositories::tasks::{cascade_prompt_attachment, cascade_prompt_detachment, AttachScope},
 };
+use serde::Serialize;
 use serde_json::json;
 use tauri::State;
+use ts_rs::TS;
 
 use crate::events;
 use crate::state::AppState;
+
+/// D-C: wire-shape for one `prompt_content_versions` row sent to the
+/// UI. Mirrors `RoleContentVersionView`.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export, export_to = "../../../bindings/", rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct PromptContentVersionView {
+    pub id: String,
+    pub prompt_id: String,
+    pub content: String,
+    pub created_at: i64,
+    pub author_note: Option<String>,
+}
+
+impl From<PromptContentVersion> for PromptContentVersionView {
+    fn from(v: PromptContentVersion) -> Self {
+        Self {
+            id: v.id,
+            prompt_id: v.prompt_id,
+            content: v.content,
+            created_at: v.created_at,
+            author_note: v.author_note,
+        }
+    }
+}
 
 /// E2 will populate per-domain initialisation here.
 pub fn register() {}
@@ -274,6 +304,53 @@ pub async fn remove_column_prompt(
             id: format!("{column_id}|{prompt_id}"),
         })
     }
+}
+
+// ---------------------------------------------------------------------
+// D-C content-version IPCs (refactor-v3, Project Map issue #5).
+// ---------------------------------------------------------------------
+
+/// IPC: list the last 50 versions of `prompt.content`, newest first.
+///
+/// # Errors
+///
+/// Forwards every error from `PromptsUseCase::list_prompt_versions`.
+#[tauri::command]
+pub async fn list_prompt_versions(
+    state: State<'_, AppState>,
+    prompt_id: String,
+) -> Result<Vec<PromptContentVersionView>, AppError> {
+    let rows = PromptsUseCase::new(&state.pool).list_prompt_versions(&prompt_id)?;
+    Ok(rows.into_iter().map(Into::into).collect())
+}
+
+/// IPC: fetch the full content of one prompt content-version.
+///
+/// # Errors
+///
+/// `AppError::NotFound` if `version_id` is unknown.
+#[tauri::command]
+pub async fn get_prompt_version(
+    state: State<'_, AppState>,
+    version_id: String,
+) -> Result<PromptContentVersionView, AppError> {
+    let row = PromptsUseCase::new(&state.pool).get_prompt_version(&version_id)?;
+    Ok(row.into())
+}
+
+/// IPC: revert a prompt's content to the value in `version_id`.
+///
+/// # Errors
+///
+/// `AppError::NotFound` if `version_id` is unknown.
+#[tauri::command]
+pub async fn revert_prompt_to_version(
+    state: State<'_, AppState>,
+    version_id: String,
+) -> Result<Prompt, AppError> {
+    let prompt = PromptsUseCase::new(&state.pool).revert_prompt_to_version(&version_id)?;
+    events::emit(&state, events::PROMPT_UPDATED, json!({ "id": prompt.id }));
+    Ok(prompt)
 }
 
 /// Local DbError → AppError shim. The application layer's `error_map`

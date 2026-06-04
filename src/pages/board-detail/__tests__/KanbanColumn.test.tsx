@@ -26,6 +26,8 @@ function makeColumn(overrides: Partial<Column> = {}): Column {
     roleId: null,
     createdAt: 0n,
     isDefault: false,
+    icon: null,
+    color: null,
     ...overrides,
   };
 }
@@ -43,6 +45,9 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,
+    effectivePromptCount: 0n,
+    effectiveSkillCount: 0n,
+    effectiveToolCount: 0n,
     ...overrides,
   };
 }
@@ -71,6 +76,7 @@ function renderColumn(options: RenderOptions = {}): {
         onAddTask={options.onAddTask ?? vi.fn()}
         onQuickAddTask={options.onQuickAddTask ?? (async () => {})}
         onRenameColumn={options.onRenameColumn ?? vi.fn()}
+        onColumnAppearance={vi.fn()}
         onDeleteColumn={options.onDeleteColumn ?? vi.fn()}
         selectedTaskIds={new Set()}
         selectionActive={false}
@@ -150,6 +156,7 @@ describe("KanbanColumn", () => {
           onAddTask={vi.fn()}
           onQuickAddTask={async () => {}}
           onRenameColumn={vi.fn()}
+          onColumnAppearance={vi.fn()}
           onDeleteColumn={vi.fn()}
           selectedTaskIds={new Set()}
           selectionActive={false}

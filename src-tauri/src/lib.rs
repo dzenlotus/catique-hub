@@ -100,6 +100,11 @@ pub fn run() {
                     }
                 }
             });
+            // Clone a handle for the change_events tail (spawned below)
+            // so role mutations made by the out-of-process
+            // `catique-hub-mcp` binary still fire a provider re-sync.
+            // Must clone BEFORE the handle moves into AppState.
+            let orch_for_tail = orchestrator.clone();
             state.set_orchestrator(orchestrator);
 
             // First-launch zero-state bootstrap. The KV flag in the
@@ -282,6 +287,19 @@ pub fn run() {
                                     );
                                 }
                             }
+                            // Cross-process agent-file reconciliation:
+                            // a role mutation committed by the standalone
+                            // MCP binary lands here as a `role:*` row —
+                            // fire a re-sync so the deleted role's
+                            // `catique-<slug>` file is pruned from every
+                            // provider's agents dir.
+                            if let Some(t) =
+                                catique_application::connected_providers::sync_trigger_for_event(
+                                    &row.name,
+                                )
+                            {
+                                orch_for_tail.trigger(t);
+                            }
                             last_seen = row.seq;
                         }
                         // Health heartbeat every ~30 s of pure idleness so a
@@ -305,7 +323,15 @@ pub fn run() {
                                         return;
                                     }
                                 };
-                                if let Err(e) = event_log::purge_older_than(&conn, 60_000) {
+                                // refactor-v3 D-D: bump retention to 90
+                                // days. `PURGE_MAX_AGE_MS` is the single
+                                // source of truth — keep this call site
+                                // in lockstep with `event_log` rather
+                                // than hard-coding the duration.
+                                if let Err(e) = event_log::purge_older_than(
+                                    &conn,
+                                    event_log::PURGE_MAX_AGE_MS,
+                                ) {
                                     eprintln!("[catique-hub] event_log purge failed: {e}");
                                 }
                             })
@@ -340,6 +366,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // ---------------- activity log (refactor v3 / Wave 5 + D-D) ----------------
+            handlers::events::list_recent_events,
+            handlers::events::list_recent_events_by_scope,
             // ---------------- spaces (E2.4) ----------------
             handlers::spaces::create_space,
             handlers::spaces::delete_space,
@@ -356,15 +385,22 @@ pub fn run() {
             // ---------------- spaces.workflow_graph_json (ctq-113, Phase 5 stub) ----------------
             handlers::spaces::get_workflow_graph,
             handlers::spaces::set_workflow_graph,
-            // ---------------- boards (E2.1 + E2.4 + ctq-101 + ctq-108 + ctq-120) ----------------
+            // ---------------- boards (E2.1 + E2.4 + ctq-101 + ctq-108 + ctq-120 + D-F) ----------------
+            handlers::boards::clear_recent_boards,
             handlers::boards::create_board,
             handlers::boards::delete_board,
             handlers::boards::get_board,
             handlers::boards::list_boards,
+            handlers::boards::list_pinned_boards,
+            handlers::boards::list_recent_boards,
+            handlers::boards::pin_board,
+            handlers::boards::reorder_pinned,
             handlers::boards::set_board_mcp_tools,
             handlers::boards::set_board_owner,
             handlers::boards::set_board_prompts,
             handlers::boards::set_board_skills,
+            handlers::boards::track_board_visit,
+            handlers::boards::unpin_board,
             handlers::boards::update_board,
             // ---------------- columns (E2.4 + ctq-108 + ctq-120) ----------------
             handlers::columns::create_column,
@@ -377,7 +413,10 @@ pub fn run() {
             handlers::columns::update_column,
             // ---------------- tasks (E2.4) ----------------
             handlers::tasks::add_task_prompt,
+            handlers::tasks::clear_task_mcp_tool_override_v2,
             handlers::tasks::clear_task_prompt_override,
+            handlers::tasks::clear_task_prompt_override_v2,
+            handlers::tasks::clear_task_skill_override_v2,
             handlers::tasks::create_task,
             handlers::tasks::delete_task,
             handlers::tasks::get_step_log,
@@ -391,30 +430,40 @@ pub fn run() {
             handlers::tasks::rate_task,
             handlers::tasks::remove_task_prompt,
             handlers::tasks::route_task_to_board,
+            handlers::tasks::run_task_agent,
+            handlers::tasks::set_task_mcp_tool_override_v2,
             handlers::tasks::set_task_prompt_override,
+            handlers::tasks::set_task_prompt_override_v2,
+            handlers::tasks::set_task_skill_override_v2,
             handlers::tasks::update_task,
-            // ---------------- prompts (E2.4) ----------------
+            // ---------------- prompts (E2.4 + D-C) ----------------
             handlers::prompts::add_board_prompt,
             handlers::prompts::add_column_prompt,
             handlers::prompts::create_prompt,
             handlers::prompts::delete_prompt,
             handlers::prompts::get_prompt,
+            handlers::prompts::get_prompt_version,
             handlers::prompts::list_prompts,
+            handlers::prompts::list_prompt_versions,
             handlers::prompts::remove_board_prompt,
             handlers::prompts::remove_column_prompt,
             handlers::prompts::recompute_prompt_token_count,
+            handlers::prompts::revert_prompt_to_version,
             handlers::prompts::update_prompt,
-            // ---------------- roles (E2.4 + ctq-108) ----------------
+            // ---------------- roles (E2.4 + ctq-108 + D-C) ----------------
             handlers::roles::add_role_mcp_tool,
             handlers::roles::add_role_prompt,
             handlers::roles::add_role_skill,
             handlers::roles::create_role,
             handlers::roles::delete_role,
             handlers::roles::get_role,
+            handlers::roles::get_role_version,
             handlers::roles::list_roles,
+            handlers::roles::list_role_versions,
             handlers::roles::remove_role_mcp_tool,
             handlers::roles::remove_role_prompt,
             handlers::roles::remove_role_skill,
+            handlers::roles::revert_role_to_version,
             handlers::roles::set_role_prompts,
             handlers::roles::update_role,
             // ---------------- role notes (ctq-137 / MEM-S1) ----------------
@@ -433,6 +482,7 @@ pub fn run() {
             handlers::skills::create_skill,
             handlers::skills::delete_skill,
             handlers::skills::delete_skill_step,
+            handlers::skills::export_skill_as_markdown,
             handlers::skills::get_skill,
             handlers::skills::import_skill_from_url,
             handlers::skills::list_role_skills,
@@ -465,6 +515,13 @@ pub fn run() {
             handlers::mcp_servers::list_mcp_tools_by_server,
             handlers::mcp_servers::refresh_mcp_server,
             handlers::mcp_servers::update_mcp_server,
+            // mcp server-as-unit attachments (Phase C)
+            handlers::mcp_servers::list_role_mcp_servers,
+            handlers::mcp_servers::set_role_mcp_servers,
+            handlers::mcp_servers::list_board_mcp_servers,
+            handlers::mcp_servers::set_board_mcp_servers,
+            handlers::mcp_servers::list_task_mcp_servers,
+            handlers::mcp_servers::set_task_mcp_servers,
             // ---------------- tags (E2.4 + ctq-108) ----------------
             handlers::tags::add_prompt_tag,
             handlers::tags::create_tag,
@@ -499,6 +556,29 @@ pub fn run() {
             handlers::prompt_groups::remove_prompt_group_member,
             handlers::prompt_groups::set_prompt_group_members,
             handlers::prompt_groups::update_prompt_group,
+            // prompt-group attachments (groups as live units)
+            handlers::prompt_groups::list_role_prompt_groups,
+            handlers::prompt_groups::set_role_prompt_groups,
+            handlers::prompt_groups::list_board_prompt_groups,
+            handlers::prompt_groups::set_board_prompt_groups,
+            handlers::prompt_groups::list_task_prompt_groups,
+            handlers::prompt_groups::set_task_prompt_groups,
+            // ---------------- mcp tool groups ----------------
+            handlers::mcp_tool_groups::list_mcp_tool_groups,
+            handlers::mcp_tool_groups::get_mcp_tool_group,
+            handlers::mcp_tool_groups::create_mcp_tool_group,
+            handlers::mcp_tool_groups::update_mcp_tool_group,
+            handlers::mcp_tool_groups::delete_mcp_tool_group,
+            handlers::mcp_tool_groups::list_mcp_tool_group_members,
+            handlers::mcp_tool_groups::add_mcp_tool_group_member,
+            handlers::mcp_tool_groups::remove_mcp_tool_group_member,
+            handlers::mcp_tool_groups::set_mcp_tool_group_members,
+            handlers::mcp_tool_groups::list_role_mcp_tool_groups,
+            handlers::mcp_tool_groups::set_role_mcp_tool_groups,
+            handlers::mcp_tool_groups::list_board_mcp_tool_groups,
+            handlers::mcp_tool_groups::set_board_mcp_tool_groups,
+            handlers::mcp_tool_groups::list_task_mcp_tool_groups,
+            handlers::mcp_tool_groups::set_task_mcp_tool_groups,
             // ---------------- settings ----------------
             handlers::settings::get_setting,
             handlers::settings::ping,
@@ -511,6 +591,8 @@ pub fn run() {
             // ---------------- sidecar (ADR-0002 spike, ctq-56) ----------------
             handlers::sidecar::sidecar_status,
             handlers::sidecar::sidecar_ping,
+            handlers::sidecar::sidecar_start,
+            handlers::sidecar::sidecar_stop,
             handlers::sidecar::sidecar_restart,
             // ---------------- connected providers (round-21) ----------------
             handlers::clients::add_provider,

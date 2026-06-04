@@ -8,6 +8,12 @@ export {
   useUpdateMcpServerMutation,
   useRefreshMcpServerMutation,
   useDeleteMcpServerMutation,
+  useRoleMcpServers,
+  useBoardMcpServers,
+  useTaskMcpServers,
+  useSetRoleMcpServersMutation,
+  useSetBoardMcpServersMutation,
+  useSetTaskMcpServersMutation,
 } from "./store";
 export type {
   McpServer,

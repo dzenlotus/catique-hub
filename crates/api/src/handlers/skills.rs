@@ -441,6 +441,28 @@ pub async fn reorder_skill_steps(
     Ok(())
 }
 
+/// IPC: serialise a skill (title + description + ordered steps) as a
+/// Markdown document.
+///
+/// Stream J / v3 Wave 4. Symmetric to `import_skill_from_url`: the
+/// frontend `<SkillExportButton/>` used to build this string in JS,
+/// which silently drifted from the import-side parser whenever the
+/// skill shape grew. Owning the canonical export in Rust keeps both
+/// directions on the same format and lets a future "share via signed
+/// git URL" path hash the exact same bytes.
+///
+/// # Errors
+///
+/// Forwards every error from `SkillsUseCase::export_skill_as_markdown`
+/// (notably `AppError::NotFound` when `skill_id` is unknown).
+#[tauri::command]
+pub async fn export_skill_as_markdown(
+    state: State<'_, AppState>,
+    skill_id: String,
+) -> Result<String, AppError> {
+    SkillsUseCase::new(&state.pool).export_skill_as_markdown(&skill_id)
+}
+
 /// IPC: import a skill from a public git URL. See
 /// [`SkillImportUseCase::import_from_url`].
 ///

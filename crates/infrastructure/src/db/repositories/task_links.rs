@@ -145,8 +145,12 @@ mod tests {
         insert(&conn, "tc", "ta", "blocks").unwrap();
         let rows = list_for_task(&conn, "ta").unwrap();
         assert_eq!(rows.len(), 2);
-        assert!(rows.iter().any(|r| r.kind == "blocks" && r.src_task_id == "tc"));
-        assert!(rows.iter().any(|r| r.kind == "related" && r.dst_task_id == "tb"));
+        assert!(rows
+            .iter()
+            .any(|r| r.kind == "blocks" && r.src_task_id == "tc"));
+        assert!(rows
+            .iter()
+            .any(|r| r.kind == "related" && r.dst_task_id == "tb"));
     }
 
     #[test]
@@ -177,7 +181,8 @@ mod tests {
     fn fk_cascade_on_task_delete() {
         let conn = fresh_db();
         insert(&conn, "ta", "tb", "related").unwrap();
-        conn.execute("DELETE FROM tasks WHERE id = 'ta'", []).unwrap();
+        conn.execute("DELETE FROM tasks WHERE id = 'ta'", [])
+            .unwrap();
         let rows = list_for_task(&conn, "tb").unwrap();
         assert!(rows.is_empty(), "FK cascade should wipe links");
     }

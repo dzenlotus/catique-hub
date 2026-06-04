@@ -8,6 +8,12 @@ export {
   addPromptGroupMember,
   removePromptGroupMember,
   setPromptGroupMembers,
+  listRolePromptGroups,
+  setRolePromptGroups,
+  listBoardPromptGroups,
+  setBoardPromptGroups,
+  listTaskPromptGroups,
+  setTaskPromptGroups,
 } from "./promptGroupsApi";
 export type {
   CreatePromptGroupArgs,

@@ -85,6 +85,14 @@
   padding: 0 20px 28px;
 }
 
+/* Top-level nav rows read as the SAME family as the SPACES folders in the
+ * sibling rail: canonical row typography (body size, semibold, default text
+ * color) so the two columns don't look like two different design languages.
+ * The active treatment (red strip + accent-soft underlay) is owned by
+ * EntityTree's `.rowActive` — same as every other rail — so we deliberately
+ * do NOT recolor the active label here (that would diverge from folders,
+ * which mark active purely via the strip). Keep these tokens in sync with
+ * `shared/ui/EntityTree/RowLabelButton.module.css .button`. */
 .navItemBody {
   flex: 1;
   min-width: 0;
@@ -93,31 +101,22 @@
   gap: var(--space-12);
   border: none;
   background: transparent;
-  color: var(--color-text-muted);
+  color: var(--color-text-default);
   font-family: var(--font-sans);
   font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
   line-height: 1.4;
   text-align: left;
   cursor: pointer;
   user-select: none;
-  padding: var(--space-4) var(--space-12);
-  min-height: 32px;
-}
-
-.navItemBody:hover {
-  color: var(--color-text-default);
+  padding: var(--space-2) var(--space-12);
+  min-height: 40px;
 }
 
 .navItemBody:focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: -2px;
   border-radius: var(--radius-sm);
-}
-
-.navItemBody[aria-current="page"] {
-  color: var(--color-cta-bg);
-  font-weight: var(--font-weight-semibold);
 }
 
 .navLabel {

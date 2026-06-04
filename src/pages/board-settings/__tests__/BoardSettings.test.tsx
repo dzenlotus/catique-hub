@@ -39,8 +39,8 @@ vi.mock("@shared/lib", async () => {
 import type { Board } from "@entities/board";
 import type { Role } from "@entities/role";
 import type { Space } from "@entities/space";
-import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ActiveSpaceProvider } from "@app/providers";
+import { ToastProvider } from "@shared/lib";
 
 vi.mock("@shared/api", async () => {
   const actual = await vi.importActual<typeof import("@shared/api")>("@shared/api");
@@ -296,8 +296,8 @@ describe("BoardSettings — owner cat picker (ctq-106)", () => {
   });
 });
 
-describe("BoardSettings — board prompts MultiSelect (audit-#8)", () => {
-  it("renders the prompts MultiSelect inline (no Attach button)", async () => {
+describe("BoardSettings — board prompts SelectTag (audit-#8)", () => {
+  it("renders the prompts SelectTag inline (no Attach button)", async () => {
     invokeMock.mockImplementation(async (cmd) => {
       if (cmd === "get_board") return makeBoard();
       if (cmd === "list_spaces") return [makeSpace()];
@@ -347,7 +347,7 @@ describe("BoardSettings — board prompts MultiSelect (audit-#8)", () => {
     );
   });
 
-  it("calls set_board_prompts when a prompt is added via MultiSelect", async () => {
+  it("calls set_board_prompts when a prompt is added via SelectTag", async () => {
     const setCalls: Array<[string, unknown]> = [];
     invokeMock.mockImplementation(async (cmd, args) => {
       setCalls.push([cmd, args]);

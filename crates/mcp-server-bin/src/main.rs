@@ -33,7 +33,7 @@ use std::collections::HashSet;
 use std::io::Write;
 use std::sync::Arc;
 
-use catique_application::mcp_dispatch;
+use catique_application::{mcp_aggregated, mcp_dispatch};
 use catique_hub_mcp::upstream::{
     list_enabled_servers, lookup_server_by_name, ServerMeta, UpstreamError, UpstreamPool,
 };
@@ -132,34 +132,40 @@ async fn run() -> Result<(), StartupError> {
         }
     }
 
-    // Parse the manifest into:
-    //   * `native_tools` — the full JSON descriptors echoed verbatim in
-    //     `tools/list` so external MCP clients see every catique-native
-    //     tool the same way they would see any other MCP server's tools
-    //     (standard pattern, no per-session filtering).
-    //   * `native_methods` — a HashSet of method names for O(1)
-    //     validation in `tools/call`.
+    // Parse the manifest. We use it for two purposes:
+    //   * `legacy_methods` — every flat method name (`create_task`,
+    //     `list_roles`, …) stays valid for `tools/call` so external
+    //     clients pinned to the pre-consolidation names keep working.
+    //   * The descriptors themselves are NO LONGER echoed in
+    //     `tools/list`; we surface the 16 entity-level tools from
+    //     [`mcp_aggregated::aggregated_tool_descriptors`] instead so
+    //     the advertised surface fits in any agent's context budget.
     let manifest_value: Value =
         serde_json::from_str(TOOL_MANIFEST).map_err(StartupError::ManifestParse)?;
-    let native_tools: Vec<Value> = manifest_value
+    let legacy_tools: Vec<Value> = manifest_value
         .get("tools")
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    let native_methods: HashSet<String> = native_tools
+    let mut native_methods: HashSet<String> = legacy_tools
         .iter()
         .filter_map(|t| t.get("name").and_then(Value::as_str).map(str::to_owned))
         .collect();
+    for entity in mcp_aggregated::ENTITY_TOOL_NAMES {
+        native_methods.insert((*entity).to_owned());
+    }
+    let aggregated_tools = mcp_aggregated::aggregated_tool_descriptors();
     log(&format!(
-        "loaded {} native tool(s) from manifest",
-        native_tools.len()
+        "tools/list advertises {} entity tool(s); {} legacy method(s) remain callable",
+        aggregated_tools.len(),
+        legacy_tools.len(),
     ));
 
     let upstream_pool = Arc::new(UpstreamPool::new());
 
     serve(
         Arc::new(pool),
-        Arc::new(native_tools),
+        Arc::new(aggregated_tools),
         Arc::new(native_methods),
         upstream_pool,
     )
@@ -173,7 +179,7 @@ async fn run() -> Result<(), StartupError> {
 /// slow `tools/call` does not block subsequent reads.
 async fn serve(
     pool: Arc<Pool>,
-    native_tools: Arc<Vec<Value>>,
+    advertised_tools: Arc<Vec<Value>>,
     native_methods: Arc<HashSet<String>>,
     upstream: Arc<UpstreamPool>,
 ) {
@@ -214,13 +220,13 @@ async fn serve(
             }
         };
         let pool = Arc::clone(&pool);
-        let native_tools = Arc::clone(&native_tools);
+        let advertised_tools = Arc::clone(&advertised_tools);
         let native_methods = Arc::clone(&native_methods);
         let upstream = Arc::clone(&upstream);
         let stdout = Arc::clone(&stdout);
         tokio::spawn(async move {
             let response =
-                dispatch_request(&pool, &native_tools, &native_methods, &upstream, req).await;
+                dispatch_request(&pool, &advertised_tools, &native_methods, &upstream, req).await;
             if let Some(resp) = response {
                 write_response(&stdout, &resp).await;
             }
@@ -231,7 +237,7 @@ async fn serve(
 /// Route a single inbound request. Returns `None` for notifications.
 async fn dispatch_request(
     pool: &Arc<Pool>,
-    native_tools: &Arc<Vec<Value>>,
+    advertised_tools: &Arc<Vec<Value>>,
     native_methods: &Arc<HashSet<String>>,
     upstream: &Arc<UpstreamPool>,
     req: Request,
@@ -246,7 +252,7 @@ async fn dispatch_request(
             id.as_ref()?;
             Ok(json!({}))
         }
-        "tools/list" => Ok(handle_tools_list(native_tools)),
+        "tools/list" => Ok(handle_tools_list(advertised_tools)),
         "tools/call" => handle_tools_call(pool, native_methods, upstream, &params).await,
         "ping" => Ok(json!({})),
         other => Err((
@@ -279,17 +285,15 @@ fn handle_initialize(params: &Value) -> Value {
     })
 }
 
-/// Build the `tools/list` reply: every catique-native tool from the
-/// embedded manifest, plus the single `mcp_proxy_tool` entry that
-/// fronts every upstream MCP server registered in Catique HUB.
-///
-/// External MCP clients (Claude Desktop / Claude Code / Codex) see this
-/// as a normal MCP server — the standard pattern is to expose the full
-/// tool list straight through `tools/list`. Per-role scoping happens in
-/// the agent file body (`<mcp-tool>` blocks rendered by the role-sync
-/// orchestrator), NOT on the wire.
-fn handle_tools_list(native_tools: &Arc<Vec<Value>>) -> Value {
-    let mut out: Vec<Value> = native_tools.as_ref().clone();
+/// Build the `tools/list` reply: the 16 entity-level Catique tools +
+/// 2 cross-cutting top-level tools (`search_all`, `get_sync_status`) +
+/// the `mcp_proxy_tool` upstream façade. Legacy flat names
+/// (`create_task`, `list_roles`, …) remain callable via `tools/call`
+/// for backward compatibility but are no longer advertised here —
+/// they collectively spent ~70 KB of every agent's context budget
+/// for no semantic gain over the consolidated surface.
+fn handle_tools_list(advertised_tools: &Arc<Vec<Value>>) -> Value {
+    let mut out: Vec<Value> = advertised_tools.as_ref().clone();
     out.push(proxy_tool_descriptor());
     json!({ "tools": out })
 }
@@ -380,29 +384,83 @@ async fn handle_tools_call(
         return Ok(call_upstream_tool(pool, upstream, server_name, tool_name, args).await);
     }
 
-    // ---- Native catique path -------------------------------------
+    // ---- Aggregated entity-tool path -----------------------------
+    if mcp_aggregated::ENTITY_TOOL_NAMES.contains(&name.as_str()) {
+        let args = params.get("arguments").cloned().unwrap_or(json!({}));
+        return Ok(handle_entity_call(pool, &name, args).await);
+    }
+
+    // ---- Native catique path (legacy flat names) -----------------
     if !native_methods.contains(&name) {
         return Ok(unknown_method_error(pool, &name).await);
     }
 
     let args = params.get("arguments").cloned().unwrap_or(json!({}));
-    // Snapshot for the cross-process bus publish below — the arm
-    // consumes `args` by value but `publish_change_for_method` needs
-    // the original to recover IDs that don't appear in the result.
-    let args_for_publish = args.clone();
+    Ok(invoke_legacy_method(pool, &name, args).await)
+}
 
-    let arm_result: Result<Value, String> = match name.as_str() {
-        "proxy_tool_call" | "refresh_mcp_server" => {
-            return Ok(tools_call_error(format!(
-                "tool_not_implemented_yet: `{name}` requires the live Tauri-shell sidecar wire and is not exposed by the standalone Rust MCP server."
-            )));
-        }
+/// Dispatch one entity-level tool call (`task`, `role`, `board`, …).
+/// Extracts `action` from `arguments`, resolves it to the underlying
+/// legacy method via [`mcp_aggregated::resolve_legacy_method`], then
+/// delegates to [`invoke_legacy_method`] so async / sync arms share
+/// the same execution path.
+async fn handle_entity_call(pool: &Arc<Pool>, entity: &str, args: Value) -> Value {
+    let (action, rest) = match mcp_aggregated::split_action(args, entity) {
+        Ok(pair) => pair,
+        Err(msg) => return tools_call_error(msg),
+    };
+    let Some(legacy) = mcp_aggregated::resolve_legacy_method(entity, &action) else {
+        return tools_call_error(format!(
+            "`{entity}`: unknown action `{action}`. Call `tools/list` and read the `{entity}` description for the valid action set."
+        ));
+    };
+    let arm_result = invoke_legacy_method_inner(pool, legacy, rest.clone()).await;
+    if let Ok(ref value) = arm_result {
+        mcp_dispatch::publish_change_for_method(pool, legacy, &rest, value);
+    }
+    match arm_result {
+        Ok(value) => json!({
+            "content": [{ "type": "text", "text": value.to_string() }],
+        }),
+        Err(msg) => tools_call_error(msg),
+    }
+}
+
+/// Public-name wrapper around [`invoke_legacy_method_inner`] that
+/// also publishes the cross-process bus event after a successful
+/// arm. Used by the legacy flat-name dispatch path.
+async fn invoke_legacy_method(pool: &Arc<Pool>, method: &str, args: Value) -> Value {
+    let args_for_publish = args.clone();
+    let arm_result = invoke_legacy_method_inner(pool, method, args).await;
+    if let Ok(ref value) = arm_result {
+        mcp_dispatch::publish_change_for_method(pool, method, &args_for_publish, value);
+    }
+    match arm_result {
+        Ok(value) => json!({
+            "content": [{ "type": "text", "text": value.to_string() }],
+        }),
+        Err(msg) => tools_call_error(msg),
+    }
+}
+
+/// Run a single legacy method arm. Async arms run inline on the
+/// tokio runtime; sync arms hop to `spawn_blocking` so the blocking
+/// rusqlite call doesn't stall the reactor.
+async fn invoke_legacy_method_inner(
+    pool: &Arc<Pool>,
+    method: &str,
+    args: Value,
+) -> Result<Value, String> {
+    match method {
+        "proxy_tool_call" | "refresh_mcp_server" => Err(format!(
+            "tool_not_implemented_yet: `{method}` requires the live Tauri-shell sidecar wire and is not exposed by the standalone Rust MCP server."
+        )),
         "add_provider" => mcp_dispatch::add_provider_arm(pool, None, args).await,
         "remove_provider" => mcp_dispatch::remove_provider_arm(pool, None, args).await,
         "import_skill_from_url" => mcp_dispatch::import_skill_from_url_arm(pool, args).await,
         _ => {
             let pool_clone = Arc::clone(pool);
-            let method_owned = name.clone();
+            let method_owned = method.to_owned();
             match tokio::task::spawn_blocking(move || {
                 mcp_dispatch::dispatch(&pool_clone, &method_owned, args)
             })
@@ -412,23 +470,7 @@ async fn handle_tools_call(
                 Err(join_err) => Err(format!("dispatch join error: {join_err}")),
             }
         }
-    };
-
-    // ctq-cross-process-bus: publish realtime events into
-    // `change_events` so the Tauri shell's tail task re-emits them as
-    // the same Tauri events the in-process IPC handlers emit. Without
-    // this hop the standalone-binary path stays invisible to the UI
-    // until a manual reload.
-    if let Ok(ref value) = arm_result {
-        mcp_dispatch::publish_change_for_method(pool, &name, &args_for_publish, value);
     }
-
-    Ok(match arm_result {
-        Ok(value) => json!({
-            "content": [{ "type": "text", "text": value.to_string() }],
-        }),
-        Err(msg) => tools_call_error(msg),
-    })
 }
 
 /// Build an `isError` envelope for an unrecognised `method`. To help

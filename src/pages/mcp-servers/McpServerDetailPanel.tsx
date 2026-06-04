@@ -6,7 +6,7 @@
  * now lives in the rail as nested children.
  */
 
-import { useState, type ReactElement } from "react";
+import { useCallback, useState, type ReactElement } from "react";
 import { useLocationCompat as useLocation } from "@shared/lib";
 
 import {
@@ -15,11 +15,12 @@ import {
   useMcpServerStatus,
   useMcpToolsByServer,
   useRefreshMcpServerMutation,
+  useUpdateMcpServerMutation,
   type McpServerHealthState,
   type RefreshReport,
 } from "@entities/mcp-server";
-import { useToast } from "@app/providers/ToastProvider";
-import { ConfirmDialog } from "@shared/ui";
+import { useToast } from "@shared/lib";
+import { ConfirmDialog, EntityTitle } from "@shared/ui";
 import { PixelInterfaceEssentialBin, PixelInterfaceEssentialRefresh } from "@shared/ui/Icon";
 import { cn } from "@shared/lib";
 import { routes } from "@app/routes";
@@ -45,7 +46,26 @@ export function McpServerDetailPanel({
   const toolsQuery = useMcpToolsByServer(serverId);
   const refreshMutation = useRefreshMcpServerMutation();
   const deleteMutation = useDeleteMcpServerMutation();
+  const updateMutation = useUpdateMcpServerMutation();
   const { pushToast } = useToast();
+
+  // Inline-rename handler. Lifted out of JSX (useCallback) to keep the
+  // mutation plumbing out of the EntityTitle prop tree and to avoid
+  // re-allocating on every render.
+  const currentName = serverQuery.data?.name ?? serverId;
+  const handleRename = useCallback(
+    (next: string) => {
+      updateMutation.mutate(
+        { id: serverId, name: next },
+        {
+          onError: (err) => {
+            pushToast("error", `Failed to rename ${currentName}: ${err.message}`);
+          },
+        },
+      );
+    },
+    [updateMutation, serverId, currentName, pushToast],
+  );
   const [, setLocation] = useLocation();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
@@ -116,38 +136,46 @@ export function McpServerDetailPanel({
       data-testid={`mcp-servers-page-detail-${serverId}`}
     >
       <header className={styles.detailHeader}>
-        <div className={styles.detailIdentity}>
-          <span
-            className={cn(styles.statusDot, statusDotClass(state))}
-            aria-hidden="true"
-            data-testid={`mcp-servers-page-status-dot-${serverId}`}
-            data-state={state}
-          />
-          <h1 className={styles.detailTitle}>{server.name}</h1>
-        </div>
-        <div className={styles.detailActions}>
-          <button
-            type="button"
-            className={styles.iconButton}
-            onClick={handleRefresh}
-            disabled={refreshMutation.isPending}
-            aria-label={`Refresh ${server.name}`}
-            data-pending={refreshMutation.isPending ? "true" : undefined}
-            data-testid={`mcp-servers-page-refresh-${serverId}`}
-          >
-            <PixelInterfaceEssentialRefresh width={16} height={16} aria-hidden />
-          </button>
-          <button
-            type="button"
-            className={styles.iconButton}
-            onClick={() => setIsConfirmOpen(true)}
-            disabled={deleteMutation.isPending}
-            aria-label={`Delete ${server.name}`}
-            data-testid={`mcp-servers-page-delete-${serverId}`}
-          >
-            <PixelInterfaceEssentialBin width={16} height={16} aria-hidden />
-          </button>
-        </div>
+        <EntityTitle
+          size="lg"
+          editable
+          name={server.name}
+          onNameChange={handleRename}
+          editTestId={`mcp-servers-page-rename-${serverId}`}
+          leadingSlot={
+            <span
+              className={cn(styles.statusDot, statusDotClass(state))}
+              aria-hidden="true"
+              data-testid={`mcp-servers-page-status-dot-${serverId}`}
+              data-state={state}
+            />
+          }
+          actions={
+            <>
+              <button
+                type="button"
+                className={styles.iconButton}
+                onClick={handleRefresh}
+                disabled={refreshMutation.isPending}
+                aria-label={`Refresh ${server.name}`}
+                data-pending={refreshMutation.isPending ? "true" : undefined}
+                data-testid={`mcp-servers-page-refresh-${serverId}`}
+              >
+                <PixelInterfaceEssentialRefresh width={16} height={16} aria-hidden />
+              </button>
+              <button
+                type="button"
+                className={styles.iconButton}
+                onClick={() => setIsConfirmOpen(true)}
+                disabled={deleteMutation.isPending}
+                aria-label={`Delete ${server.name}`}
+                data-testid={`mcp-servers-page-delete-${serverId}`}
+              >
+                <PixelInterfaceEssentialBin width={16} height={16} aria-hidden />
+              </button>
+            </>
+          }
+        />
       </header>
 
       <p

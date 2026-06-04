@@ -22,7 +22,7 @@ import {
   type PromptTemplate,
 } from "@entities/prompt";
 import { useLocalStorage } from "@shared/storage";
-import { Button } from "@shared/ui";
+import { Button, Input } from "@shared/ui";
 import { TagsLibraryEditor } from "../_tags-library";
 
 import styles from "./PromptsSettings.module.css";
@@ -97,6 +97,10 @@ function TemplateSection(): ReactElement {
     { shortDescription: "", content: "" },
   );
 
+  const handleShortDescriptionChange = (next: string): void => {
+    setTemplate((prev) => ({ ...prev, shortDescription: next }));
+  };
+
   return (
     <section
       className={styles.card}
@@ -110,19 +114,15 @@ function TemplateSection(): ReactElement {
         retype boilerplate. Leave a field blank to skip it.
       </p>
 
-      <label className={styles.fieldLabel}>
-        <span className={styles.fieldLabelText}>Short description</span>
-        <input
-          type="text"
-          className={styles.fieldInput}
-          value={template.shortDescription}
-          onChange={(e) =>
-            setTemplate({ ...template, shortDescription: e.target.value })
-          }
-          placeholder="Optional default…"
-          data-testid="prompts-settings-template-shortdesc"
-        />
-      </label>
+      <Input
+        type="text"
+        label="Short description"
+        className={styles.field}
+        value={template.shortDescription}
+        onChange={handleShortDescriptionChange}
+        placeholder="Optional default…"
+        data-testid="prompts-settings-template-shortdesc"
+      />
 
       <label className={styles.fieldLabel}>
         <span className={styles.fieldLabelText}>Content</span>

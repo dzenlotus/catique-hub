@@ -36,6 +36,12 @@ import {
   listMcpToolsByServer,
   refreshMcpServer,
   updateMcpServer,
+  listRoleMcpServers,
+  setRoleMcpServers,
+  listBoardMcpServers,
+  setBoardMcpServers,
+  listTaskMcpServers,
+  setTaskMcpServers,
   type CreateMcpServerArgs,
   type UpdateMcpServerArgs,
 } from "../api";
@@ -52,6 +58,13 @@ export const mcpServersKeys = {
   detail: (id: string) => [...mcpServersKeys.all, id] as const,
   status: (id: string) => [...mcpServersKeys.all, id, "status"] as const,
   tools: (id: string) => [...mcpServersKeys.all, id, "tools"] as const,
+  /** Servers attached as live units at a scope (Phase C). */
+  roleAttached: (roleId: string) =>
+    [...mcpServersKeys.all, "attached", "role", roleId] as const,
+  boardAttached: (boardId: string) =>
+    [...mcpServersKeys.all, "attached", "board", boardId] as const,
+  taskAttached: (taskId: string) =>
+    [...mcpServersKeys.all, "attached", "task", taskId] as const,
 };
 
 /** `useMcpServers` — list every registered MCP server. */
@@ -187,6 +200,99 @@ export function useDeleteMcpServerMutation(): UseMutationResult<
       queryClient.removeQueries({ queryKey: mcpServersKeys.detail(id) });
       queryClient.removeQueries({ queryKey: mcpServersKeys.status(id) });
       queryClient.removeQueries({ queryKey: mcpServersKeys.tools(id) });
+    },
+  });
+}
+
+// ── server-as-live-unit attachment (Phase C) ────────────────────────
+
+/** `useRoleMcpServers` — server ids attached to a role. */
+export function useRoleMcpServers(
+  roleId: string,
+): UseQueryResult<string[], Error> {
+  return useQuery({
+    queryKey: mcpServersKeys.roleAttached(roleId),
+    queryFn: () => listRoleMcpServers(roleId),
+    enabled: roleId.length > 0,
+  });
+}
+
+/** `useBoardMcpServers` — server ids attached to a board. */
+export function useBoardMcpServers(
+  boardId: string,
+): UseQueryResult<string[], Error> {
+  return useQuery({
+    queryKey: mcpServersKeys.boardAttached(boardId),
+    queryFn: () => listBoardMcpServers(boardId),
+    enabled: boardId.length > 0,
+  });
+}
+
+/** `useTaskMcpServers` — server ids attached to a task. */
+export function useTaskMcpServers(
+  taskId: string,
+): UseQueryResult<string[], Error> {
+  return useQuery({
+    queryKey: mcpServersKeys.taskAttached(taskId),
+    queryFn: () => listTaskMcpServers(taskId),
+    enabled: taskId.length > 0,
+  });
+}
+
+interface SetScopeServersArgs {
+  id: string;
+  serverIds: string[];
+}
+
+function invalidateServerAttach(
+  queryClient: ReturnType<typeof useQueryClient>,
+  attachedKey: readonly unknown[],
+): void {
+  void queryClient.invalidateQueries({ queryKey: attachedKey });
+  void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+}
+
+/** `useSetRoleMcpServersMutation` — replace a role's attached servers. */
+export function useSetRoleMcpServersMutation(): UseMutationResult<
+  void,
+  Error,
+  SetScopeServersArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, serverIds }) => setRoleMcpServers(id, serverIds),
+    onSettled: (_v, _e, args) => {
+      invalidateServerAttach(queryClient, mcpServersKeys.roleAttached(args.id));
+    },
+  });
+}
+
+/** `useSetBoardMcpServersMutation` — replace a board's attached servers. */
+export function useSetBoardMcpServersMutation(): UseMutationResult<
+  void,
+  Error,
+  SetScopeServersArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, serverIds }) => setBoardMcpServers(id, serverIds),
+    onSettled: (_v, _e, args) => {
+      invalidateServerAttach(queryClient, mcpServersKeys.boardAttached(args.id));
+    },
+  });
+}
+
+/** `useSetTaskMcpServersMutation` — replace a task's attached servers. */
+export function useSetTaskMcpServersMutation(): UseMutationResult<
+  void,
+  Error,
+  SetScopeServersArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, serverIds }) => setTaskMcpServers(id, serverIds),
+    onSettled: (_v, _e, args) => {
+      invalidateServerAttach(queryClient, mcpServersKeys.taskAttached(args.id));
     },
   });
 }

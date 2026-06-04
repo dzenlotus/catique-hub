@@ -66,7 +66,8 @@ export function McpServersOverview({
 
       <p className={styles.overviewHint}>
         Select a server on the left to see its tools and refresh /
-        delete actions.
+        delete actions. Tool groups live in the GROUPS section above the
+        server list.
       </p>
     </div>
   );

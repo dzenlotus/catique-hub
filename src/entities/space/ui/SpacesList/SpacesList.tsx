@@ -11,7 +11,7 @@
 import { useState, type ReactElement } from "react";
 
 import { SpaceCard, useSpaces } from "@entities/space";
-import { useActiveSpace } from "@app/providers/ActiveSpaceProvider";
+import { useActiveSpace } from "@shared/lib";
 import { Button, EmptyState } from "@shared/ui";
 import { PixelPetAnimalsCat } from "@shared/ui/Icon";
 import { SpaceCreateDialog } from "@features/space/create-dialog";

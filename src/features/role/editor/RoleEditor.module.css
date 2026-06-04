@@ -326,3 +326,18 @@
   font-size: var(--font-size-body-sm);
   color: var(--color-text-subtle);
 }
+
+/* ── Origin-badge scope header above each attachment SelectTag ────── */
+
+.attachmentScopeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.attachmentScopeHint {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}

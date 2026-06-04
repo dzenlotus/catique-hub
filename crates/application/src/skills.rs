@@ -20,6 +20,7 @@ use catique_infrastructure::db::{
             self as att_repo, FileAttachmentDraft, GitAttachmentDraft,
             SkillAttachmentKind as RepoKind, SkillAttachmentRow,
         },
+        skill_steps::{self as step_repo, SkillStepRow},
         skills::{self as repo, SkillDraft, SkillPatch, SkillRow},
     },
 };
@@ -71,6 +72,54 @@ impl<'a> SkillsUseCase<'a> {
                 id: id.to_owned(),
             }),
         }
+    }
+
+    /// Serialise a skill (overview + ordered steps) as a Markdown
+    /// document.
+    ///
+    /// Stream J / v3 Wave 4. The format mirrors what
+    /// `SkillImportUseCase::import_from_url` accepts, so a
+    /// HUB-authored export round-trips through the import pipeline
+    /// without surprises. The frontend `<SkillExportButton/>` used to
+    /// build this string in JS; centralising it here keeps the export
+    /// canonical (a future "share via signed git URL" can hash the
+    /// exact same bytes) and avoids subtle JS/Rust divergence on
+    /// whitespace handling.
+    ///
+    /// Shape:
+    ///
+    /// ```text
+    /// # <skill name>
+    ///
+    /// <description, when non-empty>
+    ///
+    /// ## Step 1 — <title>
+    ///
+    /// <body, when non-empty>
+    ///
+    /// **Expected outcome.** <expected_outcome, when non-empty>
+    /// ```
+    ///
+    /// Trailing whitespace is trimmed off each free-form section so
+    /// the output stays stable across editor-flavoured paste paths;
+    /// inter-section blank lines come from `writeln!` calls so a
+    /// single missing field never collapses two adjacent sections
+    /// into one paragraph.
+    ///
+    /// # Errors
+    ///
+    /// * `AppError::NotFound` — `skill_id` is unknown.
+    /// * Forwards every storage-layer error from the repo lookups.
+    pub fn export_skill_as_markdown(&self, skill_id: &str) -> Result<String, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let skill_row = repo::get_by_id(&conn, skill_id)
+            .map_err(map_db_err)?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "skill".into(),
+                id: skill_id.to_owned(),
+            })?;
+        let steps = step_repo::list_by_skill(&conn, skill_id).map_err(map_db_err)?;
+        Ok(render_skill_markdown(&skill_row, &steps))
     }
 
     /// Create a skill.
@@ -206,7 +255,13 @@ impl<'a> SkillsUseCase<'a> {
         position: f64,
     ) -> Result<(), AppError> {
         let conn = acquire(self.pool).map_err(map_db_err)?;
-        repo::add_task_skill(&conn, task_id, skill_id, position).map_err(map_db_err)
+        repo::add_task_skill(&conn, task_id, skill_id, position).map_err(map_db_err)?;
+        // Refactor-v3 D-B: bump the denormalised skill counter on the
+        // affected task so kanban cards reflect the new attachment
+        // without re-resolving the bundle.
+        catique_infrastructure::db::repositories::tasks::recompute_effective_counts(&conn, task_id)
+            .map_err(map_db_err)?;
+        Ok(())
     }
 
     /// Detach a direct skill from a task. Returns `Ok(())` for idempotent
@@ -221,6 +276,9 @@ impl<'a> SkillsUseCase<'a> {
     pub fn remove_from_task(&self, task_id: &str, skill_id: &str) -> Result<(), AppError> {
         let conn = acquire(self.pool).map_err(map_db_err)?;
         let _ = repo::remove_task_skill(&conn, task_id, skill_id).map_err(map_db_err)?;
+        // Refactor-v3 D-B counter sync.
+        catique_infrastructure::db::repositories::tasks::recompute_effective_counts(&conn, task_id)
+            .map_err(map_db_err)?;
         Ok(())
     }
 
@@ -435,6 +493,49 @@ impl<'a> SkillsUseCase<'a> {
         let rows = att_repo::list_by_skill(&conn, skill_id).map_err(map_db_err)?;
         Ok(rows.into_iter().map(row_to_attachment).collect())
     }
+}
+
+/// Build the Markdown body for a skill + its ordered steps.
+///
+/// Pure function — extracted so the export can be unit-tested without
+/// a DB and so the eventual "share via git URL" path can hash exactly
+/// the same bytes by constructing `SkillRow` + `Vec<SkillStepRow>`
+/// from another source. Caller is responsible for providing the
+/// steps already ordered by position (the repo's `list_by_skill`
+/// guarantees this).
+fn render_skill_markdown(skill: &SkillRow, steps: &[SkillStepRow]) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    // `writeln!` into a `String` is infallible (the only error case
+    // is allocation failure, which the std impl panics on already);
+    // explicitly ignore the `Result` to keep clippy happy without
+    // pulling `unwrap` into a code path that has no real failure
+    // mode.
+    let _ = writeln!(out, "# {}", skill.name);
+    if let Some(desc) = skill.description.as_deref() {
+        let trimmed = desc.trim();
+        if !trimmed.is_empty() {
+            let _ = writeln!(out);
+            let _ = writeln!(out, "{trimmed}");
+        }
+    }
+    for (idx, step) in steps.iter().enumerate() {
+        let _ = writeln!(out);
+        let _ = writeln!(out, "## Step {} — {}", idx + 1, step.title);
+        let trimmed_body = step.body.trim();
+        if !trimmed_body.is_empty() {
+            let _ = writeln!(out);
+            let _ = writeln!(out, "{trimmed_body}");
+        }
+        if let Some(eo) = step.expected_outcome.as_deref() {
+            let trimmed_eo = eo.trim();
+            if !trimmed_eo.is_empty() {
+                let _ = writeln!(out);
+                let _ = writeln!(out, "**Expected outcome.** {trimmed_eo}");
+            }
+        }
+    }
+    out
 }
 
 /// Resolve the per-skill blob directory.
@@ -907,6 +1008,82 @@ mod tests {
             AppError::Validation { field, .. } => assert_eq!(field, "bytes"),
             other => panic!("got {other:?}"),
         }
+    }
+
+    // ── Stream J / v3 Wave 4 — markdown export ───────────────────────
+
+    #[test]
+    fn export_skill_as_markdown_renders_overview_and_steps() {
+        let (pool, skill_id) = fresh_pool_with_skill();
+        // Patch the description + add two steps so we exercise every
+        // optional branch in `render_skill_markdown`.
+        let uc = SkillsUseCase::new(&pool);
+        uc.update(
+            skill_id.clone(),
+            None,
+            Some(Some("Systems language with strong type checks.".into())),
+            None,
+            None,
+        )
+        .unwrap();
+        let steps_uc = crate::skill_steps::SkillStepsUseCase::new(&pool);
+        steps_uc
+            .add_step(
+                &skill_id,
+                "Install rustup".into(),
+                "Visit rustup.rs and follow the installer.".into(),
+                Some("`rustc --version` prints a version".into()),
+                None,
+            )
+            .unwrap();
+        steps_uc
+            .add_step(
+                &skill_id,
+                "Create a project".into(),
+                String::new(), // empty body — should be skipped
+                None,          // no expected outcome
+                None,
+            )
+            .unwrap();
+
+        let md = uc.export_skill_as_markdown(&skill_id).expect("export ok");
+
+        // Header + overview present.
+        assert!(md.starts_with("# Rust"), "markdown starts with title: {md}");
+        assert!(md.contains("Systems language with strong type checks."));
+        // Step 1 carries all three sections.
+        assert!(md.contains("## Step 1 — Install rustup"));
+        assert!(md.contains("Visit rustup.rs and follow the installer."));
+        assert!(md.contains("**Expected outcome.** `rustc --version` prints a version"));
+        // Step 2: heading only — empty body / missing expected outcome
+        // must not render the **Expected outcome.** label.
+        assert!(md.contains("## Step 2 — Create a project"));
+        let step2_offset = md.find("## Step 2").expect("step 2 header");
+        assert!(
+            !md[step2_offset..].contains("**Expected outcome."),
+            "step 2 has no expected outcome section",
+        );
+    }
+
+    #[test]
+    fn export_skill_as_markdown_returns_not_found_for_ghost() {
+        let pool = fresh_pool();
+        let uc = SkillsUseCase::new(&pool);
+        match uc.export_skill_as_markdown("ghost").expect_err("nf") {
+            AppError::NotFound { entity, .. } => assert_eq!(entity, "skill"),
+            other => panic!("got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn export_skill_as_markdown_handles_skill_without_description_or_steps() {
+        let (pool, skill_id) = fresh_pool_with_skill();
+        let md = SkillsUseCase::new(&pool)
+            .export_skill_as_markdown(&skill_id)
+            .unwrap();
+        // Only the title line + trailing newline; no blank intro
+        // paragraph for the missing description, no `## Step` headers.
+        assert_eq!(md, "# Rust\n");
     }
 
     #[test]

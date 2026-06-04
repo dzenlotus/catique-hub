@@ -40,7 +40,7 @@ vi.mock("@shared/api", async () => {
 });
 
 import { invoke } from "@shared/api";
-import { ToastProvider } from "@app/providers/ToastProvider";
+import { ToastProvider } from "@shared/lib";
 import { McpServerCreateDialog } from "../McpServerCreateDialog";
 
 const invokeMock = vi.mocked(invoke);

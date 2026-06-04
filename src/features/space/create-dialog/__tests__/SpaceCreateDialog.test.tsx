@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import type { Space } from "@entities/space";
-import { ActiveSpaceProvider } from "@app/providers/ActiveSpaceProvider";
+import { ActiveSpaceProvider } from "@app/providers";
 import { LocalStorageStore, stringCodec } from "@shared/storage";
 
 vi.mock("@shared/api", async () => {
