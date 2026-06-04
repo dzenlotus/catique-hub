@@ -446,112 +446,19 @@ impl<'a> BoardsUseCase<'a> {
     }
 
     // -----------------------------------------------------------------
-    // Refactor-v3 D-F: pinned + recent boards.
+    // Refactor-v3 D-F: recent boards.
     //
-    // The persistence sits in dedicated tables (migration 036) keyed by
+    // The persistence sits in a dedicated table (migration 036) keyed by
     // `board_id` with ON DELETE CASCADE. The use case wraps the repo
-    // surface to:
-    //
-    //   * pre-check board existence so a missing id surfaces as
-    //     `NotFound` (the repository would otherwise bubble a raw FK
-    //     `ConstraintViolation` → `TransactionRolledBack`, which the
-    //     frontend can't easily distinguish from a genuine race).
-    //   * stamp the next pin's `position` from `MAX(position) + 1` so
-    //     the caller doesn't have to round-trip for the current head.
-    //   * join the per-id rows back onto `boards` so the frontend gets
-    //     full `Board` records in one call (mirrors the `list_boards`
-    //     contract — same row shape, same key map).
+    // surface to join the per-id rows back onto `boards` so the frontend
+    // gets full `Board` records in one call (mirrors the `list_boards`
+    // contract — same row shape, same key map).
+    // (The Pinned-boards feature was removed.)
     // -----------------------------------------------------------------
 
-    /// List every pinned board as a full [`Board`] joined against the
-    /// `boards` table, ordered by `position` ASC. Pin rows that no
-    /// longer have a matching board (rare race: CASCADE has not yet
-    /// fired) are silently skipped.
-    ///
-    /// # Errors
-    ///
-    /// Forwards storage-layer errors.
-    pub fn list_pinned_boards(&self) -> Result<Vec<Board>, AppError> {
-        let conn = acquire(self.pool).map_err(map_db_err)?;
-        let ids = pinned_recent_repo::list_pinned(&conn).map_err(map_db_err)?;
-        let mut out = Vec::with_capacity(ids.len());
-        for id in ids {
-            // Best-effort join: the FK + CASCADE guarantees coherence
-            // under normal conditions; we still tolerate a missing row
-            // here so a race between a delete and a list doesn't fail
-            // the whole call.
-            if let Some(row) = repo::get_by_id(&conn, &id).map_err(map_db_err)? {
-                out.push(row_to_board(row));
-            }
-        }
-        Ok(out)
-    }
-
-    /// Pin a board. New pins land at `MAX(position) + 1` so the visual
-    /// order is "most-recently pinned at the bottom" until the user
-    /// drags. Idempotent: re-pinning an already-pinned board is a
-    /// silent no-op (returns `Ok(())`).
-    ///
-    /// # Errors
-    ///
-    /// * `AppError::NotFound` when `board_id` does not exist.
-    /// * Storage-layer errors.
-    pub fn pin_board(&self, board_id: &str) -> Result<(), AppError> {
-        let conn = acquire(self.pool).map_err(map_db_err)?;
-        if !columns_repo::board_exists(&conn, board_id).map_err(map_db_err)? {
-            return Err(AppError::NotFound {
-                entity: "board".into(),
-                id: board_id.to_owned(),
-            });
-        }
-        let next = pinned_recent_repo::max_position(&conn)
-            .map_err(map_db_err)?
-            .map_or(1.0, |m| m + 1.0);
-        // Insert-or-ignore — the repo swallows the conflict so an
-        // already-pinned board is a no-op without surfacing a
-        // misleading error to the caller.
-        let _ = pinned_recent_repo::pin(&conn, board_id, next).map_err(map_db_err)?;
-        Ok(())
-    }
-
-    /// Unpin a board. Idempotent: unpinning a non-pinned board is a
-    /// silent no-op.
-    ///
-    /// # Errors
-    ///
-    /// Forwards storage-layer errors.
-    pub fn unpin_board(&self, board_id: &str) -> Result<(), AppError> {
-        let conn = acquire(self.pool).map_err(map_db_err)?;
-        let _ = pinned_recent_repo::unpin(&conn, board_id).map_err(map_db_err)?;
-        Ok(())
-    }
-
-    /// Update a pinned board's `position`. The caller is responsible
-    /// for picking the midpoint between the two neighbours it wants
-    /// the row to land between (matches the `boards.position`
-    /// convention).
-    ///
-    /// # Errors
-    ///
-    /// * `AppError::NotFound` when the board is not currently pinned.
-    /// * Storage-layer errors.
-    pub fn reorder_pinned(&self, board_id: &str, new_position: f64) -> Result<(), AppError> {
-        let conn = acquire(self.pool).map_err(map_db_err)?;
-        let updated =
-            pinned_recent_repo::reorder(&conn, board_id, new_position).map_err(map_db_err)?;
-        if !updated {
-            return Err(AppError::NotFound {
-                entity: "pinned_board".into(),
-                id: board_id.to_owned(),
-            });
-        }
-        Ok(())
-    }
-
     /// List up to [`pinned_recent_repo::RECENT_BOARDS_LIMIT`] recently
-    /// visited boards, ordered by `visited_at` DESC. Like
-    /// [`Self::list_pinned_boards`], rows that race against a board
-    /// delete are skipped rather than failing the whole call.
+    /// visited boards, ordered by `visited_at` DESC. Rows that race
+    /// against a board delete are skipped rather than failing the call.
     ///
     /// # Errors
     ///
@@ -570,8 +477,7 @@ impl<'a> BoardsUseCase<'a> {
 
     /// Wipe every row from `recent_boards`. Backs the AppSidebar's
     /// "Clear" affordance — explicit user intent, idempotent (clearing
-    /// an empty table is a silent no-op). Pinned boards are unaffected;
-    /// the two tables are independent.
+    /// an empty table is a silent no-op).
     ///
     /// # Errors
     ///
@@ -1202,115 +1108,6 @@ mod tests {
     }
 
     #[test]
-    fn pin_unpin_round_trip_through_use_case() {
-        let pool = fresh_pool_with_space("sp1", "abc");
-        let uc = BoardsUseCase::new(&pool);
-        let board = uc.create(args("B", "sp1")).unwrap();
-
-        // Initially empty.
-        assert!(uc.list_pinned_boards().unwrap().is_empty());
-
-        uc.pin_board(&board.id).unwrap();
-        let pinned = uc.list_pinned_boards().unwrap();
-        assert_eq!(pinned.len(), 1);
-        assert_eq!(pinned[0].id, board.id);
-
-        // Idempotent pin (already pinned) — still one row.
-        uc.pin_board(&board.id).unwrap();
-        assert_eq!(uc.list_pinned_boards().unwrap().len(), 1);
-
-        uc.unpin_board(&board.id).unwrap();
-        assert!(uc.list_pinned_boards().unwrap().is_empty());
-
-        // Idempotent unpin.
-        uc.unpin_board(&board.id).unwrap();
-    }
-
-    #[test]
-    fn pin_unknown_board_returns_not_found() {
-        let pool = fresh_pool_no_space();
-        let uc = BoardsUseCase::new(&pool);
-        match uc.pin_board("ghost").expect_err("nf") {
-            AppError::NotFound { entity, id } => {
-                assert_eq!(entity, "board");
-                assert_eq!(id, "ghost");
-            }
-            other => panic!("got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn pin_appends_to_max_position() {
-        let pool = fresh_pool_with_space("sp1", "abc");
-        let roles = seed_distinct_roles(&pool, 3);
-        let uc = BoardsUseCase::new(&pool);
-        let b1 = uc.create(args_owned("B1", "sp1", &roles[0])).unwrap();
-        let b2 = uc.create(args_owned("B2", "sp1", &roles[1])).unwrap();
-        let b3 = uc.create(args_owned("B3", "sp1", &roles[2])).unwrap();
-        uc.pin_board(&b1.id).unwrap();
-        uc.pin_board(&b2.id).unwrap();
-        uc.pin_board(&b3.id).unwrap();
-
-        let ids: Vec<String> = uc
-            .list_pinned_boards()
-            .unwrap()
-            .into_iter()
-            .map(|b| b.id)
-            .collect();
-        // Insertion order preserved because each new pin gets
-        // max(position) + 1.
-        assert_eq!(ids, vec![b1.id.clone(), b2.id.clone(), b3.id.clone()]);
-    }
-
-    #[test]
-    fn reorder_pinned_updates_order() {
-        let pool = fresh_pool_with_space("sp1", "abc");
-        let roles = seed_distinct_roles(&pool, 3);
-        let uc = BoardsUseCase::new(&pool);
-        let b1 = uc.create(args_owned("B1", "sp1", &roles[0])).unwrap();
-        let b2 = uc.create(args_owned("B2", "sp1", &roles[1])).unwrap();
-        let b3 = uc.create(args_owned("B3", "sp1", &roles[2])).unwrap();
-        uc.pin_board(&b1.id).unwrap();
-        uc.pin_board(&b2.id).unwrap();
-        uc.pin_board(&b3.id).unwrap();
-
-        // Use a fractional midpoint between b2 (≈2) and b3 (≈3) so b1
-        // moves into the second slot.
-        uc.reorder_pinned(&b1.id, 2.5).unwrap();
-
-        let ids: Vec<String> = uc
-            .list_pinned_boards()
-            .unwrap()
-            .into_iter()
-            .map(|b| b.id)
-            .collect();
-        assert_eq!(ids, vec![b2.id, b1.id, b3.id]);
-    }
-
-    #[test]
-    fn reorder_pinned_returns_not_found_when_unpinned() {
-        let pool = fresh_pool_with_space("sp1", "abc");
-        let uc = BoardsUseCase::new(&pool);
-        let b = uc.create(args("B", "sp1")).unwrap();
-        match uc.reorder_pinned(&b.id, 5.0).expect_err("nf") {
-            AppError::NotFound { entity, .. } => assert_eq!(entity, "pinned_board"),
-            other => panic!("got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn pinned_cascade_drops_row_when_board_deleted() {
-        let pool = fresh_pool_with_space("sp1", "abc");
-        let uc = BoardsUseCase::new(&pool);
-        let b = uc.create(args("B", "sp1")).unwrap();
-        uc.pin_board(&b.id).unwrap();
-        // `delete()` would refuse a default board (none of ours is
-        // default). FK + CASCADE in 036 wipes the pin row.
-        uc.delete(&b.id).unwrap();
-        assert!(uc.list_pinned_boards().unwrap().is_empty());
-    }
-
-    #[test]
     fn track_visit_then_list_returns_one_board() {
         let pool = fresh_pool_with_space("sp1", "abc");
         let uc = BoardsUseCase::new(&pool);
@@ -1366,22 +1163,18 @@ mod tests {
 
     #[test]
     fn clear_recent_boards_wipes_list() {
-        // Pin one board and visit two; clear_recent must empty the
-        // Recent list without touching the pin.
+        // Visit two boards; clear_recent must empty the Recent list.
         let pool = fresh_pool_with_space("sp1", "abc");
         let roles = seed_distinct_roles(&pool, 2);
         let uc = BoardsUseCase::new(&pool);
         let b1 = uc.create(args_owned("B1", "sp1", &roles[0])).unwrap();
         let b2 = uc.create(args_owned("B2", "sp1", &roles[1])).unwrap();
-        uc.pin_board(&b1.id).unwrap();
         uc.track_board_visit(&b1.id).unwrap();
         uc.track_board_visit(&b2.id).unwrap();
         assert_eq!(uc.list_recent_boards().unwrap().len(), 2);
 
         uc.clear_recent_boards().unwrap();
         assert!(uc.list_recent_boards().unwrap().is_empty());
-        // Pinned untouched.
-        assert_eq!(uc.list_pinned_boards().unwrap().len(), 1);
 
         // Idempotent on an already-empty table.
         uc.clear_recent_boards().unwrap();

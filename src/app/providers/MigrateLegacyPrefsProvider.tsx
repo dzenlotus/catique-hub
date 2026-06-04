@@ -1,23 +1,25 @@
 /**
  * MigrateLegacyPrefsProvider — refactor-v3 D-F one-shot migration.
  *
- * Before D-F the Pinned and Recent board lists lived in localStorage
- * (`catique:pinnedBoards`, `catique:recentBoards`). D-F moved them to
- * dedicated SQLite tables. To preserve user state across the upgrade
- * we run a single best-effort migration on app boot:
+ * Before D-F the Recent board list lived in localStorage
+ * (`catique:recentBoards`). D-F moved it to a dedicated SQLite table.
+ * To preserve user state across the upgrade we run a single best-effort
+ * migration on app boot:
  *
- *   1. Read both legacy slots out of localStorage.
- *   2. Push each id to the new IPC (`pin_board`, `track_board_visit`).
- *      Recent ids are pushed OLDEST → NEWEST so the server-side
- *      `visited_at` timestamps land in the right order (the LRU
- *      pruner keeps the top-5 by recency).
- *   3. Clear the legacy slots so the migration doesn't run twice.
+ *   1. Read the legacy slot out of localStorage.
+ *   2. Push each id to `track_board_visit`, OLDEST → NEWEST, so the
+ *      server-side `visited_at` timestamps land in the right order (the
+ *      LRU pruner keeps the top-5 by recency).
+ *   3. Clear the legacy slot so the migration doesn't run twice.
  *
  * Every backend call is wrapped in try/catch so a single failure
  * (e.g. the board was deleted in the interim → `notFound`) doesn't
  * abort the rest of the batch — and the whole migration is wrapped
  * once more so an unexpected exception can't block the rest of the
  * app from booting.
+ *
+ * (The Pinned-boards feature was removed, so its legacy slot is no
+ * longer migrated — it simply lingers harmlessly in localStorage.)
  *
  * The provider is invisible (no DOM); it runs the migration on mount
  * and immediately renders its children. It must sit INSIDE
@@ -31,35 +33,18 @@ import { useEffect, type PropsWithChildren, type ReactElement } from "react";
 
 import { invoke } from "@shared/api";
 import {
-  clearLegacyPinnedBoards,
   clearLegacyRecentBoards,
-  readLegacyPinnedBoards,
   readLegacyRecentBoards,
 } from "@shared/storage";
 
 async function migrate(): Promise<void> {
-  const legacyPinned = readLegacyPinnedBoards();
   const legacyRecent = readLegacyRecentBoards();
 
   // No legacy data — nothing to do, and we still want to drop the
-  // slots so a stale `{"boardIds":[]}` payload doesn't linger.
-  if (legacyPinned.length === 0 && legacyRecent.length === 0) {
-    clearLegacyPinnedBoards();
+  // slot so a stale `{"boardIds":[]}` payload doesn't linger.
+  if (legacyRecent.length === 0) {
     clearLegacyRecentBoards();
     return;
-  }
-
-  // Pinned: push in stored order so positions track the user's prior
-  // arrangement. Each `pin_board` server-side stamps
-  // `MAX(position) + 1`, which preserves the order naturally.
-  for (const id of legacyPinned) {
-    try {
-      await invoke("pin_board", { boardId: id });
-    } catch (err) {
-      // Most likely `notFound` — the board was deleted while still
-      // referenced in the legacy slot. Skip and continue.
-      console.warn(`[catique-hub] migrate pin_board(${id}) skipped:`, err);
-    }
   }
 
   // Recent: legacy order is newest-first. Push OLDEST → NEWEST so the
@@ -77,7 +62,6 @@ async function migrate(): Promise<void> {
 
   // Clear only after the writes returned — keeps the slot available
   // for a retry if the IPC layer was momentarily unreachable.
-  clearLegacyPinnedBoards();
   clearLegacyRecentBoards();
 }
 

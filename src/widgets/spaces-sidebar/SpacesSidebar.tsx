@@ -19,12 +19,7 @@ import { SidebarSectionAddTrigger } from "@shared/ui/SidebarShell";
 import {
   booleanCodec,
   LocalStorageStore,
-  usePinnedBoards,
 } from "@shared/storage";
-import {
-  usePinBoardMutation,
-  useUnpinBoardMutation,
-} from "@entities/pinned-board";
 import { useSpaces, type Space } from "@entities/space";
 import {
   type Board,
@@ -116,19 +111,6 @@ export function SpacesSidebar(props: SpacesSidebarProps = {}): ReactElement {
   const spaces = useMemo(() => spacesQuery.data ?? [], [spacesQuery.data]);
   const boards = useMemo(() => boardsQuery.data ?? [], [boardsQuery.data]);
 
-  // Subscribe to pinned-boards state so the kebab "Pin/Unpin" label
-  // refreshes instantly after the user toggles. Refactor-v3 D-F: the
-  // backing store moved from localStorage to dedicated SQLite tables;
-  // the hook signature is unchanged (still `ReadonlyArray<string>` of
-  // board ids), so this component never had to know.
-  const pinnedBoardIds = usePinnedBoards();
-  const pinnedSet = useMemo(
-    () => new Set(pinnedBoardIds),
-    [pinnedBoardIds],
-  );
-  const pinMutation = usePinBoardMutation();
-  const unpinMutation = useUnpinBoardMutation();
-
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   // Keep the clicked board highlighted across every board surface. The
@@ -206,32 +188,6 @@ export function SpacesSidebar(props: SpacesSidebarProps = {}): ReactElement {
       setLocation(boardPath(boardId));
     },
     [setLocation],
-  );
-
-  const handleTogglePin = useCallback(
-    (board: Board): void => {
-      const wasPinned = pinnedSet.has(board.id);
-      const mutation = wasPinned ? unpinMutation : pinMutation;
-      mutation.mutate(board.id, {
-        onSuccess: () => {
-          pushToast(
-            "success",
-            wasPinned
-              ? `Unpinned "${board.name}"`
-              : `Pinned "${board.name}"`,
-          );
-        },
-        onError: (err) => {
-          pushToast(
-            "error",
-            wasPinned
-              ? `Failed to unpin board: ${err.message}`
-              : `Failed to pin board: ${err.message}`,
-          );
-        },
-      });
-    },
-    [pinMutation, unpinMutation, pinnedSet, pushToast],
   );
 
   // Tree data — root nodes are spaces; their children are the boards
@@ -357,10 +313,8 @@ export function SpacesSidebar(props: SpacesSidebarProps = {}): ReactElement {
           return (
             <BoardRowBody
               board={board}
-              isPinned={pinnedSet.has(board.id)}
               onSelect={() => handleSelectBoard(board.id)}
               onSettings={() => setLocation(boardSettingsPath(board.id))}
-              onTogglePin={() => handleTogglePin(board)}
               onDelete={() => setBoardPendingDelete(board)}
             />
           );
@@ -442,30 +396,21 @@ export function SpacesSidebar(props: SpacesSidebarProps = {}): ReactElement {
 
 interface BoardRowBodyProps {
   board: Board;
-  isPinned: boolean;
   onSelect: () => void;
   onSettings: () => void;
-  onTogglePin: () => void;
   onDelete: () => void;
 }
 
 function BoardRowBody({
   board,
-  isPinned,
   onSelect,
   onSettings,
-  onTogglePin,
   onDelete,
 }: BoardRowBodyProps): ReactElement {
   // Default boards are auto-created with their owning space and cannot
   // be deleted via the IPC (use-case returns Validation { is_default }).
   // Hide the affordance entirely so the user never fires a doomed delete.
   const menuItems = [
-    {
-      id: "pin",
-      label: isPinned ? "Unpin board" : "Pin board",
-      onAction: onTogglePin,
-    },
     { id: "settings", label: "Settings", onAction: onSettings },
     ...(board.isDefault
       ? []

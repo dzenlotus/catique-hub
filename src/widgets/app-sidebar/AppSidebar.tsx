@@ -3,7 +3,6 @@
  *
  * Sections (top → bottom):
  *   - Wordmark
- *   - Pinned boards (drag-to-reorder; Round 4 Stream O)
  *   - Spaces tree (composes the existing SpacesSidebar widget)
  *   - Nav (one EntityTree): Agents / Prompts / Skills / Integrations / Settings
  *
@@ -12,16 +11,11 @@
  */
 import { useMemo, type ReactElement } from "react";
 
-import { useBoards } from "@entities/board";
-import { spaceBoardPath } from "@app/routes";
 import type { NavView } from "@widgets/main-sidebar";
 import { SpacesSidebar } from "@widgets/spaces-sidebar";
-import { usePinnedBoards } from "@shared/storage";
-import { useLocationCompat } from "@shared/lib";
 import { EntityTree, type EntityTreeNode } from "@shared/ui";
 
 import HeartSolid from "./assets/heart-solid.svg?react";
-import { PinnedSection } from "./PinnedSection";
 import {
   TOP_LEVEL_NAV,
   FOOTER_NAV,
@@ -38,21 +32,6 @@ export interface AppSidebarProps {
 export function AppSidebar(props: AppSidebarProps): ReactElement {
   const { activeView, onSelectView } = props;
 
-  const boardsQuery = useBoards();
-  const [, setLocation] = useLocationCompat();
-
-  const pinned = usePinnedBoards();
-
-  const boards = boardsQuery.data ?? [];
-
-  const pinnedRows = useMemo(
-    () =>
-      pinned
-        .map((id) => boards.find((b) => b.id === id))
-        .filter((b): b is (typeof boards)[number] => b !== undefined),
-    [pinned, boards],
-  );
-
   // Top-level nav + Settings ride ONE shared EntityTree so they read as a
   // single family with the Spaces tree (same row chrome + active strip).
   // Settings is just the last row of the same tree — not a separate footer.
@@ -65,13 +44,6 @@ export function AppSidebar(props: AppSidebarProps): ReactElement {
       })),
     [],
   );
-
-  function handleOpenBoard(boardId: string): void {
-    const board = boards.find((b) => b.id === boardId);
-    if (board !== undefined) {
-      setLocation(spaceBoardPath(board.spaceId, board.id));
-    }
-  }
 
   const renderNavRow = ({
     node,
@@ -114,21 +86,9 @@ export function AppSidebar(props: AppSidebarProps): ReactElement {
       </div>
 
       <div className={styles.scrollArea}>
-        {pinnedRows.length > 0 ? (
-          <PinnedSection
-            boards={pinnedRows.map((b) => ({
-              id: b.id,
-              name: b.name,
-              spaceId: b.spaceId,
-            }))}
-            onOpenBoard={handleOpenBoard}
-          />
-        ) : null}
-
         <div className={styles.spacesSlot} data-testid="app-sidebar-spaces-slot">
           {/* embedded — sheds the outer `<SidebarShell>` chrome so the
-           *   SPACES heading sits as a peer of the "Pinned" section title
-           *   above. */}
+           *   SPACES heading sits flush at the top of the scroll area. */}
           <SpacesSidebar embedded />
         </div>
       </div>

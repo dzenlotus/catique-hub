@@ -213,61 +213,14 @@ pub async fn set_board_mcp_tools(
 }
 
 // ---------------------------------------------------------------------
-// Refactor-v3 D-F — pinned + recent board IPCs.
+// Refactor-v3 D-F — recent board IPCs.
 //
-// Six thin handlers. The Tauri commands are pure mapping over the
-// `BoardsUseCase` methods added in this stream; the join + ordering
+// Thin handlers mapping over `BoardsUseCase`; the join + ordering
 // guarantees live in the use case. We do NOT emit board-level events
-// here — these tables are sidebar-local state and the frontend keeps
+// here — `recent_boards` is sidebar-local state and the frontend keeps
 // its own TanStack-Query cache invalidated through the mutation hooks.
+// (The Pinned-boards feature was removed.)
 // ---------------------------------------------------------------------
-
-/// IPC: list every pinned board joined against `boards`, ordered by
-/// `position` ASC.
-///
-/// # Errors
-///
-/// Forwards every error from `BoardsUseCase::list_pinned_boards`.
-#[tauri::command]
-pub async fn list_pinned_boards(state: State<'_, AppState>) -> Result<Vec<Board>, AppError> {
-    BoardsUseCase::new(&state.pool).list_pinned_boards()
-}
-
-/// IPC: pin a board (idempotent — already-pinned is a silent no-op).
-///
-/// # Errors
-///
-/// Forwards every error from `BoardsUseCase::pin_board`.
-#[tauri::command]
-pub async fn pin_board(state: State<'_, AppState>, board_id: String) -> Result<(), AppError> {
-    BoardsUseCase::new(&state.pool).pin_board(&board_id)
-}
-
-/// IPC: unpin a board (idempotent — not-pinned is a silent no-op).
-///
-/// # Errors
-///
-/// Forwards every error from `BoardsUseCase::unpin_board`.
-#[tauri::command]
-pub async fn unpin_board(state: State<'_, AppState>, board_id: String) -> Result<(), AppError> {
-    BoardsUseCase::new(&state.pool).unpin_board(&board_id)
-}
-
-/// IPC: reorder a pinned board to `new_position`. Caller picks the
-/// fractional midpoint between the two neighbours it wants the row to
-/// land between.
-///
-/// # Errors
-///
-/// Forwards every error from `BoardsUseCase::reorder_pinned`.
-#[tauri::command]
-pub async fn reorder_pinned(
-    state: State<'_, AppState>,
-    board_id: String,
-    new_position: f64,
-) -> Result<(), AppError> {
-    BoardsUseCase::new(&state.pool).reorder_pinned(&board_id, new_position)
-}
 
 /// IPC: list up to 5 recently-visited boards joined against `boards`,
 /// ordered by `visited_at` DESC.

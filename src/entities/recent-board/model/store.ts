@@ -1,8 +1,7 @@
 /**
  * Recent-boards query-cache layer (refactor-v3 D-F).
  *
- * Mirrors `entities/pinned-board/model/store.ts` shape. Mutation hook
- * invalidates the list cache so the AppSidebar's Recent section
+ * Mutation hook invalidates the list cache so any Recent surface
  * re-renders the moment a board is opened.
  */
 
