@@ -14,9 +14,7 @@ use rusqlite::{params, Connection};
 
 use crate::db::pool::DbError;
 
-use super::tasks::{
-    recompute_effective_counts, recompute_effective_counts_for_scope, AttachScope,
-};
+use super::tasks::{recompute_effective_counts, recompute_effective_counts_for_scope, AttachScope};
 
 /// Scope an MCP server can be attached at.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -391,7 +389,12 @@ mod tests {
         seed_tool(&conn, "tx", "srv1", false); // soft-deleted → excluded
         let t = task_on_role(&conn, &bd, &col, Some("rl1"));
 
-        set_servers_at(&conn, &ServerAttachScope::Role("rl1".into()), &["srv1".into()]).unwrap();
+        set_servers_at(
+            &conn,
+            &ServerAttachScope::Role("rl1".into()),
+            &["srv1".into()],
+        )
+        .unwrap();
         assert_eq!(tool_ids(&conn, &t), vec!["t1", "t2"]);
 
         // New upstream tool appears → rematerialise pulls it in (live).
@@ -409,7 +412,12 @@ mod tests {
         let (conn, bd, col) = fresh();
         seed_tool(&conn, "t1", "srv1", true);
         let t = task_on_role(&conn, &bd, &col, Some("rl1"));
-        set_servers_at(&conn, &ServerAttachScope::Role("rl1".into()), &["srv1".into()]).unwrap();
+        set_servers_at(
+            &conn,
+            &ServerAttachScope::Role("rl1".into()),
+            &["srv1".into()],
+        )
+        .unwrap();
         assert_eq!(tool_ids(&conn, &t).len(), 1);
 
         // Server delete → mcp_tools cascade → task_mcp_tools cascade.

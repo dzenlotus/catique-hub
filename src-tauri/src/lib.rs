@@ -10,7 +10,7 @@
 
 // Lints configured via [lints.clippy] in Cargo.toml.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use catique_api::{handlers, AppState};
@@ -341,23 +341,32 @@ pub fn run() {
                 });
             }
 
-            // Debug-only: spin up the legacy Node sidecar so existing
-            // dev workflows that exercise the supervisor channel keep
-            // working. Release builds skip this entirely.
-            #[cfg(debug_assertions)]
+            // Spin up the Node MCP sidecar and register the supervisor
+            // bridge. Runs in both dev and release: the sidecar is now
+            // bundled under the .app's resource dir (tauri.conf.json
+            // `resources`) and `resolve_node_bin` locates a Node runtime
+            // even under Finder's minimal PATH. The manual start/restart
+            // controls in the UI depend on the bridge being installed, so
+            // this must not be gated behind `debug_assertions`.
             {
                 let sidecar_dir = state.sidecar_dir.clone();
+                let node_bin = resolve_node_bin();
                 std::env::set_var("CATIQUE_SIDECAR_INDEX_JS", sidecar_dir.join("index.js"));
-                std::env::set_var("CATIQUE_NODE_BIN", "node");
+                std::env::set_var("CATIQUE_NODE_BIN", &node_bin);
+                eprintln!(
+                    "[catique-hub] sidecar dir={} node={}",
+                    sidecar_dir.display(),
+                    node_bin
+                );
                 let sidecar_mgr = state.sidecar.clone();
                 let pool = state.pool.clone();
                 let bridge_orchestrator = state.orchestrator.get().cloned();
                 tauri::async_runtime::spawn(async move {
                     catique_api::mcp_bridge::install(&sidecar_mgr, pool, bridge_orchestrator).await;
                     match sidecar_mgr.start(&sidecar_dir).await {
-                        Ok(pid) => eprintln!("[catique-hub] dev sidecar started, pid={pid}"),
+                        Ok(pid) => eprintln!("[catique-hub] sidecar started, pid={pid}"),
                         Err(e) => {
-                            eprintln!("[catique-hub] dev sidecar spawn failed (optional): {e}");
+                            eprintln!("[catique-hub] sidecar spawn failed (optional): {e}");
                         }
                     }
                 });
@@ -460,6 +469,7 @@ pub fn run() {
             handlers::roles::get_role_version,
             handlers::roles::list_roles,
             handlers::roles::list_role_versions,
+            handlers::roles::list_role_prompts,
             handlers::roles::remove_role_mcp_tool,
             handlers::roles::remove_role_prompt,
             handlers::roles::remove_role_skill,
@@ -636,20 +646,91 @@ pub fn run() {
 /// Resolve the sidecar directory at startup.
 ///
 /// * **dev** (`debug_assertions`) — workspace-root-relative `sidecar/`.
-/// * **prod** — `<resource_dir>/sidecar/` (populated by tauri.conf.json
-///   `resources` during packaging, which is E5 infra work).
+/// * **prod** — the `sidecar/` staged under the bundle's resource dir by
+///   the tauri.conf.json `resources` map (`"../sidecar": "sidecar"`).
 ///
-/// For the spike, we use the workspace path in both modes because there
-/// is no packaging infra yet.
+/// The release branch probes the known per-platform bundle layouts and
+/// returns the first candidate that actually contains `index.js`, so it
+/// is robust to Tauri's `_up_` path rewriting and the macOS
+/// `Contents/Resources` vs. Windows/Linux side-by-side layouts.
 fn resolve_sidecar_dir() -> PathBuf {
-    // In the spike, always use the workspace-relative path. The `resources`
-    // bundling for production is tracked in E5.
-    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    // src-tauri/ -> workspace root -> sidecar/
-    manifest
-        .parent()
-        .expect("src-tauri parent should be workspace root")
-        .join("sidecar")
+    if cfg!(debug_assertions) {
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        // src-tauri/ -> workspace root -> sidecar/
+        return manifest
+            .parent()
+            .map_or_else(|| PathBuf::from("sidecar"), |root| root.join("sidecar"));
+    }
+
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            // Windows / Linux: resources sit next to the launcher.
+            candidates.push(dir.join("sidecar"));
+            candidates.push(dir.join("resources").join("sidecar"));
+            // macOS: Contents/MacOS/<exe> -> Contents/Resources/sidecar.
+            if let Some(contents) = dir.parent() {
+                let res = contents.join("Resources");
+                candidates.push(res.join("sidecar"));
+                // Fallback for Tauri's `../` -> `_up_` rewriting.
+                candidates.push(res.join("_up_").join("sidecar"));
+            }
+        }
+    }
+    candidates
+        .into_iter()
+        .find(|p| p.join("index.js").exists())
+        .unwrap_or_else(|| PathBuf::from("sidecar"))
+}
+
+/// Resolve an absolute path to a Node runtime for the bundled sidecar.
+///
+/// GUI apps launched from Finder/Dock inherit a minimal `PATH`
+/// (`/usr/bin:/bin:/usr/sbin:/sbin`) that omits Homebrew, nvm and Volta
+/// install dirs, so a bare `Command::new("node")` fails with `ENOENT`
+/// even when Node is installed. Probe the common locations and fall back
+/// to `node` from `PATH` only as a last resort. An explicit
+/// `CATIQUE_NODE_BIN` override always wins.
+fn resolve_node_bin() -> String {
+    const FIXED: &[&str] = &[
+        "/opt/homebrew/bin/node",
+        "/usr/local/bin/node",
+        "/usr/bin/node",
+    ];
+
+    if let Ok(explicit) = std::env::var("CATIQUE_NODE_BIN") {
+        if !explicit.trim().is_empty() {
+            return explicit;
+        }
+    }
+
+    for candidate in FIXED {
+        if Path::new(candidate).exists() {
+            return (*candidate).to_string();
+        }
+    }
+
+    // nvm: ~/.nvm/versions/node/<version>/bin/node — pick the latest by
+    // lexical version sort (good enough; nvm dirs are `vX.Y.Z`).
+    if let Some(home) = std::env::var_os("HOME") {
+        let nvm_root = PathBuf::from(home).join(".nvm/versions/node");
+        if let Ok(entries) = std::fs::read_dir(&nvm_root) {
+            let mut versions: Vec<PathBuf> = entries
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.is_dir())
+                .collect();
+            versions.sort();
+            if let Some(latest) = versions.last() {
+                let node = latest.join("bin").join("node");
+                if node.exists() {
+                    return node.to_string_lossy().into_owned();
+                }
+            }
+        }
+    }
+
+    "node".to_string()
 }
 
 /// Side-effect-bearing init: resolve path → open pool → run migrations.

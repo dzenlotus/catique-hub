@@ -8,7 +8,7 @@ use catique_application::{
     roles::{RoleContentVersion, RolesUseCase},
     AppError,
 };
-use catique_domain::Role;
+use catique_domain::{Prompt, Role};
 use catique_infrastructure::db::{
     pool::acquire,
     repositories::inheritance::{
@@ -198,6 +198,21 @@ pub async fn set_role_prompts(
     RolesUseCase::new(&state.pool).set_role_prompts(role_id.clone(), prompt_ids)?;
     events::emit(&state, events::ROLE_UPDATED, json!({ "id": role_id }));
     Ok(())
+}
+
+/// IPC: list the prompts directly attached to a role, ordered by
+/// position. Read counterpart to [`set_role_prompts`]; backs the role
+/// editor's "Prompts" attachment section.
+///
+/// # Errors
+///
+/// Forwards every error from `RolesUseCase::list_role_prompts`.
+#[tauri::command]
+pub async fn list_role_prompts(
+    state: State<'_, AppState>,
+    role_id: String,
+) -> Result<Vec<Prompt>, AppError> {
+    RolesUseCase::new(&state.pool).list_role_prompts(&role_id)
 }
 
 /// Detach a prompt from a role.

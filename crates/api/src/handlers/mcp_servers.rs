@@ -256,7 +256,11 @@ pub async fn set_role_mcp_servers(
     server_ids: Vec<String>,
 ) -> Result<(), AppError> {
     McpServersUseCase::new(&state.pool).set_role_servers(role_id.clone(), server_ids)?;
-    crate::events::emit(&state, crate::events::ROLE_UPDATED, json!({ "id": role_id }));
+    crate::events::emit(
+        &state,
+        crate::events::ROLE_UPDATED,
+        json!({ "id": role_id }),
+    );
     Ok(())
 }
 
@@ -285,7 +289,11 @@ pub async fn set_board_mcp_servers(
     server_ids: Vec<String>,
 ) -> Result<(), AppError> {
     McpServersUseCase::new(&state.pool).set_board_servers(board_id.clone(), server_ids)?;
-    crate::events::emit(&state, crate::events::BOARD_UPDATED, json!({ "id": board_id }));
+    crate::events::emit(
+        &state,
+        crate::events::BOARD_UPDATED,
+        json!({ "id": board_id }),
+    );
     Ok(())
 }
 
@@ -314,7 +322,11 @@ pub async fn set_task_mcp_servers(
     server_ids: Vec<String>,
 ) -> Result<(), AppError> {
     McpServersUseCase::new(&state.pool).set_task_servers(task_id.clone(), server_ids)?;
-    crate::events::emit(&state, crate::events::TASK_UPDATED, json!({ "id": task_id }));
+    crate::events::emit(
+        &state,
+        crate::events::TASK_UPDATED,
+        json!({ "id": task_id }),
+    );
     Ok(())
 }
 

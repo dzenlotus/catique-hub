@@ -220,8 +220,24 @@ export function handleBoards(
     case "set_board_prompts":
     case "set_board_skills":
     case "set_board_mcp_tools":
-    case "set_board_owner":
       return null;
+    case "set_board_owner": {
+      // ctq-101: rewrite the owner role and return the authoritative
+      // board, mirroring the real `set_board_owner` handler.
+      const id = String(args["boardId"]);
+      const prev = store.boards.get(id);
+      if (!prev) {
+        throw { kind: "notFound", data: { entity: "board", id } };
+      }
+      const next: Board = {
+        ...prev,
+        ownerRoleId: String(args["roleId"]),
+        updatedAt: nowBig(),
+      };
+      store.boards.set(id, next);
+      emitEvent("board:updated", { id });
+      return next;
+    }
 
     // ---------------- pinned / recent (refactor-v3 D-F) ----------------
     case "list_pinned_boards":

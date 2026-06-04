@@ -489,18 +489,39 @@ async fn do_spawn(
     g.record_restart();
 
     let index_js = sidecar_dir.join("index.js");
+
+    // Fail loudly when the sidecar bundle is missing rather than spawning
+    // `node` against a non-existent entrypoint and leaving the status
+    // wedged on `Starting`. Surfaces a clear `Crashed` state to the UI.
+    if !index_js.exists() {
+        g.status = SidecarStatus::Crashed { exit_code: None };
+        return Err(SidecarError::SpawnFailed(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("sidecar entry not found: {}", index_js.display()),
+        )));
+    }
+
     // The Tauri shell publishes an absolute path to the bundled Node
     // runtime via `CATIQUE_NODE_BIN`; release installs are fully
     // self-contained, no system Node.js required on the user's
     // machine. Unit tests + raw `cargo test -p catique-sidecar` keep
     // falling back to `node` from `PATH`.
     let node_bin = std::env::var("CATIQUE_NODE_BIN").unwrap_or_else(|_| "node".into());
-    let mut child = Command::new(&node_bin)
+    let mut child = match Command::new(&node_bin)
         .arg(&index_js)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::inherit())
-        .spawn()?;
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(err) => {
+            // `node` not found / not executable. Reset the status so the
+            // UI shows a failure instead of a perpetual "starting" badge.
+            g.status = SidecarStatus::Crashed { exit_code: None };
+            return Err(SidecarError::SpawnFailed(err));
+        }
+    };
 
     let pid = child.id().unwrap_or(0);
     let stdin = child.stdin.take().expect("stdin piped");

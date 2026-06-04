@@ -6,6 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build",
+    "beforeBundleCommand": "npm --prefix sidecar ci --omit=dev --no-audit --no-fund",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
@@ -34,6 +35,13 @@
     "targets": ["dmg", "msi"],
     "externalBin": [
       "binaries/catique-hub-mcp"
+    ],
+    "resources": [
+      "../sidecar/index.js",
+      "../sidecar/upstream-clients.js",
+      "../sidecar/tool-manifest.json",
+      "../sidecar/package.json",
+      "../sidecar/node_modules/**/*"
     ],
     "icon": [
       "icons/32x32.png",

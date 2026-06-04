@@ -86,10 +86,7 @@ pub async fn update_mcp_tool_group(
 ///
 /// Forwards every error from `McpToolGroupsUseCase::delete`.
 #[tauri::command]
-pub async fn delete_mcp_tool_group(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), AppError> {
+pub async fn delete_mcp_tool_group(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
     McpToolGroupsUseCase::new(&state.pool).delete(&id)?;
     events::emit(&state, events::MCP_TOOL_GROUP_DELETED, json!({ "id": id }));
     Ok(())

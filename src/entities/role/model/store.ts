@@ -331,8 +331,6 @@ export function useSetRolePromptsMutation(): UseMutationResult<
 
 /**
  * `useRoleSkills` — skills attached to a role, ordered by position.
- *
- * TODO(ctq-117): backend handler `list_role_skills` not yet implemented.
  */
 export function useRoleSkills(
   roleId: string,
@@ -410,8 +408,6 @@ export function useSetRoleSkillsMutation(): UseMutationResult<
 
 /**
  * `useRoleMcpTools` — MCP tools attached to a role, ordered by position.
- *
- * TODO(ctq-117): backend handler `list_role_mcp_tools` not yet implemented.
  */
 export function useRoleMcpTools(
   roleId: string,

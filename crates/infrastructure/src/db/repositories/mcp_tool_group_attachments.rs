@@ -12,9 +12,7 @@ use rusqlite::{params, Connection};
 use crate::db::pool::DbError;
 
 use super::mcp_tool_groups;
-use super::tasks::{
-    recompute_effective_counts, recompute_effective_counts_for_scope, AttachScope,
-};
+use super::tasks::{recompute_effective_counts, recompute_effective_counts_for_scope, AttachScope};
 
 /// Scope an MCP-tool group can be attached at (mirrors the prompt-side
 /// `GroupAttachScope`; includes `Task` for direct attachment).
@@ -178,7 +176,11 @@ pub fn clear_group_everywhere(conn: &Connection, group_id: &str) -> Result<(), D
 
 // ── internals ────────────────────────────────────────────────────────
 
-type Dimension = (&'static str, &'static str, fn(String) -> McpGroupAttachScope);
+type Dimension = (
+    &'static str,
+    &'static str,
+    fn(String) -> McpGroupAttachScope,
+);
 
 fn for_each_site<F>(conn: &Connection, group_id: &str, mut f: F) -> Result<(), DbError>
 where
@@ -413,7 +415,12 @@ mod tests {
         seed_group(&conn, "g1", &["t1"]);
         let t = task_on_role(&conn, &bd, &col, Some("rl1"));
 
-        set_groups_at(&conn, &McpGroupAttachScope::Role("rl1".into()), &["g1".into()]).unwrap();
+        set_groups_at(
+            &conn,
+            &McpGroupAttachScope::Role("rl1".into()),
+            &["g1".into()],
+        )
+        .unwrap();
         assert_eq!(
             tool_origins(&conn, &t),
             vec![("t1".into(), "role:rl1#group:g1".into())]
@@ -449,7 +456,12 @@ mod tests {
         seed_tool(&conn, "t1");
         seed_group(&conn, "g1", &["t1"]);
         let t = task_on_role(&conn, &bd, &col, Some("rl1"));
-        set_groups_at(&conn, &McpGroupAttachScope::Role("rl1".into()), &["g1".into()]).unwrap();
+        set_groups_at(
+            &conn,
+            &McpGroupAttachScope::Role("rl1".into()),
+            &["g1".into()],
+        )
+        .unwrap();
         assert_eq!(tool_origins(&conn, &t).len(), 1);
 
         conn.execute("DELETE FROM mcp_tool_groups WHERE id='g1'", [])

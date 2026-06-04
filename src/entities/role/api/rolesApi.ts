@@ -128,10 +128,6 @@ export async function removeRolePrompt(
 
 /**
  * `list_role_prompts` — prompts attached to a role, ordered by position.
- *
- * TODO(ctq-117): backend handler not yet implemented. Until it lands,
- * the IPC call will reject — `useRolePrompts` surfaces an empty list on
- * error so the UI degrades gracefully.
  */
 export async function listRolePrompts(roleId: string): Promise<Prompt[]> {
   return invokeWithAppError<Prompt[]>("list_role_prompts", { roleId });
@@ -139,11 +135,8 @@ export async function listRolePrompts(roleId: string): Promise<Prompt[]> {
 
 /**
  * `set_role_prompts` — replace the role's full prompt ordering with the
- * provided id list. Used by drag-reorder.
- *
- * TODO(ctq-108): backend handler not yet implemented. Frontend uses this
- * for optimistic reorder + rollback; expect a transient error toast
- * until the bulk setter ships.
+ * provided id list. Used by drag-reorder. Optimistic reorder + rollback
+ * on the frontend.
  */
 export async function setRolePrompts(
   roleId: string,
@@ -187,8 +180,6 @@ export async function removeRoleSkill(
 
 /**
  * `list_role_skills` — skills attached to a role, ordered by position.
- *
- * TODO(ctq-117): backend handler not yet implemented.
  */
 export async function listRoleSkills(roleId: string): Promise<Skill[]> {
   return invokeWithAppError<Skill[]>("list_role_skills", { roleId });
@@ -252,8 +243,6 @@ export async function removeRoleMcpTool(
 
 /**
  * `list_role_mcp_tools` — MCP tools attached to a role, ordered by position.
- *
- * TODO(ctq-117): backend handler not yet implemented.
  */
 export async function listRoleMcpTools(roleId: string): Promise<McpTool[]> {
   return invokeWithAppError<McpTool[]>("list_role_mcp_tools", { roleId });

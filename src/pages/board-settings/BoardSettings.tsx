@@ -293,13 +293,9 @@ function BoardSettingsForm({
    * on failure. Toasts on both success and error so the user sees the
    * outcome regardless of where focus lands.
    *
-   * The IPC contract is `set_board_owner(boardId, roleId)` (ctq-101).
-   * Until that handler ships we call `update_board` with an
-   * `ownerRoleId` field — the current handler silently ignores
-   * unknown args, so the UI feels responsive (optimistic cache stays
-   * applied, toast fires) and switches to authoritative behaviour the
-   * moment the backend lands. The companion `// TODO(ctq-101)` below
-   * marks the swap-point.
+   * The IPC contract is `set_board_owner(boardId, roleId)` (ctq-101):
+   * the use case rewrites the owner role and returns the authoritative
+   * `Board`, which `onSuccess` re-syncs into the cache.
    */
   const setOwnerMutation = useMutation<
     Board,
@@ -308,14 +304,9 @@ function BoardSettingsForm({
     { previous: Board | undefined; previousLocal: string }
   >({
     mutationFn: async ({ boardId: id, roleId }) => {
-      // TODO(ctq-101): replace with `invoke("set_board_owner", …)`
-      // once the handler is registered. Sending `ownerRoleId` via
-      // `update_board` is forward-compatible: the future
-      // `set_board_owner` IPC will own the write path, and the
-      // `update_board` shim here becomes a no-op against this field.
-      return invoke<Board>("update_board", {
-        id,
-        ownerRoleId: roleId,
+      return invoke<Board>("set_board_owner", {
+        boardId: id,
+        roleId,
       });
     },
     onMutate: async ({ boardId: id, roleId }) => {

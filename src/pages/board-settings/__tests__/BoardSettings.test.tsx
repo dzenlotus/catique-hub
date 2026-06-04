@@ -212,18 +212,17 @@ describe("BoardSettings — owner cat picker (ctq-106)", () => {
     expect(optionNames).not.toContain("Dirizher");
   });
 
-  it("round-trips the new owner via update_board on change", async () => {
+  it("round-trips the new owner via set_board_owner on change", async () => {
     const initialBoard = makeBoard({ ownerRoleId: "maintainer-system" });
     const updatedBoard = makeBoard({ ownerRoleId: "role-user" });
     invokeMock.mockImplementation(async (cmd, args) => {
       if (cmd === "get_board") return initialBoard;
       if (cmd === "list_spaces") return [makeSpace()];
       if (cmd === "list_roles") return defaultRoles();
-      if (cmd === "update_board") {
-        // Expect the optimistic shim to forward the new owner id —
-        // ctq-101 will replace `update_board` with `set_board_owner`,
-        // but the camelCase contract stays the same.
-        expect(args).toMatchObject({ id: "brd-1", ownerRoleId: "role-user" });
+      if (cmd === "set_board_owner") {
+        // ctq-101: the authoritative owner-write IPC. camelCase
+        // contract is `set_board_owner(boardId, roleId)`.
+        expect(args).toMatchObject({ boardId: "brd-1", roleId: "role-user" });
         return updatedBoard;
       }
       throw new Error(`unexpected: ${cmd}`);
@@ -243,7 +242,7 @@ describe("BoardSettings — owner cat picker (ctq-106)", () => {
 
     await waitFor(() => {
       const calls = invokeMock.mock.calls.filter(
-        ([cmd]) => cmd === "update_board",
+        ([cmd]) => cmd === "set_board_owner",
       );
       expect(calls).toHaveLength(1);
     });
@@ -260,7 +259,7 @@ describe("BoardSettings — owner cat picker (ctq-106)", () => {
       if (cmd === "get_board") return initialBoard;
       if (cmd === "list_spaces") return [makeSpace()];
       if (cmd === "list_roles") return defaultRoles();
-      if (cmd === "update_board") throw new Error("db conflict");
+      if (cmd === "set_board_owner") throw new Error("db conflict");
       throw new Error(`unexpected: ${cmd}`);
     });
 
@@ -282,7 +281,7 @@ describe("BoardSettings — owner cat picker (ctq-106)", () => {
     // in the picker once the rejection surfaces.
     await waitFor(() => {
       const calls = invokeMock.mock.calls.filter(
-        ([cmd]) => cmd === "update_board",
+        ([cmd]) => cmd === "set_board_owner",
       );
       expect(calls).toHaveLength(1);
     });

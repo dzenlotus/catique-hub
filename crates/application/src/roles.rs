@@ -3,10 +3,11 @@
 //! Wave-E2.4 (Olga). Mirrors the other use cases. UNIQUE(name) is
 //! mapped to `AppError::Conflict { entity: "role", … }`.
 
-use catique_domain::Role;
+use catique_domain::{Prompt, Role};
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::content_versions::{self as versions, ContentVersionRow},
+    repositories::prompts::PromptRow,
     repositories::roles::{self as repo, RoleDraft, RolePatch, RoleRow},
     repositories::tasks::{
         cascade_clear_scope, cascade_prompt_attachment, recompute_effective_counts_for_scope,
@@ -388,6 +389,34 @@ impl<'a> RolesUseCase<'a> {
         tx.commit().map_err(|e| map_db_err(e.into()))?;
         Ok(())
     }
+
+    /// Prompts directly attached to a role, ordered by position. Read
+    /// counterpart to [`Self::set_role_prompts`]; used by the role
+    /// editor's "Prompts" attachment section.
+    ///
+    /// # Errors
+    ///
+    /// Forwards storage-layer errors.
+    pub fn list_role_prompts(&self, role_id: &str) -> Result<Vec<Prompt>, AppError> {
+        let conn = acquire(self.pool).map_err(map_db_err)?;
+        let rows = repo::list_role_prompts(&conn, role_id).map_err(map_db_err)?;
+        Ok(rows.into_iter().map(prompt_row_to_prompt).collect())
+    }
+}
+
+fn prompt_row_to_prompt(row: PromptRow) -> Prompt {
+    Prompt {
+        id: row.id,
+        name: row.name,
+        content: row.content,
+        color: row.color,
+        short_description: row.short_description,
+        icon: row.icon,
+        examples: row.examples,
+        token_count: row.token_count,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
 }
 
 fn row_to_role(row: RoleRow) -> Role {
@@ -743,6 +772,24 @@ mod tests {
             )
             .unwrap();
         assert_eq!(mat_count, 0);
+    }
+
+    #[test]
+    fn list_role_prompts_returns_attached_in_position_order() {
+        let (pool, role_id) = seed_role_prompts_fixture();
+        let uc = RolesUseCase::new(&pool);
+
+        // Attach in the order [p2, p1] — positions 1, 2.
+        uc.set_role_prompts(role_id.clone(), vec!["p2".into(), "p1".into()])
+            .unwrap();
+
+        let listed = uc.list_role_prompts(&role_id).unwrap();
+        let ids: Vec<String> = listed.into_iter().map(|p| p.id).collect();
+        assert_eq!(ids, vec!["p2".to_string(), "p1".to_string()]);
+
+        // Empty after clearing.
+        uc.set_role_prompts(role_id.clone(), Vec::new()).unwrap();
+        assert!(uc.list_role_prompts(&role_id).unwrap().is_empty());
     }
 
     #[test]

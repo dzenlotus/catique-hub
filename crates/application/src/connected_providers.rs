@@ -654,12 +654,20 @@ mod tests {
         // orphaned `catique-<slug>` file.
         for name in ["role:deleted", "role:created", "role:updated"] {
             assert!(
-                matches!(sync_trigger_for_event(name), Some(SyncTrigger::RoleMutation)),
+                matches!(
+                    sync_trigger_for_event(name),
+                    Some(SyncTrigger::RoleMutation)
+                ),
                 "{name} should fire RoleMutation",
             );
         }
         // Unrelated events must NOT churn agent files.
-        for name in ["prompt:created", "task:deleted", "space:deleted", "board:created"] {
+        for name in [
+            "prompt:created",
+            "task:deleted",
+            "space:deleted",
+            "board:created",
+        ] {
             assert!(
                 sync_trigger_for_event(name).is_none(),
                 "{name} must not fire a sync trigger",

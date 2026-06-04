@@ -256,6 +256,33 @@ pub fn remove_role_prompt(
     Ok(n > 0)
 }
 
+/// Prompts attached to a role, ordered by `position`. Read counterpart to
+/// [`add_role_prompt`] / [`set_role_prompts`]; mirrors
+/// [`super::spaces::list_space_prompts`].
+///
+/// # Errors
+///
+/// Surfaces rusqlite errors.
+pub fn list_role_prompts(
+    conn: &Connection,
+    role_id: &str,
+) -> Result<Vec<super::prompts::PromptRow>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT p.id, p.name, p.content, p.color, p.short_description, p.icon, \
+                p.examples_json, p.token_count, p.created_at, p.updated_at \
+         FROM role_prompts rp \
+         JOIN prompts p ON p.id = rp.prompt_id \
+         WHERE rp.role_id = ?1 \
+         ORDER BY rp.position ASC",
+    )?;
+    let rows = stmt.query_map(params![role_id], super::prompts::PromptRow::from_row_pub)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
 /// Attach a skill to a role.
 ///
 /// # Errors
