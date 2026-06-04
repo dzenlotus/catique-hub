@@ -149,9 +149,9 @@ describe("SpacesSidebar — SPACES section label", () => {
     invokeMock.mockImplementation(() => new Promise(() => {}));
   });
 
-  it("renders the SPACES section label", () => {
+  it("renders the PROJECTS section label", () => {
     setup();
-    expect(screen.getByText(/^SPACES$/)).toBeInTheDocument();
+    expect(screen.getByText(/^PROJECTS$/)).toBeInTheDocument();
   });
 
   it("does NOT render the workspace nav rows (lives in MainSidebar)", () => {
@@ -193,7 +193,7 @@ describe("SpacesSidebar — SPACES tree (inline collapsible)", () => {
     invokeMock.mockResolvedValue([]);
     setup();
     await waitFor(() => {
-      expect(screen.getByText(/no spaces yet/i)).toBeInTheDocument();
+      expect(screen.getByText(/no projects yet/i)).toBeInTheDocument();
     });
   });
 

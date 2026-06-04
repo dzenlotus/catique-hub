@@ -255,18 +255,18 @@ function ColumnEditorContent({
         />
       </div>
 
-      {/* Role */}
+      {/* Agent */}
       <div className={styles.section}>
-        <p className={styles.sectionLabel}>Role</p>
+        <p className={styles.sectionLabel}>Agent</p>
         {rolesQuery.status === "pending" ? (
           <div className={cn(styles.skeletonRow, styles.skeletonRowWide)} />
         ) : rolesQuery.status === "error" ? (
           <p className={styles.roleError}>
-            Failed to load roles: {rolesQuery.error.message}
+            Failed to load agents: {rolesQuery.error.message}
           </p>
         ) : (
           <Listbox
-            aria-label="Role"
+            aria-label="Agent"
             selectionMode="single"
             selectedKeys={new Set([localRoleKey])}
             onSelectionChange={(keys) => {
@@ -278,7 +278,7 @@ function ColumnEditorContent({
             data-testid="column-editor-role-select"
           >
             <ListboxItem key={NO_ROLE_KEY} id={NO_ROLE_KEY}>
-              (no role)
+              (no agent)
             </ListboxItem>
             {roles.map((role) => (
               <ListboxItem key={role.id} id={role.id}>

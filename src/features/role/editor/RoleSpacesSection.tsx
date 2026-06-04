@@ -1,12 +1,12 @@
 /**
- * RoleSpacesSection — "Working in spaces" list for the agent editor.
+ * RoleSpacesSection — "Working in projects" list for the agent editor.
  *
  * Per Project Map v3, the agent detail surfaces every space the agent
  * owns a board in. We compute the list client-side: pull every board,
  * filter by `roleId`, then pivot by `spaceId` so the user sees one
  * entry per space with its board names underneath.
  *
- * Phase 4 stub — read-only; the "Add to space" CTA + remove-from-space
+ * Phase 4 stub — read-only; the "Add to project" CTA + remove-from-space
  * controls ship alongside the full agent-page restructure.
  */
 import { useMemo, type ReactElement } from "react";
@@ -67,7 +67,7 @@ export function RoleSpacesSection(
 
   return (
     <section className={styles.root} data-testid="role-spaces-section">
-      <h3 className={styles.title}>Working in spaces</h3>
+      <h3 className={styles.title}>Working in projects</h3>
       {groups.length === 0 ? (
         <p className={styles.empty}>
           This agent isn&rsquo;t owning a board anywhere yet.

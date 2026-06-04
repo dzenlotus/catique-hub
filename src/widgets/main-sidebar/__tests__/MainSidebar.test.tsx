@@ -115,7 +115,7 @@ describe("MainSidebar — nav items", () => {
   it("renders all 6 workspace nav items", () => {
     setup();
     expect(screen.getByRole("button", { name: /^boards$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^roles$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^agents$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^prompts$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^skills$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /mcp servers/i })).toBeInTheDocument();
@@ -142,7 +142,7 @@ describe("MainSidebar — nav items", () => {
       setup(view);
       const labelMap: Record<NavView, RegExp> = {
         boards: /^boards$/i,
-        "agent-roles": /^roles$/i,
+        "agent-roles": /^agents$/i,
         prompts: /^prompts$/i,
         skills: /^skills$/i,
         "mcp-servers": /mcp servers/i,
@@ -157,7 +157,7 @@ describe("MainSidebar — nav items", () => {
   it("does not set aria-current on inactive items", () => {
     setup("boards");
     const inactiveRegexes = [
-      /^roles$/i,
+      /^agents$/i,
       /^prompts$/i,
       /^skills$/i,
       /mcp servers/i,
@@ -183,7 +183,7 @@ describe("MainSidebar — nav items", () => {
 
     const itemsToClick: Array<[NavView, RegExp]> = [
       ["boards", /^boards$/i],
-      ["agent-roles", /^roles$/i],
+      ["agent-roles", /^agents$/i],
       ["prompts", /^prompts$/i],
       ["skills", /^skills$/i],
       ["mcp-servers", /mcp servers/i],

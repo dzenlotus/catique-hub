@@ -93,8 +93,8 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
               {hasNoSpaces ? (
                 <EmptyState
                   icon={<PixelPetAnimalsCat width={64} height={64} />}
-                  title="No spaces yet"
-                  description="Create your first space to start organising boards."
+                  title="No projects yet"
+                  description="Create your first project to start organising boards."
                   action={
                     <Button
                       variant="primary"
@@ -102,7 +102,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                       onPress={() => setIsSpaceCreateOpen(true)}
                       data-testid="boards-list-create-space-button"
                     >
-                      Create space
+                      Create project
                     </Button>
                   }
                 />
@@ -110,7 +110,7 @@ export function BoardsList({ onSelectBoard }: BoardsListProps = {}): ReactElemen
                 <EmptyState
                   icon={<PixelCodingAppsWebsitesModule width={64} height={64} />}
                   title="No boards yet"
-                  description="Add a role to a space (sidebar “+”) and the board appears here automatically."
+                  description="Add an agent to a project (sidebar “+”) and the board appears here automatically."
                 />
               )}
             </div>

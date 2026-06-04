@@ -54,7 +54,7 @@ import type { RoleContentVersionView } from "@bindings/RoleContentVersionView";
 // in `@entities/connected-client`) reflects the global state via the
 // `sync:status_changed` event. The previous frontend
 // `syncRolesToAllSupportingClients` helper was removed alongside the
-// per-card "Sync roles" button.
+// per-card "Sync agents" button.
 import type { Prompt } from "@bindings/Prompt";
 import type { Skill } from "@bindings/Skill";
 import type { McpTool } from "@bindings/McpTool";

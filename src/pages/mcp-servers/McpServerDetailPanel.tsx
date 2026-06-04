@@ -214,7 +214,7 @@ export function McpServerDetailPanel({
       <ConfirmDialog
         isOpen={isConfirmOpen}
         title={`Delete ${server.name}?`}
-        description="Removes the server and all of its introspected tools. Roles attached to those tools will lose them."
+        description="Removes the server and all of its introspected tools. Agents attached to those tools will lose them."
         confirmLabel="Delete"
         destructive
         isPending={deleteMutation.isPending}

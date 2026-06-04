@@ -230,13 +230,13 @@ export function SpacesSidebar(props: SpacesSidebarProps = {}): ReactElement {
 
   // When embedded inside `<AppSidebar/>` the host owns the section
   // heading + chrome, so we render the bare `<EntityTree/>` and surface
-  // the "+ Add space" affordance through the embedded host instead of
+  // the "+ Add project" affordance through the embedded host instead of
   // the title trailing slot. Standalone usage keeps the full
   // `<SidebarShell>` + section title.
   const addSpaceTrigger =
     spacesQuery.status === "success" ? (
       <SidebarSectionAddTrigger
-        ariaLabel="Add space"
+        ariaLabel="Add project"
         onPress={() => setCreateDialogOpen(true)}
         testId="spaces-sidebar-add"
       />
@@ -248,11 +248,11 @@ export function SpacesSidebar(props: SpacesSidebarProps = {}): ReactElement {
       {...(embedded
         ? {}
         : {
-            title: "SPACES",
-            titleAriaLabel: "Spaces",
+            title: "PROJECTS",
+            titleAriaLabel: "Projects",
             titleTrailingNode: addSpaceTrigger,
           })}
-      emptyText="No spaces yet"
+      emptyText="No projects yet"
       isLoading={sectionState.isLoading}
       errorMessage={sectionState.errorMessage}
       data={treeData}
@@ -338,7 +338,7 @@ export function SpacesSidebar(props: SpacesSidebarProps = {}): ReactElement {
           data-testid="spaces-sidebar-root"
         >
           <div className={styles.embeddedTitleRow}>
-            <span className={styles.embeddedTitle}>SPACES</span>
+            <span className={styles.embeddedTitle}>PROJECTS</span>
             {addSpaceTrigger}
           </div>
           {sectionState.isLoading ? (
@@ -350,7 +350,7 @@ export function SpacesSidebar(props: SpacesSidebarProps = {}): ReactElement {
               {sectionState.errorMessage}
             </div>
           ) : treeData.length === 0 ? (
-            <div className={styles.embeddedHint}>No spaces yet</div>
+            <div className={styles.embeddedHint}>No projects yet</div>
           ) : (
             tree
           )}

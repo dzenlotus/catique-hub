@@ -12,7 +12,7 @@ test.describe("spaces", () => {
     await page.getByTestId(sel.spaceCreate.prefix).fill("eng");
     await page.getByTestId(sel.spaceCreate.save).click();
 
-    await expect(page.getByText("No spaces yet")).toHaveCount(0);
+    await expect(page.getByText("No projects yet")).toHaveCount(0);
     const state = await readBridge(page);
     const spaces = state["spaces"] as Array<[string, { name: string }]>;
     expect(spaces[0][1].name).toBe("Engineering");
@@ -64,7 +64,7 @@ test.describe("spaces", () => {
     await page.getByTestId(sel.spacesAdd).click();
     await page.getByTestId(sel.spaceCreate.name).fill("Aborted");
     await page.getByTestId(sel.spaceCreate.cancel).click();
-    await expect(page.getByText("No spaces yet")).toBeVisible();
+    await expect(page.getByText("No projects yet")).toBeVisible();
   });
 
   test("invalid prefix surfaces an error and Save stays disabled", async ({

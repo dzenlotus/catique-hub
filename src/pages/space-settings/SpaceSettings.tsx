@@ -347,7 +347,7 @@ function SpaceSettingsForm({
           description="Space settings. The prefix is set at creation and cannot be changed."
           value={{ icon: watchedIcon, color: resolvedColor }}
           onAppearanceChange={handleAppearanceChange}
-          pickerAriaLabel="Space icon and color"
+          pickerAriaLabel="Project icon and color"
           pickerTestId="space-settings-appearance-picker"
           editTestId="space-settings-name-inline"
         />
@@ -363,7 +363,7 @@ function SpaceSettingsForm({
                 label="Name"
                 value={field.value}
                 onChange={field.onChange}
-                placeholder="Space name"
+                placeholder="Project name"
                 data-testid="space-settings-name-input"
               />
             )}
@@ -527,7 +527,7 @@ function RolesSection({ spaceId, spaceName }: RolesSectionProps): ReactElement {
   return (
     <>
       <SettingsCard
-        heading="Roles"
+        heading="Agents"
         headingId="space-settings-roles"
         testId="space-settings-roles-section"
       >
@@ -605,9 +605,9 @@ function RolesSection({ spaceId, spaceName }: RolesSectionProps): ReactElement {
         title={
           pendingRemoval
             ? `Detach role and delete board "${pendingRemoval.boardName}"?`
-            : "Detach role?"
+            : "Detach agent?"
         }
-        description="The board this role owns in the current space will be removed, along with its tasks and columns. The role itself stays in the global Roles list."
+        description="The board this agent owns in the current project will be removed, along with its tasks and columns. The agent itself stays in the global Agents list."
         confirmLabel="Detach"
         destructive
         isPending={deleteBoard.status === "pending"}

@@ -49,9 +49,9 @@ describe("RoleCard", () => {
     expect(screen.getByText(`${"A".repeat(80)}…`)).toBeInTheDocument();
   });
 
-  it("always renders the role badge", () => {
+  it("always renders the agent badge", () => {
     render(<RoleCard role={makeRole()} />);
-    expect(screen.getByText("role")).toBeInTheDocument();
+    expect(screen.getByText("agent")).toBeInTheDocument();
   });
 
   it("renders a color swatch when role.color is set", () => {

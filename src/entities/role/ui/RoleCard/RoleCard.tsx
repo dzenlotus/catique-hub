@@ -85,7 +85,7 @@ export function RoleCard({
             aria-label={`Color: ${role.color}`}
           />
         ) : null}
-        <span className={styles.roleBadge}>role</span>
+        <span className={styles.roleBadge}>agent</span>
       </span>
     </button>
   );

@@ -9,7 +9,7 @@ import styles from "./RolesList.module.css";
 export interface RolesListProps {
   /** Called when the user activates a role card. */
   onSelectRole?: (roleId: string) => void;
-  /** Called when the user clicks the header "Create role" button. */
+  /** Called when the user clicks the header "Create agent" button. */
   onCreate?: () => void;
 }
 
@@ -62,7 +62,7 @@ export function RolesList({
             onPress={() => onCreate?.()}
             data-testid="roles-list-create-button"
           >
-            Create role
+            Create agent
           </Button>
         </div>
       </header>
@@ -78,7 +78,7 @@ export function RolesList({
           ) : rolesQuery.status === "error" ? (
             <div className={styles.error} role="alert">
               <p className={styles.errorMessage}>
-                Failed to load roles: {rolesQuery.error.message}
+                Failed to load agents: {rolesQuery.error.message}
               </p>
               <Button
                 variant="secondary"
@@ -94,7 +94,7 @@ export function RolesList({
             <div className={styles.empty} data-testid="roles-list-empty">
               <EmptyState
                 icon={<PixelPetAnimalsCat width={64} height={64} />}
-                title="No roles yet"
+                title="No agents yet"
                 description="Personas your AI agents adopt for tasks."
                 action={
                   <Button
@@ -102,7 +102,7 @@ export function RolesList({
                     size="md"
                     onPress={() => onCreate?.()}
                   >
-                    Create role
+                    Create agent
                   </Button>
                 }
               />

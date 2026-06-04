@@ -61,7 +61,7 @@ export interface CreateBoardArgs {
   name: string;
   spaceId: string;
   /**
-   * Owner role id (`boards.owner_role_id NOT NULL`, ctq-105). When
+   * Owner agent id (`boards.owner_role_id NOT NULL`, ctq-105). When
    * omitted the server defaults to `maintainer-system` per migration
    * 004; explicit caller usually wants to set this.
    */

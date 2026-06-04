@@ -56,22 +56,22 @@ export function RolesPage(): ReactElement {
         >
           <EntityTree<Role>
             testIdPrefix="roles-sidebar"
-            title="ROLES"
-            titleAriaLabel="Roles navigation"
+            title="AGENTS"
+            titleAriaLabel="Agents navigation"
             titleTrailingNode={
               rolesQuery.status === "success" ? (
                 <SidebarSectionAddTrigger
-                  ariaLabel="Add role"
+                  ariaLabel="Add agent"
                   onPress={() => setIsCreateOpen(true)}
                   testId="roles-sidebar-add"
                 />
               ) : null
             }
-            emptyText="No roles yet."
+            emptyText="No agents yet."
             isLoading={rolesQuery.status === "pending"}
             errorMessage={
               rolesQuery.status === "error"
-                ? `Failed to load roles: ${rolesQuery.error.message}`
+                ? `Failed to load agents: ${rolesQuery.error.message}`
                 : null
             }
             data={treeData}

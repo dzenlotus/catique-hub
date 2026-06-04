@@ -12,7 +12,7 @@
  * What was removed (round-21):
  *   - Per-card "Rescan" / discover trigger.
  *   - Per-card "Edit instructions" action (widget deleted).
- *   - Per-card "Sync roles" button (sync is automatic on every save).
+ *   - Per-card "Sync agents" button (sync is automatic on every save).
  *   - The enabled/disabled toggle (a row exists iff the provider is
  *     connected — there is no third "disabled" state).
  */

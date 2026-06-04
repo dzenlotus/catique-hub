@@ -262,7 +262,7 @@ describe("BoardsList", () => {
       expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
     });
     expect(
-      screen.getByText("No spaces yet"),
+      screen.getByText("No projects yet"),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId("boards-list-create-space-button"),

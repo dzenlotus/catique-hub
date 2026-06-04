@@ -81,7 +81,7 @@ export function BoardOwnershipReviewModal({
   return (
     <Dialog
       title="Review board ownership"
-      description="Migration auto-assigned the Maintainer role to every existing board. Pick a different role for any board you want, then confirm."
+      description="Migration auto-assigned the Maintainer agent to every existing board. Pick a different agent for any board you want, then confirm."
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onDismiss();
@@ -300,7 +300,7 @@ function BoardRow({
         ) : null}
       </div>
       <Combobox
-        label="Owner role"
+        label="Owner agent"
         items={items}
         selectedKey={board.ownerRoleId}
         onSelectionChange={onSelectionChange}

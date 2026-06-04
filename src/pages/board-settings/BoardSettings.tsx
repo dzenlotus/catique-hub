@@ -335,7 +335,7 @@ function BoardSettingsForm({
       // info pick up the change.
       queryClient.setQueryData(boardsKeys.detail(boardId), updated);
       void queryClient.invalidateQueries({ queryKey: boardsKeys.list() });
-      pushToast("success", "Owner role updated");
+      pushToast("success", "Owner agent updated");
     },
   });
 
@@ -484,7 +484,7 @@ function BoardSettingsForm({
           <p className={styles.pageDescription}>
             Board settings.
             {isDefault
-              ? " This is the default board for its space — it cannot be deleted."
+              ? " This is the default board for its project — it cannot be deleted."
               : ""}
           </p>
         </div>
@@ -506,20 +506,20 @@ function BoardSettingsForm({
             )}
           />
 
-          {/* Owner role — required (`boards.owner_role_id NOT NULL`).
+          {/* Owner agent — required (`boards.owner_role_id NOT NULL`).
               Default boards (per-space "Owner") are pinned to the
               maintainer role and cannot be reassigned — block the
               picker to make that contract visible. Per maintainer
               feedback 2026-05-06. */}
           {!isDefault ? (
             <Select
-              label="Owner role"
+              label="Owner agent"
               selectedKey={ownerRoleId}
               onSelectionChange={handleOwnerChange}
               isDisabled={
                 rolesQuery.status !== "success" || setOwnerMutation.isPending
               }
-              aria-label="Owner role"
+              aria-label="Owner agent"
               data-testid="board-settings-owner-select"
             >
               {rolesQuery.status === "success"

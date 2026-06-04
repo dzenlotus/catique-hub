@@ -8,7 +8,7 @@
  * focused on the trigger + dialog mount.
  *
  * Props:
- *   - `title` — dialog heading ("Role content history" /
+ *   - `title` — dialog heading ("Agent content history" /
  *     "Prompt content history").
  *   - `kind`  — selects the entity slice that owns versions.
  *   - `sourceId` — the role / prompt id whose versions to load.

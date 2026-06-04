@@ -21,7 +21,7 @@ test.describe("onboarding / empty states", () => {
   test("spaces sidebar shows the empty state when no spaces exist", async ({
     page,
   }) => {
-    await expect(page.getByText("No spaces yet")).toBeVisible();
+    await expect(page.getByText("No projects yet")).toBeVisible();
   });
 
   test("clicking each nav row navigates to the corresponding page", async ({
@@ -72,7 +72,7 @@ test.describe("onboarding / empty states", () => {
       .getByRole("button", { name: "Agents" })
       .click();
     await expect(page.getByTestId(sel.rolesPage)).toBeVisible();
-    await expect(page.getByText("No roles yet.")).toBeVisible();
+    await expect(page.getByText("No agents yet.")).toBeVisible();
   });
 
   test("empty MCP servers list shows the empty copy", async ({ page }) => {

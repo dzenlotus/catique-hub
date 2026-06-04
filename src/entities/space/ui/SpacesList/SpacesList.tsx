@@ -64,7 +64,7 @@ export function SpacesList({ onSelectView }: SpacesListProps): ReactElement {
           >
             <span className={styles.btnLabel}>
               <span aria-hidden="true">+</span>
-              + Create space
+              + Create project
             </span>
           </Button>
         </div>
@@ -95,7 +95,7 @@ export function SpacesList({ onSelectView }: SpacesListProps): ReactElement {
         <div className={styles.empty} data-testid="spaces-list-empty">
           <EmptyState
             icon={<PixelPetAnimalsCat width={64} height={64} />}
-            title="No spaces yet"
+            title="No projects yet"
             description="Top-level workspaces for your boards."
             action={
               <Button
@@ -105,7 +105,7 @@ export function SpacesList({ onSelectView }: SpacesListProps): ReactElement {
               >
                 <span className={styles.btnLabel}>
                   <span aria-hidden="true">+</span>
-                  + Create space
+                  + Create project
                 </span>
               </Button>
             }

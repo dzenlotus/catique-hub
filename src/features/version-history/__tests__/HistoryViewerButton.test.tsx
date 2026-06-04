@@ -66,7 +66,7 @@ describe("HistoryViewerButton", () => {
     invokeMock.mockImplementation(() => new Promise(() => {}));
     renderWithClient(
       <HistoryViewerButton
-        title="Role content history"
+        title="Agent content history"
         kind="role"
         sourceId="role-1"
         currentContent="current"
@@ -76,7 +76,7 @@ describe("HistoryViewerButton", () => {
     expect(trigger).toHaveTextContent("History");
     expect(trigger).toHaveAttribute(
       "aria-label",
-      "Open Role content history",
+      "Open Agent content history",
     );
   });
 
@@ -100,7 +100,7 @@ describe("HistoryViewerButton", () => {
 
     const { user } = renderWithClient(
       <HistoryViewerButton
-        title="Role content history"
+        title="Agent content history"
         kind="role"
         sourceId="role-1"
         currentContent="current body"
@@ -143,7 +143,7 @@ describe("HistoryViewerButton", () => {
 
     const { user } = renderWithClient(
       <HistoryViewerButton
-        title="Role content history"
+        title="Agent content history"
         kind="role"
         sourceId="role-1"
         currentContent="current body"
@@ -199,7 +199,7 @@ describe("HistoryViewerButton", () => {
 
     const { user } = renderWithClient(
       <HistoryViewerButton
-        title="Role content history"
+        title="Agent content history"
         kind="role"
         sourceId="role-1"
         currentContent="current body"
@@ -241,7 +241,7 @@ describe("HistoryViewerButton", () => {
 
     const { user } = renderWithClient(
       <HistoryViewerButton
-        title="Role content history"
+        title="Agent content history"
         kind="role"
         sourceId="role-1"
         currentContent="current body"

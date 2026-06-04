@@ -175,7 +175,7 @@ describe("BoardsList", () => {
     });
 
     // Empty-state copy points at the sidebar workflow.
-    expect(screen.getByText(/Add a role to a space/i)).toBeInTheDocument();
+    expect(screen.getByText(/Add an agent to a project/i)).toBeInTheDocument();
 
     // No create-board CTA, no BoardCreateDialog mounted.
     expect(screen.queryByTestId("boards-list-create-button")).toBeNull();
@@ -262,7 +262,7 @@ describe("BoardsList", () => {
       expect(screen.getByTestId("boards-list-empty")).toBeInTheDocument();
     });
     expect(
-      screen.getByText("No spaces yet"),
+      screen.getByText("No projects yet"),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId("boards-list-create-space-button"),

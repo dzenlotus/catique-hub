@@ -153,7 +153,7 @@ export function SidebarAddRow({
 export interface SidebarSectionAddTriggerProps {
   /** Click handler — typically opens a create dialog. */
   onPress: () => void;
-  /** Accessible label (e.g. "Add space"). */
+  /** Accessible label (e.g. "Add project"). */
   ariaLabel: string;
   /** Stable test id for the trigger. */
   testId?: string;

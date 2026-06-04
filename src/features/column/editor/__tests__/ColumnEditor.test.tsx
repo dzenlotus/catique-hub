@@ -133,8 +133,8 @@ describe("ColumnEditor", () => {
     expect(screen.queryByTestId("column-editor-position-input")).not.toBeInTheDocument();
     // Role listbox should be present.
     expect(screen.getByTestId("column-editor-role-select")).toBeInTheDocument();
-    // "(no role)" option should appear (column has no role).
-    expect(screen.getByText("(no role)")).toBeInTheDocument();
+    // "(no agent)" option should appear (column has no agent).
+    expect(screen.getByText("(no agent)")).toBeInTheDocument();
     // The role name should also appear in the list.
     expect(screen.getByText("Разработчик")).toBeInTheDocument();
   });

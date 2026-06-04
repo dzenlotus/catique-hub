@@ -40,7 +40,7 @@ import styles from "./BoardCreateDialog.module.css";
  */
 const DEFAULT_OWNER_ROLE_ID = "maintainer-system";
 
-// react-hook-form schema — name required; description optional. Owner role
+// react-hook-form schema — name required; description optional. Owner agent
 // and space are Select-driven local state (with resolution logic) that gate
 // the submit alongside `isValid`.
 const boardFormSchema = z.object({
@@ -110,7 +110,7 @@ export function BoardCreateDialog({
           data-testid="board-create-dialog-appearance-picker"
         />
       }
-      description="Boards live inside a space. Enter a name and pick a space."
+      description="Boards live inside a project. Enter a name and pick a project."
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) {
@@ -256,11 +256,11 @@ function BoardCreateDialogContent({
 
   const onValid = handleSubmit(async (values) => {
     if (!resolvedSpaceId) {
-      setError("root.serverError", { message: "Select or create a space." });
+      setError("root.serverError", { message: "Select or create a project." });
       return;
     }
     if (ownerRoleId.trim().length === 0) {
-      setError("root.serverError", { message: "Pick an owner role." });
+      setError("root.serverError", { message: "Pick an owner agent." });
       return;
     }
     const trimmedDescription = (values.description ?? "").trim();
@@ -338,15 +338,15 @@ function BoardCreateDialogContent({
         </label>
       </div>
 
-      {/* Owner role picker — required (`boards.owner_role_id NOT NULL`).
+      {/* Owner agent picker — required (`boards.owner_role_id NOT NULL`).
           Canonical `<Select>` per audit-#11 — no native bespoke <select>. */}
       <div className={styles.section}>
         <Select
-          label="Owner role"
+          label="Owner agent"
           selectedKey={ownerRoleId}
           onSelectionChange={(key) => setOwnerRoleId(String(key))}
           isDisabled={rolesQuery.status !== "success"}
-          aria-label="Owner role"
+          aria-label="Owner agent"
           data-testid="board-create-dialog-owner-select"
         >
           {rolesQuery.status === "success"
@@ -365,7 +365,7 @@ function BoardCreateDialogContent({
       {noSpacesYet && resolvedSpaceId === null ? (
         <div className={cn(styles.section, styles.bootstrap)}>
           <p className={styles.bootstrapHint}>
-            No spaces yet. Create a default space to continue.
+            No projects yet. Create a default space to continue.
           </p>
           <Button
             variant="secondary"
@@ -380,7 +380,7 @@ function BoardCreateDialogContent({
       ) : (
         <div className={styles.section}>
           <Select
-            label="Space"
+            label="Project"
             selectedKey={resolvedSpaceId ?? ""}
             onSelectionChange={(key) => setSpaceId(String(key))}
             isDisabled={

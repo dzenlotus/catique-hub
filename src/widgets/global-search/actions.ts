@@ -42,7 +42,7 @@ export interface QuickAction {
 const STATIC_ACTIONS: QuickAction[] = [
   {
     id: "go-spaces",
-    title: "Go to Spaces",
+    title: "Go to Projects",
     keywords: ["spaces", "navigate", "projects"],
     run: ({ navigate }) => navigate(routes.spaces),
   },

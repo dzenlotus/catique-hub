@@ -77,7 +77,7 @@ test.describe("navigation", () => {
   }) => {
     // No spaces seeded — the fixture already lands on `/` and resets
     // the bridge, so the empty state should be on screen already.
-    await expect(page.getByText("No spaces yet")).toBeVisible();
+    await expect(page.getByText("No projects yet")).toBeVisible();
     const state = await readBridge(page);
     expect((state["spaces"] as unknown[]).length).toBe(0);
   });

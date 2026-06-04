@@ -73,7 +73,7 @@ export function RoleEditor({ roleId, onClose }: RoleEditorProps): ReactElement {
 
   return (
     <Dialog
-      title="Role"
+      title="Agent"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -344,7 +344,7 @@ export function RoleEditorContent({
               editable
               name={field.value}
               onNameChange={field.onChange}
-              editPlaceholder="Role name"
+              editPlaceholder="Agent name"
               editTestId="role-editor-name-input"
               value={{
                 icon: watchedIcon,
@@ -354,11 +354,11 @@ export function RoleEditorContent({
                 setValue("icon", next.icon, { shouldDirty: true });
                 setValue("color", next.color ?? "", { shouldDirty: true });
               }}
-              pickerAriaLabel="Role icon and color"
+              pickerAriaLabel="Agent icon and color"
               pickerTestId="role-editor-color-input"
               actions={
                 <HistoryViewerButton
-                  title="Role content history"
+                  title="Agent content history"
                   kind="role"
                   sourceId={loadedRole.id}
                   currentContent={loadedRole.content}
@@ -385,7 +385,7 @@ export function RoleEditorContent({
             <MarkdownField
               value={field.value}
               onChange={field.onChange}
-              placeholder="Role content (Markdown)…"
+              placeholder="Agent content (Markdown)…"
               ariaLabel="Content"
               data-testid="role-editor-content-textarea"
             />
@@ -396,8 +396,8 @@ export function RoleEditorContent({
       {/* Memory — ctq-137 retrospective curation (MEM-S2). */}
       <RoleMemorySection roleId={loadedRole.id} />
 
-      {/* Working in spaces — boards owned by this agent across the install.
-          Phase 4 stub; the "Add to space" CTA lands with Phase 4 polish. */}
+      {/* Working in projects — boards owned by this agent across the install.
+          Phase 4 stub; the "Add to project" CTA lands with Phase 4 polish. */}
       <RoleSpacesSection roleId={loadedRole.id} />
 
       {/* Footer */}

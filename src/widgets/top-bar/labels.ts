@@ -26,11 +26,11 @@ export interface NavLabel {
 export const NAV_LABELS: Record<string, NavLabel> = {
   boards: { label: "Boards", Icon: PixelCodingAppsWebsitesModule },
   prompts: { label: "Prompts", Icon: PixelInterfaceEssentialMessage },
-  roles: { label: "Roles", Icon: PixelBusinessProductsNetworkUser },
+  roles: { label: "Agents", Icon: PixelBusinessProductsNetworkUser },
   tags: { label: "Tags", Icon: PixelBusinessProductPriceTag },
   reports: { label: "Reports", Icon: PixelInterfaceEssentialPieChartPollReport1 },
   skills: { label: "Skills", Icon: PixelDesignMagicWand },
   "mcp-tools": { label: "MCP Tools", Icon: PixelCodingAppsWebsitesDatabase },
-  spaces: { label: "Spaces", Icon: PixelCodingAppsWebsitesModule },
+  spaces: { label: "Projects", Icon: PixelCodingAppsWebsitesModule },
   settings: { label: "Settings", Icon: PixelInterfaceEssentialSettingCog },
 } as const;

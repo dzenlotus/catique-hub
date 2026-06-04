@@ -163,9 +163,9 @@ describe("AppSidebar — embedded SpacesSidebar", () => {
       screen.queryByRole("complementary", { name: /spaces navigation/i }),
     ).not.toBeInTheDocument();
 
-    // Exactly one "SPACES" heading text, sitting inside the embedded
+    // Exactly one "PROJECTS" heading text, sitting inside the embedded
     // root.
-    const headings = screen.getAllByText(/^SPACES$/);
+    const headings = screen.getAllByText(/^PROJECTS$/);
     expect(headings).toHaveLength(1);
   });
 

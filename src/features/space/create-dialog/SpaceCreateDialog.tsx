@@ -76,7 +76,7 @@ export function SpaceCreateDialog({
 
   return (
     <Dialog
-      title="Create space"
+      title="Create project"
       titleLeading={
         <IconColorPicker
           value={{ icon, color: color === "" ? null : color }}
@@ -84,7 +84,7 @@ export function SpaceCreateDialog({
             setIcon(next.icon);
             setColor(next.color ?? "");
           }}
-          ariaLabel="Space icon and color"
+          ariaLabel="Project icon and color"
           data-testid="space-create-dialog-appearance-picker"
         />
       }
@@ -203,7 +203,7 @@ function SpaceCreateDialogContent({
               label="Name"
               value={field.value}
               onChange={field.onChange}
-              placeholder="Space name"
+              placeholder="Project name"
               autoFocus
               className={styles.fullWidthInput}
               data-testid="space-create-dialog-name-input"

@@ -65,7 +65,7 @@ export function BoardCard({
     >
       <span className={styles.name}>{board.name}</span>
       <span className={styles.meta}>
-        <span className={styles.spaceBadge} title="Space id">
+        <span className={styles.spaceBadge} title="Project id">
           {board.spaceId}
         </span>
         <span className={styles.position} aria-label="Position rank">

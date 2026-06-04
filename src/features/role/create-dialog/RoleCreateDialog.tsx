@@ -47,7 +47,7 @@ export function RoleCreateDialog({
 }: RoleCreateDialogProps): ReactElement {
   return (
     <Dialog
-      title="Create role"
+      title="Create agent"
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -137,7 +137,7 @@ function RoleCreateDialogContent({
             setIcon(next.icon);
             setColor(next.color ?? "");
           }}
-          ariaLabel="Role icon and color"
+          ariaLabel="Agent icon and color"
           data-testid="role-create-dialog-color-input"
         />
         <div className={styles.identityFields}>
@@ -149,7 +149,7 @@ function RoleCreateDialogContent({
                 label="Name"
                 value={field.value}
                 onChange={field.onChange}
-                placeholder="Role name"
+                placeholder="Agent name"
                 autoFocus
                 className={styles.fullWidthInput}
                 data-testid="role-create-dialog-name-input"
@@ -170,7 +170,7 @@ function RoleCreateDialogContent({
               className={styles.contentTextarea}
               value={field.value ?? ""}
               onChange={(e) => field.onChange(e.target.value)}
-              placeholder="Role content (Markdown)…"
+              placeholder="Agent content (Markdown)…"
               data-testid="role-create-dialog-content-textarea"
               aria-label="Content"
             />
