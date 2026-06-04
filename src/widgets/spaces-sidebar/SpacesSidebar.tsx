@@ -45,6 +45,10 @@ import styles from "./SpacesSidebar.module.css";
 // contract as the legacy SpaceRow so existing user state survives.
 // ---------------------------------------------------------------------------
 
+// Fallback icon for projects with no explicit icon — keeps the tree row
+// from rendering a blank leading slot. Matches the nav's project glyph.
+const DEFAULT_PROJECT_ICON = "PixelCodingAppsWebsitesModule";
+
 function expandKey(spaceId: string): string {
   return `catique:sidebar:expanded:${spaceId}`;
 }
@@ -299,7 +303,10 @@ export function SpacesSidebar(props: SpacesSidebarProps = {}): ReactElement {
                 aria-label={`${space.name}${isActiveSpace ? " (active space)" : ""}`}
                 data-testid={`spaces-sidebar-space-name-${space.id}`}
               >
-                <RowLeading icon={space.icon} color={space.color} />
+                <RowLeading
+                  icon={space.icon ?? DEFAULT_PROJECT_ICON}
+                  color={space.color}
+                />
                 <MarqueeText
                   text={space.name}
                   className={styles.spaceNameText}
