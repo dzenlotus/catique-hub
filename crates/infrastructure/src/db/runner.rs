@@ -346,7 +346,8 @@ mod tests {
             .any(|n| n.unwrap() == "is_system");
         assert!(roles_has_is_system, "roles.is_system must exist");
 
-        // 3. Maintainer + Dirizher rows present, both is_system = 1.
+        // 3. Maintainer row present + is_system = 1. (004 also seeds
+        //    Dirizher, but 041 drops it, so only Maintainer survives.)
         let system_rows: Vec<(String, i64)> = conn
             .prepare("SELECT id, is_system FROM roles WHERE id IN ('maintainer-system','dirizher-system') ORDER BY id")
             .unwrap()
@@ -354,13 +355,7 @@ mod tests {
             .unwrap()
             .map(Result::unwrap)
             .collect();
-        assert_eq!(
-            system_rows,
-            vec![
-                ("dirizher-system".to_owned(), 1),
-                ("maintainer-system".to_owned(), 1),
-            ]
-        );
+        assert_eq!(system_rows, vec![("maintainer-system".to_owned(), 1)]);
 
         // 4. tasks.step_log column exists with default ''.
         let step_log_default: String = conn

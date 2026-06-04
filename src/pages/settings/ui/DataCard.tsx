@@ -105,9 +105,17 @@ export function DataCard(): ReactElement {
 
           <dt className={styles.dt}>Import</dt>
           <dd className={styles.dd}>
-            Replace the current database with a previously exported file.
-            The current data is backed up first; the swap takes effect
-            after a restart.
+            Replace the current database with a previously exported file
+            or an automatic snapshot. The current data is backed up first;
+            the swap takes effect after a restart.
+          </dd>
+
+          <dt className={styles.dt}>Automatic backups</dt>
+          <dd className={styles.dd}>
+            A recovery snapshot is taken on every launch (the latest few
+            are kept) in{" "}
+            <code className={styles.code}>$APPLOCALDATA/catique/backups/</code>.
+            Restore one with Import above.
           </dd>
 
           <dt className={styles.dt}>Database location (SQLite)</dt>

@@ -62,6 +62,16 @@ pub fn db_path() -> Result<PathBuf, &'static str> {
     Ok(app_data_dir()?.join("db.sqlite"))
 }
 
+/// Directory holding automatic launch snapshots (see
+/// [`crate::db::backup`]). Sibling of the DB file under the app data dir.
+///
+/// # Errors
+///
+/// Propagates [`app_data_dir`]'s error.
+pub fn backups_dir() -> Result<PathBuf, &'static str> {
+    Ok(app_data_dir()?.join("backups"))
+}
+
 /// Staging path for an import requested from Settings → Data. The file
 /// is written here by `DataUseCase::stage_import` and swapped over
 /// [`db_path`] at the next launch by

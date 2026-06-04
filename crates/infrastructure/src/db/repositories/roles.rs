@@ -550,13 +550,13 @@ mod tests {
 
     #[test]
     fn list_system_roles_returns_seeded_rows() {
-        // Migration 004 seeds Maintainer + Dirizher; a freshly-applied
-        // schema should expose both via list_system_roles.
+        // Migration 004 seeds Maintainer + Dirizher; 041 then drops
+        // Dirizher, so a freshly-applied schema exposes only Maintainer.
         let conn = fresh_db();
         let system = list_system_roles(&conn).unwrap();
         let ids: Vec<String> = system.iter().map(|r| r.id.clone()).collect();
         assert!(ids.contains(&"maintainer-system".to_owned()));
-        assert!(ids.contains(&"dirizher-system".to_owned()));
+        assert!(!ids.contains(&"dirizher-system".to_owned()));
         // Sanity: every returned row has is_system set.
         assert!(system.iter().all(|r| r.is_system));
     }

@@ -745,8 +745,23 @@ fn init_state(sidecar_dir: PathBuf) -> Result<AppState, String> {
     }
 
     let path = db_path().map_err(|e| format!("resolve db path: {e}"))?;
+    // Was there an existing DB before we opened (and thus possibly
+    // created) the file? Drives the recovery-snapshot decision below.
+    let db_existed = path.exists();
     let pool =
         open_pool(&path).map_err(|e| format!("open sqlite pool at {}: {e}", path.display()))?;
+
+    // Recovery snapshot: capture the DB exactly as it is at launch,
+    // *before* any pending migration this run applies, so a bad upgrade
+    // (or a user mistake) can be rolled back via Settings → Data → Import.
+    // First launch (no prior DB) has nothing worth snapshotting. The
+    // whole step is best-effort and never blocks startup.
+    if db_existed {
+        match catique_infrastructure::db::backup::write_launch_backup(&pool) {
+            Ok(p) => eprintln!("[catique-hub] recovery snapshot: {}", p.display()),
+            Err(e) => eprintln!("[catique-hub] recovery snapshot skipped: {e}"),
+        }
+    }
 
     let mut conn = pool
         .get()
