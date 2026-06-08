@@ -25,7 +25,7 @@ dirs.workspace = true
 # the Tauri runtime without blocking). `async-trait` 0.1.x lets us keep
 # the trait object-safe; pinned exact per NFR §5.3 protocol-touching dep
 # rule because it influences the trait's vtable shape.
-async-trait = "=0.1.83"
+async-trait = "=0.1.89"
 
 # `tokio::fs` is used inside provider impls for atomic write+rename and
 # `tokio::sync` is the broadcast/mpsc channels the orchestrator uses on
