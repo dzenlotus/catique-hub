@@ -13,8 +13,8 @@ Package manager is **pnpm 10.30.3** (Node ≥20). Rust toolchain is **1.81** wit
 ### Frontend (run from repo root)
 - `pnpm dev` — Vite dev server on port **1420** (Tauri reads this from `tauri.conf.json devUrl`). Standalone, no Rust.
 - `pnpm build` — `tsc --noEmit` then `vite build`. CI relies on the tsc pass.
-- `pnpm test` / `pnpm test:watch` — Vitest. Includes `src/**/*.{test,spec}.{ts,tsx}` only — the Node sidecar smoke test (`sidecar/tests/`) uses `node:test` and is NOT in Vitest discovery.
-- Single Vitest file: `pnpm exec vitest run src/widgets/kanban-board/KanbanBoard.test.tsx`
+- `pnpm test` / `pnpm test:watch` — Vitest. Includes `src/**/__tests__/**/*.{test,spec}.{ts,tsx}` only — colocated `Component.test.tsx` files OUTSIDE a `__tests__/` dir are NOT discovered, and the Node sidecar smoke test (`sidecar/tests/`) uses `node:test` and is NOT in Vitest discovery either.
+- Single Vitest file: `pnpm exec vitest run src/widgets/kanban-board/__tests__/KanbanBoard.test.tsx`
 - Single Vitest test by name: `pnpm exec vitest run -t "renders empty state"`
 - `pnpm test:cov` — coverage report (NFR §5 target is 75% branches, not yet CI-enforced).
 - `pnpm storybook` on port 6006; `pnpm build-storybook` for static export.
