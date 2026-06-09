@@ -26,6 +26,11 @@ pub struct SupportedProvider {
     pub supports_agent_files: bool,
     /// `true` when the provider supports a managed MCP server entry.
     pub supports_mcp: bool,
+    /// Filenames (relative to a project's root folder) this provider
+    /// reads as agent instruction files (e.g. `["CLAUDE.md"]`). Drives
+    /// the project-settings "Global files" auto-list (catique-2). Empty
+    /// when the provider has no project-root agent-file convention.
+    pub project_agent_files: Vec<String>,
 }
 
 /// Fan-out sync state across every connected provider.

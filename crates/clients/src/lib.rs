@@ -317,6 +317,15 @@ pub trait ClientProvider: Send + Sync {
     /// `true` when this provider supports a managed MCP server entry.
     fn supports_mcp(&self) -> bool;
 
+    /// Filenames (relative to a project's root folder) this provider
+    /// reads as agent instruction files — e.g. Claude Code → `CLAUDE.md`,
+    /// Codex / OpenCode → `AGENTS.md`. Drives the project-settings
+    /// "Global files" auto-list (catique-2). Defaults to none for
+    /// providers without a project-root agent-file convention.
+    fn project_agent_filenames(&self) -> &'static [&'static str] {
+        &[]
+    }
+
     /// Resolve a Catique role bundle to disk. Idempotent. Atomic per
     /// file (tmp+rename). Preserves foreign content. Returns the paths
     /// written / removed.

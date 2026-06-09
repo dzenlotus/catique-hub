@@ -16,4 +16,11 @@ supportsAgentFiles: boolean,
 /**
  * `true` when the provider supports a managed MCP server entry.
  */
-supportsMcp: boolean, };
+supportsMcp: boolean, 
+/**
+ * Filenames (relative to a project's root folder) this provider
+ * reads as agent instruction files (e.g. `["CLAUDE.md"]`). Drives
+ * the project-settings "Global files" auto-list (catique-2). Empty
+ * when the provider has no project-root agent-file convention.
+ */
+projectAgentFiles: Array<string>, };

@@ -67,6 +67,11 @@ impl<'a> ConnectedProvidersUseCase<'a> {
                 display_name: p.display_name().to_owned(),
                 supports_agent_files: p.supports_agent_files(),
                 supports_mcp: p.supports_mcp(),
+                project_agent_files: p
+                    .project_agent_filenames()
+                    .iter()
+                    .map(|s| (*s).to_owned())
+                    .collect(),
             })
             .collect()
     }

@@ -50,10 +50,16 @@ import {
 import { useRoles } from "@entities/role";
 import type { Role } from "@entities/role";
 import {
+  useProjectFiles,
+  useWriteProjectFileMutation,
+  useDeleteProjectFileMutation,
+} from "@entities/project-file";
+import {
   Button,
   ConfirmDialog,
   EntityTitle,
   Input,
+  MarkdownField,
   SaveBar,
   Scrollable,
   SettingsCard,
@@ -432,8 +438,224 @@ function SpaceSettingsForm({
 
       <RolesSection spaceId={spaceId} spaceName={initialName} />
 
+      <GlobalFilesSection
+        spaceId={spaceId}
+        projectFolderPath={initialProjectFolderPath}
+      />
+
       <DangerZone spaceId={spaceId} spaceName={initialName} />
     </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Global files section (catique-2, disk-backed) — agent instruction files
+// (AGENTS.md / CLAUDE.md) living in the project's folder on disk. The
+// connected providers declare which filenames they read; those are listed
+// here (even before they exist) so the owner can create them, alongside any
+// other root-level *.md already in the folder. Edits write straight to disk.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface GlobalFilesSectionProps {
+  spaceId: string;
+  /** Persisted project folder path, or `""` when unset. */
+  projectFolderPath: string;
+}
+
+function GlobalFilesSection({
+  spaceId,
+  projectFolderPath,
+}: GlobalFilesSectionProps): ReactElement {
+  const hasFolder = projectFolderPath.trim().length > 0;
+  const filesQuery = useProjectFiles(hasFolder ? spaceId : "");
+  const writeMutation = useWriteProjectFileMutation();
+  const deleteMutation = useDeleteProjectFileMutation();
+  const { pushToast } = useToast();
+
+  const [newName, setNewName] = useState("");
+  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [draftContent, setDraftContent] = useState("");
+
+  const files = filesQuery.data ?? [];
+  const selected = files.find((f) => f.name === selectedName) ?? null;
+
+  // Re-sync the editor draft whenever the selected file (or its saved
+  // content) changes — selecting a different file or receiving a fresh
+  // realtime update both flow through here.
+  useEffect(() => {
+    setDraftContent(selected?.content ?? "");
+  }, [selected?.name, selected?.content]);
+
+  const handleCreate = useCallback((): void => {
+    const name = newName.trim();
+    if (name.length === 0) return;
+    writeMutation.mutate(
+      { spaceId, name, content: "" },
+      {
+        onSuccess: (file) => {
+          setNewName("");
+          setSelectedName(file.name);
+        },
+        onError: (err) => {
+          pushToast(
+            "error",
+            err instanceof Error ? err.message : "Failed to create file",
+          );
+        },
+      },
+    );
+  }, [newName, spaceId, writeMutation, pushToast]);
+
+  const handleSave = useCallback((): void => {
+    if (selected === null) return;
+    writeMutation.mutate(
+      { spaceId, name: selected.name, content: draftContent },
+      {
+        onSuccess: () => pushToast("success", `Saved ${selected.name}`),
+        onError: (err) => {
+          pushToast(
+            "error",
+            err instanceof Error ? err.message : "Failed to save file",
+          );
+        },
+      },
+    );
+  }, [selected, spaceId, draftContent, writeMutation, pushToast]);
+
+  const handleDelete = useCallback(
+    (name: string): void => {
+      deleteMutation.mutate(
+        { spaceId, name },
+        {
+          onSuccess: () => {
+            if (selectedName === name) setSelectedName(null);
+          },
+          onError: (err) => {
+            pushToast(
+              "error",
+              err instanceof Error ? err.message : "Failed to delete file",
+            );
+          },
+        },
+      );
+    },
+    [deleteMutation, spaceId, selectedName, pushToast],
+  );
+
+  const dirty = selected !== null && draftContent !== selected.content;
+
+  return (
+    <SettingsCard
+      heading="Agent files"
+      headingId="space-settings-files"
+      testId="space-settings-files-section"
+    >
+      <p className={styles.filesHint}>
+        Agent instruction files (e.g. <code>AGENTS.md</code>,{" "}
+        <code>CLAUDE.md</code>) stored in the project folder on disk. Files
+        the connected agents expect are listed automatically; edits are
+        written straight back to the folder.
+      </p>
+
+      {!hasFolder ? (
+        <p className={styles.fileEmptyHint} data-testid="space-settings-files-no-folder">
+          Set a <strong>Project folder</strong> above (and save) to manage
+          agent files.
+        </p>
+      ) : (
+        <>
+          {files.length > 0 && (
+            <ul className={styles.fileList} role="list">
+              {files.map((f) => (
+                <li key={f.name} className={styles.fileRow}>
+                  <button
+                    type="button"
+                    className={cn(
+                      styles.fileChip,
+                      f.name === selectedName && styles.fileChipActive,
+                    )}
+                    onClick={() => setSelectedName(f.name)}
+                    data-testid={`space-settings-file-${f.name}`}
+                  >
+                    <span className={styles.fileChipLabel}>
+                      <span className={styles.fileName}>{f.name}</span>
+                      {f.expectedBy.length > 0 && (
+                        <span className={styles.fileBadge}>
+                          expected by {f.expectedBy.join(", ")}
+                        </span>
+                      )}
+                      {!f.exists && (
+                        <span className={styles.fileMissing}>not created yet</span>
+                      )}
+                    </span>
+                  </button>
+                  {f.exists && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onPress={() => handleDelete(f.name)}
+                      aria-label={`Delete file ${f.name}`}
+                      data-testid={`space-settings-file-delete-${f.name}`}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className={styles.fileCreateRow}>
+            <Input
+              label="New file name"
+              labelHidden
+              placeholder="AGENTS.md"
+              value={newName}
+              onChange={setNewName}
+              data-testid="space-settings-file-new-name"
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              isDisabled={newName.trim().length === 0}
+              isPending={writeMutation.status === "pending"}
+              onPress={handleCreate}
+              data-testid="space-settings-file-create"
+            >
+              Create file
+            </Button>
+          </div>
+
+          {selected !== null && (
+            <div
+              className={styles.fileEditor}
+              data-testid="space-settings-file-editor"
+            >
+              <MarkdownField
+                value={draftContent}
+                onChange={setDraftContent}
+                ariaLabel={`${selected.name} content`}
+                placeholder="# Write markdown here…"
+                defaultMode="edit"
+                data-testid="space-settings-file-content"
+              />
+              <div className={styles.fileEditorActions}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  isDisabled={!dirty}
+                  isPending={writeMutation.status === "pending"}
+                  onPress={handleSave}
+                  data-testid="space-settings-file-save"
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </SettingsCard>
   );
 }
 

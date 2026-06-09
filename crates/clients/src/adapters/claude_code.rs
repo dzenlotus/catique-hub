@@ -69,6 +69,9 @@ impl ClientProvider for ClaudeCodeProvider {
     fn supports_mcp(&self) -> bool {
         true
     }
+    fn project_agent_filenames(&self) -> &'static [&'static str] {
+        &["CLAUDE.md"]
+    }
 
     async fn detect(&self) -> Result<bool, ProviderError> {
         // The `~/.claude/` directory is sufficient evidence of an

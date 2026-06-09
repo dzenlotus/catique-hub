@@ -68,6 +68,9 @@ impl ClientProvider for CodexProvider {
     fn supports_mcp(&self) -> bool {
         true
     }
+    fn project_agent_filenames(&self) -> &'static [&'static str] {
+        &["AGENTS.md"]
+    }
 
     async fn detect(&self) -> Result<bool, ProviderError> {
         // `~/.codex/` is the canonical install marker (the CLI lands

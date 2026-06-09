@@ -281,11 +281,19 @@ pub(crate) fn render_skill_blocks(skills: &[ResolvedSkill]) -> String {
             xml_escape_text(description)
         );
 
-        // SKILL-V2-A: emit `<step>` children BEFORE attachments — steps
-        // describe the work, attachments are supporting material. Sort
-        // by position so the on-disk render is deterministic across
-        // syncs. Old skills with no steps render the `<description>` +
-        // attachments shape unchanged (backwards-compat).
+        // catique-3 (lazy skill loading): emit a lightweight step
+        // *outline* — `<step>` carries the title only, self-closing —
+        // and defer the full bodies + expected outcomes to an on-demand
+        // MCP fetch. Inlining every step body bloated the agent file with
+        // content the agent rarely needs until it actually starts a
+        // skill. The outline still tells the agent what the skill does
+        // and how many steps it has; the trailing `<load>` hint tells it
+        // exactly how to pull the detail when it needs it.
+        //
+        // Steps are sorted by position so the on-disk render is
+        // deterministic across syncs. Skills with no steps render the
+        // `<description>` + attachments shape unchanged (backwards-compat;
+        // no outline, no `<load>` hint).
         let mut steps: Vec<&ResolvedSkillStep> = skill.steps.iter().collect();
         steps.sort_by(|a, b| {
             a.position
@@ -298,20 +306,21 @@ pub(crate) fn render_skill_blocks(skills: &[ResolvedSkill]) -> String {
             let order = idx + 1;
             let _ = writeln!(
                 out,
-                "  <step order=\"{order}\" title=\"{}\">",
+                "  <step order=\"{order}\" title=\"{}\" />",
                 xml_escape_attr(&step.title)
             );
-            if !step.body.is_empty() {
-                let _ = writeln!(out, "    {}", xml_escape_text(&step.body));
-            }
-            if let Some(outcome) = step.expected_outcome.as_deref() {
-                let _ = writeln!(
-                    out,
-                    "    <expected-outcome>{}</expected-outcome>",
-                    xml_escape_text(outcome)
-                );
-            }
-            out.push_str("  </step>\n");
+        }
+        if !steps.is_empty() {
+            // On-demand fetch instruction. The agent calls the catique
+            // `skill` tool with the carried id to materialise the full
+            // step bodies only when it starts the skill.
+            let id_attr = xml_escape_attr(&skill.id);
+            let _ = writeln!(
+                out,
+                "  <load skill-id=\"{id_attr}\">Step details load on demand — call the \
+                 catique `skill` tool with {{ \"action\": \"list_steps\", \"skill_id\": \
+                 \"{id_attr}\" }} to fetch the full step bodies when you start this skill.</load>"
+            );
         }
 
         // Alphabetical sort key per attachment: filename for File kind,
@@ -938,17 +947,30 @@ mod tests {
         };
         let out = render_skill_blocks(std::slice::from_ref(&skill));
 
-        // Both steps emitted, in position order (Validate < Run).
+        // catique-3: step OUTLINE only — self-closing, title-only,
+        // in position order (Validate < Run).
         let i_validate = out
-            .find(r#"<step order="1" title="Validate input">"#)
+            .find(r#"<step order="1" title="Validate input" />"#)
             .unwrap();
-        let i_run = out.find(r#"<step order="2" title="Run command">"#).unwrap();
+        let i_run = out
+            .find(r#"<step order="2" title="Run command" />"#)
+            .unwrap();
         assert!(i_validate < i_run);
 
-        // Expected-outcome carried verbatim, XML-escaped if needed.
-        assert!(out.contains("<expected-outcome>YAML parses cleanly</expected-outcome>"));
+        // Lazy loading: full bodies + expected outcomes are NOT inlined.
+        assert!(
+            !out.contains("kubectl apply"),
+            "step body must not be inlined"
+        );
+        assert!(
+            !out.contains("<expected-outcome>"),
+            "expected-outcome deferred to on-demand fetch",
+        );
+        // The on-demand load hint carries the skill id.
+        assert!(out.contains(r#"<load skill-id="s">"#));
+        assert!(out.contains(r#""action": "list_steps""#));
 
-        // Step block precedes the attachment block.
+        // Step outline precedes the attachment block.
         let i_step = out.find("<step ").unwrap();
         let i_file = out.find("<file ").unwrap();
         assert!(i_step < i_file, "<step> must precede <file> attachments");
@@ -969,11 +991,12 @@ mod tests {
             attachments: vec![],
         };
         let out = render_skill_blocks(std::slice::from_ref(&skill));
-        // Attribute escaping: double-quote, ampersand, angle brackets.
+        // Attribute escaping on the title (the only step field rendered
+        // in the outline): double-quote, ampersand, angle brackets.
         assert!(out.contains(r#"title="Run &quot;evil &amp; nasty&quot; &lt;script&gt;""#));
-        // Text-node escaping: `<`, `>`, `&`.
-        assert!(out.contains("echo &lt;hello &amp; bye&gt;"));
-        assert!(out.contains("<expected-outcome>a &lt; b</expected-outcome>"));
+        // catique-3: body + expected-outcome are deferred, not inlined.
+        assert!(!out.contains("echo"), "step body must not be inlined");
+        assert!(!out.contains("<expected-outcome>"));
     }
 
     #[test]

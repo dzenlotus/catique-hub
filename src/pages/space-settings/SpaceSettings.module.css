@@ -226,3 +226,98 @@
   border-style: dashed;
   color: var(--color-text-muted);
 }
+
+/* ── Global files section (catique-2) ───────────────────────────────── */
+.filesHint {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-muted);
+  font: var(--type-body-sm);
+}
+
+.filesHint code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.9em;
+}
+
+.fileList {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.fileRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.fileChip {
+  flex: 1 1 auto;
+  text-align: left;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-default);
+  font: var(--type-body-sm);
+  cursor: pointer;
+}
+
+.fileChip:hover {
+  background: var(--color-surface-overlay);
+}
+
+.fileChipActive {
+  border-color: var(--color-accent-default, var(--color-border-strong));
+  color: var(--color-text-default);
+}
+
+.fileCreateRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.fileEditor {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fileEditorActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fileChipLabel {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.fileName {
+  font-weight: 600;
+}
+
+.fileBadge {
+  color: var(--color-text-muted);
+  font: var(--type-body-sm);
+  font-size: 0.85em;
+}
+
+.fileMissing {
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 0.85em;
+}
+
+.fileEmptyHint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font: var(--type-body-sm);
+}
