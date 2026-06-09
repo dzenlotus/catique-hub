@@ -233,7 +233,10 @@ function SpaceSettingsForm({
   });
 
   // Repopulate when the loaded space changes (the page also remounts via
-  // `key`, but this keeps the form aligned on background refetch).
+  // `key`, but this keeps the form aligned on background refetch). The
+  // "Saved" hint must survive this reset: a successful save invalidates
+  // the query, the refetched entity re-runs this effect, and clearing
+  // `savedAt` here would hide the hint the instant it appears.
   useEffect(() => {
     reset(
       entityToValues({
@@ -243,7 +246,6 @@ function SpaceSettingsForm({
         initialProjectFolderPath,
       }),
     );
-    setSavedAt(null);
   }, [reset, initialName, initialIcon, initialColor, initialProjectFolderPath]);
 
   // Auto-clear the "Saved" hint so it doesn't linger.

@@ -241,7 +241,10 @@ function BoardSettingsForm({
   });
 
   // Repopulate when the loaded board changes (the page also remounts via
-  // `key`, but this keeps the form aligned on background refetch).
+  // `key`, but this keeps the form aligned on background refetch). The
+  // "Saved" hint must survive this reset: a successful save invalidates
+  // the query, the refetched entity re-runs this effect, and clearing
+  // `savedAt` here would hide the hint the instant it appears.
   useEffect(() => {
     reset({
       name: initialName,
@@ -249,7 +252,6 @@ function BoardSettingsForm({
       icon: initialIcon,
       color: initialColor,
     });
-    setSavedAt(null);
   }, [reset, initialName, initialDescription, initialIcon, initialColor]);
 
   // Auto-clear the transient "Saved" hint so it doesn't linger.
