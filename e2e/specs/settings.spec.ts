@@ -2,8 +2,7 @@
  * Settings scenarios (NEW in iteration-2).
  *
  * Covers the merged Settings page TOC, theme toggle (persists via the
- * platform `localStorage`), Data card affordances, and the sidecar
- * status pill (stubbed `stopped` by `handleMisc`).
+ * platform `localStorage`), Data card affordances, and the About card.
  */
 
 import type { Page } from "@playwright/test";
@@ -27,9 +26,7 @@ test.describe("settings", () => {
     for (const id of [
       "settings-appearance",
       "settings-keyboard-shortcuts",
-      "settings-tokens",
       "settings-data",
-      "settings-mcp-sidecar",
       "settings-about",
     ]) {
       await expect(page.getByTestId(sel.settings.nav(id))).toBeVisible();
@@ -81,18 +78,6 @@ test.describe("settings", () => {
     await page.getByTestId(sel.settings.themeDark).click();
     await expect(page.getByTestId(sel.settings.activeThemeName)).toHaveText(
       "Dark",
-    );
-  });
-
-  test("the sidecar status pill defaults to Stopped (bridge stub)", async ({
-    page,
-  }) => {
-    await gotoSettings(page);
-
-    // The bridge's `sidecar_status` returns `{ state: "stopped" }`.
-    // The pill renders "Stopped" inside `data-testid="sidecar-status-pill"`.
-    await expect(page.getByTestId(sel.settings.sidecarStatus)).toContainText(
-      "Stopped",
     );
   });
 

@@ -217,7 +217,6 @@ export const sel = {
     themeDark: "settings-theme-button-dark",
     activeThemeName: "active-theme-name",
     seedPrompts: "settings-data-seed-prompts",
-    sidecarStatus: "sidecar-status-pill",
     appVersion: "app-version",
   },
 } as const;
