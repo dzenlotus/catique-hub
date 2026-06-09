@@ -43,6 +43,20 @@ updates:
       time: "06:00"
       timezone: "Europe/Berlin"
     open-pull-requests-limit: 5
+    # Exact-pinned crates (anything touching the IPC or storage protocol —
+    # see [workspace.dependencies] in Cargo.toml) are bumped deliberately
+    # by hand, with regenerated bindings/ committed in the same PR.
+    # Dependabot bumps for these only create un-mergeable noise.
+    ignore:
+      - dependency-name: serde
+      - dependency-name: serde_json
+      - dependency-name: ts-rs
+      - dependency-name: rusqlite
+      - dependency-name: r2d2
+      - dependency-name: r2d2_sqlite
+      - dependency-name: include_dir
+      - dependency-name: nanoid
+      - dependency-name: sha2
     groups:
       cargo-minor-patch:
         applies-to: version-updates
