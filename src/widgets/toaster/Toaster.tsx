@@ -75,6 +75,7 @@ export function Toaster(): ReactElement {
 
   return (
     <div
+      role="region"
       className={styles.container}
       aria-live="polite"
       aria-label="Notifications"
