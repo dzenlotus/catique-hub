@@ -95,6 +95,45 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  e2e:
+    name: E2E (Playwright, mock IPC bridge)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        # The suite drives Chromium against `vite preview` through the
+        # in-memory IPC bridge (VITE_E2E=1) — no Rust toolchain needed.
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run e2e suite
+        run: pnpm e2e
+
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: e2e/.artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
+
   lint-rust:
     name: Rust (fmt, clippy, test)
     runs-on: ubuntu-24.04

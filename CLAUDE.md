@@ -147,10 +147,11 @@ CSS is **CSS Modules only** — no Tailwind, no styled-components. In dev, class
 
 ## CI gates (`.github/workflows/ci.yml`)
 
-Three jobs, all must pass:
+Four jobs, all must pass:
 
 1. **Frontend** — `pnpm exec tsc --noEmit` → `pnpm exec vitest run --passWithNoTests`.
-2. **Rust** — `cargo fmt --check` → `cargo clippy --workspace --all-targets -- -D warnings` → `cargo test --workspace --all-targets`.
-3. **Audit** — `pnpm audit --prod --audit-level high` + `cargo tree | grep -E -i 'AGPL|SSPL'` (fails if matched).
+2. **E2E** — `pnpm e2e` (Playwright Chromium against the mock IPC bridge; no Rust toolchain).
+3. **Rust** — `cargo fmt --check` → `cargo clippy --workspace --all-targets -- -D warnings` → `cargo test --workspace --all-targets`.
+4. **Audit** — `pnpm audit --prod --audit-level high` + `cargo tree | grep -E -i 'AGPL|SSPL'` (fails if matched).
 
 `build.yml` and `release.yml` handle cross-platform `.dmg`/`.msi` packaging — CI runs Linux-only by design.
