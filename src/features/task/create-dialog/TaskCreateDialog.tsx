@@ -21,8 +21,18 @@ import { z } from "zod";
 import { useColumns } from "@entities/column";
 import type { Column } from "@entities/column";
 import { useCreateTaskMutation } from "@entities/task";
+import { useTaskTemplates } from "@entities/task-template";
+import type { TaskKind } from "@bindings/TaskKind";
 import { useToast } from "@shared/lib";
-import { Dialog, Button, Input, MarkdownField, Scrollable } from "@shared/ui";
+import {
+  Dialog,
+  Button,
+  GroupButton,
+  Input,
+  MarkdownField,
+  Scrollable,
+} from "@shared/ui";
+import type { Key } from "react";
 
 import styles from "./TaskCreateDialog.module.css";
 
@@ -95,6 +105,15 @@ function TaskCreateDialogContent({
 }: TaskCreateDialogContentProps): ReactElement {
   const { pushToast } = useToast();
   const createTask = useCreateTaskMutation();
+  const templatesQuery = useTaskTemplates();
+  const templates = templatesQuery.data ?? [];
+
+  // Which template is applied. `"blank"` is the no-template default.
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("blank");
+
+  // Task classification (catique). Independent of the template, but a
+  // template whose kind is feature/bug/research pre-selects it.
+  const [kind, setKind] = useState<TaskKind>("blank");
 
   // ── Board / column (props + first-column effect, not form fields) ─────────
   const [selectedBoardId] = useState<string | null>(defaultBoardId);
@@ -119,6 +138,7 @@ function TaskCreateDialogContent({
     control,
     handleSubmit,
     setError,
+    setValue,
     formState: { errors, isValid, isSubmitting },
   } = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
@@ -149,6 +169,7 @@ function TaskCreateDialogContent({
       title: values.title,
       description: description !== "" ? description : null,
       position,
+      kind,
     };
     // audit-2026-05-06: roleId resolved server-side from the
     // board's owner_role_id (1:1 board↔role rule). Frontend no
@@ -173,6 +194,37 @@ function TaskCreateDialogContent({
     onClose();
   }, [onClose]);
 
+  // Applying a template overwrites the description with its markdown
+  // skeleton. "blank" clears back to an empty description.
+  const handleTemplateChange = useCallback(
+    (key: Key): void => {
+      const id = String(key);
+      setSelectedTemplateId(id);
+      if (id === "blank") {
+        setValue("description", "");
+        return;
+      }
+      const tmpl = templates.find((t) => t.id === id);
+      if (tmpl) {
+        setValue("description", tmpl.body);
+        // Mirror the template's kind onto the task type when it maps to a
+        // task kind (custom templates leave the type untouched).
+        if (
+          tmpl.kind === "feature" ||
+          tmpl.kind === "bug" ||
+          tmpl.kind === "research"
+        ) {
+          setKind(tmpl.kind);
+        }
+      }
+    },
+    [templates, setValue],
+  );
+
+  const handleKindChange = useCallback((key: Key): void => {
+    setKind(String(key) as TaskKind);
+  }, []);
+
   // ── Derived ──────────────────────────────────────────────────────────────
   // Title is RHF-validated; board/column come from props/effect and gate
   // the submit button alongside `isValid`.
@@ -185,6 +237,29 @@ function TaskCreateDialogContent({
 
   return (
     <Scrollable axis="y" className={styles.body}>
+      {/* Template picker (catique-1) — applying a template fills the
+          description with its markdown skeleton. */}
+      {templates.length > 0 && (
+        <div className={styles.section}>
+          <p className={styles.sectionLabel}>Template</p>
+          <GroupButton
+            selectionMode="single"
+            selectedKey={selectedTemplateId}
+            onSelectionChange={handleTemplateChange}
+            size="sm"
+            ariaLabel="Task template"
+            testId="task-create-dialog-template"
+          >
+            <GroupButton.Item id="blank">Blank</GroupButton.Item>
+            {templates.map((t) => (
+              <GroupButton.Item key={t.id} id={t.id}>
+                {t.name}
+              </GroupButton.Item>
+            ))}
+          </GroupButton>
+        </div>
+      )}
+
       {/* Title */}
       <div className={styles.section}>
         <Controller
@@ -202,6 +277,24 @@ function TaskCreateDialogContent({
             />
           )}
         />
+      </div>
+
+      {/* Type (catique) — task classification, independent of template. */}
+      <div className={styles.section}>
+        <p className={styles.sectionLabel}>Type</p>
+        <GroupButton
+          selectionMode="single"
+          selectedKey={kind}
+          onSelectionChange={handleKindChange}
+          size="sm"
+          ariaLabel="Task type"
+          testId="task-create-dialog-kind"
+        >
+          <GroupButton.Item id="blank">Blank</GroupButton.Item>
+          <GroupButton.Item id="feature">Feature</GroupButton.Item>
+          <GroupButton.Item id="bug">Bug</GroupButton.Item>
+          <GroupButton.Item id="research">Research</GroupButton.Item>
+        </GroupButton>
       </div>
 
       {/* Description — canonical MarkdownField (in-place edit ⇄ preview). */}

@@ -73,12 +73,14 @@ pub async fn get_task(state: State<'_, AppState>, id: String) -> Result<Task, Ap
 ///
 /// Forwards every error from `TasksUseCase::create`.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn create_task(
     state: State<'_, AppState>,
     board_id: String,
     column_id: String,
     title: String,
     description: Option<String>,
+    kind: Option<String>,
     position: f64,
     role_id: Option<String>,
 ) -> Result<Task, AppError> {
@@ -87,6 +89,7 @@ pub async fn create_task(
         column_id,
         title,
         description,
+        kind,
         position,
         role_id,
     )?;
@@ -108,11 +111,13 @@ pub async fn create_task(
 ///
 /// Forwards every error from `TasksUseCase::update`.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn update_task(
     state: State<'_, AppState>,
     id: String,
     title: Option<String>,
     description: Option<Option<String>>,
+    kind: Option<String>,
     column_id: Option<String>,
     position: Option<f64>,
     role_id: Option<Option<String>>,
@@ -125,7 +130,7 @@ pub async fn update_task(
     // primary-key read.
     let uc = TasksUseCase::new(&state.pool);
     let before = uc.get(&id)?;
-    let after = uc.update(id, title, description, column_id, position, role_id)?;
+    let after = uc.update(id, title, description, kind, column_id, position, role_id)?;
     events::emit(
         &state,
         events::TASK_UPDATED,

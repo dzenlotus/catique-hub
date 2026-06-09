@@ -94,6 +94,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     columnId: "col-1",
     roleId: null,
     position: 1,
+    kind: "blank",
     stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,

@@ -1,10 +1,14 @@
 export {
   listTasksByBoard,
   listTasksByColumn,
+  listAllTasks,
   getTask,
   createTask,
   updateTask,
   deleteTask,
+  linkTasks,
+  unlinkTasks,
+  listTaskLinks,
   addTaskPrompt,
   removeTaskPrompt,
   setTaskPrompts,
@@ -26,6 +30,7 @@ export {
 export type {
   CreateTaskArgs,
   UpdateTaskArgs,
+  LinkTasksArgs,
   AddTaskPromptArgs,
   RemoveTaskPromptArgs,
   AddTaskSkillArgs,

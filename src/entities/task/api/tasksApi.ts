@@ -19,6 +19,9 @@ import { invokeWithAppError } from "@shared/api";
 import type { Prompt } from "@bindings/Prompt";
 import type { Task } from "@bindings/Task";
 import type { TaskBundle } from "@bindings/TaskBundle";
+import type { TaskKind } from "@bindings/TaskKind";
+import type { TaskLink } from "@bindings/TaskLink";
+import type { TaskLinkKind } from "@bindings/TaskLinkKind";
 
 /**
  * `list_tasks` for an entire board. Filters client-side by `boardId`.
@@ -47,6 +50,11 @@ export async function getTask(id: string): Promise<Task> {
   return invokeWithAppError<Task>("get_task", { id });
 }
 
+/** `list_tasks` — every task across every board (used by the relation picker). */
+export async function listAllTasks(): Promise<Task[]> {
+  return invokeWithAppError<Task[]>("list_tasks");
+}
+
 export interface CreateTaskArgs {
   boardId: string;
   columnId: string;
@@ -61,6 +69,8 @@ export interface CreateTaskArgs {
   position: number;
   /** Skip = `undefined`, set = string id, clear = `null`. */
   roleId?: string | null;
+  /** Task classification. Skip = `undefined` (backend defaults `blank`). */
+  kind?: TaskKind;
 }
 
 /** `create_task` — append a task to a column. */
@@ -73,6 +83,7 @@ export async function createTask(args: CreateTaskArgs): Promise<Task> {
   };
   if (args.description !== undefined) payload.description = args.description;
   if (args.roleId !== undefined) payload.roleId = args.roleId;
+  if (args.kind !== undefined) payload.kind = args.kind;
   return invokeWithAppError<Task>("create_task", payload);
 }
 
@@ -81,6 +92,8 @@ export interface UpdateTaskArgs {
   title?: string;
   /** Skip = `undefined`, set = string, clear = `null`. */
   description?: string | null;
+  /** Change classification. */
+  kind?: TaskKind;
   /** Move to another column. */
   columnId?: string;
   /** New position rank. */
@@ -94,6 +107,7 @@ export async function updateTask(args: UpdateTaskArgs): Promise<Task> {
   const payload: Record<string, unknown> = { id: args.id };
   if (args.title !== undefined) payload.title = args.title;
   if (args.description !== undefined) payload.description = args.description;
+  if (args.kind !== undefined) payload.kind = args.kind;
   if (args.columnId !== undefined) payload.columnId = args.columnId;
   if (args.position !== undefined) payload.position = args.position;
   if (args.roleId !== undefined) payload.roleId = args.roleId;
@@ -103,6 +117,39 @@ export async function updateTask(args: UpdateTaskArgs): Promise<Task> {
 /** `delete_task` — remove. */
 export async function deleteTask(id: string): Promise<void> {
   return invokeWithAppError<void>("delete_task", { id });
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Task links (catique-4) — minimal task↔task relationship surface.
+// ──────────────────────────────────────────────────────────────────────
+
+export interface LinkTasksArgs {
+  srcTaskId: string;
+  dstTaskId: string;
+  kind: TaskLinkKind;
+}
+
+/** `link_tasks` — create one directional link. Idempotent on the Rust side. */
+export async function linkTasks(args: LinkTasksArgs): Promise<TaskLink> {
+  return invokeWithAppError<TaskLink>("link_tasks", {
+    srcTaskId: args.srcTaskId,
+    dstTaskId: args.dstTaskId,
+    kind: args.kind,
+  });
+}
+
+/** `unlink_tasks` — remove one link. Idempotent. */
+export async function unlinkTasks(args: LinkTasksArgs): Promise<void> {
+  return invokeWithAppError<void>("unlink_tasks", {
+    srcTaskId: args.srcTaskId,
+    dstTaskId: args.dstTaskId,
+    kind: args.kind,
+  });
+}
+
+/** `list_task_links` — every link a task participates in, either direction. */
+export async function listTaskLinks(taskId: string): Promise<TaskLink[]> {
+  return invokeWithAppError<TaskLink[]>("list_task_links", { taskId });
 }
 
 /** `list_task_prompts` — all prompts attached to a task, ordered by position. */

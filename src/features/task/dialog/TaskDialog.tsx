@@ -21,9 +21,11 @@ import {
   useEffect,
   useMemo,
   useState,
+  type Key,
   type ReactElement,
 } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import type { TaskKind } from "@bindings/TaskKind";
 import {
   useTask,
   useTaskPrompts,
@@ -48,6 +50,7 @@ import {
   Dialog,
   EditorShell,
   Button,
+  GroupButton,
   Input,
   MarkdownField,
   SelectTag,
@@ -56,6 +59,7 @@ import {
 import { cn } from "@shared/lib";
 import { AgentReportsList } from "@widgets/agent-reports-list";
 import { useToast } from "@shared/lib";
+import { TaskRelations } from "../relations";
 
 import styles from "./TaskDialog.module.css";
 
@@ -358,6 +362,7 @@ export function TaskDialogContent({
   // the data is not.
   const [localTitle, setLocalTitle] = useState("");
   const [localDescription, setLocalDescription] = useState("");
+  const [localKind, setLocalKind] = useState<TaskKind>("blank");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -368,6 +373,7 @@ export function TaskDialogContent({
     if (query.data) {
       setLocalTitle(query.data.title);
       setLocalDescription(query.data.description ?? "");
+      setLocalKind(query.data.kind);
       setSaveError(null);
       setConfirmDelete(false);
       clearTaskDraft(taskId);
@@ -529,6 +535,9 @@ export function TaskDialogContent({
     if (trimmedDescription !== task.description) {
       mutationArgs.description = trimmedDescription;
     }
+    if (localKind !== task.kind) {
+      mutationArgs.kind = localKind;
+    }
     // audit-#10: column / board are no longer user-editable from the
     // dialog; reordering happens via kanban drag.
     // round-21: roleId is no longer editable — a task's role follows
@@ -550,6 +559,7 @@ export function TaskDialogContent({
   const handleCancel = (): void => {
     setLocalTitle(task.title);
     setLocalDescription(task.description ?? "");
+    setLocalKind(task.kind);
     setSaveError(null);
     setConfirmDelete(false);
     clearTaskDraft(task.id);
@@ -600,6 +610,24 @@ export function TaskDialogContent({
         />
       </div>
 
+      {/* Type (catique) — task classification. */}
+      <div className={styles.section}>
+        <p className={styles.sectionLabel}>Type</p>
+        <GroupButton
+          selectionMode="single"
+          selectedKey={localKind}
+          onSelectionChange={(key: Key) => setLocalKind(String(key) as TaskKind)}
+          size="sm"
+          ariaLabel="Task type"
+          testId="task-dialog-kind"
+        >
+          <GroupButton.Item id="blank">Blank</GroupButton.Item>
+          <GroupButton.Item id="feature">Feature</GroupButton.Item>
+          <GroupButton.Item id="bug">Bug</GroupButton.Item>
+          <GroupButton.Item id="research">Research</GroupButton.Item>
+        </GroupButton>
+      </div>
+
       {/* Description — implicit view ⇄ edit toggle via MarkdownField (ctq-76 #11). */}
       <div className={styles.section}>
         <p className={styles.sectionLabel}>Description</p>
@@ -642,6 +670,15 @@ export function TaskDialogContent({
       >
         <h3 className={styles.sectionHeading}>Agent reports</h3>
         <AgentReportsList taskId={task.id} />
+      </div>
+
+      {/* Linked tasks (catique-4) */}
+      <div
+        className={styles.sectionBlock}
+        data-testid="task-dialog-relations-section"
+      >
+        <h3 className={styles.sectionHeading}>Linked tasks</h3>
+        <TaskRelations taskId={task.id} />
       </div>
 
       </Scrollable>

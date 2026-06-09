@@ -31,6 +31,10 @@ pub struct TaskRow {
     pub slug: String,
     pub title: String,
     pub description: Option<String>,
+    /// Task classification string (`blank`/`feature`/`bug`/`research`).
+    /// Stored free-form here; the application layer maps it to the
+    /// `TaskKind` enum. Migration `044`.
+    pub kind: String,
     pub position: f64,
     pub role_id: Option<String>,
     pub created_at: i64,
@@ -57,6 +61,7 @@ impl TaskRow {
             slug: row.get("slug")?,
             title: row.get("title")?,
             description: row.get("description")?,
+            kind: row.get("kind")?,
             position: row.get("position")?,
             role_id: row.get("role_id")?,
             created_at: row.get("created_at")?,
@@ -76,6 +81,9 @@ pub struct TaskDraft {
     pub column_id: String,
     pub title: String,
     pub description: Option<String>,
+    /// Classification string; defaults to `"blank"` when the caller does
+    /// not specify one.
+    pub kind: String,
     pub position: f64,
     pub role_id: Option<String>,
 }
@@ -85,6 +93,7 @@ pub struct TaskDraft {
 pub struct TaskPatch {
     pub title: Option<String>,
     pub description: Option<Option<String>>,
+    pub kind: Option<String>,
     pub column_id: Option<String>,
     pub position: Option<f64>,
     pub role_id: Option<Option<String>>,
@@ -97,7 +106,7 @@ pub struct TaskPatch {
 /// Surfaces rusqlite errors.
 pub fn list_all(conn: &Connection) -> Result<Vec<TaskRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, board_id, column_id, slug, title, description, position, role_id, created_at, updated_at, step_log, \
+        "SELECT id, board_id, column_id, slug, title, description, kind, position, role_id, created_at, updated_at, step_log, \
                 effective_prompt_count, effective_skill_count, effective_tool_count \
          FROM tasks ORDER BY board_id, column_id, position ASC",
     )?;
@@ -116,7 +125,7 @@ pub fn list_all(conn: &Connection) -> Result<Vec<TaskRow>, DbError> {
 /// Surfaces rusqlite errors.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<TaskRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, board_id, column_id, slug, title, description, position, role_id, created_at, updated_at, step_log, \
+        "SELECT id, board_id, column_id, slug, title, description, kind, position, role_id, created_at, updated_at, step_log, \
                 effective_prompt_count, effective_skill_count, effective_tool_count \
          FROM tasks WHERE id = ?1",
     )?;
@@ -211,8 +220,8 @@ pub fn insert(conn: &Connection, draft: &TaskDraft) -> Result<TaskRow, DbError> 
 
     tx.execute(
         "INSERT INTO tasks \
-            (id, board_id, column_id, slug, title, description, position, role_id, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
+            (id, board_id, column_id, slug, title, description, kind, position, role_id, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)",
         params![
             id,
             draft.board_id,
@@ -220,6 +229,7 @@ pub fn insert(conn: &Connection, draft: &TaskDraft) -> Result<TaskRow, DbError> 
             slug,
             draft.title,
             draft.description,
+            draft.kind,
             draft.position,
             draft.role_id,
             now,
@@ -235,6 +245,7 @@ pub fn insert(conn: &Connection, draft: &TaskDraft) -> Result<TaskRow, DbError> 
         slug,
         title: draft.title.clone(),
         description: draft.description.clone(),
+        kind: draft.kind.clone(),
         position: draft.position,
         role_id: draft.role_id.clone(),
         created_at: now,
@@ -293,6 +304,11 @@ pub fn update(conn: &Connection, id: &str, patch: &TaskPatch) -> Result<Option<T
     if let Some(d) = patch.description.as_ref() {
         let _ = write!(sql, ", description = ?{next}");
         params_vec.push(rusqlite::types::Value::from(d.clone()));
+        next += 1;
+    }
+    if let Some(k) = patch.kind.as_ref() {
+        let _ = write!(sql, ", kind = ?{next}");
+        params_vec.push(rusqlite::types::Value::from(k.clone()));
         next += 1;
     }
     if let Some(r) = patch.role_id.as_ref() {
@@ -1181,6 +1197,7 @@ mod tests {
             column_id: col.into(),
             title: "T".into(),
             description: Some("desc".into()),
+            kind: "blank".into(),
             position: 1.0,
             role_id: None,
         }
@@ -1845,6 +1862,7 @@ mod tests {
                 column_id: col.clone(),
                 title: "Refactor pipeline".into(),
                 description: Some("touches the resolver".into()),
+                kind: "blank".into(),
                 position: 1.0,
                 role_id: Some("cat1".into()),
             },
@@ -1858,6 +1876,7 @@ mod tests {
                 column_id: col,
                 title: "Refactor login".into(),
                 description: None,
+                kind: "blank".into(),
                 position: 2.0,
                 role_id: Some("cat2".into()),
             },
@@ -1871,6 +1890,7 @@ mod tests {
                 column_id: "c-other".into(),
                 title: "Refactor exporter".into(),
                 description: None,
+                kind: "blank".into(),
                 position: 3.0,
                 role_id: Some("cat1".into()),
             },
@@ -1912,6 +1932,7 @@ mod tests {
                     column_id: col.clone(),
                     title: format!("Sweep {i}"),
                     description: None,
+                    kind: "blank".into(),
                     position: f64::from(i),
                     role_id: Some("catX".into()),
                 },

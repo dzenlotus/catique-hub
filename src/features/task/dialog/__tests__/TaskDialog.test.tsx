@@ -39,6 +39,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     description: "Описание задачи",
     position: 1,
     roleId: null,
+    kind: "blank",
     stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,

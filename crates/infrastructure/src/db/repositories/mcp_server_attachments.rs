@@ -351,6 +351,7 @@ mod tests {
                 column_id: col.into(),
                 title: "T".into(),
                 description: None,
+                kind: "blank".into(),
                 position: 1.0,
                 role_id: role.map(str::to_owned),
             },

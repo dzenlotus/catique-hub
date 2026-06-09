@@ -3,6 +3,49 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+/// Task classification (catique). Pinned to the SQL
+/// `CHECK (kind IN ('blank','feature','bug','research'))` set so a bad
+/// value can never reach the DB and a tampered row can never deserialise
+/// into an out-of-range variant. `Blank` is the default for an untyped
+/// card.
+#[derive(TS, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[ts(export, export_to = "../../../bindings/", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum TaskKind {
+    /// Untyped card (default).
+    #[default]
+    Blank,
+    Feature,
+    Bug,
+    Research,
+}
+
+impl TaskKind {
+    /// Lowercase wire/storage string (matches the SQL `CHECK` set).
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            TaskKind::Blank => "blank",
+            TaskKind::Feature => "feature",
+            TaskKind::Bug => "bug",
+            TaskKind::Research => "research",
+        }
+    }
+
+    /// Parse a stored string, falling back to [`TaskKind::Blank`] for any
+    /// unknown / legacy value so a tampered or pre-migration row never
+    /// fails to load.
+    #[must_use]
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "feature" => TaskKind::Feature,
+            "bug" => TaskKind::Bug,
+            "research" => TaskKind::Research,
+            _ => TaskKind::Blank,
+        }
+    }
+}
+
 /// A task / kanban card. Slugged (`<space-prefix>-<NN>`), cascades on
 /// board/column delete. `position` is `f64` to allow gap-based reorders
 /// without renumbering siblings.
@@ -22,6 +65,10 @@ pub struct Task {
     pub slug: String,
     pub title: String,
     pub description: Option<String>,
+    /// Classification of the card. Defaults to [`TaskKind::Blank`] for
+    /// rows that predate the `kind` column (migration `044`).
+    #[serde(default)]
+    pub kind: TaskKind,
     pub position: f64,
     pub role_id: Option<String>,
     pub created_at: i64,

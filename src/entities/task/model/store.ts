@@ -26,7 +26,12 @@ import {
   getTaskBundle,
   listTasksByBoard,
   listTasksByColumn,
+  listAllTasks,
+  listTaskLinks,
+  linkTasks,
+  unlinkTasks,
   updateTask,
+  type LinkTasksArgs,
   addTaskPrompt,
   setTaskPrompts,
   listTaskPrompts,
@@ -50,6 +55,7 @@ import {
 } from "../api";
 import type { Prompt } from "@bindings/Prompt";
 import type { TaskBundle } from "@bindings/TaskBundle";
+import type { TaskLink } from "@bindings/TaskLink";
 import type { Task } from "./types";
 
 export const tasksKeys = {
@@ -63,6 +69,8 @@ export const tasksKeys = {
     [...tasksKeys.all, "prompts", taskId] as const,
   bundle: (taskId: string) =>
     [...tasksKeys.all, "bundle", taskId] as const,
+  links: (taskId: string) =>
+    [...tasksKeys.all, "links", taskId] as const,
 };
 
 /** `useTasksByBoard` — every task on a board. The kanban widget's hook. */
@@ -71,6 +79,14 @@ export function useTasksByBoard(boardId: string): UseQueryResult<Task[], Error> 
     queryKey: tasksKeys.byBoard(boardId),
     queryFn: () => listTasksByBoard(boardId),
     enabled: boardId.length > 0,
+  });
+}
+
+/** `useAllTasks` — every task across every board. Powers the relation picker. */
+export function useAllTasks(): UseQueryResult<Task[], Error> {
+  return useQuery({
+    queryKey: [...tasksKeys.all, "all-flat"] as const,
+    queryFn: listAllTasks,
   });
 }
 
@@ -238,6 +254,64 @@ export function useDeleteTaskMutation(): UseMutationResult<
         queryKey: tasksKeys.byBoard(vars.boardId),
       });
     },
+  });
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Task links (catique-4).
+// ──────────────────────────────────────────────────────────────────────
+
+/**
+ * `useTaskLinks` — every link the task participates in, either
+ * direction. Keyed per-task; the EventsProvider invalidates both
+ * endpoints on `task_link:created` / `task_link:deleted`.
+ */
+export function useTaskLinks(
+  taskId: string,
+): UseQueryResult<TaskLink[], Error> {
+  return useQuery({
+    queryKey: tasksKeys.links(taskId),
+    queryFn: () => listTaskLinks(taskId),
+    enabled: taskId.length > 0,
+  });
+}
+
+/** Invalidate the link query for both endpoints of a link. */
+function invalidateLinkEndpoints(
+  queryClient: ReturnType<typeof useQueryClient>,
+  args: LinkTasksArgs,
+): void {
+  void queryClient.invalidateQueries({
+    queryKey: tasksKeys.links(args.srcTaskId),
+  });
+  void queryClient.invalidateQueries({
+    queryKey: tasksKeys.links(args.dstTaskId),
+  });
+}
+
+/** `useLinkTasksMutation` — create a link; invalidate both endpoints. */
+export function useLinkTasksMutation(): UseMutationResult<
+  TaskLink,
+  Error,
+  LinkTasksArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: linkTasks,
+    onSuccess: (_data, vars) => invalidateLinkEndpoints(queryClient, vars),
+  });
+}
+
+/** `useUnlinkTasksMutation` — remove a link; invalidate both endpoints. */
+export function useUnlinkTasksMutation(): UseMutationResult<
+  void,
+  Error,
+  LinkTasksArgs
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: unlinkTasks,
+    onSuccess: (_data, vars) => invalidateLinkEndpoints(queryClient, vars),
   });
 }
 

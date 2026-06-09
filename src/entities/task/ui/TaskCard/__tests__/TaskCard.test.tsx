@@ -15,6 +15,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     description: null,
     position: 1.0,
     roleId: null,
+    kind: "blank",
     stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,

@@ -75,16 +75,28 @@ impl<'a> TasksUseCase<'a> {
     /// `AppError::Validation` for empty title; `AppError::NotFound` for
     /// missing `board_id` / `column_id`.
     #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         &self,
         board_id: String,
         column_id: String,
         title: String,
         description: Option<String>,
+        kind: Option<String>,
         position: f64,
         role_id: Option<String>,
     ) -> Result<Task, AppError> {
         let trimmed = validate_non_empty("title", &title)?;
+        // Canonicalise the kind to the enum's lowercase form; an absent
+        // or unknown value collapses to `blank`.
+        let canonical_kind = kind
+            .as_deref()
+            .map_or(
+                catique_domain::TaskKind::Blank,
+                catique_domain::TaskKind::parse,
+            )
+            .as_str()
+            .to_owned();
         let conn = acquire(self.pool).map_err(map_db_err)?;
         // Pre-check parents so NotFound is typed (the schema would
         // raise a generic FK error otherwise).
@@ -131,6 +143,7 @@ impl<'a> TasksUseCase<'a> {
                 column_id,
                 title: trimmed,
                 description,
+                kind: canonical_kind,
                 position,
                 role_id,
             },
@@ -145,11 +158,13 @@ impl<'a> TasksUseCase<'a> {
     ///
     /// `AppError::NotFound` if id missing.
     #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &self,
         id: String,
         title: Option<String>,
         description: Option<Option<String>>,
+        kind: Option<String>,
         column_id: Option<String>,
         position: Option<f64>,
         role_id: Option<Option<String>>,
@@ -161,6 +176,11 @@ impl<'a> TasksUseCase<'a> {
         let patch = TaskPatch {
             title: title.map(|t| t.trim().to_owned()),
             description,
+            kind: kind.map(|k| {
+                catique_domain::TaskKind::parse(k.trim())
+                    .as_str()
+                    .to_owned()
+            }),
             column_id,
             position,
             role_id,
@@ -253,6 +273,7 @@ impl<'a> TasksUseCase<'a> {
         let patch = TaskPatch {
             title: None,
             description: None,
+            kind: None,
             column_id: Some(column_id),
             position,
             role_id: None,
@@ -888,6 +909,7 @@ fn row_to_task(row: TaskRow) -> Task {
         slug: row.slug,
         title: row.title,
         description: row.description,
+        kind: catique_domain::TaskKind::parse(&row.kind),
         position: row.position,
         role_id: row.role_id,
         created_at: row.created_at,
@@ -1319,7 +1341,15 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let t = uc
-            .create("bd1".into(), "c1".into(), "Title".into(), None, 1.0, None)
+            .create(
+                "bd1".into(),
+                "c1".into(),
+                "Title".into(),
+                None,
+                None,
+                1.0,
+                None,
+            )
             .unwrap();
         let got = uc.get(&t.id).unwrap();
         assert_eq!(got, t);
@@ -1330,7 +1360,15 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         match uc
-            .create("ghost".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create(
+                "ghost".into(),
+                "c1".into(),
+                "T".into(),
+                None,
+                None,
+                1.0,
+                None,
+            )
             .expect_err("nf")
         {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "board"),
@@ -1343,7 +1381,15 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         match uc
-            .create("bd1".into(), "ghost".into(), "T".into(), None, 1.0, None)
+            .create(
+                "bd1".into(),
+                "ghost".into(),
+                "T".into(),
+                None,
+                None,
+                1.0,
+                None,
+            )
             .expect_err("nf")
         {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "column"),
@@ -1356,7 +1402,15 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         match uc
-            .create("bd1".into(), "c1".into(), "  ".into(), None, 1.0, None)
+            .create(
+                "bd1".into(),
+                "c1".into(),
+                "  ".into(),
+                None,
+                None,
+                1.0,
+                None,
+            )
             .expect_err("v")
         {
             AppError::Validation { field, .. } => assert_eq!(field, "title"),
@@ -1369,10 +1423,18 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let t = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         let updated = uc
-            .update(t.id.clone(), Some("New".into()), None, None, None, None)
+            .update(
+                t.id.clone(),
+                Some("New".into()),
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .unwrap();
         assert_eq!(updated.title, "New");
         assert!((updated.position - 1.0).abs() < f64::EPSILON);
@@ -1392,7 +1454,7 @@ mod tests {
         }
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         // Attach px at position 5, py at position 1 — py should come first.
         {
@@ -1417,7 +1479,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
 
         // Three appends with small inter-call sleeps so timestamps
@@ -1452,7 +1514,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         let huge = "x".repeat(50_001);
         match uc.log_step(task.id, huge).expect_err("validation") {
@@ -1476,7 +1538,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
 
         // No row before any rating call.
@@ -1504,7 +1566,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         match uc.rate_task(task.id, Some(2)).expect_err("validation") {
             AppError::Validation { field, .. } => assert_eq!(field, "rating"),
@@ -1559,6 +1621,7 @@ mod tests {
                 "c1".into(),
                 "T".into(),
                 None,
+                None,
                 1.0,
                 Some("rl".into()),
             )
@@ -1612,7 +1675,7 @@ mod tests {
         }
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         {
             let conn = pool.get().unwrap();
@@ -1654,7 +1717,7 @@ mod tests {
         }
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
 
         let routed = uc
@@ -1672,7 +1735,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         match uc
             .route_task_to_board(task.id, "ghost".into())
@@ -1705,7 +1768,7 @@ mod tests {
         }
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         match uc
             .route_task_to_board(task.id, "bd3".into())
@@ -1734,7 +1797,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         match uc.move_task(task.id, "ghost".into(), None).expect_err("nf") {
             AppError::NotFound { entity, id } => {
@@ -1765,6 +1828,7 @@ mod tests {
                 "c1".into(),
                 "With Role".into(),
                 None,
+                None,
                 1.0,
                 Some("rl-x".into()),
             )
@@ -1782,7 +1846,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         let attachments_root = tempfile::tempdir().unwrap();
         let task_dir = attachments_root.path().join(&task.id);
@@ -1807,7 +1871,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         let attachments_root = tempfile::tempdir().unwrap();
         let task_dir = attachments_root.path().join(&task.id);
@@ -1855,6 +1919,7 @@ mod tests {
                 "c1".into(),
                 "T".into(),
                 None,
+                None,
                 1.0,
                 Some("rl".into()),
             )
@@ -1892,6 +1957,7 @@ mod tests {
                 "bd1".into(),
                 "c1".into(),
                 "T".into(),
+                None,
                 None,
                 1.0,
                 Some("rl".into()),
@@ -1945,6 +2011,7 @@ mod tests {
             "bd1".into(),
             "c1".into(),
             "T".into(),
+            None,
             None,
             1.0,
             Some("rl".into()),
@@ -2078,6 +2145,7 @@ mod tests {
                 "c1".into(),
                 "T".into(),
                 None,
+                None,
                 1.0,
                 Some("rl".into()),
             )
@@ -2141,6 +2209,7 @@ mod tests {
                 "bd1".into(),
                 "c1".into(),
                 "T".into(),
+                None,
                 None,
                 1.0,
                 Some("rl".into()),
@@ -2269,7 +2338,7 @@ mod tests {
         }
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         {
             let conn = pool.get().unwrap();
@@ -2413,7 +2482,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let t = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         assert_eq!(uc.get_urgency(&t.id).unwrap(), "none");
     }
@@ -2423,7 +2492,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let t = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         let r = uc.set_urgency(&t.id, "high").unwrap();
         assert_eq!(r, "high");
@@ -2435,7 +2504,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let t = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         match uc.set_urgency(&t.id, "BOGUS").expect_err("validation") {
             AppError::Validation { field, .. } => assert_eq!(field, "urgency"),
@@ -2505,6 +2574,7 @@ mod tests {
                 "c1".into(),
                 "T".into(),
                 None,
+                None,
                 1.0,
                 Some("rl".into()),
             )
@@ -2517,7 +2587,7 @@ mod tests {
         let pool = fresh_pool();
         let uc = TasksUseCase::new(&pool);
         let task = uc
-            .create("bd1".into(), "c1".into(), "T".into(), None, 1.0, None)
+            .create("bd1".into(), "c1".into(), "T".into(), None, None, 1.0, None)
             .unwrap();
         assert_eq!(task.effective_prompt_count, 0);
         assert_eq!(task.effective_skill_count, 0);

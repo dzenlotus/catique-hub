@@ -29,6 +29,7 @@ function stubTask(overrides?: Partial<Task>): Task {
     description: "Создать компонентную библиотеку на основе CSS Modules.",
     position: 1,
     roleId: null,
+    kind: "blank",
     stepLog: "",
     createdAt: 0n,
     updatedAt: 0n,
@@ -47,6 +48,8 @@ function stubReport(overrides?: Partial<AgentReport>): AgentReport {
     title: "Анализ требований к дизайн-системе",
     content: "Изучены существующие паттерны. Рекомендовано использовать CSS Modules.",
     author: "claude-opus-4",
+    approved: false,
+    reviewComment: null,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,
@@ -136,7 +139,7 @@ export const LoadedWithAgentReports: Story = {
         client={makeLoadedClient(stubTask(), [
           stubReport({ id: "rpt-1", kind: "investigation", title: "Анализ требований к дизайн-системе" }),
           stubReport({ id: "rpt-2", kind: "review", title: "Ревью архитектуры компонентной библиотеки", author: "claude-sonnet-4" }),
-          stubReport({ id: "rpt-3", kind: "memo", title: "Итоги обсуждения токенов дизайна", author: null }),
+          stubReport({ id: "rpt-3", kind: "summary", title: "Итоги обсуждения токенов дизайна", author: null }),
         ])}
       >
         <Story />
