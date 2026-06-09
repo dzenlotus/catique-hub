@@ -22,6 +22,8 @@ import { setTaskStatus, tasksKeys } from "@entities/task";
 import { connectedClientsKeys } from "@entities/connected-client";
 import { mcpServersKeys } from "@entities/mcp-server";
 import { spacesKeys } from "@entities/space";
+import { projectFilesKeys } from "@entities/project-file";
+import { taskTemplatesKeys } from "@entities/task-template";
 import { promptsKeys } from "@entities/prompt";
 import { rolesKeys } from "@entities/role";
 import { tagsKeys } from "@entities/tag";
@@ -155,6 +157,39 @@ export function EventsProvider({
       }),
     );
 
+    // ---------------- task templates (catique-1) ----------------
+    sub(
+      on("task_template:created", () => {
+        void qc.invalidateQueries({ queryKey: taskTemplatesKeys.all });
+      }),
+    );
+    sub(
+      on("task_template:updated", () => {
+        void qc.invalidateQueries({ queryKey: taskTemplatesKeys.all });
+      }),
+    );
+    sub(
+      on("task_template:deleted", () => {
+        void qc.invalidateQueries({ queryKey: taskTemplatesKeys.all });
+      }),
+    );
+
+    // ---------------- task links (catique-4) ----------------
+    // A link surfaces on both endpoints' detail panels, so invalidate
+    // the per-task link query for each side.
+    sub(
+      on("task_link:created", ({ srcTaskId, dstTaskId }) => {
+        void qc.invalidateQueries({ queryKey: tasksKeys.links(srcTaskId) });
+        void qc.invalidateQueries({ queryKey: tasksKeys.links(dstTaskId) });
+      }),
+    );
+    sub(
+      on("task_link:deleted", ({ srcTaskId, dstTaskId }) => {
+        void qc.invalidateQueries({ queryKey: tasksKeys.links(srcTaskId) });
+        void qc.invalidateQueries({ queryKey: tasksKeys.links(dstTaskId) });
+      }),
+    );
+
     // ---------------- task run lifecycle (Stream J / v3 Wave 4) ----------------
     // Each event flips the local `useTaskStatus(taskId)` store via the
     // exported `setTaskStatus` mutator. The store is a lightweight
@@ -198,6 +233,23 @@ export function EventsProvider({
         void qc.invalidateQueries({ queryKey: spacesKeys.all });
       }),
     );
+
+    // ---------------- project files (catique-2, disk-backed) ----------------
+    sub(
+      on("project_file:changed", ({ spaceId }) => {
+        void qc.invalidateQueries({
+          queryKey: projectFilesKeys.bySpace(spaceId),
+        });
+      }),
+    );
+    sub(
+      on("project_file:deleted", ({ spaceId }) => {
+        void qc.invalidateQueries({
+          queryKey: projectFilesKeys.bySpace(spaceId),
+        });
+      }),
+    );
+
     sub(
       on("prompt:created", () => {
         void qc.invalidateQueries({ queryKey: promptsKeys.all });

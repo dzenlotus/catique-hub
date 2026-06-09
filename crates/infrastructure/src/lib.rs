@@ -12,4 +12,5 @@ pub mod db;
 pub mod fs;
 pub mod import;
 pub mod paths;
+pub mod project_files;
 pub mod secrets;

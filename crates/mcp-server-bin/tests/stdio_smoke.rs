@@ -102,13 +102,14 @@ async fn tools_list_exposes_entity_tools_plus_proxy_facade() {
     let tools = resp["result"]["tools"]
         .as_array()
         .expect("tools must be array");
-    // Post-consolidation surface: 16 entity tools + 2 cross-cutting +
-    // 1 proxy façade = 19. Legacy flat names stay callable via
+    // Post-consolidation surface: 18 entity tools (incl. catique-2
+    // `project_file` + catique-1 `task_template`) + 2 cross-cutting +
+    // 1 proxy façade = 21. Legacy flat names stay callable via
     // `tools/call` but are no longer advertised.
     assert_eq!(
         tools.len(),
-        19,
-        "expected 19 advertised tools, got len={}",
+        21,
+        "expected 21 advertised tools, got len={}",
         tools.len()
     );
     let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();

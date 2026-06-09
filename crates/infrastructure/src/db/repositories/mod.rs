@@ -39,6 +39,7 @@ pub mod tags;
 pub mod task_links;
 pub mod task_overrides_v2;
 pub mod task_ratings;
+pub mod task_templates;
 pub mod tasks;
 
 mod util;

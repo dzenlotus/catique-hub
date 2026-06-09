@@ -185,15 +185,15 @@ fn tools_list_exposes_entity_tools_plus_proxy_facade() {
         .and_then(serde_json::Value::as_array)
         .cloned()
         .unwrap_or_default();
-    // Post-consolidation: 16 entity-level tools + 2 cross-cutting
-    // top-level tools + 1 `mcp_proxy_tool` façade = 19. The 151 legacy
-    // flat method names (`create_task`, `list_spaces`, …) remain
-    // callable via `tools/call` for backward compat but are NOT
-    // advertised here.
+    // Post-consolidation: 18 entity-level tools (incl. catique-2
+    // `project_file` + catique-1 `task_template`) + 2 cross-cutting
+    // top-level tools + 1 `mcp_proxy_tool` façade = 21. The legacy flat
+    // method names (`create_task`, `list_spaces`, …) remain callable via
+    // `tools/call` for backward compat but are NOT advertised here.
     assert_eq!(
         tools.len(),
-        19,
-        "expected the 16 entity tools + 2 cross-cutting tools + proxy façade, got len={}",
+        21,
+        "expected the 18 entity tools + 2 cross-cutting tools + proxy façade, got len={}",
         tools.len()
     );
     let names: Vec<&str> = tools

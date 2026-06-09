@@ -24,6 +24,7 @@ pub const ENTITY_TOOL_NAMES: &[&str] = &[
     "column",
     "mcp_server",
     "mcp_tool",
+    "project_file",
     "prompt",
     "prompt_group",
     "provider",
@@ -33,6 +34,7 @@ pub const ENTITY_TOOL_NAMES: &[&str] = &[
     "space",
     "tag",
     "task",
+    "task_template",
     "workflow",
 ];
 
@@ -78,6 +80,7 @@ pub fn resolve_legacy_method(entity: &str, action: &str) -> Option<&'static str>
         ("attachment", "upload_blob") => Some("upload_attachment_blob"),
 
         // ---- board (creation owned by space-create per D-006) ----
+        ("board", "create") => Some("create_board"),
         ("board", "get") => Some("get_board"),
         ("board", "list") => Some("list_boards"),
         ("board", "delete") => Some("delete_board"),
@@ -201,6 +204,12 @@ pub fn resolve_legacy_method(entity: &str, action: &str) -> Option<&'static str>
         ("space", "sync_owner_to_agent_file") => Some("sync_owner_to_agent_file"),
         ("space", "sync_workflow_to_agent_file") => Some("sync_workflow_to_agent_file"),
 
+        // ---- project_file (catique-2, disk-backed) ----
+        ("project_file", "write") => Some("write_project_file"),
+        ("project_file", "read") => Some("read_project_file"),
+        ("project_file", "delete") => Some("delete_project_file"),
+        ("project_file", "list") => Some("list_project_files"),
+
         // ---- tag ----
         ("tag", "create") => Some("create_tag"),
         ("tag", "update") => Some("update_tag"),
@@ -225,6 +234,9 @@ pub fn resolve_legacy_method(entity: &str, action: &str) -> Option<&'static str>
         ("task", "search") => Some("search_tasks"),
         ("task", "search_by_cat_and_space") => Some("search_tasks_by_cat_and_space"),
         ("task", "route_to_board") => Some("route_task_to_board"),
+        ("task", "link") => Some("link_tasks"),
+        ("task", "unlink") => Some("unlink_tasks"),
+        ("task", "list_links") => Some("list_task_links"),
         ("task", "add_prompt") => Some("add_task_prompt"),
         ("task", "remove_prompt") => Some("remove_task_prompt"),
         ("task", "list_prompts") => Some("list_task_prompts"),
@@ -236,6 +248,13 @@ pub fn resolve_legacy_method(entity: &str, action: &str) -> Option<&'static str>
         ("task", "add_mcp_tool") => Some("add_task_mcp_tool"),
         ("task", "remove_mcp_tool") => Some("remove_task_mcp_tool"),
         ("task", "list_mcp_tools") => Some("list_task_mcp_tools"),
+
+        // ---- task_template (catique-1) ----
+        ("task_template", "list") => Some("list_task_templates"),
+        ("task_template", "get") => Some("get_task_template"),
+        ("task_template", "create") => Some("create_task_template"),
+        ("task_template", "update") => Some("update_task_template"),
+        ("task_template", "delete") => Some("delete_task_template"),
 
         // ---- workflow ----
         ("workflow", "get") => Some("get_workflow_graph"),
@@ -361,8 +380,9 @@ pub fn aggregated_tool_descriptors() -> Vec<Value> {
         ),
         entity_descriptor(
             "board",
-            "Kanban board owned by a role (D-020). Creation is implicit via `space.create`; the board entity exposes read + relation-mgmt only.",
+            "Kanban board owned by a role (D-020). A space auto-provisions its default Owner board via `space.create`; use `create` to add a board for another role (one board per role — UNIQUE(space_id, role_id)).",
             &[
+                ("create", "{ space_id, role_id, name, description?, color?, icon? } — role_id is the owner; one board per role per space"),
                 ("get", "{ id }"),
                 ("list", "{ }"),
                 ("delete", "{ id }"),
@@ -528,6 +548,16 @@ pub fn aggregated_tool_descriptors() -> Vec<Value> {
             ],
         ),
         entity_descriptor(
+            "project_file",
+            "Agent instruction markdown files (catique-2) living on disk in a project's folder — e.g. AGENTS.md / CLAUDE.md. `list` returns the provider-expected names plus any other root-level *.md. `write` creates or overwrites; `read`/`delete` operate by name. Requires the space to have a project folder configured.",
+            &[
+                ("list", "{ space_id }"),
+                ("read", "{ space_id, name }"),
+                ("write", "{ space_id, name, content? }"),
+                ("delete", "{ space_id, name }"),
+            ],
+        ),
+        entity_descriptor(
             "tag",
             "Flat label applied to prompts. Does NOT cascade into the inheritance chain.",
             &[
@@ -558,6 +588,9 @@ pub fn aggregated_tool_descriptors() -> Vec<Value> {
                 ("search", "{ query, limit? }"),
                 ("search_by_cat_and_space", "{ space_id, cat_id, query }"),
                 ("route_to_board", "{ task_id, target_board_id } — re-home task across roles"),
+                ("link", "{ src_task_id, dst_task_id, kind? } — kind ∈ related|blocks|parent (default related); idempotent"),
+                ("unlink", "{ src_task_id, dst_task_id, kind? } — remove a link; idempotent"),
+                ("list_links", "{ task_id } — every link the task participates in, either direction"),
                 ("add_prompt", "{ task_id, prompt_id, position }"),
                 ("remove_prompt", "{ task_id, prompt_id }"),
                 ("list_prompts", "{ task_id }"),
@@ -569,6 +602,17 @@ pub fn aggregated_tool_descriptors() -> Vec<Value> {
                 ("add_mcp_tool", "{ task_id, mcp_tool_id, position }"),
                 ("remove_mcp_tool", "{ task_id, mcp_tool_id }"),
                 ("list_mcp_tools", "{ task_id }"),
+            ],
+        ),
+        entity_descriptor(
+            "task_template",
+            "Task templates (catique-1) — named markdown skeletons (feature / bug / research / custom) the user picks when creating a task; the body pre-fills the task description.",
+            &[
+                ("list", "{ }"),
+                ("get", "{ id }"),
+                ("create", "{ name, kind?, description?, body?, icon?, color? } — kind ∈ feature|bug|research|custom (default custom)"),
+                ("update", "{ id, name?, kind?, description?, body?, icon?, color?, position? }"),
+                ("delete", "{ id }"),
             ],
         ),
         entity_descriptor(

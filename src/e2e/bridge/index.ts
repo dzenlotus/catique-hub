@@ -74,9 +74,11 @@ import { handlePromptGroups } from "./handlers/promptGroups";
 import { handlePrompts } from "./handlers/prompts";
 import { handleRoles } from "./handlers/roles";
 import { handleSkills } from "./handlers/skills";
+import { handleProjectFiles } from "./handlers/projectFiles";
 import { handleSpaces } from "./handlers/spaces";
 import { handleTags } from "./handlers/tags";
 import { handleTasks } from "./handlers/tasks";
+import { handleTaskTemplates } from "./handlers/taskTemplates";
 import {
   pluginEventListen,
   pluginEventUnlisten,
@@ -103,6 +105,7 @@ declare global {
 }
 
 const DISPATCHERS = [
+  handleProjectFiles,
   handleSpaces,
   handleBoards,
   handleColumns,
@@ -119,6 +122,7 @@ const DISPATCHERS = [
   // claim its commands; misc still owns the iteration-1 stubs (rate,
   // step log, agent reports, etc.).
   handleTasks,
+  handleTaskTemplates,
   handleMisc,
 ];
 

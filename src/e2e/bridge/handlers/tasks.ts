@@ -16,6 +16,8 @@
  */
 
 import type { Task } from "@bindings/Task";
+import type { TaskKind } from "@bindings/TaskKind";
+import type { TaskLink } from "@bindings/TaskLink";
 
 import { emitEvent } from "../events";
 import { nextId } from "../ids";
@@ -29,12 +31,14 @@ interface CreateTaskArgs {
   position: number;
   description?: string | null;
   roleId?: string | null;
+  kind?: TaskKind;
 }
 
 interface UpdateTaskArgs {
   id: string;
   title?: string;
   description?: string | null;
+  kind?: TaskKind;
   columnId?: string;
   position?: number;
   roleId?: string | null;
@@ -73,6 +77,7 @@ export function handleTasks(
         slug: id,
         title: a.title,
         description: a.description ?? null,
+        kind: a.kind ?? "blank",
         position: a.position,
         roleId: a.roleId ?? null,
         createdAt: ts,
@@ -95,6 +100,7 @@ export function handleTasks(
         ...prev,
         ...(a.title !== undefined ? { title: a.title } : {}),
         ...(a.description !== undefined ? { description: a.description } : {}),
+        ...(a.kind !== undefined ? { kind: a.kind } : {}),
         ...(a.columnId !== undefined ? { columnId: a.columnId } : {}),
         ...(a.position !== undefined ? { position: a.position } : {}),
         ...(a.roleId !== undefined ? { roleId: a.roleId } : {}),
@@ -122,6 +128,36 @@ export function handleTasks(
       store.tasks.set(a.id, next);
       emitEvent("task:moved", { id: a.id });
       return next;
+    }
+    // ---------------- task links (catique-4) ----------------
+    case "link_tasks": {
+      const srcTaskId = String(args["srcTaskId"]);
+      const dstTaskId = String(args["dstTaskId"]);
+      const kind = (args["kind"] as TaskLink["kind"]) ?? "related";
+      const key = `${srcTaskId}:${dstTaskId}:${kind}`;
+      const link: TaskLink = store.taskLinks.get(key) ?? {
+        srcTaskId,
+        dstTaskId,
+        kind,
+        createdAt: nowBig(),
+      };
+      store.taskLinks.set(key, link);
+      emitEvent("task_link:created", { srcTaskId, dstTaskId, kind });
+      return link;
+    }
+    case "unlink_tasks": {
+      const srcTaskId = String(args["srcTaskId"]);
+      const dstTaskId = String(args["dstTaskId"]);
+      const kind = (args["kind"] as TaskLink["kind"]) ?? "related";
+      store.taskLinks.delete(`${srcTaskId}:${dstTaskId}:${kind}`);
+      emitEvent("task_link:deleted", { srcTaskId, dstTaskId, kind });
+      return null;
+    }
+    case "list_task_links": {
+      const taskId = String(args["taskId"]);
+      return Array.from(store.taskLinks.values()).filter(
+        (l) => l.srcTaskId === taskId || l.dstTaskId === taskId,
+      );
     }
     default:
       return undefined;

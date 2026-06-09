@@ -23,6 +23,9 @@ import type { SkillStep } from "@bindings/SkillStep";
 import type { Space } from "@bindings/Space";
 import type { Tag } from "@bindings/Tag";
 import type { Task } from "@bindings/Task";
+import type { TaskLink } from "@bindings/TaskLink";
+import type { ProjectFile } from "@bindings/ProjectFile";
+import type { TaskTemplate } from "@bindings/TaskTemplate";
 
 import { resetIds } from "./ids";
 import { resetClock } from "./time";
@@ -68,8 +71,65 @@ export interface MockStore {
   roleSkills: Map<string, string[]>;
   /** Join: roleId -> ordered mcpToolId[]. */
   roleMcpTools: Map<string, string[]>;
+  /** Task links (catique-4), keyed by `srcTaskId:dstTaskId:kind`. */
+  taskLinks: Map<string, TaskLink>;
+  /** Project files (catique-2, disk-backed), keyed by `${spaceId} ${name}`. */
+  projectFiles: Map<string, { spaceKey: string; file: ProjectFile }>;
+  /** Task templates (catique-1), keyed by id. Seeded with built-ins. */
+  taskTemplates: Map<string, TaskTemplate>;
   /** Generic kv (settings + flags). */
   settings: Map<string, string>;
+}
+
+/** Built-in templates mirrored from `043_task_templates.sql`. */
+function seedTaskTemplates(): Map<string, TaskTemplate> {
+  const m = new Map<string, TaskTemplate>();
+  const mk = (
+    id: string,
+    name: string,
+    kind: TaskTemplate["kind"],
+    description: string,
+    body: string,
+    position: number,
+  ): void => {
+    m.set(id, {
+      id,
+      name,
+      kind,
+      description,
+      body,
+      icon: null,
+      color: null,
+      position,
+      createdAt: 0n,
+      updatedAt: 0n,
+    });
+  };
+  mk(
+    "tmpl-feature",
+    "Feature",
+    "feature",
+    "A new capability — what it is, its goal, Definition of Done, and examples.",
+    "## Feature\nWhat are we building?\n\n## Goal\nWhy — the outcome we want.\n\n## Definition of Done\n- [ ] \n\n## Examples\nLinks, references, mockups.\n",
+    0,
+  );
+  mk(
+    "tmpl-bug",
+    "Bug",
+    "bug",
+    "A defect — steps to reproduce, expected vs actual, and screenshots.",
+    "## Summary\nWhat is broken?\n\n## Steps to reproduce\n1. \n2. \n\n## Expected vs actual\n- Expected: \n- Actual: \n\n## Visual / screenshots\nAttach screenshots to this task.\n",
+    1,
+  );
+  mk(
+    "tmpl-research",
+    "Research",
+    "research",
+    "An investigation — what to analyze and which questions to answer.",
+    "## Topic\nWhat do we need to analyze?\n\n## Questions to answer\n- \n\n## Findings\nFill in during the work.\n",
+    2,
+  );
+  return m;
 }
 
 function freshStore(): MockStore {
@@ -102,6 +162,9 @@ function freshStore(): MockStore {
     rolePrompts: new Map(),
     roleSkills: new Map(),
     roleMcpTools: new Map(),
+    taskLinks: new Map(),
+    projectFiles: new Map(),
+    taskTemplates: seedTaskTemplates(),
     settings: new Map(),
   };
 }

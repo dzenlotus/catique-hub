@@ -81,6 +81,22 @@ export type AppEvent =
   | { type: "task:run:started"; payload: { taskId: string } }
   | { type: "task:run:finished"; payload: { taskId: string } }
   | { type: "task:run:failed"; payload: { taskId: string; error: string } }
+  // ---------------- task links (catique-4) ----------------
+  | {
+      type: "task_link:created";
+      payload: { srcTaskId: string; dstTaskId: string; kind: string };
+    }
+  | {
+      type: "task_link:deleted";
+      payload: { srcTaskId: string; dstTaskId: string; kind: string };
+    }
+  // ---------------- task templates (catique-1) ----------------
+  | { type: "task_template:created"; payload: { id: string } }
+  | { type: "task_template:updated"; payload: { id: string } }
+  | { type: "task_template:deleted"; payload: { id: string } }
+  // ---------------- project files (catique-2, disk-backed) ----------------
+  | { type: "project_file:changed"; payload: { spaceId: string; name: string } }
+  | { type: "project_file:deleted"; payload: { spaceId: string; name: string } }
   // ---------------- spaces ----------------
   | { type: "space:created"; payload: { id: string } }
   | { type: "space:updated"; payload: { id: string } }

@@ -27,6 +27,7 @@ pub mod mcp_proxy;
 pub mod mcp_servers;
 pub mod mcp_tool_groups;
 pub mod mcp_tools;
+pub mod project_files;
 pub mod prompt_groups;
 pub mod prompts;
 pub mod reports;
@@ -40,6 +41,8 @@ pub mod skill_steps;
 pub mod skills;
 pub mod spaces;
 pub mod tags;
+pub mod task_links;
+pub mod task_templates;
 pub mod tasks;
 pub mod workflow;
 

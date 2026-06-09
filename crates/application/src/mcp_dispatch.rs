@@ -28,7 +28,7 @@
 use std::path::{Path, PathBuf};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use catique_domain::{RoleNoteAuthor, Transport};
+use catique_domain::{RoleNoteAuthor, TaskLinkKind, TaskTemplateKind, Transport};
 use catique_infrastructure::{
     db::{
         pool::{acquire, Pool},
@@ -52,13 +52,14 @@ use serde_json::{json, Value};
 
 use crate::{
     attachments::AttachmentsUseCase,
-    boards::BoardsUseCase,
+    boards::{BoardsUseCase, CreateBoardArgs},
     clients::ConnectedProvidersUseCase,
     columns::ColumnsUseCase,
     connected_providers::{build_bundle_for_test, OrchestratorHandle, SyncTrigger},
     mcp_servers::McpServersUseCase,
     mcp_tool_groups::McpToolGroupsUseCase,
     mcp_tools::McpToolsUseCase,
+    project_files::ProjectFilesUseCase,
     prompt_groups::PromptGroupsUseCase,
     prompts::PromptsUseCase,
     reports::ReportsUseCase,
@@ -71,6 +72,8 @@ use crate::{
     skills::SkillsUseCase,
     spaces::{CreateSpaceArgs, SpacesUseCase, UpdateSpaceArgs},
     tags::TagsUseCase,
+    task_links::TaskLinksUseCase,
+    task_templates::TaskTemplatesUseCase,
     tasks::TasksUseCase,
     AppError,
 };
@@ -172,6 +175,31 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
         // -------- attachments --------
         "create_attachment" => create_attachment_arm(pool, &params),
         // -------- tasks / boards / columns CRUD --------
+        "create_board" => {
+            let space_id = decode_string(&params, "space_id")?;
+            let name = decode_string(&params, "name")?;
+            // D-020: a board is owned by exactly one role. `role_id` is
+            // required here so we never collapse onto the default
+            // `maintainer-system` owner — that would trip the
+            // `UNIQUE(space_id, owner_role_id)` index against the
+            // space's existing Owner board.
+            let owner_role_id = decode_string(&params, "role_id")?;
+            let description = decode_optional_string(&params, "description");
+            let color = decode_optional_string(&params, "color");
+            let icon = decode_optional_string(&params, "icon");
+            let board = BoardsUseCase::new(pool)
+                .create(CreateBoardArgs {
+                    name,
+                    space_id,
+                    description,
+                    color,
+                    icon,
+                    owner_role_id: Some(owner_role_id),
+                    is_default: false,
+                })
+                .map_err(stringify_app)?;
+            json_or_err(&board)
+        }
         "create_column" => {
             let board_id = decode_string(&params, "board_id")?;
             let name = decode_string(&params, "name")?;
@@ -256,6 +284,15 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
                 .map_err(stringify_app)?;
             json_or_err(&space)
         }
+        "write_project_file" => {
+            let space_id = decode_string(&params, "space_id")?;
+            let name = decode_string(&params, "name")?;
+            let content = decode_optional_string(&params, "content").unwrap_or_default();
+            let file = ProjectFilesUseCase::new(pool)
+                .write(&space_id, &name, &content)
+                .map_err(stringify_app)?;
+            json_or_err(&file)
+        }
         "create_tag" => {
             let name = decode_string(&params, "name")?;
             let color = decode_optional_string(&params, "color");
@@ -269,13 +306,23 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
             let column_id = decode_string(&params, "column_id")?;
             let title = decode_string(&params, "title")?;
             let description = decode_optional_string(&params, "description");
+            let kind = decode_optional_string(&params, "kind");
             let position = decode_f64(&params, "position")?;
             let role_id = decode_optional_string(&params, "role_id");
             let task = TasksUseCase::new(pool)
-                .create(board_id, column_id, title, description, position, role_id)
+                .create(
+                    board_id,
+                    column_id,
+                    title,
+                    description,
+                    kind,
+                    position,
+                    role_id,
+                )
                 .map_err(stringify_app)?;
             json_or_err(&task)
         }
+        "create_task_template" => create_task_template_arm(pool, &params),
         "delete_agent_report" => {
             let id = decode_string(&params, "id")?;
             ReportsUseCase::new(pool)
@@ -340,12 +387,27 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
                 .map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
+        "delete_project_file" => {
+            let space_id = decode_string(&params, "space_id")?;
+            let name = decode_string(&params, "name")?;
+            ProjectFilesUseCase::new(pool)
+                .delete(&space_id, &name)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "delete_tag" => {
             let id = decode_string(&params, "id")?;
             TagsUseCase::new(pool).delete(&id).map_err(stringify_app)?;
             Ok(json!({ "ok": true }))
         }
         "delete_task" => delete_task_arm(pool, &params),
+        "delete_task_template" => {
+            let id = decode_string(&params, "id")?;
+            TaskTemplatesUseCase::new(pool)
+                .delete(&id)
+                .map_err(stringify_app)?;
+            Ok(json!({ "ok": true }))
+        }
         "get_task_urgency" => {
             let id = decode_string(&params, "id")?;
             let urgency = TasksUseCase::new(pool)
@@ -438,6 +500,14 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
             let space = SpacesUseCase::new(pool).get(&id).map_err(stringify_app)?;
             json_or_err(&space)
         }
+        "read_project_file" => {
+            let space_id = decode_string(&params, "space_id")?;
+            let name = decode_string(&params, "name")?;
+            let file = ProjectFilesUseCase::new(pool)
+                .read(&space_id, &name)
+                .map_err(stringify_app)?;
+            json_or_err(&file)
+        }
         "get_step_log" => get_step_log_arm(pool, &params),
         "get_sync_status" => {
             // Without an orchestrator handle we cannot read live status;
@@ -455,6 +525,13 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
             let id = decode_string(&params, "id")?;
             let task = TasksUseCase::new(pool).get(&id).map_err(stringify_app)?;
             json_or_err(&task)
+        }
+        "get_task_template" => {
+            let id = decode_string(&params, "id")?;
+            let tmpl = TaskTemplatesUseCase::new(pool)
+                .get(&id)
+                .map_err(stringify_app)?;
+            json_or_err(&tmpl)
         }
         "get_task_bundle" => {
             let task_id = decode_string(&params, "task_id")?;
@@ -610,6 +687,13 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
                 .map_err(stringify_app)?;
             json_or_err(&prompts)
         }
+        "list_project_files" => {
+            let space_id = decode_string(&params, "space_id")?;
+            let files = ProjectFilesUseCase::new(pool)
+                .list(&space_id)
+                .map_err(stringify_app)?;
+            json_or_err(&files)
+        }
         "list_spaces" => {
             let spaces = SpacesUseCase::new(pool).list().map_err(stringify_app)?;
             json_or_err(&spaces)
@@ -621,6 +705,14 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
         "list_tags" => {
             let tags = TagsUseCase::new(pool).list().map_err(stringify_app)?;
             json_or_err(&tags)
+        }
+        "link_tasks" => link_tasks_arm(pool, &params),
+        "list_task_links" => {
+            let task_id = decode_string(&params, "task_id")?;
+            let links = TaskLinksUseCase::new(pool)
+                .list_for_task(&task_id)
+                .map_err(stringify_app)?;
+            json_or_err(&links)
         }
         "list_task_mcp_tools" => {
             let task_id = decode_string(&params, "task_id")?;
@@ -646,6 +738,12 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
         "list_tasks" => {
             let tasks = TasksUseCase::new(pool).list().map_err(stringify_app)?;
             json_or_err(&tasks)
+        }
+        "list_task_templates" => {
+            let tmpls = TaskTemplatesUseCase::new(pool)
+                .list()
+                .map_err(stringify_app)?;
+            json_or_err(&tmpls)
         }
         "log_step" => {
             let task_id = decode_string(&params, "task_id")?;
@@ -1074,6 +1172,7 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
                 .map_err(stringify_app)?;
             Ok(json!({ "space_id": space_id, "path": path.to_string_lossy() }))
         }
+        "unlink_tasks" => unlink_tasks_arm(pool, &params),
         // -------- updates --------
         "update_agent_report" => {
             let id = decode_string(&params, "id")?;
@@ -1081,8 +1180,10 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
             let title = decode_optional_string(&params, "title");
             let content = decode_optional_string(&params, "content");
             let author = decode_tri_state_string(&params, "author");
+            let approved = params.get("approved").and_then(serde_json::Value::as_bool);
+            let review_comment = decode_tri_state_string(&params, "review_comment");
             let report = ReportsUseCase::new(pool)
-                .update(id, kind, title, content, author)
+                .update(id, kind, title, content, author, approved, review_comment)
                 .map_err(stringify_app)?;
             json_or_err(&report)
         }
@@ -1196,14 +1297,16 @@ pub fn dispatch(pool: &Pool, method: &str, params: Value) -> Result<Value, Strin
             let id = decode_string(&params, "id")?;
             let title = decode_optional_string(&params, "title");
             let description = decode_tri_state_string(&params, "description");
+            let kind = decode_optional_string(&params, "kind");
             let column_id = decode_optional_string(&params, "column_id");
             let position = decode_optional_f64(&params, "position");
             let role_id = decode_tri_state_string(&params, "role_id");
             let task = TasksUseCase::new(pool)
-                .update(id, title, description, column_id, position, role_id)
+                .update(id, title, description, kind, column_id, position, role_id)
                 .map_err(stringify_app)?;
             json_or_err(&task)
         }
+        "update_task_template" => update_task_template_arm(pool, &params),
         "upload_attachment" => upload_attachment_arm(pool, &params),
         "upload_attachment_blob" => upload_attachment_blob_arm(pool, &params),
         other => Err(format!("Unknown ipc_call method: {other}")),
@@ -1555,6 +1658,89 @@ fn move_task_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
         }
     };
     json_or_err(&task)
+}
+
+/// Decode the `kind` field of a task-link call into [`TaskLinkKind`].
+/// Defaults to `related` when omitted — the simplest, least-surprising
+/// link a caller can mean. An unknown string is a hard error.
+fn decode_task_link_kind(params: &Value) -> Result<TaskLinkKind, String> {
+    match params.get("kind").and_then(Value::as_str) {
+        None | Some("related") => Ok(TaskLinkKind::Related),
+        Some("blocks") => Ok(TaskLinkKind::Blocks),
+        Some("parent") => Ok(TaskLinkKind::Parent),
+        Some(other) => Err(format!(
+            "validation failed on `kind`: unknown task-link kind `{other}` \
+             (expected one of related, blocks, parent)"
+        )),
+    }
+}
+
+fn link_tasks_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let src_task_id = decode_string(params, "src_task_id")?;
+    let dst_task_id = decode_string(params, "dst_task_id")?;
+    let kind = decode_task_link_kind(params)?;
+    let link = TaskLinksUseCase::new(pool)
+        .link(&src_task_id, &dst_task_id, kind)
+        .map_err(stringify_app)?;
+    json_or_err(&link)
+}
+
+fn unlink_tasks_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let src_task_id = decode_string(params, "src_task_id")?;
+    let dst_task_id = decode_string(params, "dst_task_id")?;
+    let kind = decode_task_link_kind(params)?;
+    let removed = TaskLinksUseCase::new(pool)
+        .unlink(&src_task_id, &dst_task_id, kind)
+        .map_err(stringify_app)?;
+    Ok(json!({ "ok": true, "removed": removed }))
+}
+
+/// Decode the `kind` field of a task-template call into
+/// [`TaskTemplateKind`]. Defaults to `custom` when omitted.
+fn decode_task_template_kind(params: &Value) -> Result<TaskTemplateKind, String> {
+    match params.get("kind").and_then(Value::as_str) {
+        None | Some("custom") => Ok(TaskTemplateKind::Custom),
+        Some("feature") => Ok(TaskTemplateKind::Feature),
+        Some("bug") => Ok(TaskTemplateKind::Bug),
+        Some("research") => Ok(TaskTemplateKind::Research),
+        Some(other) => Err(format!(
+            "validation failed on `kind`: unknown task-template kind `{other}` \
+             (expected one of feature, bug, research, custom)"
+        )),
+    }
+}
+
+fn create_task_template_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let name = decode_string(params, "name")?;
+    let kind = decode_task_template_kind(params)?;
+    let description = decode_optional_string(params, "description").unwrap_or_default();
+    let body = decode_optional_string(params, "body").unwrap_or_default();
+    let icon = decode_optional_string(params, "icon");
+    let color = decode_optional_string(params, "color");
+    let tmpl = TaskTemplatesUseCase::new(pool)
+        .create(name, kind, description, body, icon, color)
+        .map_err(stringify_app)?;
+    json_or_err(&tmpl)
+}
+
+fn update_task_template_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
+    let id = decode_string(params, "id")?;
+    // `kind` is optional on update; only decode when present so an
+    // omitted field leaves the stored kind untouched.
+    let kind = match params.get("kind") {
+        None | Some(Value::Null) => None,
+        Some(_) => Some(decode_task_template_kind(params)?),
+    };
+    let name = decode_optional_string(params, "name");
+    let description = decode_optional_string(params, "description");
+    let body = decode_optional_string(params, "body");
+    let icon = decode_optional_string(params, "icon");
+    let color = decode_optional_string(params, "color");
+    let position = decode_optional_f64(params, "position");
+    let tmpl = TaskTemplatesUseCase::new(pool)
+        .update(&id, name, kind, description, body, icon, color, position)
+        .map_err(stringify_app)?;
+    json_or_err(&tmpl)
 }
 
 fn rate_task_arm(pool: &Pool, params: &Value) -> Result<Value, String> {
@@ -3642,6 +3828,32 @@ mod tests {
         let pool = fresh_pool();
         let err = dispatch(&pool, "totally_unknown", json!({})).expect_err("unknown");
         assert!(err.contains("Unknown ipc_call method"));
+    }
+
+    #[test]
+    fn dispatch_create_board_for_role_round_trips() {
+        // A board owned by a non-default role (catique-4 board.create
+        // MCP action). The role must exist and be unowned, else the
+        // UNIQUE(space_id, owner_role_id) index rejects the insert.
+        let pool = fresh_pool_with_role("r-fe");
+        let space = dispatch(&pool, "create_space", json!({"name": "S", "prefix": "s"}))
+            .expect("create_space dispatch");
+        let space_id = space["id"].as_str().expect("space id").to_owned();
+
+        let board = dispatch(
+            &pool,
+            "create_board",
+            json!({ "space_id": space_id, "role_id": "r-fe", "name": "Frontend" }),
+        )
+        .expect("create_board dispatch");
+        assert_eq!(board["name"], "Frontend");
+        assert_eq!(board["ownerRoleId"], "r-fe");
+
+        // Resolvable through the aggregated `board` tool surface too.
+        assert_eq!(
+            crate::mcp_aggregated::resolve_legacy_method("board", "create"),
+            Some("create_board"),
+        );
     }
 
     #[test]

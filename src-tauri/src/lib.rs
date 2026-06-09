@@ -378,6 +378,11 @@ pub fn run() {
             // ---------------- activity log (refactor v3 / Wave 5 + D-D) ----------------
             handlers::events::list_recent_events,
             handlers::events::list_recent_events_by_scope,
+            // ---------------- project files (catique-2, disk-backed) ----------------
+            handlers::project_files::list_project_files,
+            handlers::project_files::read_project_file,
+            handlers::project_files::write_project_file,
+            handlers::project_files::delete_project_file,
             // ---------------- spaces (E2.4) ----------------
             handlers::spaces::create_space,
             handlers::spaces::delete_space,
@@ -419,6 +424,16 @@ pub fn run() {
             handlers::columns::set_column_prompts,
             handlers::columns::set_column_skills,
             handlers::columns::update_column,
+            // ---------------- task links (catique-4) ----------------
+            handlers::task_links::link_tasks,
+            handlers::task_links::unlink_tasks,
+            handlers::task_links::list_task_links,
+            // ---------------- task templates (catique-1) ----------------
+            handlers::task_templates::list_task_templates,
+            handlers::task_templates::get_task_template,
+            handlers::task_templates::create_task_template,
+            handlers::task_templates::update_task_template,
+            handlers::task_templates::delete_task_template,
             // ---------------- tasks (E2.4) ----------------
             handlers::tasks::add_task_prompt,
             handlers::tasks::clear_task_mcp_tool_override_v2,

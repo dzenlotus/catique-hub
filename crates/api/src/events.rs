@@ -99,6 +99,26 @@ pub const TASK_RUN_FINISHED: &str = "task:run:finished";
 /// the `error` field.
 pub const TASK_RUN_FAILED: &str = "task:run:failed";
 
+/// `task_template:created` — payload `{ id }` (catique-1).
+pub const TASK_TEMPLATE_CREATED: &str = "task_template:created";
+/// `task_template:updated` — payload `{ id }`.
+pub const TASK_TEMPLATE_UPDATED: &str = "task_template:updated";
+/// `task_template:deleted` — payload `{ id }`.
+pub const TASK_TEMPLATE_DELETED: &str = "task_template:deleted";
+
+/// `task_link:created` — payload `{ srcTaskId, dstTaskId, kind }`
+/// (catique-4). The frontend invalidates the link query for *both*
+/// endpoints — a link surfaces on either task's detail panel.
+pub const TASK_LINK_CREATED: &str = "task_link:created";
+/// `task_link:deleted` — payload `{ srcTaskId, dstTaskId, kind }`.
+pub const TASK_LINK_DELETED: &str = "task_link:deleted";
+
+/// `project_file:changed` — payload `{ spaceId, name }` (catique-2,
+/// disk-backed). Emitted on create or overwrite.
+pub const PROJECT_FILE_CHANGED: &str = "project_file:changed";
+/// `project_file:deleted` — payload `{ spaceId, name }`.
+pub const PROJECT_FILE_DELETED: &str = "project_file:deleted";
+
 /// `space:created` — payload `{ id }`.
 pub const SPACE_CREATED: &str = "space:created";
 /// `space:updated` — payload `{ id }`.
@@ -364,6 +384,13 @@ mod tests {
             TASK_RUN_STARTED,
             TASK_RUN_FINISHED,
             TASK_RUN_FAILED,
+            TASK_LINK_CREATED,
+            TASK_LINK_DELETED,
+            TASK_TEMPLATE_CREATED,
+            TASK_TEMPLATE_UPDATED,
+            TASK_TEMPLATE_DELETED,
+            PROJECT_FILE_CHANGED,
+            PROJECT_FILE_DELETED,
             SPACE_CREATED,
             SPACE_UPDATED,
             SPACE_DELETED,
