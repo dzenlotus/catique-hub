@@ -16,6 +16,8 @@ function stubReport(overrides?: Partial<AgentReport>): AgentReport {
     title: "Анализ причины падения производительности",
     content: "Детальный отчёт о профилировании узких мест в API.",
     author: "claude-opus-4",
+    approved: false,
+    reviewComment: null,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,
@@ -38,7 +40,7 @@ const sampleReports: AgentReport[] = [
   }),
   stubReport({
     id: "rpt-3",
-    kind: "memo",
+    kind: "summary",
     title: "Итоги спринта 12",
     author: null,
     content: "Краткое резюме выполненных задач и открытых рисков.",

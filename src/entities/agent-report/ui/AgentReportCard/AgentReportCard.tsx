@@ -1,20 +1,20 @@
-import type { ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 
 import { cn } from "@shared/lib";
+import { Button, MarkdownPreview } from "@shared/ui";
 
 import type { AgentReport } from "../../model/types";
+import type { AgentReportKind } from "@bindings/AgentReportKind";
 
 import styles from "./AgentReportCard.module.css";
 
 /** Kind values from the Rust domain — used for colour-coded chips. */
-type KnownKind = "investigation" | "review" | "memo" | "summary" | "debug";
-
-const KIND_CLASS_MAP: Record<KnownKind, string> = {
+const KIND_CLASS_MAP: Record<AgentReportKind, string> = {
   investigation: styles.kindInvestigation ?? "",
-  review: styles.kindReview ?? "",
-  memo: styles.kindMemo ?? "",
+  plan: styles.kindPlan ?? "",
   summary: styles.kindSummary ?? "",
-  debug: styles.kindDebug ?? "",
+  review: styles.kindReview ?? "",
+  approval: styles.kindApproval ?? "",
 };
 
 function kindClass(kind: string): string {
@@ -57,12 +57,47 @@ export interface AgentReportCardProps {
   /** Click / keyboard-activate handler. Receives the report id. */
   onSelect?: (id: string) => void;
   /**
+   * When `true`, the card becomes an in-place expand/collapse panel:
+   * the header toggles a body that renders the report's full `content`
+   * as Markdown. Use this in read contexts (task detail, Reports page)
+   * where there's no separate "open report" destination. When set, the
+   * click toggles the panel instead of firing `onSelect`.
+   */
+  expandable?: boolean;
+  /**
    * Loading-state variant. Renders a static skeleton with no
    * interactivity. Useful while `useAgentReports()` is `pending`.
    */
   isPending?: boolean;
   /** Optional class merged onto the root element. */
   className?: string;
+  /**
+   * When provided, the expandable body shows a human review surface: an
+   * "approved" checkbox and a correction-comment box. Omit in read-only
+   * contexts (the card stays purely presentational then).
+   */
+  onToggleApproved?: (id: string, approved: boolean) => void;
+  /** Persist the reviewer's correction comment. Paired with the body box. */
+  onSaveComment?: (id: string, comment: string) => void;
+}
+
+/** Approval status pill for the header row. */
+function ApprovalBadge({ report }: { report: AgentReport }): ReactElement | null {
+  if (report.approved) {
+    return (
+      <span className={styles.approvedChip} aria-label="Approved">
+        ✓ Approved
+      </span>
+    );
+  }
+  if (report.kind === "approval") {
+    return (
+      <span className={styles.needsApprovalChip} aria-label="Needs approval">
+        Needs approval
+      </span>
+    );
+  }
+  return null;
 }
 
 /**
@@ -82,9 +117,16 @@ export interface AgentReportCardProps {
 export function AgentReportCard({
   report,
   onSelect,
+  expandable = false,
   isPending = false,
   className,
+  onToggleApproved,
+  onSaveComment,
 }: AgentReportCardProps): ReactElement {
+  // Always called (rules of hooks); only consulted in the expandable
+  // branch.
+  const [expanded, setExpanded] = useState(false);
+
   if (isPending || !report) {
     return (
       <div
@@ -95,6 +137,67 @@ export function AgentReportCard({
         <div className={cn(styles.skeletonLine, styles.skeletonMeta)} />
         <div className={cn(styles.skeletonLine, styles.skeletonTitle)} />
         <div className={cn(styles.skeletonLine, styles.skeletonContent)} />
+      </div>
+    );
+  }
+
+  // Expandable read panel: header toggles a Markdown body. Rendered as
+  // a `<div>` wrapper with a header `<button>` (aria-expanded) and a
+  // sibling body region — keeping the block-level Markdown OUT of the
+  // button so the HTML stays valid and accessible.
+  if (expandable) {
+    return (
+      <div
+        className={cn(styles.card, className)}
+        data-testid="agent-report-card"
+      >
+        <button
+          type="button"
+          className={styles.headerButton}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+          data-testid="agent-report-card-toggle"
+        >
+          <span className={styles.topRow}>
+            <span
+              className={cn(styles.kindChip, kindClass(report.kind))}
+              aria-label={`Kind: ${report.kind}`}
+            >
+              {report.kind}
+            </span>
+            <ApprovalBadge report={report} />
+            <span className={styles.timestamp} aria-label="Created at">
+              {formatRelativeTime(report.createdAt)}
+            </span>
+            <span
+              className={cn(styles.chevron, expanded && styles.chevronExpanded)}
+              aria-hidden="true"
+            >
+              ▸
+            </span>
+          </span>
+
+          <span className={styles.title} title={report.title}>
+            {report.title}
+          </span>
+
+          {!expanded ? (
+            <span className={styles.contentPreview}>{report.content}</span>
+          ) : null}
+        </button>
+
+        {expanded ? (
+          <div className={styles.body} data-testid="agent-report-card-body">
+            <MarkdownPreview source={report.content} />
+            {onToggleApproved !== undefined || onSaveComment !== undefined ? (
+              <ReviewControls
+                report={report}
+                onToggleApproved={onToggleApproved}
+                onSaveComment={onSaveComment}
+              />
+            ) : null}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -112,6 +215,7 @@ export function AgentReportCard({
         >
           {report.kind}
         </span>
+        <ApprovalBadge report={report} />
         <span className={styles.timestamp} aria-label="Created at">
           {formatRelativeTime(report.createdAt)}
         </span>
@@ -123,5 +227,74 @@ export function AgentReportCard({
 
       <span className={styles.contentPreview}>{report.content}</span>
     </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ReviewControlsProps {
+  report: AgentReport;
+  onToggleApproved?: ((id: string, approved: boolean) => void) | undefined;
+  onSaveComment?: ((id: string, comment: string) => void) | undefined;
+}
+
+/**
+ * Human review surface shown inside the expanded body: an "approved"
+ * checkbox (the person ticks it once they've looked) and a correction
+ * comment the agent should act on. Both persist via the callbacks the
+ * widget wires to `useUpdateAgentReportMutation`.
+ */
+function ReviewControls({
+  report,
+  onToggleApproved,
+  onSaveComment,
+}: ReviewControlsProps): ReactElement {
+  const [comment, setComment] = useState(report.reviewComment ?? "");
+
+  // Re-sync when the saved comment changes (e.g. realtime refresh).
+  useEffect(() => {
+    setComment(report.reviewComment ?? "");
+  }, [report.reviewComment]);
+
+  const commentDirty = comment !== (report.reviewComment ?? "");
+
+  return (
+    <div className={styles.review} data-testid="agent-report-card-review">
+      {onToggleApproved !== undefined ? (
+        <label className={styles.reviewCheck}>
+          <input
+            type="checkbox"
+            checked={report.approved}
+            onChange={(e) => onToggleApproved(report.id, e.target.checked)}
+            data-testid="agent-report-card-approved"
+          />
+          Reviewed &amp; approved
+        </label>
+      ) : null}
+
+      {onSaveComment !== undefined ? (
+        <>
+          <textarea
+            className={styles.reviewTextarea}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Leave corrections for the agent to address…"
+            aria-label="Review comment"
+            data-testid="agent-report-card-comment"
+          />
+          <div className={styles.reviewActions}>
+            <Button
+              variant="secondary"
+              size="sm"
+              isDisabled={!commentDirty}
+              onPress={() => onSaveComment(report.id, comment)}
+              data-testid="agent-report-card-comment-save"
+            >
+              Save comment
+            </Button>
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }

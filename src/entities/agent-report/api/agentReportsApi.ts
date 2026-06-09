@@ -61,6 +61,10 @@ export interface UpdateAgentReportArgs {
   content?: string;
   /** Skip = `undefined`, clear-to-NULL = `null`. */
   author?: string | null;
+  /** Human sign-off checkbox. Skip = `undefined`. */
+  approved?: boolean;
+  /** Reviewer note. Skip = `undefined`, clear-to-NULL = `null`. */
+  reviewComment?: string | null;
 }
 
 /** `update_agent_report` — partial update. */
@@ -72,6 +76,10 @@ export async function updateAgentReport(
   if (args.title !== undefined) payload.title = args.title;
   if (args.content !== undefined) payload.content = args.content;
   if (args.author !== undefined) payload.author = args.author;
+  if (args.approved !== undefined) payload.approved = args.approved;
+  if (args.reviewComment !== undefined) {
+    payload.reviewComment = args.reviewComment;
+  }
   return invokeWithAppError<AgentReport>("update_agent_report", payload);
 }
 

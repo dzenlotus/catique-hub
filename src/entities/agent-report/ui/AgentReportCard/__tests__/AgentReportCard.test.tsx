@@ -13,6 +13,8 @@ function makeReport(overrides: Partial<AgentReport> = {}): AgentReport {
     title: "Initial investigation findings",
     content: "Found several issues with the authentication flow.",
     author: null,
+    approved: false,
+    reviewComment: null,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,
@@ -110,8 +112,8 @@ describe("AgentReportCard", () => {
   });
 
   it("renders kind chip with aria-label", () => {
-    render(<AgentReportCard report={makeReport({ kind: "memo" })} />);
-    expect(screen.getByLabelText("Kind: memo")).toBeInTheDocument();
+    render(<AgentReportCard report={makeReport({ kind: "approval" })} />);
+    expect(screen.getByLabelText("Kind: approval")).toBeInTheDocument();
   });
 });
 
@@ -155,5 +157,50 @@ describe("formatRelativeTime", () => {
   it("returns 'just now' for future timestamps", () => {
     const future = BigInt(Date.now() + 60_000);
     expect(formatRelativeTime(future)).toBe("just now");
+  });
+});
+
+describe("AgentReportCard — expandable mode", () => {
+  it("starts collapsed: header is a button, body is hidden", () => {
+    render(
+      <AgentReportCard
+        report={makeReport({ content: "## Full body\nlots of detail" })}
+        expandable
+      />,
+    );
+    const toggle = screen.getByTestId("agent-report-card-toggle");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("agent-report-card-body")).toBeNull();
+  });
+
+  it("expands on click to reveal the full Markdown body, and collapses again", async () => {
+    const user = userEvent.setup();
+    render(
+      <AgentReportCard
+        report={makeReport({ content: "## Full body heading" })}
+        expandable
+      />,
+    );
+    const toggle = screen.getByTestId("agent-report-card-toggle");
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const body = screen.getByTestId("agent-report-card-body");
+    // Markdown is rendered (heading text present inside the body region).
+    expect(body).toHaveTextContent("Full body heading");
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("agent-report-card-body")).toBeNull();
+  });
+
+  it("does not fire onSelect in expandable mode", async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AgentReportCard report={makeReport()} expandable onSelect={onSelect} />,
+    );
+    await user.click(screen.getByTestId("agent-report-card-toggle"));
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

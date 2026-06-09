@@ -22,6 +22,10 @@ pub struct AgentReportRow {
     pub title: String,
     pub content: String,
     pub author: Option<String>,
+    /// Human sign-off checkbox (migration `045`).
+    pub approved: bool,
+    /// Optional reviewer note (migration `045`).
+    pub review_comment: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -35,6 +39,8 @@ impl AgentReportRow {
             title: row.get("title")?,
             content: row.get("content")?,
             author: row.get("author")?,
+            approved: row.get::<_, i64>("approved")? != 0,
+            review_comment: row.get("review_comment")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
         })
@@ -49,6 +55,8 @@ pub struct AgentReportDraft {
     pub title: String,
     pub content: String,
     pub author: Option<String>,
+    pub approved: bool,
+    pub review_comment: Option<String>,
 }
 
 /// Partial update payload.
@@ -58,6 +66,8 @@ pub struct AgentReportPatch {
     pub title: Option<String>,
     pub content: Option<String>,
     pub author: Option<Option<String>>,
+    pub approved: Option<bool>,
+    pub review_comment: Option<Option<String>>,
 }
 
 /// `SELECT … FROM agent_reports ORDER BY created_at DESC`.
@@ -67,7 +77,7 @@ pub struct AgentReportPatch {
 /// Surfaces rusqlite errors.
 pub fn list_all(conn: &Connection) -> Result<Vec<AgentReportRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, task_id, kind, title, content, author, created_at, updated_at \
+        "SELECT id, task_id, kind, title, content, author, approved, review_comment, created_at, updated_at \
          FROM agent_reports ORDER BY created_at DESC",
     )?;
     let rows = stmt.query_map([], AgentReportRow::from_row)?;
@@ -85,7 +95,7 @@ pub fn list_all(conn: &Connection) -> Result<Vec<AgentReportRow>, DbError> {
 /// Surfaces rusqlite errors.
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<AgentReportRow>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, task_id, kind, title, content, author, created_at, updated_at \
+        "SELECT id, task_id, kind, title, content, author, approved, review_comment, created_at, updated_at \
          FROM agent_reports WHERE id = ?1",
     )?;
     Ok(stmt
@@ -103,8 +113,8 @@ pub fn insert(conn: &Connection, draft: &AgentReportDraft) -> Result<AgentReport
     let now = now_millis();
     conn.execute(
         "INSERT INTO agent_reports \
-            (id, task_id, kind, title, content, author, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+            (id, task_id, kind, title, content, author, approved, review_comment, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
         params![
             id,
             draft.task_id,
@@ -112,6 +122,8 @@ pub fn insert(conn: &Connection, draft: &AgentReportDraft) -> Result<AgentReport
             draft.title,
             draft.content,
             draft.author,
+            i64::from(draft.approved),
+            draft.review_comment,
             now
         ],
     )?;
@@ -122,6 +134,8 @@ pub fn insert(conn: &Connection, draft: &AgentReportDraft) -> Result<AgentReport
         title: draft.title.clone(),
         content: draft.content.clone(),
         author: draft.author.clone(),
+        approved: draft.approved,
+        review_comment: draft.review_comment.clone(),
         created_at: now,
         updated_at: now,
     })
@@ -137,28 +151,42 @@ pub fn update(
     id: &str,
     patch: &AgentReportPatch,
 ) -> Result<Option<AgentReportRow>, DbError> {
+    use rusqlite::types::Value;
+    use std::fmt::Write as _;
+
     let now = now_millis();
-    let updated = match &patch.author {
-        Some(new_author) => conn.execute(
-            "UPDATE agent_reports SET \
-                 kind = COALESCE(?1, kind), \
-                 title = COALESCE(?2, title), \
-                 content = COALESCE(?3, content), \
-                 author = ?4, \
-                 updated_at = ?5 \
-             WHERE id = ?6",
-            params![patch.kind, patch.title, patch.content, new_author, now, id],
-        )?,
-        None => conn.execute(
-            "UPDATE agent_reports SET \
-                 kind = COALESCE(?1, kind), \
-                 title = COALESCE(?2, title), \
-                 content = COALESCE(?3, content), \
-                 updated_at = ?4 \
-             WHERE id = ?5",
-            params![patch.kind, patch.title, patch.content, now, id],
-        )?,
-    };
+    let mut sql = String::from("UPDATE agent_reports SET updated_at = ?1");
+    let mut args: Vec<Value> = vec![Value::Integer(now)];
+
+    if let Some(kind) = &patch.kind {
+        let _ = write!(sql, ", kind = ?{}", args.len() + 1);
+        args.push(Value::Text(kind.clone()));
+    }
+    if let Some(title) = &patch.title {
+        let _ = write!(sql, ", title = ?{}", args.len() + 1);
+        args.push(Value::Text(title.clone()));
+    }
+    if let Some(content) = &patch.content {
+        let _ = write!(sql, ", content = ?{}", args.len() + 1);
+        args.push(Value::Text(content.clone()));
+    }
+    if let Some(author) = &patch.author {
+        let _ = write!(sql, ", author = ?{}", args.len() + 1);
+        args.push(author.clone().map_or(Value::Null, Value::Text));
+    }
+    if let Some(approved) = patch.approved {
+        let _ = write!(sql, ", approved = ?{}", args.len() + 1);
+        args.push(Value::Integer(i64::from(approved)));
+    }
+    if let Some(review_comment) = &patch.review_comment {
+        let _ = write!(sql, ", review_comment = ?{}", args.len() + 1);
+        args.push(review_comment.clone().map_or(Value::Null, Value::Text));
+    }
+
+    let _ = write!(sql, " WHERE id = ?{}", args.len() + 1);
+    args.push(Value::Text(id.to_owned()));
+
+    let updated = conn.execute(&sql, rusqlite::params_from_iter(args.iter()))?;
     if updated == 0 {
         return Ok(None);
     }
@@ -206,6 +234,8 @@ mod tests {
             title: "Investigation".into(),
             content: "the file is at /tmp/foo".into(),
             author: Some("olga".into()),
+            approved: false,
+            review_comment: None,
         }
     }
 

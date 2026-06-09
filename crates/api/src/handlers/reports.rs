@@ -89,6 +89,7 @@ pub async fn create_agent_report(
 ///
 /// Forwards every error from `ReportsUseCase::update`.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn update_agent_report(
     state: State<'_, AppState>,
     id: String,
@@ -96,8 +97,18 @@ pub async fn update_agent_report(
     title: Option<String>,
     content: Option<String>,
     author: Option<Option<String>>,
+    approved: Option<bool>,
+    review_comment: Option<Option<String>>,
 ) -> Result<AgentReport, AppError> {
-    let report = ReportsUseCase::new(&state.pool).update(id, kind, title, content, author)?;
+    let report = ReportsUseCase::new(&state.pool).update(
+        id,
+        kind,
+        title,
+        content,
+        author,
+        approved,
+        review_comment,
+    )?;
     events::emit(
         &state,
         events::AGENT_REPORT_UPDATED,

@@ -93,7 +93,7 @@
   color: var(--color-status-info, #084298);
 }
 
-.kindMemo {
+.kindPlan {
   background-color: var(--color-accent-soft);
   color: var(--color-text-default);
 }
@@ -103,9 +103,69 @@
   color: var(--color-status-success, #0a3622);
 }
 
-.kindDebug {
-  background-color: var(--color-status-danger-soft, #f8d7da);
-  color: var(--color-status-danger, #842029);
+.kindApproval {
+  background-color: var(--color-status-warning-soft, #fff3cd);
+  color: var(--color-status-warning, #856404);
+}
+
+/* ---------- Approval status + review controls ---------- */
+
+.approvedChip,
+.needsApprovalChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.approvedChip {
+  background-color: var(--color-status-success-soft, #d1e7dd);
+  color: var(--color-status-success, #0a3622);
+}
+
+.needsApprovalChip {
+  background-color: var(--color-status-warning-soft, #fff3cd);
+  color: var(--color-status-warning, #856404);
+}
+
+.review {
+  width: 100%;
+  margin-top: var(--space-8);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--color-border-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.reviewCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-default);
+  cursor: pointer;
+}
+
+.reviewTextarea {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  padding: var(--space-6);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-canvas, var(--color-surface-raised));
+  color: var(--color-text-default);
+  font: inherit;
+  font-size: var(--font-size-body-sm);
+}
+
+.reviewActions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* ---------- Title ---------- */
@@ -184,5 +244,61 @@
   }
   .skeletonLine {
     animation: none;
+  }
+}
+
+/* ---------- Expandable read panel (header toggle + Markdown body) ---------- */
+
+.headerButton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  appearance: none;
+}
+
+.headerButton:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.chevron {
+  margin-left: var(--space-8);
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  transition: transform 120ms ease-out;
+}
+
+.chevronExpanded {
+  transform: rotate(90deg);
+}
+
+.body {
+  width: 100%;
+  margin-top: var(--space-8);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--color-border-card);
+  color: var(--color-text-default);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-normal);
+  /* The full report can be long; keep the card from dominating the
+     scroll area but let its own content scroll if needed. */
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
   }
 }

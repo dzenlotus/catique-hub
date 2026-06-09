@@ -5,12 +5,13 @@
 //! `agent_reports_fts_*` triggers populate the sibling FTS table
 //! automatically.
 //!
-//! `kind` is intentionally a free-form `String` for now — adding a
-//! Rust enum constraint would be a breaking change once the UI starts
-//! relying on it. Promptery enumerates `investigation` / `analysis` /
-//! `plan` / `summary` / `review` / `memo` informally.
+//! `kind` is stored free-form in SQLite but mapped to the
+//! [`AgentReportKind`] enum (investigation / plan / summary / review /
+//! approval) at this boundary, canonicalising unknown legacy strings to
+//! `summary`. Reports also carry a human review surface: an `approved`
+//! checkbox and an optional `review_comment` (catique).
 
-use catique_domain::AgentReport;
+use catique_domain::{AgentReport, AgentReportKind};
 use catique_infrastructure::db::{
     pool::{acquire, Pool},
     repositories::agent_reports::{
@@ -66,7 +67,7 @@ impl<'a> ReportsUseCase<'a> {
                 // repository helper. Same end result either way.
                 let mut stmt = conn
                     .prepare(
-                        "SELECT id, task_id, kind, title, content, author, created_at, updated_at \
+                        "SELECT id, task_id, kind, title, content, author, approved, review_comment, created_at, updated_at \
                          FROM agent_reports \
                          WHERE (?1 IS NULL OR task_id = ?1) \
                          ORDER BY created_at DESC",
@@ -83,6 +84,8 @@ impl<'a> ReportsUseCase<'a> {
                             title: row.get("title")?,
                             content: row.get("content")?,
                             author: row.get("author")?,
+                            approved: row.get::<_, i64>("approved")? != 0,
+                            review_comment: row.get("review_comment")?,
                             created_at: row.get("created_at")?,
                             updated_at: row.get("updated_at")?,
                         })
@@ -133,7 +136,10 @@ impl<'a> ReportsUseCase<'a> {
         author: Option<String>,
     ) -> Result<AgentReport, AppError> {
         let trimmed_title = validate_non_empty("title", &title)?;
-        let trimmed_kind = validate_non_empty("kind", &kind)?;
+        validate_non_empty("kind", &kind)?;
+        // Canonicalise to the enum's lowercase form so storage stays in
+        // the known set (unknown input collapses to `summary`).
+        let canonical_kind = AgentReportKind::parse(kind.trim()).as_str().to_owned();
         let conn = acquire(self.pool).map_err(map_db_err)?;
         let task_exists: bool = conn
             .query_row(
@@ -157,10 +163,12 @@ impl<'a> ReportsUseCase<'a> {
             &conn,
             &AgentReportDraft {
                 task_id,
-                kind: trimmed_kind,
+                kind: canonical_kind,
                 title: trimmed_title,
                 content,
                 author,
+                approved: false,
+                review_comment: None,
             },
         )
         .map_err(map_db_err)?;
@@ -173,6 +181,7 @@ impl<'a> ReportsUseCase<'a> {
     ///
     /// `AppError::NotFound` if id missing.
     #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &self,
         id: String,
@@ -180,6 +189,8 @@ impl<'a> ReportsUseCase<'a> {
         title: Option<String>,
         content: Option<String>,
         author: Option<Option<String>>,
+        approved: Option<bool>,
+        review_comment: Option<Option<String>>,
     ) -> Result<AgentReport, AppError> {
         if let Some(t) = title.as_deref() {
             validate_non_empty("title", t)?;
@@ -189,10 +200,13 @@ impl<'a> ReportsUseCase<'a> {
         }
         let conn = acquire(self.pool).map_err(map_db_err)?;
         let patch = AgentReportPatch {
-            kind: kind.map(|k| k.trim().to_owned()),
+            // Canonicalise on update too so the stored value stays valid.
+            kind: kind.map(|k| AgentReportKind::parse(k.trim()).as_str().to_owned()),
             title: title.map(|t| t.trim().to_owned()),
             content,
             author,
+            approved,
+            review_comment,
         };
         match repo::update(&conn, &id, &patch).map_err(map_db_err)? {
             Some(row) => Ok(row_to_report(row)),
@@ -226,10 +240,12 @@ fn row_to_report(row: AgentReportRow) -> AgentReport {
     AgentReport {
         id: row.id,
         task_id: row.task_id,
-        kind: row.kind,
+        kind: AgentReportKind::parse(&row.kind),
         title: row.title,
         content: row.content,
         author: row.author,
+        approved: row.approved,
+        review_comment: row.review_comment,
         created_at: row.created_at,
         updated_at: row.updated_at,
     }
@@ -377,10 +393,12 @@ mod tests {
                 None,
                 Some("amended body".into()),
                 None,
+                None,
+                None,
             )
             .unwrap();
 
-        assert_eq!(patched.kind, "review");
+        assert_eq!(patched.kind, AgentReportKind::Review);
         assert_eq!(patched.content, "amended body");
         assert_eq!(patched.title, "Initial");
         assert!(
@@ -396,7 +414,15 @@ mod tests {
         let pool = fresh_pool_with_task();
         let uc = ReportsUseCase::new(&pool);
         match uc
-            .update("ghost".into(), None, Some("X".into()), None, None)
+            .update(
+                "ghost".into(),
+                None,
+                Some("X".into()),
+                None,
+                None,
+                None,
+                None,
+            )
             .expect_err("nf")
         {
             AppError::NotFound { entity, .. } => assert_eq!(entity, "agent_report"),

@@ -13,6 +13,8 @@ function makeReport(overrides: Partial<AgentReport> = {}): AgentReport {
     title: "Initial investigation findings",
     content: "Found several issues with the authentication flow.",
     author: null,
+    approved: false,
+    reviewComment: null,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,
@@ -110,8 +112,8 @@ describe("AgentReportCard", () => {
   });
 
   it("renders kind chip with aria-label", () => {
-    render(<AgentReportCard report={makeReport({ kind: "memo" })} />);
-    expect(screen.getByLabelText("Kind: memo")).toBeInTheDocument();
+    render(<AgentReportCard report={makeReport({ kind: "approval" })} />);
+    expect(screen.getByLabelText("Kind: approval")).toBeInTheDocument();
   });
 });
 

@@ -20,6 +20,7 @@ vi.mock("@shared/api", async () => {
 });
 
 import { invoke } from "@shared/api";
+import { ToastProvider } from "@shared/lib";
 import { AgentReportsList } from "../AgentReportsList";
 
 const invokeMock = vi.mocked(invoke);
@@ -35,7 +36,11 @@ function renderWithClient(ui: ReactElement): {
     },
   });
   const user = userEvent.setup();
-  render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  render(
+    <QueryClientProvider client={client}>
+      <ToastProvider>{ui}</ToastProvider>
+    </QueryClientProvider>,
+  );
   return { client, user };
 }
 
@@ -47,6 +52,8 @@ function makeReport(overrides: Partial<AgentReport> = {}): AgentReport {
     title: "Findings on issue #42",
     content: "Discovered a race condition in the auth flow.",
     author: null,
+    approved: false,
+    reviewComment: null,
     createdAt: 0n,
     updatedAt: 0n,
     ...overrides,

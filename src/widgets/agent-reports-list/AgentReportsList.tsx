@@ -1,12 +1,16 @@
 import type { ReactElement } from "react";
 import { PixelInterfaceEssentialPieChartPollReport1 } from "@shared/ui/Icon";
 
+import { useCallback } from "react";
+
 import {
   AgentReportCard,
   useAgentReports,
   useAgentReportsByTask,
+  useUpdateAgentReportMutation,
 } from "@entities/agent-report";
 import { Button, EmptyState, Scrollable } from "@shared/ui";
+import { useToast } from "@shared/lib";
 
 import styles from "./AgentReportsList.module.css";
 
@@ -53,14 +57,46 @@ export function AgentReportsList({
     ? "No reports for this task yet."
     : "No agent reports yet.";
 
+  // When a parent supplies `onSelectReport`, cards act as selectors
+  // (e.g. navigate to a detail route). Otherwise there's no separate
+  // destination, so each card becomes an in-place expand/collapse panel
+  // that reveals the report's full Markdown content — this is the read
+  // path used by the task detail and the Reports page.
+  const selectable = onSelectReport !== undefined;
+
+  const updateMutation = useUpdateAgentReportMutation();
+  const { pushToast } = useToast();
+
   function handleSelect(id: string): void {
-    if (onSelectReport !== undefined) {
-      onSelectReport(id);
-      return;
-    }
-    // eslint-disable-next-line no-console
-    console.info("[agent-reports-list] select report:", id);
+    onSelectReport?.(id);
   }
+
+  const handleToggleApproved = useCallback(
+    (id: string, approved: boolean): void => {
+      updateMutation.mutate(
+        { id, approved },
+        {
+          onError: (err) =>
+            pushToast("error", `Failed to update approval: ${err.message}`),
+        },
+      );
+    },
+    [updateMutation, pushToast],
+  );
+
+  const handleSaveComment = useCallback(
+    (id: string, comment: string): void => {
+      updateMutation.mutate(
+        { id, reviewComment: comment.trim() === "" ? null : comment },
+        {
+          onSuccess: () => pushToast("success", "Comment saved"),
+          onError: (err) =>
+            pushToast("error", `Failed to save comment: ${err.message}`),
+        },
+      );
+    },
+    [updateMutation, pushToast],
+  );
 
   return (
     <Scrollable
@@ -125,7 +161,13 @@ export function AgentReportsList({
             <AgentReportCard
               key={report.id}
               report={report}
-              onSelect={handleSelect}
+              expandable={!selectable}
+              {...(selectable
+                ? { onSelect: handleSelect }
+                : {
+                    onToggleApproved: handleToggleApproved,
+                    onSaveComment: handleSaveComment,
+                  })}
             />
           ))}
         </div>
