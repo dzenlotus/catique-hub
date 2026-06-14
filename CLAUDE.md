@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Catique HUB is a **Tauri 2.x desktop app** (macOS + Windows) for AI agent orchestration via kanban + prompt inheritance. The repo is a hybrid TypeScript/Rust monorepo: a Vite-built React frontend in `src/`, a Cargo workspace of Rust crates in `crates/`, a Tauri shell in `src-tauri/`, an MCP Node sidecar in `sidecar/`, and a standalone MCP binary in `crates/mcp-server-bin/`.
 
-Package manager is **pnpm 10.30.3** (Node ≥20). Rust toolchain is **1.81** with `clippy::all -D warnings` enforced.
+Package manager is **pnpm 10.30.3** (Node ≥20). Rust toolchain is **1.87** with `clippy::all -D warnings` enforced.
 
 ## Common commands
 

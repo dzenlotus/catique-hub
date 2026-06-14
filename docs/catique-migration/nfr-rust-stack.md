@@ -139,7 +139,7 @@ Measurement: `cargo llvm-cov --workspace --branch --ignore-filename-regex='src-t
 - Exact-pinned (`=x.y.z`) for crates on the IPC/storage contract boundary: `serde`, `serde_json`, `rusqlite`, `r2d2`, `r2d2_sqlite`, `include_dir`, `nanoid`, `sha2`. Any new crate touching the IPC payload schema or the DB schema must be exact-pinned.
 - All other crates: caret SemVer (`^x.y.z`). No `*` version specifiers.
 - `cargo deny` check in CI: `deny = ["unmaintained"]` for crates with no commit activity in the last 24 months, `deny = ["duplicate"]` for duplicate major versions of the same crate.
-- MSRV: `rust-version = "1.81"` (workspace). Any new crate dependency must compile on Rust 1.81 stable.
+- MSRV: `rust-version = "1.87"` (workspace). Any new crate dependency must compile on Rust 1.87 stable. (Raised from 1.81 on 2026-06-15: the Tauri 2.10 dependency tree pulls edition-2024 crates — `toml_writer`, `zbus` 5.15, `clap` 4.6, etc. — whose manifests require Cargo ≥1.85 and whose MSRV reaches 1.87, making 1.81 unbuildable without downgrading Tauri itself.)
 
 ---
 
@@ -166,7 +166,7 @@ When comparing alternatives (e.g. axum vs actix, sea-orm vs sqlx vs rusqlite, se
 3. **Cold-start overhead** — startup time contribution of the crate's initialization (connection pool open, macro-generated code, etc.).
 4. **Panic surface** — does the crate panic on malformed input? (yes/no + mitigation).
 5. **License** — confirmed allowed per § 6.
-6. **MSRV compatibility** — compiles on Rust 1.81.
+6. **MSRV compatibility** — compiles on Rust 1.87.
 7. **Proc-macro / compile-time cost** — incremental `cargo check` time delta.
 
 ### AC-2: CI-enforced gates (E1+)

@@ -37,7 +37,7 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.81"
+rust-version = "1.87"
 license = "Elastic-2.0"
 authors = ["dzenlotus"]
 repository = "https://github.com/dzenlotus/catique-hub"
@@ -117,7 +117,7 @@ tempfile = "3"
 
 # Bench harness — gated as `[dev-dependencies]` everywhere; never
 # pulled into release artefacts. Pinned to the 0.5.x line because
-# criterion's MSRV bump in 0.6 sits above our `rust-version = 1.81`
+# criterion's MSRV bump in 0.6 sits above our `rust-version = 1.87`
 # floor; the 0.5 API surface is stable for our needs.
 criterion = "0.5"
 

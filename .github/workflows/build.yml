@@ -87,7 +87,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.81.0
+          toolchain: 1.87.0
           targets: ${{ matrix.target }}
 
       - name: Cache cargo registry + target
