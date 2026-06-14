@@ -42,7 +42,13 @@ function makeWrapper(
 function freshClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
+      // gcTime: Infinity — a query seeded via setQueryData has no
+      // observer here (only the mutation hook mounts), so gcTime: 0
+      // lets it be garbage-collected before the invalidation assertion
+      // runs. The race is timing-dependent (passes locally, flakes on
+      // slower CI). Each test uses its own throwaway client, so keeping
+      // the cache alive for the test's duration leaks nothing.
+      queries: { retry: false, gcTime: Infinity },
       mutations: { retry: false },
     },
   });
