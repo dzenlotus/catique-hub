@@ -169,6 +169,25 @@ jobs:
           toolchain: 1.88.0
           components: clippy, rustfmt
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install sidecar dependencies
+        # src-tauri/tauri.conf.json lists `../sidecar/node_modules/**/*`
+        # as a bundled resource; tauri_build (run from src-tauri/build.rs)
+        # resolves that glob even on a clippy/check build and fails when
+        # it matches nothing. The sidecar is a standalone npm package (no
+        # pnpm workspace), so the root install does not cover it.
+        run: pnpm --dir sidecar install --frozen-lockfile
+
       - name: Cache cargo registry + target
         uses: Swatinem/rust-cache@v2.7.3
         with:

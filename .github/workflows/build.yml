@@ -183,6 +183,13 @@ jobs:
           Write-Host "::warning::WINDOWS_SSLCOM_USERNAME not configured — producing an UNSIGNED .msi. The eSigner pipeline activates once dzenlotus runs `gh secret set` for the SSL.com secrets listed in docs/release-runbook.md."
 
       # ----- Tauri build (always runs) -----
+      - name: Install sidecar dependencies
+        # tauri.conf.json bundles `../sidecar/node_modules/**/*` as a
+        # resource; tauri_build fails the build if the glob matches
+        # nothing. The sidecar is a standalone npm package, so the root
+        # install does not cover it.
+        run: pnpm --dir sidecar install --frozen-lockfile
+
       - name: Pre-build the catique-hub-mcp external binary
         # tauri.conf.json declares `binaries/catique-hub-mcp` as an
         # externalBin. src-tauri/build.rs stages it from the cargo target
