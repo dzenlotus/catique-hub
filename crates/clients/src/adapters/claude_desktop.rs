@@ -44,9 +44,13 @@ use async_trait::async_trait;
 use serde_json::{Map, Value};
 
 use crate::{
-    adapters::{claude_code::mutate_claude_json, common::home_dir},
+    adapters::claude_code::mutate_claude_json,
     ClientProvider, McpEntry, ProviderError, RemoveReport, RoleBundle, SyncReport, CATIQUE_MCP_KEY,
 };
+// `home_dir` is only consumed by the macOS config-dir branch below; gate
+// the import so non-macOS builds don't carry an unused import.
+#[cfg(target_os = "macos")]
+use crate::adapters::common::home_dir;
 
 /// Provider for Anthropic's Claude Desktop app.
 pub struct ClaudeDesktopProvider;
@@ -162,9 +166,6 @@ fn app_data_dir() -> Result<PathBuf, ProviderError> {
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        // home_dir is only consumed on macOS; silence the unused-import
-        // warning on Linux builds by referencing it once.
-        let _unused_on_linux = home_dir;
         Err(ProviderError::Unsupported(
             "claude-desktop is not distributed for this platform".into(),
         ))
