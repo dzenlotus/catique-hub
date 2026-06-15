@@ -44,8 +44,8 @@ use async_trait::async_trait;
 use serde_json::{Map, Value};
 
 use crate::{
-    adapters::claude_code::mutate_claude_json,
-    ClientProvider, McpEntry, ProviderError, RemoveReport, RoleBundle, SyncReport, CATIQUE_MCP_KEY,
+    adapters::claude_code::mutate_claude_json, ClientProvider, McpEntry, ProviderError,
+    RemoveReport, RoleBundle, SyncReport, CATIQUE_MCP_KEY,
 };
 // `home_dir` is only consumed by the macOS config-dir branch below; gate
 // the import so non-macOS builds don't carry an unused import.
