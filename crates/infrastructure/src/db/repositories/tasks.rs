@@ -409,6 +409,11 @@ pub fn set_urgency(conn: &Connection, task_id: &str, urgency: &str) -> Result<bo
 /// civil-from-days following Howard Hinnant's
 /// [chrono date algorithms paper](https://howardhinnant.github.io/date_algorithms.html#civil_from_days),
 /// which sidesteps leap-year edge cases without a dependency.
+// `doe`/`doy`/`yoe` (day-of-era, day-of-year, year-of-era) are the
+// canonical variable names from the cited Hinnant date-algorithms paper.
+// clippy::similar_names (pedantic) flags them on older toolchains; keep
+// the names so the code stays a faithful transcription of the algorithm.
+#[allow(clippy::similar_names)]
 fn format_step_log_line(summary: &str, when_unix_ms: i64) -> String {
     let total_secs = when_unix_ms.div_euclid(1_000);
     let mut day = total_secs.div_euclid(86_400);

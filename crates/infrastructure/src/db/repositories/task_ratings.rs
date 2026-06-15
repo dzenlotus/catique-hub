@@ -32,8 +32,8 @@ impl TaskRatingRow {
         // then narrow to i8. Out-of-range values would point at
         // schema corruption (the CHECK constraint forbids them on
         // write); we surface that as a `FromSqlConversionFailure`.
-        let raw: Option<i64> = row.get("rating")?;
-        let rating = match raw {
+        let stored: Option<i64> = row.get("rating")?;
+        let rating = match stored {
             Some(v) => Some(i8::try_from(v).map_err(|_| {
                 rusqlite::Error::FromSqlConversionFailure(
                     1,

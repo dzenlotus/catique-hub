@@ -309,8 +309,7 @@ pub fn notes_with_any_tag(
     // Build `(?,?,…)` placeholder list for the IN clause. The slice is
     // bounded by the IPC payload size (and capped at the use-case
     // layer's `MAX_TAGS_PER_QUERY`), so this is safe.
-    let placeholders = std::iter::repeat("?")
-        .take(tags.len())
+    let placeholders = std::iter::repeat_n("?", tags.len())
         .collect::<Vec<_>>()
         .join(",");
     let sql = format!(
