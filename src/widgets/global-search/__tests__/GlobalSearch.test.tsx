@@ -521,7 +521,11 @@ describe("GlobalSearch — prompts in search results", () => {
     await user.keyboard("{ArrowDown}");
     await user.keyboard("{Meta>}{Enter}{/Meta}");
 
-    expect(window.location.pathname).toBe("/prompts/prm-1");
+    // Navigation is async — wait for it rather than asserting the
+    // pathname synchronously (the bare assertion flaked on slower CI).
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/prompts/prm-1");
+    });
     // No attach IPC should fire when there's no current task.
     expect(invokeMock).not.toHaveBeenCalledWith(
       "add_task_prompt",
@@ -545,7 +549,11 @@ describe("GlobalSearch — prompts in search results", () => {
     await user.keyboard("{ArrowDown}");
     await user.keyboard("{Enter}");
 
-    expect(window.location.pathname).toBe("/prompts/prm-1");
+    // Navigation is async — wait for it rather than asserting the
+    // pathname synchronously (the bare assertion flaked on slower CI).
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/prompts/prm-1");
+    });
     expect(invokeMock).not.toHaveBeenCalledWith(
       "add_task_prompt",
       expect.anything(),
