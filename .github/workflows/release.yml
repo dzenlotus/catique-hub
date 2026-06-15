@@ -62,6 +62,12 @@ jobs:
           name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
+          # Recursive globs: upload-artifact preserves the bundle's nested
+          # layout (e.g. dmg/<name>.dmg, msi/<name>.msi), so a flat
+          # `dist/macos/*` matches only the intermediate directory and
+          # attaches nothing. Match the installer files at any depth.
           files: |
-            dist/macos/*
-            dist/windows/*
+            dist/macos/**/*.dmg
+            dist/macos/**/*.app.tar.gz
+            dist/windows/**/*.msi
+            dist/windows/**/*.exe
