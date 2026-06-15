@@ -180,6 +180,13 @@ jobs:
       - name: cargo fmt
         run: cargo fmt --all -- --check
 
+      - name: Pre-build the catique-hub-mcp external binary
+        # src-tauri/build.rs (via tauri_build) validates the
+        # `binaries/catique-hub-mcp` externalBin entry even on a check /
+        # clippy build and fails when it is absent. Build it first so the
+        # staging step in build.rs finds it under target/debug/.
+        run: cargo build --bin catique-hub-mcp
+
       - name: cargo clippy
         # -D warnings = treat any warning as error. NFR §5.2 requires
         # clippy::all denied across the workspace; pedantic comes online

@@ -183,6 +183,18 @@ jobs:
           Write-Host "::warning::WINDOWS_SSLCOM_USERNAME not configured — producing an UNSIGNED .msi. The eSigner pipeline activates once dzenlotus runs `gh secret set` for the SSL.com secrets listed in docs/release-runbook.md."
 
       # ----- Tauri build (always runs) -----
+      - name: Pre-build the catique-hub-mcp external binary
+        # tauri.conf.json declares `binaries/catique-hub-mcp` as an
+        # externalBin. src-tauri/build.rs stages it from the cargo target
+        # dir but deliberately does not build it (recursing into cargo
+        # would deadlock the workspace target lock). Build it for this
+        # matrix target first so tauri_build can find and bundle it —
+        # without this every platform fails with "external binary not
+        # found". Host-target builds (windows/linux, where `tauri build`
+        # omits --target) still resolve because the host triple equals
+        # matrix.target, which is exactly where build.rs probes.
+        run: cargo build --release --bin catique-hub-mcp --target ${{ matrix.target }}
+
       - name: Tauri build (macOS aarch64)
         if: matrix.os == 'macos-14'
         env:
