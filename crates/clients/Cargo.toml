@@ -37,7 +37,7 @@ tokio = { workspace = true, features = ["fs", "io-util"] }
 # `toml_edit` keeps comments + key ordering unlike `toml`'s
 # Serialize/Deserialize round-trip. Pinned exact because it touches the
 # user's hand-edited config file (NFR §5.3).
-toml_edit = "=0.22.22"
+toml_edit = "=0.23.4"
 
 [dev-dependencies]
 tempfile.workspace = true
