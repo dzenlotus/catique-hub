@@ -119,7 +119,7 @@ tempfile = "3"
 # pulled into release artefacts. Pinned to the 0.5.x line because
 # criterion's MSRV bump in 0.6 sits above our `rust-version = 1.88`
 # floor; the 0.5 API surface is stable for our needs.
-criterion = "0.5"
+criterion = "0.8"
 
 [profile.release]
 # `panic = "abort"` removed: the standalone `catique-hub-mcp` binary
